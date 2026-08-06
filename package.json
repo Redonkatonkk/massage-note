@@ -1,0 +1,29 @@
+{
+  "name": "massage-note",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "version:check": "node scripts/check-version.mjs",
+    "predev": "pnpm --filter @massage-note/domain --filter @massage-note/contracts --filter @massage-note/database build",
+    "dev": "pnpm --parallel --filter @massage-note/api --filter @massage-note/web dev",
+    "build": "pnpm version:check && pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "pretest": "pnpm predev",
+    "test": "pnpm -r test",
+    "db:test:prepare": "node scripts/prepare-integration-db.mjs && DATABASE_URL=postgresql://massage:massage@localhost:5432/massage_note_test pnpm --filter @massage-note/database migrate:deploy",
+    "test:integration": "pnpm predev && pnpm db:test:prepare && DATABASE_URL=postgresql://massage:massage@localhost:5432/massage_note_test DATABASE_INTEGRATION_TESTS=1 pnpm --filter @massage-note/database test && DATABASE_URL=postgresql://massage:massage@localhost:5432/massage_note_test DATABASE_INTEGRATION_TESTS=1 pnpm --filter @massage-note/api test",
+    "test:domain": "pnpm --filter @massage-note/domain test",
+    "docker:up": "docker compose up -d",
+    "docker:status": "docker compose ps",
+    "db:generate": "pnpm --filter @massage-note/database generate",
+    "db:validate": "pnpm --filter @massage-note/database validate",
+    "db:migrate": "pnpm --filter @massage-note/database migrate:dev",
+    "db:deploy": "pnpm --filter @massage-note/database migrate:deploy"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.7"
+  }
+}

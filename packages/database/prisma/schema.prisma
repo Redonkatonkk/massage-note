@@ -1,0 +1,684 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum StoreStatus {
+  SETUP
+  ACTIVE
+  DELETED
+}
+
+enum MembershipRole {
+  OWNER
+  MANAGER
+  EMPLOYEE
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum WorkRecordStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+}
+
+enum ClosingStatus {
+  CLOSED
+  CANCELLED
+}
+
+enum CashSettlementStatus {
+  UNSETTLED
+  SETTLED
+}
+
+enum ItemType {
+  SERVICE
+  ADDON
+}
+
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+enum AiAssistantType {
+  WORK_RECORD
+  FINANCE
+}
+
+enum AiPreviewStatus {
+  PENDING
+  CONFIRMED
+  EXPIRED
+  CANCELLED
+}
+
+model User {
+  id          String     @id @default(uuid()) @db.Uuid
+  firebaseUid String     @unique @map("firebase_uid")
+  phoneE164   String     @unique @map("phone_e164")
+  passwordHash String?   @map("password_hash")
+  firstName   String?    @map("first_name")
+  lastName    String?    @map("last_name")
+  status      UserStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  memberships StoreMembership[]
+  joinRequests StoreJoinRequest[]
+  aiConversations AiConversation[]
+
+  @@map("users")
+}
+
+model Store {
+  id                    String      @id @default(uuid()) @db.Uuid
+  storeCode             String      @unique @map("store_code") @db.Char(6)
+  name                  String
+  timezone              String
+  businessCutoffLocal   String      @map("business_cutoff_local") @db.VarChar(5)
+  globalCommissionBps   Int         @map("global_commission_bps")
+  ownerMembershipId     String?     @unique @map("owner_membership_id") @db.Uuid
+  status                StoreStatus @default(SETUP)
+  version               Int         @default(1)
+  deletedAt             DateTime?   @map("deleted_at") @db.Timestamptz(3)
+  deletedBy             String?     @map("deleted_by") @db.Uuid
+  deleteReason          String?     @map("delete_reason")
+  createdAt             DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  memberships          StoreMembership[]
+  ownerMembership      StoreMembership?  @relation("StoreOwnerMembership", fields: [ownerMembershipId], references: [id])
+  joinRequests         StoreJoinRequest[]
+  shifts               Shift[]
+  dailyBoards          DailyBoard[]
+  serviceItems         ServiceItem[]
+  addonItems           AddonItem[]
+  discountItems        DiscountItem[]
+  workRecords          WorkRecord[]
+  closings             BusinessDayClosing[]
+  cashSettlements      DailyCashSettlement[]
+  payrollSettlements   PayrollSettlement[]
+  audits               AuditLog[]
+  idempotencyRequests  IdempotencyRequest[]
+  outboxEvents         DomainOutbox[]
+  aiConversations      AiConversation[]
+  aiQueryLogs          AiQueryLog[]
+  aiChangePreviews     AiChangePreview[]
+
+  @@index([status])
+  @@map("stores")
+}
+
+model StoreMembership {
+  id                    String           @id @default(uuid()) @db.Uuid
+  storeId               String           @map("store_id") @db.Uuid
+  userId                String           @map("user_id") @db.Uuid
+  role                  MembershipRole
+  displayName           String           @map("display_name")
+  displayNameNormalized String           @map("display_name_normalized")
+  isServiceProvider     Boolean          @default(true) @map("is_service_provider")
+  defaultCommissionBps  Int?             @map("default_commission_bps")
+  status                MembershipStatus @default(ACTIVE)
+  joinedAt              DateTime         @default(now()) @map("joined_at") @db.Timestamptz(3)
+  leftAt                DateTime?        @map("left_at") @db.Timestamptz(3)
+  version               Int              @default(1)
+  deletedAt             DateTime?        @map("deleted_at") @db.Timestamptz(3)
+  deletedBy             String?          @map("deleted_by") @db.Uuid
+  deleteReason          String?          @map("delete_reason")
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store                 Store            @relation(fields: [storeId], references: [id])
+  ownedStore            Store?           @relation("StoreOwnerMembership")
+  user                  User             @relation(fields: [userId], references: [id])
+  shifts                Shift[]
+  dailyRows             DailyEmployeeRow[]
+  employeeDefaultCommissions EmployeeDefaultCommission[]
+  employeeItemCommissions EmployeeItemCommission[]
+  workRecords           WorkRecord[]
+  cashSettlements       DailyCashSettlement[]
+  payrollSettlements    PayrollSettlement[]
+
+  @@unique([storeId, userId])
+  @@index([storeId, status])
+  @@index([storeId, displayNameNormalized])
+  @@map("store_memberships")
+}
+
+model StoreJoinRequest {
+  id                   String            @id @default(uuid()) @db.Uuid
+  storeId              String            @map("store_id") @db.Uuid
+  userId               String            @map("user_id") @db.Uuid
+  requestedDisplayName String            @map("requested_display_name")
+  status               JoinRequestStatus @default(PENDING)
+  reviewedBy           String?           @map("reviewed_by") @db.Uuid
+  reviewedAt           DateTime?         @map("reviewed_at") @db.Timestamptz(3)
+  reviewNote            String?           @map("review_note")
+  version               Int               @default(1)
+  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@index([storeId, status])
+  @@index([userId, status])
+  @@map("store_join_requests")
+}
+
+model Shift {
+  id           String    @id @default(uuid()) @db.Uuid
+  storeId      String    @map("store_id") @db.Uuid
+  membershipId String    @map("membership_id") @db.Uuid
+  businessDate DateTime  @map("business_date") @db.Date
+  clockInAt    DateTime  @map("clock_in_at") @db.Timestamptz(3)
+  clockOutAt   DateTime? @map("clock_out_at") @db.Timestamptz(3)
+  createdBy    String    @map("created_by") @db.Uuid
+  updatedBy    String    @map("updated_by") @db.Uuid
+  version      Int       @default(1)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store      Store           @relation(fields: [storeId], references: [id])
+  membership StoreMembership @relation(fields: [membershipId], references: [id])
+
+  @@index([storeId, businessDate])
+  @@index([membershipId, clockOutAt])
+  @@map("shifts")
+}
+
+model DailyBoard {
+  id           String   @id @default(uuid()) @db.Uuid
+  storeId      String   @map("store_id") @db.Uuid
+  businessDate DateTime @map("business_date") @db.Date
+  version      Int      @default(1)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id])
+  rows  DailyEmployeeRow[]
+
+  @@unique([storeId, businessDate])
+  @@map("daily_boards")
+}
+
+model DailyEmployeeRow {
+  id           String   @id @default(uuid()) @db.Uuid
+  boardId      String   @map("board_id") @db.Uuid
+  storeId      String   @map("store_id") @db.Uuid
+  membershipId String   @map("membership_id") @db.Uuid
+  position     Decimal  @db.Decimal(20, 10)
+  isHidden     Boolean  @default(false) @map("is_hidden")
+  addedBy      String   @map("added_by") @db.Uuid
+  version      Int      @default(1)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  board      DailyBoard      @relation(fields: [boardId], references: [id])
+  membership StoreMembership @relation(fields: [membershipId], references: [id])
+
+  @@unique([boardId, membershipId])
+  @@index([storeId, position])
+  @@map("daily_employee_rows")
+}
+
+model ServiceItem {
+  id                   String    @id @default(uuid()) @db.Uuid
+  storeId              String    @map("store_id") @db.Uuid
+  fullName             String    @map("full_name")
+  shortName            String    @map("short_name")
+  durationMinutes      Int       @map("duration_minutes")
+  priceCents           BigInt    @map("price_cents")
+  defaultCommissionBps Int?      @map("default_commission_bps")
+  position             Int
+  isEnabled            Boolean   @default(true) @map("is_enabled")
+  version              Int       @default(1)
+  deletedAt            DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedBy            String?   @map("deleted_by") @db.Uuid
+  deleteReason         String?   @map("delete_reason")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([storeId, isEnabled, position])
+  @@map("service_items")
+}
+
+model AddonItem {
+  id                   String    @id @default(uuid()) @db.Uuid
+  storeId              String    @map("store_id") @db.Uuid
+  name                 String
+  shortName            String    @map("short_name")
+  amountCents          BigInt    @map("amount_cents")
+  durationMinutes      Int?      @map("duration_minutes")
+  defaultCommissionBps Int?      @map("default_commission_bps")
+  position             Int
+  isEnabled            Boolean   @default(true) @map("is_enabled")
+  version              Int       @default(1)
+  deletedAt            DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedBy            String?   @map("deleted_by") @db.Uuid
+  deleteReason         String?   @map("delete_reason")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([storeId, isEnabled, position])
+  @@map("addon_items")
+}
+
+model DiscountItem {
+  id           String    @id @default(uuid()) @db.Uuid
+  storeId      String    @map("store_id") @db.Uuid
+  name         String
+  shortName    String    @map("short_name")
+  amountCents  BigInt    @map("amount_cents")
+  position     Int
+  isEnabled    Boolean   @default(true) @map("is_enabled")
+  version      Int       @default(1)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedBy    String?   @map("deleted_by") @db.Uuid
+  deleteReason String?   @map("delete_reason")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([storeId, isEnabled, position])
+  @@map("discount_items")
+}
+
+model EmployeeDefaultCommission {
+  id           String    @id @default(uuid()) @db.Uuid
+  storeId      String    @map("store_id") @db.Uuid
+  membershipId String    @map("membership_id") @db.Uuid
+  commissionBps Int      @map("commission_bps")
+  effectiveFrom DateTime @map("effective_from") @db.Timestamptz(3)
+  effectiveTo   DateTime? @map("effective_to") @db.Timestamptz(3)
+  createdBy     String   @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  membership StoreMembership @relation(fields: [membershipId], references: [id])
+
+  @@index([storeId, membershipId, effectiveFrom])
+  @@map("employee_default_commissions")
+}
+
+model EmployeeItemCommission {
+  id            String    @id @default(uuid()) @db.Uuid
+  storeId       String    @map("store_id") @db.Uuid
+  membershipId  String    @map("membership_id") @db.Uuid
+  itemType      ItemType  @map("item_type")
+  itemId        String    @map("item_id") @db.Uuid
+  commissionBps Int       @map("commission_bps")
+  effectiveFrom DateTime  @map("effective_from") @db.Timestamptz(3)
+  effectiveTo   DateTime? @map("effective_to") @db.Timestamptz(3)
+  createdBy     String    @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  membership StoreMembership @relation(fields: [membershipId], references: [id])
+
+  @@index([storeId, membershipId, itemType, itemId, effectiveFrom])
+  @@map("employee_item_commissions")
+}
+
+model WorkRecord {
+  id                              String           @id @default(uuid()) @db.Uuid
+  storeId                         String           @map("store_id") @db.Uuid
+  employeeMembershipId            String           @map("employee_membership_id") @db.Uuid
+  businessDate                    DateTime         @map("business_date") @db.Date
+  storeTimezoneSnapshot           String           @map("store_timezone_snapshot")
+  businessCutoffSnapshot          String           @map("business_cutoff_snapshot") @db.VarChar(5)
+  startAt                         DateTime         @map("start_at") @db.Timestamptz(3)
+  endAt                           DateTime?        @map("end_at") @db.Timestamptz(3)
+  actualDurationMinutes           Int?             @map("actual_duration_minutes")
+  status                          WorkRecordStatus @default(PENDING_PAYMENT)
+  mainServiceAmountCents          BigInt           @map("main_service_amount_cents")
+  addonTotalCents                 BigInt           @default(0) @map("addon_total_cents")
+  grossFeeBaseCents               BigInt           @map("gross_fee_base_cents")
+  discountTotalCents              BigInt           @default(0) @map("discount_total_cents")
+  discountedFeePerformanceCents  BigInt           @map("discounted_fee_performance_cents")
+  cashServiceCents                BigInt?          @map("cash_service_cents")
+  cardServiceCents                BigInt?          @map("card_service_cents")
+  cashTipCents                    BigInt?          @map("cash_tip_cents")
+  cardTipCents                    BigInt?          @map("card_tip_cents")
+  totalTipCents                   BigInt?          @map("total_tip_cents")
+  actualServiceCollectedCents     BigInt?          @map("actual_service_collected_cents")
+  customerTotalPaidCents          BigInt?          @map("customer_total_paid_cents")
+  paymentDifferenceCents          BigInt?          @map("payment_difference_cents")
+  mainServiceWageCents            BigInt           @map("main_service_wage_cents")
+  addonWageCents                  BigInt           @default(0) @map("addon_wage_cents")
+  totalLargeFeeWageCents          BigInt           @map("total_large_fee_wage_cents")
+  employeeTotalIncomeCents        BigInt?          @map("employee_total_income_cents")
+  cashAllocatedServiceWageCents   BigInt?          @map("cash_allocated_service_wage_cents")
+  cashAcquiredServiceWageCents    BigInt?          @map("cash_acquired_service_wage_cents")
+  cashWageShortfallCents          BigInt?          @map("cash_wage_shortfall_cents")
+  tipSettledManualFlag            Boolean          @default(false) @map("tip_settled_manual_flag")
+  largeFeeSettledManualFlag       Boolean          @default(false) @map("large_fee_settled_manual_flag")
+  manualPriceFlag                 Boolean          @default(false) @map("manual_price_flag")
+  note                            String           @default("")
+  version                         Int              @default(1)
+  deletedAt                       DateTime?        @map("deleted_at") @db.Timestamptz(3)
+  deletedBy                       String?          @map("deleted_by") @db.Uuid
+  deleteReason                    String?          @map("delete_reason")
+  createdBy                       String           @map("created_by") @db.Uuid
+  updatedBy                       String           @map("updated_by") @db.Uuid
+  createdAt                       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store           Store                      @relation(fields: [storeId], references: [id])
+  employee        StoreMembership            @relation(fields: [employeeMembershipId], references: [id])
+  serviceSnapshot WorkRecordServiceSnapshot?
+  addonSnapshots  WorkRecordAddonSnapshot[]
+  discountSnapshots WorkRecordDiscountSnapshot[]
+  payment         PaymentBreakdown?
+
+  @@index([storeId, businessDate, startAt])
+  @@index([storeId, employeeMembershipId, businessDate])
+  @@index([storeId, status])
+  @@map("work_records")
+}
+
+model WorkRecordServiceSnapshot {
+  id                  String  @id @default(uuid()) @db.Uuid
+  workRecordId        String  @unique @map("work_record_id") @db.Uuid
+  sourceServiceItemId String? @map("source_service_item_id") @db.Uuid
+  isCustom            Boolean @map("is_custom")
+  name                String
+  shortName           String  @map("short_name")
+  amountCents         BigInt  @map("amount_cents")
+  durationMinutes     Int     @map("duration_minutes")
+  commissionBps       Int     @map("commission_bps")
+  commissionSource    String  @map("commission_source")
+  wageCents           BigInt  @map("wage_cents")
+
+  workRecord WorkRecord @relation(fields: [workRecordId], references: [id], onDelete: Cascade)
+
+  @@map("work_record_service_snapshots")
+}
+
+model WorkRecordAddonSnapshot {
+  id                String  @id @default(uuid()) @db.Uuid
+  workRecordId      String  @map("work_record_id") @db.Uuid
+  sourceAddonItemId String? @map("source_addon_item_id") @db.Uuid
+  isCustom          Boolean @map("is_custom")
+  name              String
+  shortName         String  @map("short_name")
+  amountCents       BigInt  @map("amount_cents")
+  durationMinutes   Int?    @map("duration_minutes")
+  commissionBps     Int     @map("commission_bps")
+  commissionSource  String  @map("commission_source")
+  wageCents         BigInt  @map("wage_cents")
+  position          Int
+
+  workRecord WorkRecord @relation(fields: [workRecordId], references: [id], onDelete: Cascade)
+
+  @@index([workRecordId, position])
+  @@map("work_record_addon_snapshots")
+}
+
+model WorkRecordDiscountSnapshot {
+  id                   String  @id @default(uuid()) @db.Uuid
+  workRecordId         String  @map("work_record_id") @db.Uuid
+  sourceDiscountItemId String? @map("source_discount_item_id") @db.Uuid
+  isCustom             Boolean @map("is_custom")
+  name                 String
+  amountCents          BigInt  @map("amount_cents")
+  position             Int
+
+  workRecord WorkRecord @relation(fields: [workRecordId], references: [id], onDelete: Cascade)
+
+  @@index([workRecordId, position])
+  @@map("work_record_discount_snapshots")
+}
+
+model PaymentBreakdown {
+  id                 String    @id @default(uuid()) @db.Uuid
+  workRecordId       String    @unique @map("work_record_id") @db.Uuid
+  cashServiceCents   BigInt?   @map("cash_service_cents")
+  cardServiceCents   BigInt?   @map("card_service_cents")
+  cashTipCents       BigInt?   @map("cash_tip_cents")
+  cardTipCents       BigInt?   @map("card_tip_cents")
+  confirmedAt        DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  confirmedBy        String?   @map("confirmed_by") @db.Uuid
+  version            Int       @default(1)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workRecord WorkRecord @relation(fields: [workRecordId], references: [id], onDelete: Cascade)
+
+  @@map("payment_breakdowns")
+}
+
+model BusinessDayClosing {
+  id                  String        @id @default(uuid()) @db.Uuid
+  storeId             String        @map("store_id") @db.Uuid
+  businessDate        DateTime      @map("business_date") @db.Date
+  cycleNo             Int           @map("cycle_no")
+  status              ClosingStatus @default(CLOSED)
+  isForced            Boolean       @default(false) @map("is_forced")
+  forceReason         String?       @map("force_reason")
+  warningSnapshotJson Json          @map("warning_snapshot_json")
+  totalsSnapshotJson  Json          @map("totals_snapshot_json")
+  closedBy            String        @map("closed_by") @db.Uuid
+  closedAt            DateTime      @default(now()) @map("closed_at") @db.Timestamptz(3)
+  cancelledBy         String?       @map("cancelled_by") @db.Uuid
+  cancelledAt         DateTime?     @map("cancelled_at") @db.Timestamptz(3)
+  version             Int           @default(1)
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@unique([storeId, businessDate, cycleNo])
+  @@index([storeId, businessDate, status])
+  @@map("business_day_closings")
+}
+
+model DailyCashSettlement {
+  id                                String               @id @default(uuid()) @db.Uuid
+  storeId                           String               @map("store_id") @db.Uuid
+  businessDate                     DateTime             @map("business_date") @db.Date
+  membershipId                     String               @map("membership_id") @db.Uuid
+  cashServiceCents                  BigInt               @map("cash_service_cents")
+  cashTipCents                      BigInt               @map("cash_tip_cents")
+  cashReceivedCents                 BigInt               @map("cash_received_cents")
+  cashAllocatedServiceWageCents     BigInt               @map("cash_allocated_service_wage_cents")
+  cashAcquiredServiceWageCents      BigInt               @map("cash_acquired_service_wage_cents")
+  cashWageShortfallCents            BigInt               @map("cash_wage_shortfall_cents")
+  cashRetainedCents                 BigInt               @map("cash_retained_cents")
+  cashToSubmitToStoreCents          BigInt               @map("cash_to_submit_to_store_cents")
+  status                            CashSettlementStatus @default(UNSETTLED)
+  note                              String               @default("")
+  settledBy                         String?              @map("settled_by") @db.Uuid
+  settledAt                         DateTime?            @map("settled_at") @db.Timestamptz(3)
+  version                           Int                  @default(1)
+  deletedAt                         DateTime?            @map("deleted_at") @db.Timestamptz(3)
+  deletedBy                         String?              @map("deleted_by") @db.Uuid
+  deleteReason                      String?              @map("delete_reason")
+  createdAt                         DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                         DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store      Store           @relation(fields: [storeId], references: [id])
+  membership StoreMembership @relation(fields: [membershipId], references: [id])
+
+  @@unique([storeId, businessDate, membershipId])
+  @@index([storeId, status, businessDate])
+  @@map("daily_cash_settlements")
+}
+
+model PayrollSettlement {
+  id                 String    @id @default(uuid()) @db.Uuid
+  storeId            String    @map("store_id") @db.Uuid
+  membershipId       String    @map("membership_id") @db.Uuid
+  settlementDate     DateTime  @map("settlement_date") @db.Date
+  periodStart        DateTime  @map("period_start") @db.Date
+  periodEnd          DateTime  @map("period_end") @db.Date
+  serviceWageCents   BigInt    @map("service_wage_cents")
+  cashTipCents       BigInt    @map("cash_tip_cents")
+  cardTipCents       BigInt    @map("card_tip_cents")
+  adjustmentCents    BigInt    @map("adjustment_cents")
+  totalPaidCents     BigInt    @map("total_paid_cents")
+  paymentMethod      String    @map("payment_method")
+  note               String    @default("")
+  createdBy          String    @map("created_by") @db.Uuid
+  updatedBy          String    @map("updated_by") @db.Uuid
+  version            Int       @default(1)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedBy          String?   @map("deleted_by") @db.Uuid
+  deleteReason       String?   @map("delete_reason")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store      Store           @relation(fields: [storeId], references: [id])
+  membership StoreMembership @relation(fields: [membershipId], references: [id])
+
+  @@index([storeId, membershipId, settlementDate])
+  @@map("payroll_settlements")
+}
+
+model AuditLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  storeId           String   @map("store_id") @db.Uuid
+  actorUserId       String?  @map("actor_user_id") @db.Uuid
+  actorMembershipId String?  @map("actor_membership_id") @db.Uuid
+  source            String
+  action            String
+  entityType        String   @map("entity_type")
+  entityId          String   @map("entity_id") @db.Uuid
+  businessDate      DateTime? @map("business_date") @db.Date
+  beforeJson        Json?    @map("before_json")
+  afterJson         Json?    @map("after_json")
+  reason            String?
+  requestId         String   @map("request_id")
+  idempotencyKeyHash String? @map("idempotency_key_hash")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([storeId, createdAt])
+  @@index([storeId, entityType, entityId])
+  @@index([storeId, businessDate])
+  @@map("audit_logs")
+}
+
+model IdempotencyRequest {
+  id           String   @id @default(uuid()) @db.Uuid
+  storeId      String   @map("store_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  key          String
+  route        String
+  requestHash  String   @map("request_hash")
+  status       String
+  responseCode Int?     @map("response_code")
+  responseJson Json?    @map("response_json")
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@unique([storeId, userId, key, route])
+  @@index([expiresAt])
+  @@map("idempotency_requests")
+}
+
+model DomainOutbox {
+  id            String       @id @default(uuid()) @db.Uuid
+  storeId       String       @map("store_id") @db.Uuid
+  topic         String
+  aggregateType String       @map("aggregate_type")
+  aggregateId   String       @map("aggregate_id") @db.Uuid
+  payloadJson   Json         @map("payload_json")
+  status        OutboxStatus @default(PENDING)
+  attemptCount  Int          @default(0) @map("attempt_count")
+  lastError     String?      @map("last_error")
+  publishedAt   DateTime?    @map("published_at") @db.Timestamptz(3)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([storeId, createdAt])
+  @@map("domain_outbox")
+}
+
+model AiConversation {
+  id            String          @id @default(uuid()) @db.Uuid
+  storeId       String          @map("store_id") @db.Uuid
+  userId        String          @map("user_id") @db.Uuid
+  assistantType AiAssistantType @map("assistant_type")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastMessageAt DateTime        @default(now()) @map("last_message_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+  logs  AiQueryLog[]
+
+  @@index([storeId, userId, lastMessageAt])
+  @@map("ai_conversations")
+}
+
+model AiQueryLog {
+  id                      String   @id @default(uuid()) @db.Uuid
+  conversationId          String   @map("conversation_id") @db.Uuid
+  storeId                 String   @map("store_id") @db.Uuid
+  userId                  String   @map("user_id") @db.Uuid
+  modelProvider           String   @map("model_provider")
+  modelName               String   @map("model_name")
+  inputText               String   @map("input_text")
+  toolCallsJson           Json?    @map("tool_calls_json")
+  toolResultsRedactedJson Json?    @map("tool_results_redacted_json")
+  outcome                 String
+  latencyMs               Int      @map("latency_ms")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id])
+  store        Store          @relation(fields: [storeId], references: [id])
+
+  @@index([storeId, createdAt])
+  @@map("ai_query_logs")
+}
+
+model AiChangePreview {
+  id                   String          @id @default(uuid()) @db.Uuid
+  storeId              String          @map("store_id") @db.Uuid
+  userId               String          @map("user_id") @db.Uuid
+  operation            String
+  canonicalPayloadJson Json            @map("canonical_payload_json")
+  baseVersionsJson     Json            @map("base_versions_json")
+  warningsJson         Json            @map("warnings_json")
+  status               AiPreviewStatus @default(PENDING)
+  expiresAt            DateTime        @map("expires_at") @db.Timestamptz(3)
+  confirmedAt          DateTime?       @map("confirmed_at") @db.Timestamptz(3)
+  consumedAt           DateTime?       @map("consumed_at") @db.Timestamptz(3)
+  createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([storeId, userId, status, expiresAt])
+  @@map("ai_change_previews")
+}

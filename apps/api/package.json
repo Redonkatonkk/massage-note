@@ -1,0 +1,35 @@
+{
+  "name": "@massage-note/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@google-cloud/speech": "7.5.0",
+    "@nestjs/common": "11.1.24",
+    "@nestjs/core": "11.1.24",
+    "@nestjs/platform-express": "11.1.24",
+    "@massage-note/contracts": "workspace:*",
+    "@massage-note/database": "workspace:*",
+    "@massage-note/domain": "workspace:*",
+    "firebase-admin": "13.10.0",
+    "ioredis": "5.7.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "11.0.21",
+    "@nestjs/testing": "11.1.24",
+    "@types/express": "5.0.3",
+    "@types/node": "24.10.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.7"
+  }
+}

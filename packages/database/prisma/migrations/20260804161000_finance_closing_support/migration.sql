@@ -1,0 +1,2 @@
+ALTER TABLE work_records
+  ADD COLUMN manual_price_flag BOOLEAN NOT NULL DEFAULT FALSE;

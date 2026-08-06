@@ -1,0 +1,41 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
+const root = resolve(import.meta.dirname, "..");
+const expected = (await readFile(resolve(root, "VERSION"), "utf8")).trim();
+const packageFiles = [
+  "package.json",
+  "apps/api/package.json",
+  "apps/web/package.json",
+  "packages/contracts/package.json",
+  "packages/database/package.json",
+  "packages/domain/package.json",
+];
+
+if (!/^\d+\.\d+\.\d+$/.test(expected)) {
+  throw new Error(`VERSION 必须是语义化版本号，当前为 ${JSON.stringify(expected)}`);
+}
+
+const mismatches = [];
+for (const file of packageFiles) {
+  const value = JSON.parse(await readFile(resolve(root, file), "utf8"));
+  if (value.version !== expected) mismatches.push(`${file}: ${value.version ?? "未设置"}`);
+}
+
+const versionedFiles = [
+  ["Dockerfile", `ARG APP_VERSION=${expected}`],
+  ["docker-compose.nas.yml", `image: massage-note:${expected}`],
+  ["apps/web/public/sw.js", `massage-note-v${expected}`],
+  ["README.md", `当前版本：\`${expected}\``],
+  ["CHANGELOG.md", `## ${expected}`],
+];
+for (const [file, marker] of versionedFiles) {
+  const contents = await readFile(resolve(root, file), "utf8");
+  if (!contents.includes(marker)) mismatches.push(`${file}: 缺少 ${marker}`);
+}
+
+if (mismatches.length > 0) {
+  throw new Error(`版本必须统一为 ${expected}：\n${mismatches.join("\n")}`);
+}
+
+console.log(`Massage note 版本一致：${expected}`);

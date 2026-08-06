@@ -1,0 +1,95 @@
+name: massage-note
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: massage_note
+      POSTGRES_USER: massage_note_admin
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+    volumes:
+      - massage-note-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U massage_note_admin -d massage_note"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - massage-note-redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  migrate:
+    image: massage-note:0.1.0
+    command: ["migrate"]
+    environment:
+      DATABASE_URL: postgresql://massage_note_admin:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/massage_note
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backend]
+
+  harden:
+    image: massage-note:0.1.0
+    command: ["harden"]
+    environment:
+      ADMIN_DATABASE_URL: postgresql://massage_note_admin:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/massage_note
+      MASSAGE_NOTE_APP_PASSWORD: ${MASSAGE_NOTE_APP_PASSWORD}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [backend]
+
+  app:
+    image: massage-note:0.1.0
+    command: ["app"]
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      WEB_ORIGIN: ${WEB_ORIGIN}
+      DATABASE_URL: postgresql://massage_note_app:${MASSAGE_NOTE_APP_PASSWORD}@postgres:5432/massage_note
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      SESSION_COOKIE_NAME: massage_note_session
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:-}
+      DEV_AUTH_ENABLED: "false"
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+      MINIMAX_API_BASE_URL: ${MINIMAX_API_BASE_URL:-https://api.minimaxi.com}
+      MINIMAX_MODEL: ${MINIMAX_MODEL:-MiniMax-M3}
+      GOOGLE_CLOUD_PROJECT_ID: ${GOOGLE_CLOUD_PROJECT_ID:-}
+      GOOGLE_CLOUD_CREDENTIALS_BASE64: ${GOOGLE_CLOUD_CREDENTIALS_BASE64:-}
+    depends_on:
+      harden: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    ports:
+      - "${APP_HTTP_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/v1/health/ready >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 20s
+    networks: [backend, frontend]
+
+networks:
+  backend: { internal: true }
+  frontend: {}
+
+volumes:
+  massage-note-postgres: {}
+  massage-note-redis: {}

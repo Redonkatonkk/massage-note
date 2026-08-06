@@ -1,0 +1,29 @@
+{
+  "name": "@massage-note/database",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./src/generated/client/index.d.ts",
+      "import": "./src/generated/client/index.js",
+      "default": "./src/generated/client/index.js"
+    }
+  },
+  "scripts": {
+    "build": "node --env-file-if-exists=../../.env node_modules/prisma/build/index.js generate",
+    "typecheck": "node --env-file-if-exists=../../.env node_modules/prisma/build/index.js validate",
+    "test": "vitest run --passWithNoTests",
+    "generate": "node --env-file-if-exists=../../.env node_modules/prisma/build/index.js generate",
+    "validate": "node --env-file-if-exists=../../.env node_modules/prisma/build/index.js validate",
+    "format": "node --env-file-if-exists=../../.env node_modules/prisma/build/index.js format",
+    "migrate:dev": "node --env-file-if-exists=../../.env node_modules/prisma/build/index.js migrate dev",
+    "migrate:deploy": "node --env-file-if-exists=../../.env node_modules/prisma/build/index.js migrate deploy"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.2",
+    "prisma": "6.19.2"
+  },
+  "devDependencies": {
+    "vitest": "4.1.7"
+  }
+}

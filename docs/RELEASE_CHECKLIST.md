@@ -1,0 +1,42 @@
+# 发布检查清单
+
+每次生产发布逐项确认；任何“必须”项失败都应停止发布。
+
+## 构建与数据
+
+- [ ] 本次 AI/人工修改已经按语义化版本迭代 `VERSION`，并同步全部 `package.json`、`CHANGELOG.md`、镜像标签和 PWA 缓存名；`pnpm version:check` 已通过。
+- [ ] `pnpm typecheck`、`pnpm test`、`pnpm test:integration`、`pnpm build` 全部通过。
+- [ ] `docker compose ... config --quiet` 与生产镜像构建通过。
+- [ ] 新迁移已在生产数据副本执行，耗时和锁影响可接受。
+- [ ] 发布前备份成功，SHA-256 可验证；最近一次独立恢复演练仍在约定周期内。
+- [ ] 数据库管理 URL 与应用 URL 使用不同账号，应用账号不是 superuser/BYPASSRLS/表拥有者。
+
+## 配置与安全
+
+- [ ] Web/API 均为 HTTPS 且同站点，`WEB_ORIGIN` 和公网 API 地址精确无误。
+- [ ] `DEV_AUTH_ENABLED=false`，生产前端未显示本地测试登录。
+- [ ] Firebase Authorized domains、Phone provider、短信配额和预算告警已配置。
+- [ ] PostgreSQL、Redis、Firebase、MiniMax、Google 密钥没有提交到仓库，且权限最小。
+- [ ] PostgreSQL、Redis、3000、4000 未直接暴露公网。
+- [ ] CSP、HSTS、`HttpOnly`/`Secure` 会话 Cookie、严格 Origin 和 429 限流已抽查。
+- [ ] 反向代理关闭 SSE 缓冲，保留 `Last-Event-ID`，请求体上限支持 8 MB 录音。
+
+## 业务验收
+
+- [ ] Owner、Manager、Employee 三角色各登录一次；经理不能转移 Owner 或删除店铺。
+- [ ] 两家店铺之间无法查询或修改对方记录；Employee 历史财务只显示自己。
+- [ ] 现金大费/刷卡小费混合付款、0 小费、折扣和额外项目金额正确。
+- [ ] 四级提成优先级与历史快照不随设置修改而变化。
+- [ ] 正常日结、强制日结、取消日结、现金回退与工资部分支付已抽查。
+- [ ] CSV 可以由表格软件打开，且以 `= + - @` 开头的文本不会作为公式执行。
+- [ ] 删除/恢复、角色、提成、日结、现金、工资和 AI 确认均能在审计中找到。
+- [ ] 两台设备实时同步；断开 SSE 后刷新仍得到一致数据库状态。
+- [ ] AI 预览不确认不写入；并发/重复确认只执行一次；AI 未配置时核心功能可用。
+- [ ] PWA 可安装、断网有明确提示、缓存中不保留已登录财务页面；普通退出保留本机可信登录和草稿，同号码可免短信恢复，撤销全部会话后不能恢复。
+
+## 上线后
+
+- [ ] `/health`、`/health/ready` 与 Web 登录页外部监控正常。
+- [ ] 观察至少一个完整营业日的 5xx、429、数据库连接、磁盘、备份和短信/AI 费用。
+- [ ] 店主已阅读软件内 `/help`，并知道强制日结、软删除和工资调整的含义。
+- [ ] 发布版本、迁移编号、开始/结束时间、执行人和回滚判断已记录。

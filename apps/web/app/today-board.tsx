@@ -1,0 +1,377 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { apiRequest, errorMessage } from "../lib/api";
+import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
+import type {
+  BoardResponse,
+  CatalogResponse,
+  CurrentBusinessDay,
+  MembershipSummary,
+  StoreMember,
+  WorkRecord,
+} from "../lib/types";
+import { RecordEditor } from "./record-editor";
+
+interface TodayBoardProps {
+  membership: MembershipSummary;
+  currentDay: CurrentBusinessDay;
+  isCurrentBusinessDay: boolean;
+  board: BoardResponse;
+  catalog: CatalogResponse;
+  members: StoreMember[];
+  onReload: () => Promise<void>;
+}
+
+function money(cents: number | null): string {
+  return cents === null
+    ? "未填写"
+    : new Intl.NumberFormat("zh-CN", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+      }).format(cents / 100);
+}
+
+function paymentLabel(record: WorkRecord): string {
+  if (record.status === "PENDING_PAYMENT") return "待填写";
+  const method = (cash: number, card: number) => {
+    if (cash > 0 && card > 0) return "现金＋刷卡";
+    if (cash > 0) return "现金";
+    if (card > 0) return "刷卡";
+    return "金额为 0";
+  };
+  const cashService = record.cashServiceCents ?? 0;
+  const cardService = record.cardServiceCents ?? 0;
+  const cashTip = record.cashTipCents ?? 0;
+  const cardTip = record.cardTipCents ?? 0;
+  return `大费：${method(cashService, cardService)} · 小费：${method(cashTip, cardTip)}`;
+}
+
+export function TodayBoard({
+  membership,
+  currentDay,
+  isCurrentBusinessDay,
+  board,
+  catalog,
+  members,
+  onReload,
+}: TodayBoardProps) {
+  const canManage = membership.role !== "EMPLOYEE";
+  const [collapsed, setCollapsed] = useState<string[]>([]);
+  const [showHidden, setShowHidden] = useState(false);
+  const [quickEmployeeId, setQuickEmployeeId] = useState<string | null>(null);
+  const [selectedService, setSelectedService] = useState(
+    catalog.serviceItems.find((item) => item.isEnabled && !item.deletedAt)?.id ?? "",
+  );
+  const [quickMode, setQuickMode] = useState<"PRESET" | "CUSTOM">("PRESET");
+  const [customServiceName, setCustomServiceName] = useState("");
+  const [customServiceShortName, setCustomServiceShortName] = useState("");
+  const [customServiceAmount, setCustomServiceAmount] = useState("");
+  const [customServiceDuration, setCustomServiceDuration] = useState("");
+  const [startTime, setStartTime] = useState(currentStoreTime(currentDay.timezone));
+  const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
+  const [addMemberId, setAddMemberId] = useState("");
+  const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const visibleRows = useMemo(
+    () => board.rows.filter((row) => !row.isHidden || (canManage && showHidden)),
+    [board.rows, canManage, showHidden],
+  );
+  const availableMembers = members.filter(
+    (member) =>
+      member.status === "ACTIVE" &&
+      member.isServiceProvider &&
+      !board.rows.some((row) => row.membershipId === member.id),
+  );
+  const ownRow = board.rows.find((row) => row.membershipId === membership.id);
+  const openShift = ownRow?.shifts.find((shift) => !shift.clockOutAt);
+
+  async function run(action: () => Promise<void>) {
+    setBusy(true);
+    setError("");
+    try {
+      await action();
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveQuickRecord() {
+    if (!quickEmployeeId) return;
+    let serviceSelection:
+      | { serviceItemId: string }
+      | {
+          customService: {
+            name: string;
+            shortName: string;
+            amountCents: number;
+            durationMinutes: number;
+          };
+        };
+    if (quickMode === "PRESET") {
+      if (!selectedService) throw new Error("请选择一个预设项目");
+      serviceSelection = { serviceItemId: selectedService };
+    } else {
+      const amountText = customServiceAmount.trim();
+      const amount = Number(amountText);
+      const amountCents = Math.round(amount * 100);
+      const durationMinutes = Number(customServiceDuration);
+      if (!customServiceName.trim()) throw new Error("请填写自定义项目名称");
+      if (!customServiceShortName.trim()) throw new Error("请填写自定义项目简称");
+      if (
+        !/^\d+(?:\.\d{1,2})?$/.test(amountText) ||
+        !Number.isSafeInteger(amountCents) ||
+        amountCents < 0
+      ) {
+        throw new Error("项目金额请填写非负数，最多保留两位小数");
+      }
+      if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 720) {
+        throw new Error("项目时长必须是 1 至 720 分钟的整数");
+      }
+      serviceSelection = {
+        customService: {
+          name: customServiceName.trim(),
+          shortName: customServiceShortName.trim(),
+          amountCents,
+          durationMinutes,
+        },
+      };
+    }
+    await apiRequest(`/stores/${membership.store.id}/work-records`, {
+      method: "POST",
+      idempotent: true,
+      body: {
+        employeeMembershipId: quickEmployeeId,
+        startAt: businessTimeToIso(
+          currentDay.businessDate,
+          startTime,
+          currentDay.timezone,
+          currentDay.businessCutoffLocal,
+        ),
+        ...serviceSelection,
+      },
+    });
+    setQuickEmployeeId(null);
+    setQuickMode("PRESET");
+    setCustomServiceName("");
+    setCustomServiceShortName("");
+    setCustomServiceAmount("");
+    setCustomServiceDuration("");
+    await onReload();
+  }
+
+  async function reorder(rowId: string, direction: -1 | 1) {
+    const index = board.rows.findIndex((row) => row.id === rowId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= board.rows.length) return;
+    const rowIds = board.rows.map((row) => row.id);
+    [rowIds[index], rowIds[target]] = [rowIds[target]!, rowIds[index]!];
+    await saveRowOrder(rowIds);
+  }
+
+  async function saveRowOrder(rowIds: string[]) {
+    await apiRequest(
+      `/stores/${membership.store.id}/boards/${currentDay.businessDate}/reorder`,
+      {
+        method: "POST",
+        idempotent: true,
+        body: { version: board.version, rowIds },
+      },
+    );
+    await onReload();
+  }
+
+  async function dropRow(targetRowId: string) {
+    if (!draggingRowId || draggingRowId === targetRowId) return;
+    const rowIds = board.rows.map((row) => row.id);
+    const source = rowIds.indexOf(draggingRowId);
+    const target = rowIds.indexOf(targetRowId);
+    if (source < 0 || target < 0) return;
+    rowIds.splice(target, 0, rowIds.splice(source, 1)[0]!);
+    setDraggingRowId(null);
+    await saveRowOrder(rowIds);
+  }
+
+  return (
+    <>
+      <section className="summary-strip" aria-label="今日全店汇总">
+        <div><span>大费总额（折扣前）</span><strong>{money(board.statistics.grossFeeBaseCents)}</strong></div>
+        <div><span>小费总额</span><strong>{money(board.statistics.totalTipCents)}</strong></div>
+        <div><span>员工应得</span><strong>{money(board.statistics.employeeIncomeCents)}</strong></div>
+        <div className={board.rows.some((row) => row.workRecords.some((record) => record.status === "PENDING_PAYMENT")) ? "summary-warning" : undefined}>
+          <span>待结账</span>
+          <strong>{board.rows.reduce((count, row) => count + row.workRecords.filter((record) => record.status === "PENDING_PAYMENT").length, 0)} 单</strong>
+        </div>
+      </section>
+
+      <section className="board-toolbar" aria-label="今日操作">
+        <div>
+          {isCurrentBusinessDay && membership.isServiceProvider && !board.isClosed && (
+            <button
+              className={openShift ? "secondary-action" : "primary-action"}
+              type="button"
+              disabled={busy}
+              onClick={() => run(async () => {
+                if (openShift) {
+                  await apiRequest(`/stores/${membership.store.id}/shifts/${openShift.id}/clock-out`, { method: "POST", idempotent: true, body: { version: openShift.version } });
+                } else {
+                  await apiRequest(`/stores/${membership.store.id}/shifts/clock-in`, { method: "POST", idempotent: true, body: {} });
+                }
+                await onReload();
+              })}
+            >{openShift ? "下班打卡" : "上班打卡"}</button>
+          )}
+          <button className="secondary-action" type="button" disabled={busy} onClick={() => run(onReload)}>刷新</button>
+        </div>
+        {canManage && board.rows.some((row) => row.isHidden) && (
+          <label className="inline-check"><input type="checkbox" checked={showHidden} onChange={(event) => setShowHidden(event.target.checked)} /> 显示已隐藏员工</label>
+        )}
+      </section>
+
+      {board.isClosed && <p className="closed-banner" role="status">这个营业日已经日结。当前内容只读，如需修改请先由店长或经理取消日结。</p>}
+      {error && <p className="form-error" role="alert">{error}</p>}
+
+      <section className="board" id="today" aria-label="今日员工记工表">
+        {visibleRows.length === 0 && (
+          <div className="empty-state"><strong>今日表格还是空的</strong><p>员工上班打卡后会自动出现在这里；店长或经理也可以手动添加员工。</p></div>
+        )}
+        {visibleRows.map((row) => {
+          const isCollapsed = collapsed.includes(row.id);
+          const rowOpenShift = row.shifts.find((shift) => !shift.clockOutAt);
+          return (
+            <article className={`employee-row${row.isHidden ? " employee-row--hidden" : ""}${draggingRowId === row.id ? " employee-row--dragging" : ""}`} key={row.id} onDragOver={canManage && !board.isClosed ? (event) => event.preventDefault() : undefined} onDrop={canManage && !board.isClosed ? () => void run(() => dropRow(row.id)) : undefined}>
+              <header className="employee-header">
+                <button
+                  className="employee-toggle"
+                  type="button"
+                  onClick={() => setCollapsed((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id])}
+                  aria-expanded={!isCollapsed}
+                >
+                  <span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span>
+                  <span>
+                    <strong>{row.membership.displayName}</strong>
+                    <small className={rowOpenShift ? "on-duty" : "off-duty"}>{rowOpenShift ? `上班中 · ${displayTime(rowOpenShift.clockInAt, currentDay.timezone)}` : row.shifts.length > 0 ? "已下班" : "未打卡"}</small>
+                  </span>
+                  {row.isHidden && <em className="hidden-badge">已隐藏</em>}
+                  <span className="chevron" aria-hidden="true">{isCollapsed ? "展开" : "收起"}</span>
+                </button>
+                {canManage && !board.isClosed && (
+                  <div className="row-tools">
+                    <span className="drag-handle" draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDraggingRowId(row.id); }} onDragEnd={() => setDraggingRowId(null)} title="按住并拖动整行排序">拖动排序</span>
+                    <button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button>
+                    <button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button>
+                    <button type="button" disabled={busy} onClick={() => run(async () => {
+                      await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}`, { method: "PATCH", idempotent: true, body: { version: row.version, isHidden: !row.isHidden } });
+                      await onReload();
+                    })}>{row.isHidden ? "重新显示" : "隐藏"}</button>
+                  </div>
+                )}
+              </header>
+
+              {!isCollapsed && (
+                <div className="employee-content">
+                  <div className="record-track">
+                    {row.workRecords.map((record) => (
+                      <button
+                        className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}`}
+                        key={record.id}
+                        type="button"
+                        onClick={() => setEditingRecord(record)}
+                      >
+                        <span className="record-card__topline"><strong>{record.serviceSnapshot?.shortName ?? "项目"}</strong>{record.status === "PENDING_PAYMENT" && <em>待结账</em>}</span>
+                        <span className="record-time">{displayTime(record.startAt, currentDay.timezone)}–{displayTime(record.endAt, currentDay.timezone)}</span>
+                        <span className="record-money"><b>{money(record.grossFeeBaseCents)}</b><small>小费 {money(record.totalTipCents)}</small></span>
+                        <span className="record-meta">{paymentLabel(record)}{record.addonSnapshots.length > 0 && " · 有加项"}{record.discountSnapshots.length > 0 && " · 有折扣"}</span>
+                      </button>
+                    ))}
+                    {!board.isClosed && !row.isHidden && (
+                      <button className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setQuickMode("PRESET"); setQuickEmployeeId(row.membershipId); }}>
+                        <span aria-hidden="true">＋</span>新增记工
+                      </button>
+                    )}
+                  </div>
+                  <dl className="employee-totals">
+                    <div><dt>大费</dt><dd>{money(row.statistics.grossFeeBaseCents)}</dd></div>
+                    <div><dt>小费</dt><dd>{money(row.statistics.totalTipCents)}</dd></div>
+                    <div><dt>应得</dt><dd>{money(row.statistics.employeeIncomeCents)}</dd></div>
+                  </dl>
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </section>
+
+      {canManage && availableMembers.length > 0 && !board.isClosed && (
+        <section className="add-employee-panel">
+          <label className="field-label">手动添加员工到今日表格
+            <select value={addMemberId} onChange={(event) => setAddMemberId(event.target.value)}>
+              <option value="">请选择员工</option>
+              {availableMembers.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
+            </select>
+          </label>
+          <button className="secondary-action" type="button" disabled={!addMemberId || busy} onClick={() => run(async () => {
+            await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows`, { method: "POST", idempotent: true, body: { membershipId: addMemberId } });
+            setAddMemberId("");
+            await onReload();
+          })}>添加员工</button>
+        </section>
+      )}
+
+      {quickEmployeeId && (
+        <div className="modal-backdrop" role="presentation">
+          <section className="quick-modal" role="dialog" aria-modal="true" aria-labelledby="quick-modal-title">
+            <div className="modal-heading">
+              <div><p className="eyebrow">快速记工</p><h2 id="quick-modal-title">{members.find((item) => item.id === quickEmployeeId)?.displayName}</h2></div>
+              <button className="close-button" type="button" onClick={() => setQuickEmployeeId(null)}>关闭</button>
+            </div>
+            <label className="field-label" htmlFor="start-time">开始时间</label>
+            <input className="time-input" id="start-time" type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} />
+            <div className="quick-mode-switch" role="group" aria-label="项目类型">
+              <button className={quickMode === "PRESET" ? "active" : ""} type="button" onClick={() => setQuickMode("PRESET")}>预设项目</button>
+              <button className={quickMode === "CUSTOM" ? "active" : ""} type="button" onClick={() => setQuickMode("CUSTOM")}>＋ 自定义项目</button>
+            </div>
+            {quickMode === "PRESET" ? (
+              <fieldset className="service-picker">
+                <legend>选择项目</legend>
+                {catalog.serviceItems.filter((service) => service.isEnabled && !service.deletedAt).map((service) => (
+                  <label key={service.id}><input type="radio" name="service" checked={selectedService === service.id} onChange={() => setSelectedService(service.id)} /><span><strong>{service.shortName}</strong><small>{money(service.priceCents)}</small></span></label>
+                ))}
+                {catalog.serviceItems.filter((service) => service.isEnabled && !service.deletedAt).length === 0 && <p className="empty-note">没有启用中的预设项目，可切换到自定义项目。</p>}
+              </fieldset>
+            ) : (
+              <div className="quick-custom-grid">
+                <label className="field-label">项目名称<input autoFocus maxLength={120} value={customServiceName} onChange={(event) => setCustomServiceName(event.target.value)} /></label>
+                <label className="field-label">项目简称<input maxLength={30} value={customServiceShortName} onChange={(event) => setCustomServiceShortName(event.target.value)} /></label>
+                <label className="field-label">金额（美元）<input inputMode="decimal" placeholder="例如 80.00" value={customServiceAmount} onChange={(event) => setCustomServiceAmount(event.target.value)} /></label>
+                <label className="field-label">时长（分钟）<input type="number" min="1" max="720" inputMode="numeric" placeholder="例如 60" value={customServiceDuration} onChange={(event) => setCustomServiceDuration(event.target.value)} /></label>
+                <p className="field-help">自定义项目无需审批，提成按该员工默认比例；未设置时使用全店默认比例。系统会保留审计记录。</p>
+              </div>
+            )}
+            <p className="modal-note">保存后先显示为浅橙色“待结账”，付款和小费可以稍后补充。</p>
+            {error && <p className="form-error" role="alert">{error}</p>}
+            <button className="save-record" type="button" disabled={busy || (quickMode === "PRESET" && !selectedService)} onClick={() => run(saveQuickRecord)}>{busy ? "正在保存…" : "保存记工"}</button>
+          </section>
+        </div>
+      )}
+
+      {editingRecord && (
+        <RecordEditor
+          storeId={membership.store.id}
+          timezone={currentDay.timezone}
+          record={editingRecord}
+          catalog={catalog}
+          members={members}
+          canManage={canManage}
+          onClose={() => setEditingRecord(null)}
+          onChanged={onReload}
+        />
+      )}
+    </>
+  );
+}

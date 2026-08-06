@@ -1,0 +1,27 @@
+{
+  "name": "@massage-note/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build && node ../../scripts/prepare-standalone-web.mjs",
+    "start": "node .next/standalone/apps/web/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@massage-note/contracts": "workspace:*",
+    "@massage-note/domain": "workspace:*",
+    "firebase": "12.13.0",
+    "next": "16.2.11",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "@types/react": "19.2.0",
+    "@types/react-dom": "19.2.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.7"
+  }
+}

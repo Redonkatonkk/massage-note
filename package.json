@@ -1,6 +1,6 @@
 {
   "name": "massage-note",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "packageManager": "pnpm@11.9.0",
   "scripts": {
@@ -8,6 +8,7 @@
     "predev": "pnpm --filter @massage-note/domain --filter @massage-note/contracts --filter @massage-note/database build",
     "dev": "pnpm --parallel --filter @massage-note/api --filter @massage-note/web dev",
     "build": "pnpm version:check && pnpm -r build",
+    "pretypecheck": "pnpm predev",
     "typecheck": "pnpm -r typecheck",
     "pretest": "pnpm predev",
     "test": "pnpm -r test",

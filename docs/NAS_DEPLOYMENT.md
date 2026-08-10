@@ -12,7 +12,7 @@ GitHub Actions 先跑完整测试
 群晖 Container Manager 直接 pull 并重建 mn 项目
 ```
 
-镜像地址：`ghcr.io/redonkatonkk/massage-note`。当前版本：`0.2.2`。正常升级不再构建和上传约 250 MB 的 tar；`scripts/build-nas-image.sh` 只作为 GHCR 故障时的离线备用方案。
+镜像地址：`ghcr.io/redonkatonkk/massage-note`。当前版本：`0.2.3`。正常升级不再构建和上传约 250 MB 的 tar；`scripts/build-nas-image.sh` 只作为 GHCR 故障时的离线备用方案。
 
 ## 1. 永远不要混淆的秘密边界
 
@@ -80,7 +80,7 @@ gh variable set NEXT_PUBLIC_FIREBASE_APP_ID --repo Redonkatonkk/massage-note
 
 ```bash
 docker logout ghcr.io 2>/dev/null || true
-docker manifest inspect ghcr.io/redonkatonkk/massage-note:0.2.2 >/dev/null
+docker manifest inspect ghcr.io/redonkatonkk/massage-note:0.2.3 >/dev/null
 ```
 
 如果匿名检查失败，说明 package 仍为 private。不要把个人访问令牌写入 NAS Compose；先把 package 改为 public。
@@ -124,21 +124,21 @@ gh run watch --repo Redonkatonkk/massage-note --exit-status
 
 成功后产生三个标签：
 
-- `0.2.2`：版本标签，NAS 正式部署使用；
+- `0.2.3`：版本标签，NAS 正式部署使用；
 - `latest`：最新 main，仅用于查看，不建议作为生产固定版本；
 - `sha-xxxxxxx`：对应 Git 提交，精确排错或回滚使用。
 
 验证线上镜像：
 
 ```bash
-docker buildx imagetools inspect ghcr.io/redonkatonkk/massage-note:0.2.2
+docker buildx imagetools inspect ghcr.io/redonkatonkk/massage-note:0.2.3
 ```
 
 ## 4. 第一次创建 NAS 项目
 
 1. 在 NAS 的 `/volume1/docker/massage-note-v2` 保存 `docker-compose.nas.yml` 和只存在 NAS 的 `.env`。
 2. 以 `.env.nas.example` 为模板填写随机且互不相同的数据库/Redis 密码和所需运行时秘密。
-3. 设置 `MASSAGE_NOTE_IMAGE_TAG=0.2.2`、`APP_HTTP_PORT=3100`、`WEB_ORIGIN=https://massagenote.waltonjin.com`。
+3. 设置 `MASSAGE_NOTE_IMAGE_TAG=0.2.3`、`APP_HTTP_PORT=3100`、`WEB_ORIGIN=https://massagenote.waltonjin.com`。
 4. Container Manager 新建项目，项目名固定为 `mn`，使用上述目录的 Compose。
 5. DSM 反向代理固定为 `https://massagenote.waltonjin.com:443` → `http://localhost:3100`。
 
@@ -160,7 +160,7 @@ gzip -t backup-before-upgrade.sql.gz
 
 ### 5.2 更新版本并拉取
 
-把 NAS `.env` 的 `MASSAGE_NOTE_IMAGE_TAG` 改为已经在 GHCR 验证存在的版本，例如 `0.2.2`，然后：
+把 NAS `.env` 的 `MASSAGE_NOTE_IMAGE_TAG` 改为已经在 GHCR 验证存在的版本，例如 `0.2.3`，然后：
 
 ```bash
 cd /volume1/docker/massage-note-v2
@@ -183,7 +183,7 @@ Container Manager UI 等价操作：打开项目 `mn` → 编辑 Compose/环境 
 curl --fail https://massagenote.waltonjin.com/
 curl --fail https://massagenote.waltonjin.com/api/v1/health
 curl --fail https://massagenote.waltonjin.com/api/v1/health/ready
-curl --fail https://massagenote.waltonjin.com/sw.js | grep 'massage-note-v0.2.2'
+curl --fail https://massagenote.waltonjin.com/sw.js | grep 'massage-note-v0.2.3'
 ```
 
 再用真实浏览器完成登录、快速记工“项目 + 时长”、经理修改项目档位和财务页冒烟测试。
@@ -221,7 +221,7 @@ git status --short
 ```bash
 pnpm version:check
 ./scripts/build-nas-image.sh
-shasum -a 256 -c artifacts/massage-note-0.2.2-linux-amd64.tar.sha256
+shasum -a 256 -c artifacts/massage-note-0.2.3-linux-amd64.tar.sha256
 ```
 
 然后在 Container Manager 的“映像 → 新增 → 从文件新增”导入。恢复网络后应回到 GHCR 流程，避免本机跨架构构建与大文件上传。

@@ -2,6 +2,10 @@
 
 本项目遵循语义化版本。每次 AI 修补或开发都必须迭代版本号并在这里记录。
 
+## 0.2.3 - 2026-08-10
+
+- `pnpm typecheck` 现在先生成 Prisma Client 并构建内部 workspace 包，确保全新 clone、GitHub runner 与已构建本机得到一致结果。
+
 ## 0.2.2 - 2026-08-10
 
 - 为干净的 GitHub Actions runner 显式提供仅用于测试的 PostgreSQL URL，修复 Prisma schema 校验在没有本机 `.env` 时失败的问题。

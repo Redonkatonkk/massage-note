@@ -2,6 +2,10 @@
 
 本项目遵循语义化版本。每次 AI 修补或开发都必须迭代版本号并在这里记录。
 
+## 0.2.4 - 2026-08-10
+
+- GitHub CI 直接迁移并测试其一次性 PostgreSQL service container，不再误调用只适用于本机 Compose 的独立测试库准备脚本。
+
 ## 0.2.3 - 2026-08-10
 
 - `pnpm typecheck` 现在先生成 Prisma Client 并构建内部 workspace 包，确保全新 clone、GitHub runner 与已构建本机得到一致结果。

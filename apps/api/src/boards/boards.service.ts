@@ -207,10 +207,38 @@ export class BoardsService {
             where: { storeId, membershipId: membership.id, clockOutAt: null },
           });
           if (openShift) {
-            throw new ConflictException({
-              code: "SHIFT_ALREADY_OPEN",
-              messageZh: "你已经上班，请先下班后再重新打卡",
-              latestResource: openShift,
+            if (openShift.businessDate.getTime() === dateAtUtc(businessDate).getTime()) {
+              throw new ConflictException({
+                code: "SHIFT_ALREADY_OPEN",
+                messageZh: "你已经上班，请先下班后再重新打卡",
+                latestResource: openShift,
+              });
+            }
+            const closed = await transaction.shift.updateMany({
+              where: { id: openShift.id, clockOutAt: null, version: openShift.version },
+              data: { clockOutAt: now, updatedBy: actor.id, version: { increment: 1 } },
+            });
+            if (closed.count !== 1) {
+              throw new ConflictException({
+                code: "SHIFT_VERSION_CONFLICT",
+                messageZh: "旧营业日的上下班记录已发生变化，请重试",
+              });
+            }
+            await transaction.auditLog.create({
+              data: {
+                storeId,
+                actorUserId: actor.id,
+                actorMembershipId: membership.id,
+                source: "api",
+                action: "shift.stale_auto_closed",
+                entityType: "shift",
+                entityId: openShift.id,
+                businessDate: openShift.businessDate,
+                beforeJson: { clockOutAt: null, version: openShift.version },
+                afterJson: { clockOutAt: now.toISOString(), version: openShift.version + 1 },
+                reason: "新营业日重新上班时自动结束遗留班次",
+                requestId,
+              },
             });
           }
           const shift = await transaction.shift.create({

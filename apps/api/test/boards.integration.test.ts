@@ -157,6 +157,34 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it("手动加入今日表格后可打卡，并自动结束旧营业日遗留班次", async () => {
+    const previousDate = new Date(`${businessDate}T00:00:00.000Z`);
+    previousDate.setUTCDate(previousDate.getUTCDate() - 1);
+    const stale = await prisma.shift.create({
+      data: {
+        storeId,
+        membershipId: ownerMembershipId,
+        businessDate: previousDate,
+        clockInAt: new Date(Date.now() - 24 * 60 * 60 * 1_000),
+        createdBy: ownerId,
+        updatedBy: ownerId,
+      },
+    });
+
+    const result = await boards.clockIn(
+      actor(ownerId),
+      storeId,
+      "owner-clock-in-key-0001",
+      "owner-clock-in",
+    );
+    expect(result.row.id).toBe(ownerRowId);
+    expect(result.shift.businessDate.toISOString().slice(0, 10)).toBe(businessDate);
+    await expect(prisma.shift.findUniqueOrThrow({ where: { id: stale.id } })).resolves.toMatchObject({
+      clockOutAt: expect.any(Date),
+      version: 2,
+    });
+  });
+
   it("排序和隐藏使用乐观锁，不会覆盖其他设备", async () => {
     const reordered = await boards.reorder(
       actor(ownerId),

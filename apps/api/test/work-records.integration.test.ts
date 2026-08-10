@@ -273,6 +273,79 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it("三类项目都能按完整版本列表原子调整顺序", async () => {
+    await catalog.createItem(
+      actor(ownerId),
+      storeId,
+      {
+        type: "SERVICE",
+        fullName: "Foot Massage",
+        shortName: "Foot",
+        priceOptions: [{ durationMinutes: 60, priceCents: 8_000 }],
+      },
+      "catalog-create-service-key-0002",
+      "create-second-service",
+    );
+    await catalog.createItem(
+      actor(ownerId),
+      storeId,
+      {
+        type: "ADDON",
+        name: "精油",
+        shortName: "精油",
+        amountCents: 500,
+      },
+      "catalog-create-addon-key-0002",
+      "create-second-addon",
+    );
+    await catalog.createItem(
+      actor(ownerId),
+      storeId,
+      {
+        type: "DISCOUNT",
+        name: "会员优惠",
+        shortName: "会员",
+        amountCents: 500,
+      },
+      "catalog-create-discount-key-0002",
+      "create-second-discount",
+    );
+
+    const before = await catalog.list(actor(ownerId), storeId);
+    for (const [type, items] of [
+      ["SERVICE", before.serviceItems],
+      ["ADDON", before.addonItems],
+      ["DISCOUNT", before.discountItems],
+    ] as const) {
+      const reversed = [...items].reverse();
+      const result = await catalog.reorderItems(
+        actor(ownerId),
+        storeId,
+        { type, items: reversed.map((item) => ({ id: item.id, version: item.version })) },
+        `catalog-reorder-${type.toLowerCase()}-key-0001`,
+        `reorder-${type.toLowerCase()}`,
+      );
+      expect(result.items.map((item) => item.id)).toEqual(reversed.map((item) => item.id));
+    }
+
+    const ordered = await catalog.list(actor(ownerId), storeId);
+    expect(ordered.serviceItems[1]?.id).toBe(serviceItemId);
+    expect(ordered.addonItems[1]?.id).toBe(addonItemId);
+    expect(ordered.discountItems[1]?.id).toBe(discountItemId);
+    await expect(
+      catalog.reorderItems(
+        actor(employeeId),
+        storeId,
+        {
+          type: "SERVICE",
+          items: ordered.serviceItems.map((item) => ({ id: item.id, version: item.version })),
+        },
+        "employee-catalog-reorder-key-0001",
+        "employee-catalog-reorder",
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it("快速记工保存价格、时长和项目默认提成快照", async () => {
     await expect(
       workRecords.create(

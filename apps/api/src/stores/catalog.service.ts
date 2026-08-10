@@ -9,6 +9,7 @@ import type {
   CatalogListQuery,
   DeleteCatalogItemInput,
   InitializeCatalog,
+  ReorderCatalogItemsInput,
   RestoreCatalogItemInput,
   UpdateCatalogItemInput,
 } from "@massage-note/contracts";
@@ -428,6 +429,119 @@ export class CatalogService {
           },
         });
         return updated;
+      },
+    );
+  }
+
+  async reorderItems(
+    actor: User,
+    storeId: string,
+    input: ReorderCatalogItemsInput,
+    idempotencyKey: string,
+    requestId: string,
+  ) {
+    const manager = await this.access.requireCapability(
+      actor.id,
+      storeId,
+      "CATALOG_MANAGE",
+    );
+    return this.idempotency.execute(
+      {
+        storeId,
+        userId: actor.id,
+        key: idempotencyKey,
+        route: "/api/v1/stores/:storeId/catalog/reorder",
+        payload: input,
+        responseCode: 200,
+      },
+      async (transaction) => {
+        await transaction.$queryRaw`
+          SELECT id FROM stores
+          WHERE id = ${storeId}::uuid AND status = 'ACTIVE' AND deleted_at IS NULL
+          FOR UPDATE
+        `;
+
+        const current = input.type === "SERVICE"
+          ? await transaction.serviceItem.findMany({
+              where: { storeId, deletedAt: null },
+              orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+              select: { id: true, version: true },
+            })
+          : input.type === "ADDON"
+            ? await transaction.addonItem.findMany({
+                where: { storeId, deletedAt: null },
+                orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+                select: { id: true, version: true },
+              })
+            : await transaction.discountItem.findMany({
+                where: { storeId, deletedAt: null },
+                orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+                select: { id: true, version: true },
+              });
+        const currentVersions = new Map(current.map((item) => [item.id, item.version]));
+        const requestedIds = input.items.map((item) => item.id);
+        if (
+          current.length !== input.items.length ||
+          input.items.some((item) => currentVersions.get(item.id) !== item.version)
+        ) {
+          throw new ConflictException({
+            code: "CATALOG_ORDER_CONFLICT",
+            messageZh: "项目列表已发生变化，请刷新后重新排序",
+            latestResource: current,
+          });
+        }
+
+        for (const [position, requested] of input.items.entries()) {
+          const where = {
+            id: requested.id,
+            storeId,
+            deletedAt: null,
+            version: requested.version,
+          };
+          const data = { position, version: { increment: 1 as const } };
+          const changed = input.type === "SERVICE"
+            ? await transaction.serviceItem.updateMany({ where, data })
+            : input.type === "ADDON"
+              ? await transaction.addonItem.updateMany({ where, data })
+              : await transaction.discountItem.updateMany({ where, data });
+          if (changed.count !== 1) {
+            throw new ConflictException({
+              code: "CATALOG_ORDER_CONFLICT",
+              messageZh: "项目列表已发生变化，请刷新后重新排序",
+            });
+          }
+        }
+
+        const items = input.type === "SERVICE"
+          ? await transaction.serviceItem.findMany({
+              where: { storeId, deletedAt: null },
+              orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+              include: { priceOptions: { orderBy: [{ position: "asc" }, { durationMinutes: "asc" }] } },
+            })
+          : input.type === "ADDON"
+            ? await transaction.addonItem.findMany({
+                where: { storeId, deletedAt: null },
+                orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+              })
+            : await transaction.discountItem.findMany({
+                where: { storeId, deletedAt: null },
+                orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+              });
+        await transaction.auditLog.create({
+          data: {
+            storeId,
+            actorUserId: actor.id,
+            actorMembershipId: manager.id,
+            source: "api",
+            action: "catalog.items_reordered",
+            entityType: "store",
+            entityId: storeId,
+            beforeJson: { type: input.type, itemIds: current.map((item) => item.id) },
+            afterJson: { type: input.type, itemIds: requestedIds },
+            requestId,
+          },
+        });
+        return { type: input.type, items };
       },
     );
   }

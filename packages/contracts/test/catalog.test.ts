@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createCatalogItemSchema,
   initializeCatalogSchema,
+  reorderCatalogItemsSchema,
   updateCatalogItemSchema,
 } from "../src/index.js";
 
@@ -69,5 +70,21 @@ describe("项目初始化契约", () => {
         amountCents: 2_000,
       }).success,
     ).toBe(true);
+  });
+
+  it("排序必须包含不重复的项目版本", () => {
+    const id = "00000000-0000-4000-8000-000000000001";
+    expect(
+      reorderCatalogItemsSchema.safeParse({
+        type: "SERVICE",
+        items: [{ id, version: 1 }],
+      }).success,
+    ).toBe(true);
+    expect(
+      reorderCatalogItemsSchema.safeParse({
+        type: "SERVICE",
+        items: [{ id, version: 1 }, { id, version: 2 }],
+      }).success,
+    ).toBe(false);
   });
 });

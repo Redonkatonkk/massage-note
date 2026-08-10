@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
+import { deduplicateMembershipRows } from "../lib/board";
 import type {
   BoardResponse,
   CatalogResponse,
@@ -18,6 +19,13 @@ import { FloatingAiAssistant } from "./floating-ai-assistant";
 function chineseDate(value: string): string {
   const [year, month, day] = value.split("-");
   return `${year} 年 ${Number(month)} 月 ${Number(day)} 日`;
+}
+
+function deduplicateBoardRows(board: BoardResponse): BoardResponse {
+  return {
+    ...board,
+    rows: deduplicateMembershipRows(board.rows),
+  };
 }
 
 function LoadingPage({ message = "正在加载记工表…" }: { message?: string }) {
@@ -192,6 +200,7 @@ export function MassageNoteApp() {
   const [members, setMembers] = useState<StoreMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const storeLoadGeneration = useRef(0);
 
   const loadMe = useCallback(async () => {
     try {
@@ -214,27 +223,32 @@ export function MassageNoteApp() {
 
   const loadStore = useCallback(async () => {
     if (!membership) return;
+    const generation = ++storeLoadGeneration.current;
+    const selectedMembership = membership;
     setError("");
     try {
-      const day = await apiRequest<CurrentBusinessDay>(`/stores/${membership.store.id}/business-days/current`);
-      const requestedDate = membership.role === "EMPLOYEE"
+      const day = await apiRequest<CurrentBusinessDay>(`/stores/${selectedMembership.store.id}/business-days/current`);
+      const requestedDate = selectedMembership.role === "EMPLOYEE"
         ? day.businessDate
         : viewDateRef.current || day.businessDate;
       const targetDate = requestedDate <= day.businessDate ? requestedDate : day.businessDate;
       const [nextBoard, nextCatalog] = await Promise.all([
-        apiRequest<BoardResponse>(`/stores/${membership.store.id}/boards/${targetDate}`),
-        apiRequest<CatalogResponse>(`/stores/${membership.store.id}/catalog`),
+        apiRequest<BoardResponse>(`/stores/${selectedMembership.store.id}/boards/${targetDate}`),
+        apiRequest<CatalogResponse>(`/stores/${selectedMembership.store.id}/catalog`),
       ]);
       let nextMembers: StoreMember[];
-      if (membership.role !== "EMPLOYEE") {
-        nextMembers = await apiRequest<StoreMember[]>(`/stores/${membership.store.id}/members`);
+      if (selectedMembership.role !== "EMPLOYEE") {
+        nextMembers = await apiRequest<StoreMember[]>(`/stores/${selectedMembership.store.id}/members`);
       } else {
         nextMembers = nextBoard.rows.map((row) => ({ ...row.membership, version: 1, defaultCommissionBps: null, deletedAt: null }));
       }
+      if (generation !== storeLoadGeneration.current) return;
       viewDateRef.current = targetDate;
       setViewDate(targetDate);
-      setCurrentDay(day); setBoard(nextBoard); setCatalog(nextCatalog); setMembers(nextMembers);
-    } catch (caught) { setError(errorMessage(caught)); }
+      setCurrentDay(day); setBoard(deduplicateBoardRows(nextBoard)); setCatalog(nextCatalog); setMembers(nextMembers);
+    } catch (caught) {
+      if (generation === storeLoadGeneration.current) setError(errorMessage(caught));
+    }
   }, [membership]);
 
   useEffect(() => { void loadMe(); }, [loadMe]);
@@ -255,15 +269,15 @@ export function MassageNoteApp() {
         <div><p className="eyebrow">{membership.store.name} · 店铺代码 {membership.store.storeCode}</p><h1>{viewDate === currentDay.businessDate ? "今日记工" : "历史记工"}</h1><p className="business-date">{chineseDate(viewDate)} · 营业日截止 {currentDay.businessCutoffLocal} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
         <div className="topbar-actions">
           {me.memberships.length > 1 && <select className="store-switcher" aria-label="切换店铺" value={membership.store.id} onChange={(event) => {
-            const selected = me.memberships.find((item) => item.store.id === event.target.value); if (selected) { viewDateRef.current = ""; setViewDate(""); setMembership(selected); setCurrentDay(null); setBoard(null); window.localStorage.setItem("massage_note_store_id", selected.store.id); }
+            const selected = me.memberships.find((item) => item.store.id === event.target.value); if (selected) { storeLoadGeneration.current += 1; viewDateRef.current = ""; setViewDate(""); setMembership(selected); setCurrentDay(null); setBoard(null); window.localStorage.setItem("massage_note_store_id", selected.store.id); }
           }}>{me.memberships.map((item) => <option key={item.store.id} value={item.store.id}>{item.store.name}</option>)}</select>}
           <button className="store-switcher" type="button" onClick={() => apiRequest("/auth/session", { method: "DELETE" }).finally(() => window.location.replace("/login"))}>退出</button>
         </div>
       </header>
       {membership.role !== "EMPLOYEE" && <section className="history-toolbar" aria-label="切换营业日"><form className="history-date-form" onSubmit={(event) => { event.preventDefault(); const value = new FormData(event.currentTarget).get("businessDate"); if (typeof value !== "string" || !value) return; viewDateRef.current = value; setViewDate(value); void loadStore(); }}><label>查看营业日<input key={viewDate} name="businessDate" type="date" defaultValue={viewDate} max={currentDay.businessDate} /></label><button className="secondary-action compact" type="submit">查看</button></form>{viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => { viewDateRef.current = currentDay.businessDate; setViewDate(currentDay.businessDate); void loadStore(); }}>返回今天</button>}<span>{viewDate === currentDay.businessDate ? "当前营业日" : "历史营业日；已日结时须先取消日结才能修改"}</span></section>}
       {error && <p className="form-error" role="alert">{error}</p>}
-      <TodayBoard key={membership.store.id} membership={membership} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} board={board} catalog={catalog} members={members} onReload={loadStore} />
-      <FloatingAiAssistant key={membership.store.id} storeId={membership.store.id} type="work" onWorkChanged={loadStore} />
+      <TodayBoard key={`today-${membership.store.id}`} membership={membership} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} board={board} catalog={catalog} members={members} onReload={loadStore} />
+      <FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} type="work" onWorkChanged={loadStore} />
       <AppNav active="today" storeId={membership.store.id} />
     </main>
   );

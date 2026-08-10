@@ -33,6 +33,7 @@
 | POST | `/stores/:storeId/members/:membershipId/restore` | 恢复成员关系 |
 | GET/POST | `/stores/:storeId/catalog`、`catalog/setup` | 项目目录与首次设置 |
 | POST/PATCH/DELETE | `/stores/:storeId/catalog/items/:itemId?` | 主要、额外和折扣项目管理 |
+| POST | `/stores/:storeId/catalog/reorder` | 原子调整一类项目的完整顺序 |
 | POST | `/stores/:storeId/catalog/items/:itemId/restore` | 恢复软删除项目 |
 | GET/PUT | `/stores/:storeId/members/:membershipId/commissions/...` | 员工默认与员工项目专属提成 |
 | GET | `/stores/:storeId/business-days/current` | 当前营业日、时区和截止时间 |
@@ -70,6 +71,10 @@
 ```
 
 快速创建或把记工切换到预设项目时提交 `serviceItemId` 和 `serviceDurationMinutes`。若项目只有一个档位，服务端为旧客户端兼容可补选该档位；项目有多个档位时缺少时长会返回 `SERVICE_PRICE_OPTION_REQUIRED`。记工保存的仍是名称、时长、价格和提成快照，后续修改或删除价格档位不会改变历史记录。
+
+项目排序提交完整的未删除项目列表及当前版本，例如 `{ "type": "SERVICE", "items": [{ "id": "...", "version": 2 }] }`。服务端在同一事务中校验列表、项目归属和全部版本，再统一写入顺序；列表不完整或任一版本过期时返回 `CATALOG_ORDER_CONFLICT`，不会留下半套排序。
+
+新营业日上班打卡若发现本人仍有旧营业日未结束班次，会先原子结束旧班次并记录 `shift.stale_auto_closed` 审计，再创建当前班次。同一营业日重复上班仍返回 `SHIFT_ALREADY_OPEN`。
 
 ## 财务查询参数
 

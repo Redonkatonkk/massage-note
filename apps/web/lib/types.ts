@@ -123,6 +123,7 @@ export interface ServicePriceOption {
 
 export interface ServiceItem {
   id: string;
+  position: number;
   fullName: string;
   shortName: string;
   priceOptions: ServicePriceOption[];
@@ -134,6 +135,7 @@ export interface ServiceItem {
 
 export interface AddonItem {
   id: string;
+  position: number;
   name: string;
   shortName: string;
   amountCents: number;
@@ -146,6 +148,7 @@ export interface AddonItem {
 
 export interface DiscountItem {
   id: string;
+  position: number;
   name: string;
   shortName: string;
   amountCents: number;

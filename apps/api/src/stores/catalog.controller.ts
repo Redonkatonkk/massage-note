@@ -17,6 +17,7 @@ import {
   createCatalogItemSchema,
   deleteCatalogItemSchema,
   initializeCatalogSchema,
+  reorderCatalogItemsSchema,
   restoreCatalogItemSchema,
   updateCatalogItemSchema,
   uuidSchema,
@@ -75,6 +76,23 @@ export class CatalogController {
       user,
       parseRequest(uuidSchema, storeId),
       parseRequest(createCatalogItemSchema, body),
+      parseRequest(idempotencyKeySchema, idempotencyKey),
+      response.locals.requestId as string,
+    );
+  }
+
+  @Post("reorder")
+  reorderItems(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("storeId") storeId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.catalog.reorderItems(
+      user,
+      parseRequest(uuidSchema, storeId),
+      parseRequest(reorderCatalogItemsSchema, body),
       parseRequest(idempotencyKeySchema, idempotencyKey),
       response.locals.requestId as string,
     );

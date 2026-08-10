@@ -79,6 +79,13 @@ export function TodayBoard({
   const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(""), 4_000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   const activeServices = useMemo(
     () => catalog.serviceItems.filter(
@@ -200,6 +207,7 @@ export function TodayBoard({
     setCustomServiceShortName("");
     setCustomServiceAmount("");
     setCustomServiceDuration("");
+    setNotice("记工已保存，可稍后打开详情填写付款");
     await onReload();
   }
 
@@ -257,8 +265,10 @@ export function TodayBoard({
               onClick={() => run(async () => {
                 if (openShift) {
                   await apiRequest(`/stores/${membership.store.id}/shifts/${openShift.id}/clock-out`, { method: "POST", idempotent: true, body: { version: openShift.version } });
+                  setNotice("下班打卡成功");
                 } else {
                   await apiRequest(`/stores/${membership.store.id}/shifts/clock-in`, { method: "POST", idempotent: true, body: {} });
+                  setNotice("上班打卡成功，已加入今日上班队列");
                 }
                 await onReload();
               })}
@@ -272,6 +282,7 @@ export function TodayBoard({
       </section>
 
       {board.isClosed && <p className="closed-banner" role="status">这个营业日已经日结。当前内容只读，如需修改请先由店长或经理取消日结。</p>}
+      {notice && <p className="success-banner" role="status">✓ {notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
 
       <section className="board" id="today" aria-label="今日员工记工表">
@@ -356,6 +367,7 @@ export function TodayBoard({
           <button className="secondary-action" type="button" disabled={!addMemberId || busy} onClick={() => run(async () => {
             await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows`, { method: "POST", idempotent: true, body: { membershipId: addMemberId } });
             setAddMemberId("");
+            setNotice("员工已加入今日表格");
             await onReload();
           })}>添加员工</button>
         </section>
@@ -417,6 +429,7 @@ export function TodayBoard({
           members={members}
           canManage={canManage}
           onClose={() => setEditingRecord(null)}
+          onSaved={() => setNotice("记工修改已保存")}
           onChanged={onReload}
         />
       )}

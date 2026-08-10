@@ -19,6 +19,7 @@ interface RecordEditorProps {
   members: StoreMember[];
   canManage: boolean;
   onClose: () => void;
+  onSaved: () => void;
   onChanged: () => Promise<void>;
 }
 
@@ -92,6 +93,7 @@ export function RecordEditor({
   members,
   canManage,
   onClose,
+  onSaved,
   onChanged,
 }: RecordEditorProps) {
   const service = record.serviceSnapshot;
@@ -390,7 +392,9 @@ export function RecordEditor({
 
   function finish() {
     window.localStorage.removeItem(draftKey);
-    return onChanged().then(onClose);
+    onSaved();
+    onClose();
+    void onChanged();
   }
 
   async function confirmPayment() {

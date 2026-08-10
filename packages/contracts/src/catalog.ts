@@ -134,10 +134,32 @@ export const restoreCatalogItemSchema = z.object({
   version: versionSchema,
 });
 
+export const reorderCatalogItemsSchema = z.object({
+  type: z.enum(["SERVICE", "ADDON", "DISCOUNT"]),
+  items: z
+    .array(z.object({ id: z.string().uuid(), version: versionSchema }))
+    .min(1, "排序列表不能为空")
+    .max(100)
+    .superRefine((items, context) => {
+      const seen = new Set<string>();
+      items.forEach((item, index) => {
+        if (seen.has(item.id)) {
+          context.addIssue({
+            code: "custom",
+            path: [index, "id"],
+            message: "排序列表不能包含重复项目",
+          });
+        }
+        seen.add(item.id);
+      });
+    }),
+});
+
 export type InitializeCatalogInput = z.input<typeof initializeCatalogSchema>;
 export type InitializeCatalog = z.output<typeof initializeCatalogSchema>;
 export type CreateCatalogItemInput = z.input<typeof createCatalogItemSchema>;
 export type UpdateCatalogItemInput = z.input<typeof updateCatalogItemSchema>;
 export type DeleteCatalogItemInput = z.input<typeof deleteCatalogItemSchema>;
 export type RestoreCatalogItemInput = z.input<typeof restoreCatalogItemSchema>;
+export type ReorderCatalogItemsInput = z.input<typeof reorderCatalogItemsSchema>;
 export type CatalogListQuery = z.output<typeof catalogListQuerySchema>;

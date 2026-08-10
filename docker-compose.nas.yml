@@ -33,7 +33,7 @@ services:
     networks: [backend]
 
   migrate:
-    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.2.6}
+    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.3.0}
     command: ["migrate"]
     environment:
       DATABASE_URL: postgresql://massage_note_admin:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/massage_note
@@ -42,7 +42,7 @@ services:
     networks: [backend]
 
   harden:
-    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.2.6}
+    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.3.0}
     command: ["harden"]
     environment:
       ADMIN_DATABASE_URL: postgresql://massage_note_admin:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/massage_note
@@ -52,7 +52,7 @@ services:
     networks: [backend]
 
   app:
-    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.2.6}
+    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.3.0}
     command: ["app"]
     restart: unless-stopped
     environment:

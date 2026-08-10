@@ -80,3 +80,5 @@ docker compose --env-file .env.production -f docker-compose.prod.yml up -d
 ```
 
 迁移服务会在新 API 启动前执行 `prisma migrate deploy`。涉及删除列或不可逆数据变换时，必须拆成“先扩展、再迁移数据、最后收缩”的多次发布，不要在同一次升级中让旧、新容器读到不兼容 schema。
+
+群晖生产环境不使用本节的本机构建命令，而使用 GitHub Actions 发布到 GHCR 的单镜像；见 [NAS_DEPLOYMENT.md](NAS_DEPLOYMENT.md)。GHCR 只保存应用镜像和浏览器公开配置，所有 Admin 私钥、AI/语音密钥与数据库密码均在 NAS 运行时注入。

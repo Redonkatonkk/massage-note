@@ -23,6 +23,8 @@
 - Web 与 API 应位于同一 registrable domain 下，且 `WEB_ORIGIN` 必须精确；不要使用通配 Origin。
 - PostgreSQL、Redis 和应用内部端口只监听私网/loopback。
 - `.env.production` 权限设为 600，不进入镜像、版本库、日志或备份。
+- 公开 GitHub/GHCR 只允许保存源代码、构建产物和 `NEXT_PUBLIC_FIREBASE_*` 浏览器公开配置；Firebase Admin、MiniMax、Google、数据库、Redis、DSM 与 GitHub token 只能存在于本机/NAS 环境或系统钥匙串。
+- 公开前及每次发布均检查暂存文件并扫描 Git 历史；如果秘密曾经提交，先撤销/轮换，再清理历史，不能只删除当前文件。
 - Firebase 测试号码只用于非生产项目；生产启用短信配额、预算与异常告警。
 - MiniMax/Google 服务账号使用最小权限并设消费预算；AI 关闭时核心业务仍可用。
 

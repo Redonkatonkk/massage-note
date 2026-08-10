@@ -1,7 +1,7 @@
 # AI 接管指南
 
-> 最后核对：2026-08-09（America/New_York）
-> 当前版本：`0.2.0`
+> 最后核对：2026-08-10（America/New_York）
+> 当前版本：`0.2.1`
 > 目标：用最少上下文安全修改 Massage note；历史过程请查 Git 和 `CHANGELOG.md`。
 
 ## 1. 接手顺序
@@ -152,6 +152,8 @@ pnpm test:integration
 
 生产数据库使用分离身份：管理账号负责迁移，应用账号只做业务 DML。当前不启用 RLS；租户隔离依赖服务层 `storeId`、对象归属校验、受限数据库账号和跨店测试。不要在 Prisma 连接池上加入依赖连接变量的不完整 RLS。
 
+公开仓库的标准 NAS 发布链路是 `main` push → CI 全部通过 → GHCR `linux/amd64` 镜像 → 群晖项目 `mn` 拉取版本标签。完整命令、环境变量边界和回滚步骤见 [`NAS_DEPLOYMENT.md`](NAS_DEPLOYMENT.md)。本机部署 AI 必须先读被 Git 忽略的 `.local-ai/DEPLOYMENT_SECRETS.md`；真实秘密只从权限 `0600` 的 `.env` 或 macOS Keychain 读取，不得复制进本文档或 GitHub。
+
 生产参考编排是 `docker-compose.prod.yml`。应用端口只绑定 loopback，由同站点 HTTPS 反向代理公开：
 
 ```bash
@@ -180,7 +182,7 @@ pnpm audit --prod
 
 `test:integration` 使用独立的 `massage_note_test`，会重建测试 schema，不应指向开发主库、生产库或任何含人工数据的库。
 
-最近一次完整核对（2026-08-09，版本 0.2.0）：
+最近一次完整核对（2026-08-10，版本 0.2.1）：
 
 - typecheck 和生产构建通过；Next 生成 11 个路由。
 - 单元/非集成测试 96 项通过；数据库/API 集成测试 74 项通过。

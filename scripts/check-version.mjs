@@ -24,7 +24,7 @@ for (const file of packageFiles) {
 
 const versionedFiles = [
   ["Dockerfile", `ARG APP_VERSION=${expected}`],
-  ["docker-compose.nas.yml", `image: massage-note:${expected}`],
+  ["docker-compose.nas.yml", `MASSAGE_NOTE_IMAGE_TAG:-${expected}`],
   ["apps/web/public/sw.js", `massage-note-v${expected}`],
   ["README.md", `当前版本：\`${expected}\``],
   ["CHANGELOG.md", `## ${expected}`],

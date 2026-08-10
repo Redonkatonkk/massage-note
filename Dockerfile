@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1 UV_USE_IO_URING=0 CI=true
 RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
@@ -40,7 +40,7 @@ RUN timeout -k 5s 180s pnpm --filter @massage-note/database deploy --prod --lega
 FROM node:24-alpine AS api
 WORKDIR /app
 ENV NODE_ENV=production API_PORT=4000
-ARG APP_VERSION=0.2.0
+ARG APP_VERSION=0.2.1
 LABEL org.opencontainers.image.title="Massage note API" \
       org.opencontainers.image.version=$APP_VERSION
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
@@ -52,7 +52,7 @@ CMD ["node", "dist/main.js"]
 FROM node:24-alpine AS migrate
 WORKDIR /app
 ENV NODE_ENV=production
-ARG APP_VERSION=0.2.0
+ARG APP_VERSION=0.2.1
 LABEL org.opencontainers.image.title="Massage note migration" \
       org.opencontainers.image.version=$APP_VERSION
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
@@ -63,7 +63,7 @@ CMD ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
 FROM node:24-alpine AS web
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1
-ARG APP_VERSION=0.2.0
+ARG APP_VERSION=0.2.1
 LABEL org.opencontainers.image.title="Massage note Web" \
       org.opencontainers.image.version=$APP_VERSION
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
@@ -79,11 +79,12 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0 \
     NEXT_TELEMETRY_DISABLED=1
-ARG APP_VERSION=0.2.0
+ARG APP_VERSION=0.2.1
 LABEL org.opencontainers.image.title="Massage note" \
       org.opencontainers.image.description="Massage note Web/API image for Synology Container Manager" \
       org.opencontainers.image.version=$APP_VERSION \
-      org.opencontainers.image.vendor="Massage note"
+      org.opencontainers.image.vendor="Massage note" \
+      org.opencontainers.image.source="https://github.com/Redonkatonkk/massage-note"
 RUN apk add --no-cache postgresql-client tini \
     && addgroup -S appgroup \
     && adduser -S appuser -G appgroup

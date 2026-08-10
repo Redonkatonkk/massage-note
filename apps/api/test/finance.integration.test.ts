@@ -102,6 +102,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
         priceCents: 10_000n,
         defaultCommissionBps: 6_000,
         position: 1,
+        priceOptions: { create: { durationMinutes: 60, priceCents: 10_000n, position: 0 } },
       },
     });
   });
@@ -179,15 +180,37 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       version: 0,
     });
 
-    const settled = await cash.settle(
-      actor(managerId),
-      storeId,
-      businessDate,
-      employeeMembershipId,
-      { version: 0, note: "员工已交现金" },
-      "cash-settle-employee-0001",
-      "cash-settle-employee",
+    const attempts = await Promise.allSettled([
+      cash.settle(
+        actor(managerId),
+        storeId,
+        businessDate,
+        employeeMembershipId,
+        { version: 0, note: "员工已交现金" },
+        "cash-settle-employee-0001",
+        "cash-settle-employee-1",
+      ),
+      cash.settle(
+        actor(managerId),
+        storeId,
+        businessDate,
+        employeeMembershipId,
+        { version: 0, note: "并发重复结清" },
+        "cash-settle-employee-0002",
+        "cash-settle-employee-2",
+      ),
+    ]);
+    const fulfilled = attempts.filter(
+      (result): result is PromiseFulfilledResult<Awaited<ReturnType<CashSettlementsService["settle"]>>> =>
+        result.status === "fulfilled",
     );
+    const rejected = attempts.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toBeInstanceOf(ConflictException);
+    const settled = fulfilled[0]!.value;
     expect(settled).toMatchObject({ status: "SETTLED", version: 1 });
 
     const balance = await finance.myBalance(actor(employeeId), storeId);

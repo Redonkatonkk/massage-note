@@ -16,6 +16,7 @@ import {
   calculateDailyCashSettlement,
   hasStoreCapability,
 } from "@massage-note/domain";
+import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
@@ -93,6 +94,7 @@ export class CashSettlementsService {
         responseCode: 200,
       },
       async (transaction) => {
+        await lockBusinessDay(transaction, storeId, businessDate);
         const rows = await this.calculateRows(transaction, storeId, businessDate);
         const row = rows.find((item) => item.membershipId === membershipId);
         if (!row) this.throwCashRowNotFound();
@@ -135,6 +137,7 @@ export class CashSettlementsService {
         responseCode: 200,
       },
       async (transaction) => {
+        await lockBusinessDay(transaction, storeId, businessDate);
         const rows = await this.calculateRows(transaction, storeId, businessDate);
         const requested = new Map(
           input.settlements.map((item) => [item.membershipId, item]),
@@ -214,6 +217,7 @@ export class CashSettlementsService {
         responseCode: 200,
       },
       async (transaction) => {
+        await lockBusinessDay(transaction, storeId, businessDate);
         const current = await transaction.dailyCashSettlement.findFirst({
           where: {
             storeId,
@@ -310,22 +314,37 @@ export class CashSettlementsService {
       cashRetainedCents: row.cashRetainedCents,
       cashToSubmitToStoreCents: row.cashToSubmitToStoreCents,
     };
-    const settlement = current
-      ? await transaction.dailyCashSettlement.update({
+    let settlement;
+    if (current) {
+      const changed = await transaction.dailyCashSettlement.updateMany({
+        where: { id: current.id, version: expectedVersion },
+        data: {
+          ...amounts,
+          status: "SETTLED",
+          note: note ?? current.note,
+          settledBy: actor.id,
+          settledAt,
+          deletedAt: null,
+          deletedBy: null,
+          deleteReason: null,
+          version: { increment: 1 },
+        },
+      });
+      if (changed.count !== 1) {
+        const latest = await transaction.dailyCashSettlement.findUnique({
           where: { id: current.id },
-          data: {
-            ...amounts,
-            status: "SETTLED",
-            note: note ?? current.note,
-            settledBy: actor.id,
-            settledAt,
-            deletedAt: null,
-            deletedBy: null,
-            deleteReason: null,
-            version: { increment: 1 },
-          },
-        })
-      : await transaction.dailyCashSettlement.create({
+        });
+        throw new ConflictException({
+          code: "CASH_SETTLEMENT_VERSION_CONFLICT",
+          messageZh: "现金结算金额或状态已发生变化，请刷新后重试",
+          latestResource: latest,
+        });
+      }
+      settlement = await transaction.dailyCashSettlement.findUniqueOrThrow({
+        where: { id: current.id },
+      });
+    } else {
+      settlement = await transaction.dailyCashSettlement.create({
           data: {
             storeId,
             businessDate: dateAtUtc(businessDate),
@@ -337,6 +356,7 @@ export class CashSettlementsService {
             settledAt,
           },
         });
+    }
     await transaction.auditLog.create({
       data: {
         storeId,

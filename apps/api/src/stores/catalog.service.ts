@@ -42,6 +42,7 @@ export class CatalogService {
       this.prisma.serviceItem.findMany({
         where: { storeId, ...(query.includeDeleted ? {} : { deletedAt: null }) },
         orderBy: [{ deletedAt: "asc" }, { position: "asc" }],
+        include: { priceOptions: { orderBy: [{ position: "asc" }, { durationMinutes: "asc" }] } },
       }),
       this.prisma.addonItem.findMany({
         where: { storeId, ...(query.includeDeleted ? {} : { deletedAt: null }) },
@@ -101,17 +102,28 @@ export class CatalogService {
         });
       }
 
-      await transaction.serviceItem.createMany({
-        data: input.serviceItems.map((item, position) => ({
-          storeId,
-          fullName: item.fullName,
-          shortName: item.shortName,
-          durationMinutes: item.durationMinutes,
-          priceCents: BigInt(item.priceCents),
-          defaultCommissionBps: item.defaultCommissionBps ?? null,
-          position,
-        })),
-      });
+      for (const [position, item] of input.serviceItems.entries()) {
+        const firstOption = item.priceOptions[0]!;
+        await transaction.serviceItem.create({
+          data: {
+            storeId,
+            fullName: item.fullName,
+            shortName: item.shortName,
+            // 兼容滚动部署中的旧容器；新业务读取 priceOptions。
+            durationMinutes: firstOption.durationMinutes,
+            priceCents: BigInt(firstOption.priceCents),
+            defaultCommissionBps: item.defaultCommissionBps ?? null,
+            position,
+            priceOptions: {
+              create: item.priceOptions.map((option, optionPosition) => ({
+                durationMinutes: option.durationMinutes,
+                priceCents: BigInt(option.priceCents),
+                position: optionPosition,
+              })),
+            },
+          },
+        });
+      }
       if (input.addonItems.length > 0) {
         await transaction.addonItem.createMany({
           data: input.addonItems.map((item, position) => ({
@@ -158,6 +170,7 @@ export class CatalogService {
         transaction.serviceItem.findMany({
           where: { storeId, deletedAt: null },
           orderBy: { position: "asc" },
+          include: { priceOptions: { orderBy: [{ position: "asc" }, { durationMinutes: "asc" }] } },
         }),
         transaction.addonItem.findMany({
           where: { storeId, deletedAt: null },
@@ -202,16 +215,25 @@ export class CatalogService {
             where: { storeId },
             _max: { position: true },
           });
+          const firstOption = input.priceOptions[0]!;
           item = await transaction.serviceItem.create({
             data: {
               storeId,
               fullName: input.fullName,
               shortName: input.shortName,
-              durationMinutes: input.durationMinutes,
-              priceCents: BigInt(input.priceCents),
+              durationMinutes: firstOption.durationMinutes,
+              priceCents: BigInt(firstOption.priceCents),
               defaultCommissionBps: input.defaultCommissionBps ?? null,
               position: input.position ?? (maximum._max.position ?? -1) + 1,
+              priceOptions: {
+                create: input.priceOptions.map((option, position) => ({
+                  durationMinutes: option.durationMinutes,
+                  priceCents: BigInt(option.priceCents),
+                  position,
+                })),
+              },
             },
+            include: { priceOptions: { orderBy: [{ position: "asc" }, { durationMinutes: "asc" }] } },
           });
           entityType = "service_item";
         } else if (input.type === "ADDON") {
@@ -293,17 +315,18 @@ export class CatalogService {
         let entityType: string;
         if (input.type === "SERVICE") {
           current = await this.findServiceItem(transaction, storeId, itemId);
+          const firstOption = input.priceOptions?.[0];
           const changed = await transaction.serviceItem.updateMany({
             where: { id: itemId, storeId, deletedAt: null, version: input.version },
             data: {
               ...(input.fullName === undefined ? {} : { fullName: input.fullName }),
               ...(input.shortName === undefined ? {} : { shortName: input.shortName }),
-              ...(input.durationMinutes === undefined
+              ...(firstOption === undefined
                 ? {}
-                : { durationMinutes: input.durationMinutes }),
-              ...(input.priceCents === undefined
-                ? {}
-                : { priceCents: BigInt(input.priceCents) }),
+                : {
+                    durationMinutes: firstOption.durationMinutes,
+                    priceCents: BigInt(firstOption.priceCents),
+                  }),
               ...(input.defaultCommissionBps === undefined
                 ? {}
                 : { defaultCommissionBps: input.defaultCommissionBps }),
@@ -317,8 +340,22 @@ export class CatalogService {
           if (changed.count !== 1) {
             await this.throwItemConflict(transaction, storeId, itemId, input.type);
           }
+          if (input.priceOptions) {
+            await transaction.serviceItemPriceOption.deleteMany({
+              where: { serviceItemId: itemId },
+            });
+            await transaction.serviceItemPriceOption.createMany({
+              data: input.priceOptions.map((option, position) => ({
+                serviceItemId: itemId,
+                durationMinutes: option.durationMinutes,
+                priceCents: BigInt(option.priceCents),
+                position,
+              })),
+            });
+          }
           updated = await transaction.serviceItem.findUniqueOrThrow({
             where: { id: itemId },
+            include: { priceOptions: { orderBy: [{ position: "asc" }, { durationMinutes: "asc" }] } },
           });
           entityType = "service_item";
         } else if (input.type === "ADDON") {
@@ -488,7 +525,10 @@ export class CatalogService {
           if (changed.count !== 1) {
             await this.throwItemConflict(transaction, storeId, itemId, input.type);
           }
-          updated = await transaction.serviceItem.findUniqueOrThrow({ where: { id: itemId } });
+          updated = await transaction.serviceItem.findUniqueOrThrow({
+            where: { id: itemId },
+            include: { priceOptions: { orderBy: [{ position: "asc" }, { durationMinutes: "asc" }] } },
+          });
           entityType = "service_item";
         } else if (input.type === "ADDON") {
           current = await this.findAddonItem(transaction, storeId, itemId, false);
@@ -541,6 +581,7 @@ export class CatalogService {
   ) {
     const item = await transaction.serviceItem.findFirst({
       where: { id: itemId, storeId, ...(activeOnly ? { deletedAt: null } : {}) },
+      include: { priceOptions: { orderBy: [{ position: "asc" }, { durationMinutes: "asc" }] } },
     });
     if (!item) this.throwItemNotFound();
     return item;
@@ -580,7 +621,10 @@ export class CatalogService {
   ): Promise<never> {
     const latest =
       type === "SERVICE"
-        ? await transaction.serviceItem.findFirst({ where: { id: itemId, storeId } })
+        ? await transaction.serviceItem.findFirst({
+            where: { id: itemId, storeId },
+            include: { priceOptions: { orderBy: [{ position: "asc" }, { durationMinutes: "asc" }] } },
+          })
         : type === "ADDON"
           ? await transaction.addonItem.findFirst({ where: { id: itemId, storeId } })
           : await transaction.discountItem.findFirst({ where: { id: itemId, storeId } });

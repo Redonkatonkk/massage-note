@@ -113,10 +113,12 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     const setup = {
       serviceItems: [
         {
-          fullName: "60 分钟按摩",
-          shortName: "60分",
-          durationMinutes: 60,
-          priceCents: 10_000,
+          fullName: "Body Massage",
+          shortName: "Body",
+          priceOptions: [
+            { durationMinutes: 30, priceCents: 6_000 },
+            { durationMinutes: 60, priceCents: 10_000 },
+          ],
           defaultCommissionBps: 6_000,
         },
       ],
@@ -155,7 +157,10 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     expect(serviceItemId).not.toBe("");
 
     await expect(catalog.list(actor(employeeId), storeId)).resolves.toMatchObject({
-      serviceItems: [{ id: serviceItemId }],
+      serviceItems: [{ id: serviceItemId, priceOptions: [
+        { durationMinutes: 30, priceCents: 6_000n },
+        { durationMinutes: 60, priceCents: 10_000n },
+      ] }],
     });
     await expect(
       catalog.initialize(
@@ -164,10 +169,9 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
         {
           serviceItems: [
             {
-              fullName: "60 分钟按摩",
-            shortName: "60分",
-            durationMinutes: 60,
-            priceCents: 10_000,
+              fullName: "Body Massage",
+              shortName: "Body",
+              priceOptions: [{ durationMinutes: 60, priceCents: 10_000 }],
             defaultCommissionBps: 6_000,
           },
         ],
@@ -270,10 +274,21 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
   });
 
   it("快速记工保存价格、时长和项目默认提成快照", async () => {
+    await expect(
+      workRecords.create(
+        actor(employeeId),
+        storeId,
+        { employeeMembershipId, startAt: new Date().toISOString(), serviceItemId },
+        "create-record-without-duration-key-0001",
+        "create-record-without-duration",
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
     const createInput = {
       employeeMembershipId,
       startAt: new Date().toISOString(),
       serviceItemId,
+      serviceDurationMinutes: 60,
     };
     const [created, replayed] = await Promise.all([
       workRecords.create(
@@ -342,6 +357,7 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
         employeeMembershipId,
         startAt: new Date().toISOString(),
         serviceItemId,
+        serviceDurationMinutes: 30,
       },
       "special-commission-record-key-0001",
       "special-commission-record",
@@ -349,7 +365,9 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     expect(specialRecord.serviceSnapshot).toMatchObject({
       commissionBps: 7_000,
       commissionSource: "EMPLOYEE_ITEM",
-      wageCents: 7_000n,
+      amountCents: 6_000n,
+      durationMinutes: 30,
+      wageCents: 4_200n,
     });
 
     const cleared = await commissions.setItem(
@@ -376,9 +394,9 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
   });
 
   it("后来修改项目价格不改变旧记工，付款确认按现金上限计算", async () => {
-    await prisma.serviceItem.update({
-      where: { id: serviceItemId },
-      data: { priceCents: 15_000n, version: { increment: 1 } },
+    await prisma.serviceItemPriceOption.update({
+      where: { serviceItemId_durationMinutes: { serviceItemId, durationMinutes: 60 } },
+      data: { priceCents: 15_000n },
     });
     const paymentInput = {
       version: recordVersion,

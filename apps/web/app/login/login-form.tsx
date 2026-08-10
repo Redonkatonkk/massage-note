@@ -209,9 +209,18 @@ export function LoginForm() {
     }
     setBusy(true);
     setError("");
+    let idToken: string;
     try {
       const credential = await confirmationRef.current.confirm(code);
-      const idToken = await credential.user.getIdToken();
+      idToken = await credential.user.getIdToken();
+    } catch (caught) {
+      console.error("[firebase-phone-verify]", caught);
+      setError(loginError(caught, "验证码验证失败，请重试"));
+      setBusy(false);
+      return;
+    }
+
+    try {
       if (!account?.exists) {
         setVerifiedIdToken(idToken);
         setStep("register");
@@ -222,8 +231,10 @@ export function LoginForm() {
         await bootstrapSession(idToken);
       }
     } catch (caught) {
-      console.error("[firebase-phone-verify]", caught);
-      setError(loginError(caught, "验证码验证失败，请重试"));
+      console.error("[session-bootstrap]", caught);
+      setError(
+        loginError(caught, "验证码已通过，但登录服务连接失败，请重试"),
+      );
     } finally {
       setBusy(false);
     }

@@ -56,6 +56,21 @@
 | POST | `/stores/:storeId/ai/work/transcribe` | 语音转文字 |
 | GET/POST/DELETE | `/stores/:storeId/ai/previews/:previewId/...` | 查看、确认或取消一次性 AI 预览 |
 
+主要项目使用 `priceOptions` 表示一个或多个时长价格档位，例如：
+
+```json
+{
+  "fullName": "Body Massage",
+  "shortName": "Body",
+  "priceOptions": [
+    { "durationMinutes": 30, "priceCents": 6000 },
+    { "durationMinutes": 60, "priceCents": 10000 }
+  ]
+}
+```
+
+快速创建或把记工切换到预设项目时提交 `serviceItemId` 和 `serviceDurationMinutes`。若项目只有一个档位，服务端为旧客户端兼容可补选该档位；项目有多个档位时缺少时长会返回 `SERVICE_PRICE_OPTION_REQUIRED`。记工保存的仍是名称、时长、价格和提成快照，后续修改或删除价格档位不会改变历史记录。
+
 ## 财务查询参数
 
 `finance/summary`、`finance/details` 和 `finance/export.csv` 使用同一组查询参数：

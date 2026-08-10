@@ -8,9 +8,10 @@ describe("AI 安全契约", () => {
   });
 
   it("工具参数拒绝未知字段和负数金额", () => {
-    expect(aiWorkToolArgumentsSchema.safeParse({ operation: "CREATE", employeeName: "Amy", serviceName: "60分", cashServiceCents: 10_000 }).success).toBe(true);
-    expect(aiWorkToolArgumentsSchema.safeParse({ operation: "CREATE", employeeName: "Amy", serviceName: "60分", addons: [{ name: "热石" }], discounts: [{ name: "优惠", amountCents: 500 }] }).success).toBe(true);
-    expect(aiWorkToolArgumentsSchema.safeParse({ operation: "CREATE", employeeName: "Amy", serviceName: "60分", cashServiceCents: -1 }).success).toBe(false);
+    expect(aiWorkToolArgumentsSchema.safeParse({ operation: "CREATE", employeeName: "Amy", serviceName: "按摩", serviceDurationMinutes: 60, cashServiceCents: 10_000 }).success).toBe(true);
+    expect(aiWorkToolArgumentsSchema.safeParse({ operation: "CREATE", employeeName: "Amy", serviceName: "按摩", serviceDurationMinutes: 60, addons: [{ name: "热石" }], discounts: [{ name: "优惠", amountCents: 500 }] }).success).toBe(true);
+    expect(aiWorkToolArgumentsSchema.safeParse({ operation: "CREATE", employeeName: "Amy", serviceName: "按摩", serviceDurationMinutes: 60, cashServiceCents: -1 }).success).toBe(false);
+    expect(aiWorkToolArgumentsSchema.safeParse({ operation: "CREATE", employeeName: "Amy", serviceName: "按摩" }).success).toBe(false);
     expect(aiWorkToolArgumentsSchema.safeParse({ operation: "DELETE", recordId: crypto.randomUUID(), reason: "重复", arbitrarySql: "DROP TABLE" }).success).toBe(false);
   });
 });

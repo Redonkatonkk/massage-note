@@ -22,7 +22,11 @@ export class UsersService {
         status: true,
         passwordHash: true,
         memberships: {
-          where: { status: "ACTIVE", deletedAt: null },
+          where: {
+            status: "ACTIVE",
+            deletedAt: null,
+            store: { status: "ACTIVE", deletedAt: null },
+          },
           orderBy: { joinedAt: "asc" },
           select: {
             id: true,

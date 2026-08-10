@@ -1,6 +1,6 @@
 # 群晖 Container Manager 部署
 
-当前 NAS 交付版本为 `0.1.0`，镜像名为 `massage-note:0.1.0`，目标架构为 DS720+ 使用的 `linux/amd64`。
+当前 NAS 交付版本为 `0.2.0`，镜像名为 `massage-note:0.2.0`，目标架构为 DS720+ 使用的 `linux/amd64`。
 
 ## 构建镜像归档
 
@@ -15,7 +15,7 @@ pnpm version:check
 ./scripts/build-nas-image.sh
 ```
 
-输出文件为 `artifacts/massage-note-0.1.0-linux-amd64.tar`，旁边的 `.sha256` 文件用于上传前后核验。归档中只有一个应用镜像；同一镜像通过 `app`、`migrate`、`harden` 三种启动模式完成 Web/API、迁移和数据库权限加固。
+输出文件为 `artifacts/massage-note-0.2.0-linux-amd64.tar`，旁边的 `.sha256` 文件用于上传前后核验。归档中只有一个应用镜像；同一镜像通过 `app`、`migrate`、`harden` 三种启动模式完成 Web/API、迁移和数据库权限加固。
 
 ## 在 Container Manager 中部署
 

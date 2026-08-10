@@ -13,6 +13,7 @@ import type {
   UpdateBoardRowInput,
 } from "@massage-note/contracts";
 import { businessDateFor, hasStoreCapability } from "@massage-note/domain";
+import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
@@ -696,6 +697,7 @@ export class BoardsService {
     storeId: string,
     businessDate: string,
   ) {
+    await lockBusinessDay(transaction, storeId, businessDate);
     const closing = await transaction.businessDayClosing.findFirst({
       where: {
         storeId,

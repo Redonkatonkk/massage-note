@@ -35,6 +35,7 @@ const workChangeToolParameters = {
     operation: { enum: ["CREATE", "UPDATE", "DELETE"] },
     employeeName: { type: "string", description: "新增时必填；修改时仅在更换员工时填写" },
     serviceName: { type: "string", description: "新增时必填；修改时仅在更换主要项目时填写" },
+    serviceDurationMinutes: { type: "integer", minimum: 1, maximum: 720, description: "新增或更换主要项目时必填的服务时长（分钟）" },
     recordId: { type: "string", description: "修改或删除时必须使用上下文中现有记录 ID" },
     startAt: { type: "string", description: "带时区偏移的 ISO 时间" },
     endAt: { anyOf: [{ type: "string" }, { type: "null" }] },
@@ -135,7 +136,7 @@ export class AiService {
     let modelName = "safe-parser";
     if (this.model.isConfigured()) {
       const result = await this.model.complete({
-        system: `你是中文按摩店记工助手。只能从给定员工、主要项目、额外项目、折扣和今日记录中选择，不得编造 ID。信息不完整或有歧义时直接追问，不调用工具。所有金额参数必须换算为整数美分。修改记录时 addons 和 discounts 若出现，必须表示修改后的完整列表；结合记录上下文保留用户没有要求删除的原有项目。删除必须有明确原因。当前调用者是“${membership.displayName}”。`,
+        system: `你是中文按摩店记工助手。只能从给定员工、主要项目及其时长价格、额外项目、折扣和今日记录中选择，不得编造 ID。新增或更换主要项目时必须同时提供 serviceName 和 serviceDurationMinutes；信息不完整或有歧义时直接追问，不调用工具。所有金额参数必须换算为整数美分。修改记录时 addons 和 discounts 若出现，必须表示修改后的完整列表；结合记录上下文保留用户没有要求删除的原有项目。删除必须有明确原因。当前调用者是“${membership.displayName}”。`,
         user: `用户输入：${input.text}\n可选员工、项目和今日记录：${JSON.stringify(toJsonSafe(context))}`,
         tools: [{ type: "function", function: { name: "prepare_work_change", description: "只生成记工变更预览，不直接写入", parameters: workChangeToolParameters } }],
       });
@@ -230,10 +231,11 @@ export class AiService {
     if (args.operation === "CREATE") {
       const employee = this.uniqueMatch(context.members, args.employeeName, "员工");
       const service = this.uniqueMatch(context.services, args.serviceName, "项目", ["shortName", "fullName"]);
+      const option = this.serviceOption(service, args.serviceDurationMinutes);
       const payment = this.paymentFrom(args);
       const addons = this.addonInputs(args.addons, context);
       const discounts = this.discountInputs(args.discounts, context);
-      const create = { employeeMembershipId: employee.id, startAt: args.startAt ?? new Date().toISOString(), serviceItemId: service.id };
+      const create = { employeeMembershipId: employee.id, startAt: args.startAt ?? new Date().toISOString(), serviceItemId: service.id, serviceDurationMinutes: option.durationMinutes };
       const updateAfterCreate = {
         ...(args.endAt !== undefined ? { endAt: args.endAt } : {}),
         ...(args.note !== undefined ? { note: args.note } : {}),
@@ -244,7 +246,7 @@ export class AiService {
       const hasUpdate = Object.keys(updateAfterCreate).length > 0;
       const warnings = payment ? [] : ["未提供付款金额，保存后会显示为待结账"];
       const stored = await this.prisma.aiChangePreview.create({ data: { storeId, userId: actor.id, operation: "CREATE_WORK_RECORD", canonicalPayloadJson: this.json({ create, ...(hasUpdate ? { updateAfterCreate } : {}), ...(payment ? { payment } : {}) }), baseVersionsJson: {}, warningsJson: warnings, expiresAt } });
-      return { previewId: stored.id, operation: stored.operation, expiresAt: stored.expiresAt, target: { employeeDisplayName: employee.displayName, businessDate: context.businessDate }, before: null, after: { employee: employee.displayName, service: service.fullName, amountCents: args.mainServiceAmountCents ?? service.priceCents, ...create, ...updateAfterCreate, payment }, warnings: stored.warningsJson };
+      return { previewId: stored.id, operation: stored.operation, expiresAt: stored.expiresAt, target: { employeeDisplayName: employee.displayName, businessDate: context.businessDate }, before: null, after: { employee: employee.displayName, service: service.fullName, durationMinutes: option.durationMinutes, amountCents: args.mainServiceAmountCents ?? option.priceCents, ...create, ...updateAfterCreate, payment }, warnings: stored.warningsJson };
     }
     const record = context.records.find((item) => item.id === args.recordId);
     if (!record) throw new BadRequestException({ code: "AI_RECORD_NOT_UNIQUE", messageZh: "没有在今日可见记录中找到这条记工，请重新描述员工、时间和项目" });
@@ -255,12 +257,13 @@ export class AiService {
     const payment = this.paymentFrom(args);
     const employee = args.employeeName ? this.uniqueMatch(context.members, args.employeeName, "员工") : null;
     const service = args.serviceName ? this.uniqueMatch(context.services, args.serviceName, "项目", ["shortName", "fullName"]) : null;
+    const serviceOption = service ? this.serviceOption(service, args.serviceDurationMinutes) : null;
     const addons = this.addonInputs(args.addons, context);
     const discounts = this.discountInputs(args.discounts, context);
     const update = {
       version: record.version,
       ...(employee ? { employeeMembershipId: employee.id } : {}),
-      ...(service ? { serviceItemId: service.id } : {}),
+      ...(service && serviceOption ? { serviceItemId: service.id, serviceDurationMinutes: serviceOption.durationMinutes } : {}),
       ...(args.startAt !== undefined ? { startAt: args.startAt } : {}),
       ...(args.endAt !== undefined ? { endAt: args.endAt } : {}),
       ...(args.mainServiceAmountCents !== undefined ? { mainServiceAmountCents: args.mainServiceAmountCents } : {}),
@@ -271,7 +274,7 @@ export class AiService {
     const hasUpdate = Object.keys(update).length > 1;
     if (!hasUpdate && !payment) throw new BadRequestException({ code: "AI_UPDATE_EMPTY", messageZh: "没有识别到需要修改的字段" });
     const stored = await this.prisma.aiChangePreview.create({ data: { storeId, userId: actor.id, operation: "UPDATE_WORK_RECORD", canonicalPayloadJson: this.json({ recordId: record.id, ...(hasUpdate ? { update } : {}), ...(payment ? { payment } : {}) }), baseVersionsJson: { workRecord: record.version }, warningsJson: [], expiresAt } });
-    return { previewId: stored.id, operation: stored.operation, expiresAt: stored.expiresAt, target: record, before: record, after: { ...(hasUpdate ? update : {}), ...(employee ? { employee: employee.displayName } : {}), ...(service ? { service: service.fullName, amountCents: args.mainServiceAmountCents ?? service.priceCents } : args.mainServiceAmountCents !== undefined ? { amountCents: args.mainServiceAmountCents } : {}), payment }, warnings: [] };
+    return { previewId: stored.id, operation: stored.operation, expiresAt: stored.expiresAt, target: record, before: record, after: { ...(hasUpdate ? update : {}), ...(employee ? { employee: employee.displayName } : {}), ...(service && serviceOption ? { service: service.fullName, durationMinutes: serviceOption.durationMinutes, amountCents: args.mainServiceAmountCents ?? serviceOption.priceCents } : args.mainServiceAmountCents !== undefined ? { amountCents: args.mainServiceAmountCents } : {}), payment }, warnings: [] };
   }
 
   private async workContext(storeId: string) {
@@ -280,7 +283,7 @@ export class AiService {
     const businessDate = businessDateFor({ startAt: new Date(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
     const [members, services, addons, discounts, records] = await Promise.all([
       this.prisma.storeMembership.findMany({ where: { storeId, status: "ACTIVE", deletedAt: null, isServiceProvider: true }, select: { id: true, displayName: true } }),
-      this.prisma.serviceItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, fullName: true, shortName: true, priceCents: true, durationMinutes: true } }),
+      this.prisma.serviceItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, fullName: true, shortName: true, priceOptions: { select: { durationMinutes: true, priceCents: true }, orderBy: [{ position: "asc" }, { durationMinutes: "asc" }] } } }),
       this.prisma.addonItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, name: true, shortName: true, amountCents: true, durationMinutes: true } }),
       this.prisma.discountItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, name: true, shortName: true, amountCents: true } }),
       this.prisma.workRecord.findMany({ where: { storeId, businessDate: new Date(`${businessDate}T00:00:00.000Z`), deletedAt: null }, select: { id: true, employeeMembershipId: true, startAt: true, endAt: true, status: true, mainServiceAmountCents: true, grossFeeBaseCents: true, cashServiceCents: true, cardServiceCents: true, cashTipCents: true, cardTipCents: true, note: true, version: true, employee: { select: { displayName: true } }, serviceSnapshot: { select: { shortName: true, name: true } }, addonSnapshots: { select: { name: true, shortName: true, amountCents: true } }, discountSnapshots: { select: { name: true, amountCents: true } } }, orderBy: { startAt: "desc" } }),
@@ -293,10 +296,17 @@ export class AiService {
     const employee = context.members.find((item) => text.includes(item.displayName)) ?? context.members.find((item) => item.displayName === ownName);
     const service = context.services.find((item) => text.includes(item.shortName) || text.includes(item.fullName));
     if (!employee || !service) return null;
+    const durationMatch = text.match(/(\d+)\s*(?:分钟|分|mins?)/i);
+    const durationMinutes = durationMatch?.[1]
+      ? Number(durationMatch[1])
+      : service.priceOptions.length === 1
+        ? service.priceOptions[0]!.durationMinutes
+        : null;
+    if (!durationMinutes || !service.priceOptions.some((option) => option.durationMinutes === durationMinutes)) return null;
     const amount = (label: string) => { const match = text.match(new RegExp(`${label}\\s*[：:]?\\s*\\$?(\\d+(?:\\.\\d{1,2})?)`)); return match?.[1] ? Math.round(Number(match[1]) * 100) : undefined; };
     const addons = context.addons.filter((item) => text.includes(item.name) || text.includes(item.shortName)).map((item) => ({ name: item.shortName }));
     const discounts = context.discounts.filter((item) => text.includes(item.name) || text.includes(item.shortName)).map((item) => ({ name: item.shortName }));
-    return { operation: "CREATE", employeeName: employee.displayName, serviceName: service.shortName, ...(addons.length ? { addons } : {}), ...(discounts.length ? { discounts } : {}), ...(amount("现金大费") !== undefined ? { cashServiceCents: amount("现金大费") } : {}), ...(amount("刷卡大费") !== undefined ? { cardServiceCents: amount("刷卡大费") } : {}), ...(amount("现金小费") !== undefined ? { cashTipCents: amount("现金小费") } : {}), ...(amount("刷卡小费") !== undefined ? { cardTipCents: amount("刷卡小费") } : {}) };
+    return { operation: "CREATE", employeeName: employee.displayName, serviceName: service.shortName, serviceDurationMinutes: durationMinutes, ...(addons.length ? { addons } : {}), ...(discounts.length ? { discounts } : {}), ...(amount("现金大费") !== undefined ? { cashServiceCents: amount("现金大费") } : {}), ...(amount("刷卡大费") !== undefined ? { cardServiceCents: amount("刷卡大费") } : {}), ...(amount("现金小费") !== undefined ? { cashTipCents: amount("现金小费") } : {}), ...(amount("刷卡小费") !== undefined ? { cardTipCents: amount("刷卡小费") } : {}) };
   }
 
   private addonInputs(items: Array<{ name: string; amountCents?: number | undefined }> | undefined, context: Awaited<ReturnType<AiService["workContext"]>>) {
@@ -324,6 +334,26 @@ export class AiService {
     const matches = items.filter((item) => ["name", "shortName"].some((field) => String((item as Record<string, unknown>)[field] ?? "").toLocaleLowerCase() === needle));
     if (matches.length > 1) throw new BadRequestException({ code: "AI_SELECTION_AMBIGUOUS", messageZh: `“${input}”对应多个${label}，请说得更明确` });
     return matches[0] ?? null;
+  }
+
+  private serviceOption(
+    service: { fullName: string; priceOptions: Array<{ durationMinutes: number; priceCents: bigint }> },
+    durationMinutes: number | undefined,
+  ) {
+    const option = durationMinutes === undefined
+      ? service.priceOptions.length === 1
+        ? service.priceOptions[0]
+        : undefined
+      : service.priceOptions.find((candidate) => candidate.durationMinutes === durationMinutes);
+    if (!option) {
+      throw new BadRequestException({
+        code: "AI_SERVICE_DURATION_AMBIGUOUS",
+        messageZh: durationMinutes === undefined
+          ? `“${service.fullName}”有多个时长，请明确选择分钟数`
+          : `“${service.fullName}”没有 ${durationMinutes} 分钟的价格`,
+      });
+    }
+    return option;
   }
 
   private paymentFrom(args: { cashServiceCents?: number | undefined; cardServiceCents?: number | undefined; cashTipCents?: number | undefined; cardTipCents?: number | undefined }) {

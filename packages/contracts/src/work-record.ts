@@ -57,6 +57,7 @@ export const createWorkRecordSchema = z.object({
   employeeMembershipId: uuidSchema,
   startAt: instantSchema,
   serviceItemId: uuidSchema.optional(),
+  serviceDurationMinutes: z.number().int().min(1).max(720).optional(),
   customService: z
     .object({
       ...namedAmountFields,
@@ -66,6 +67,9 @@ export const createWorkRecordSchema = z.object({
 }).refine((value) => Boolean(value.serviceItemId) !== Boolean(value.customService), {
   message: "预设项目和自定义项目必须且只能选择一种",
   path: ["serviceItemId"],
+}).refine((value) => value.serviceItemId || value.serviceDurationMinutes === undefined, {
+  message: "项目时长只能与预设项目一起提交",
+  path: ["serviceDurationMinutes"],
 });
 
 export const updateWorkRecordSchema = z.object({
@@ -75,6 +79,7 @@ export const updateWorkRecordSchema = z.object({
   startAt: instantSchema.optional(),
   endAt: instantSchema.nullable().optional(),
   serviceItemId: uuidSchema.optional(),
+  serviceDurationMinutes: z.number().int().min(1).max(720).optional(),
   customService: z
     .object({
       ...namedAmountFields,
@@ -94,7 +99,10 @@ export const updateWorkRecordSchema = z.object({
     message: "修改主要项目时，预设项目和自定义项目只能选择一种",
     path: ["serviceItemId"],
   },
-);
+).refine((value) => value.serviceItemId || value.serviceDurationMinutes === undefined, {
+  message: "项目时长只能与预设项目一起提交",
+  path: ["serviceDurationMinutes"],
+});
 
 export const deleteWorkRecordSchema = z.object({
   version: versionSchema,

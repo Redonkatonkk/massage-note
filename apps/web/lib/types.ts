@@ -114,12 +114,18 @@ export interface AiMessageResponse {
   providerConfigured: boolean;
 }
 
+export interface ServicePriceOption {
+  id: string;
+  durationMinutes: number;
+  priceCents: number;
+  position: number;
+}
+
 export interface ServiceItem {
   id: string;
   fullName: string;
   shortName: string;
-  durationMinutes: number;
-  priceCents: number;
+  priceOptions: ServicePriceOption[];
   defaultCommissionBps: number | null;
   isEnabled: boolean;
   deletedAt: string | null;

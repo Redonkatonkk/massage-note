@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
 import type {
@@ -61,8 +61,12 @@ export function TodayBoard({
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [quickEmployeeId, setQuickEmployeeId] = useState<string | null>(null);
-  const [selectedService, setSelectedService] = useState(
-    catalog.serviceItems.find((item) => item.isEnabled && !item.deletedAt)?.id ?? "",
+  const initialService = catalog.serviceItems.find(
+    (item) => item.isEnabled && !item.deletedAt && item.priceOptions.length > 0,
+  );
+  const [selectedService, setSelectedService] = useState(initialService?.id ?? "");
+  const [selectedServiceDuration, setSelectedServiceDuration] = useState(
+    initialService?.priceOptions[0]?.durationMinutes.toString() ?? "",
   );
   const [quickMode, setQuickMode] = useState<"PRESET" | "CUSTOM">("PRESET");
   const [customServiceName, setCustomServiceName] = useState("");
@@ -75,6 +79,35 @@ export function TodayBoard({
   const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const activeServices = useMemo(
+    () => catalog.serviceItems.filter(
+      (item) => item.isEnabled && !item.deletedAt && item.priceOptions.length > 0,
+    ),
+    [catalog.serviceItems],
+  );
+
+  useEffect(() => {
+    setSelectedService((current) =>
+      activeServices.some((item) => item.id === current)
+        ? current
+        : (activeServices[0]?.id ?? ""),
+    );
+  }, [activeServices]);
+
+  const selectedServiceItem = activeServices.find(
+    (item) => item.id === selectedService,
+  );
+
+  useEffect(() => {
+    setSelectedServiceDuration((current) =>
+      selectedServiceItem?.priceOptions.some(
+        (option) => option.durationMinutes.toString() === current,
+      )
+        ? current
+        : (selectedServiceItem?.priceOptions[0]?.durationMinutes.toString() ?? ""),
+    );
+  }, [selectedServiceItem]);
 
   const visibleRows = useMemo(
     () => board.rows.filter((row) => !row.isHidden || (canManage && showHidden)),
@@ -104,7 +137,7 @@ export function TodayBoard({
   async function saveQuickRecord() {
     if (!quickEmployeeId) return;
     let serviceSelection:
-      | { serviceItemId: string }
+      | { serviceItemId: string; serviceDurationMinutes: number }
       | {
           customService: {
             name: string;
@@ -115,7 +148,12 @@ export function TodayBoard({
         };
     if (quickMode === "PRESET") {
       if (!selectedService) throw new Error("请选择一个预设项目");
-      serviceSelection = { serviceItemId: selectedService };
+      const durationMinutes = Number(selectedServiceDuration);
+      if (!Number.isInteger(durationMinutes)) throw new Error("请选择项目时长");
+      serviceSelection = {
+        serviceItemId: selectedService,
+        serviceDurationMinutes: durationMinutes,
+      };
     } else {
       const amountText = customServiceAmount.trim();
       const amount = Number(amountText);
@@ -337,13 +375,23 @@ export function TodayBoard({
               <button className={quickMode === "CUSTOM" ? "active" : ""} type="button" onClick={() => setQuickMode("CUSTOM")}>＋ 自定义项目</button>
             </div>
             {quickMode === "PRESET" ? (
-              <fieldset className="service-picker">
-                <legend>选择项目</legend>
-                {catalog.serviceItems.filter((service) => service.isEnabled && !service.deletedAt).map((service) => (
-                  <label key={service.id}><input type="radio" name="service" checked={selectedService === service.id} onChange={() => setSelectedService(service.id)} /><span><strong>{service.shortName}</strong><small>{money(service.priceCents)}</small></span></label>
-                ))}
-                {catalog.serviceItems.filter((service) => service.isEnabled && !service.deletedAt).length === 0 && <p className="empty-note">没有启用中的预设项目，可切换到自定义项目。</p>}
-              </fieldset>
+              <div className="quick-preset-fields">
+                <fieldset className="service-picker">
+                  <legend>选择项目</legend>
+                  {activeServices.map((service) => (
+                    <label key={service.id}><input type="radio" name="service" checked={selectedService === service.id} onChange={() => setSelectedService(service.id)} /><span><strong>{service.shortName}</strong><small>{service.fullName}</small></span></label>
+                  ))}
+                  {activeServices.length === 0 && <p className="empty-note">没有启用中的预设项目，可切换到自定义项目。</p>}
+                </fieldset>
+                {selectedServiceItem && (
+                  <fieldset className="service-picker duration-picker">
+                    <legend>选择时长与价格</legend>
+                    {selectedServiceItem.priceOptions.map((option) => (
+                      <label key={option.id}><input type="radio" name="service-duration" checked={selectedServiceDuration === option.durationMinutes.toString()} onChange={() => setSelectedServiceDuration(option.durationMinutes.toString())} /><span><strong>{option.durationMinutes} 分钟</strong><small>{money(option.priceCents)}</small></span></label>
+                    ))}
+                  </fieldset>
+                )}
+              </div>
             ) : (
               <div className="quick-custom-grid">
                 <label className="field-label">项目名称<input autoFocus maxLength={120} value={customServiceName} onChange={(event) => setCustomServiceName(event.target.value)} /></label>
@@ -355,7 +403,7 @@ export function TodayBoard({
             )}
             <p className="modal-note">保存后先显示为浅橙色“待结账”，付款和小费可以稍后补充。</p>
             {error && <p className="form-error" role="alert">{error}</p>}
-            <button className="save-record" type="button" disabled={busy || (quickMode === "PRESET" && !selectedService)} onClick={() => run(saveQuickRecord)}>{busy ? "正在保存…" : "保存记工"}</button>
+            <button className="save-record" type="button" disabled={busy || (quickMode === "PRESET" && (!selectedService || !selectedServiceDuration))} onClick={() => run(saveQuickRecord)}>{busy ? "正在保存…" : "保存记工"}</button>
           </section>
         </div>
       )}

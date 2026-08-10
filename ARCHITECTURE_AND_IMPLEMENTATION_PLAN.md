@@ -327,7 +327,8 @@ Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同�
 
 | 表 | 关键字段 | 约束与说明 |
 |---|---|---|
-| `service_items` | `store_id`, `full_name`, `short_name`, `duration_minutes`, `price_cents`, `default_commission_bps`, `position`, `is_enabled` | 价格非负；简称在活跃项目中唯一 |
+| `service_items` | `store_id`, `full_name`, `short_name`, `default_commission_bps`, `position`, `is_enabled` | 项目身份与提成；旧时长/价格列仅用于滚动部署兼容 |
+| `service_item_price_options` | `service_item_id`, `duration_minutes`, `price_cents`, `position` | 同一项目时长唯一；时长 1–720 分钟；价格非负 |
 | `addon_items` | `store_id`, `name`, `short_name`, `amount_cents`, `duration_minutes`, `default_commission_bps`, `position`, `is_enabled` | 时长可空 |
 | `discount_items` | `store_id`, `name`, `short_name`, `amount_cents`, `position`, `is_enabled` | 只支持固定金额 |
 | `employee_default_commissions` | `store_id`, `membership_id`, `commission_bps`, `effective_from`, `effective_to` | 保留时间段历史，不覆盖旧值 |

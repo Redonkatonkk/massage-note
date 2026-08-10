@@ -259,15 +259,65 @@ function ItemCommissionPanel({ storeId, member, catalog, history, busy, run, clo
   return <div className="commission-panel"><div className="manage-heading"><div><h3>{member.displayName} 的项目专属提成</h3><p className="field-help">留空比例会清除该项目专属规则，并继续使用下一层规则。</p></div><button className="close-button" type="button" onClick={close}>关闭</button></div><div className="inline-controls"><select value={itemKey} onChange={(event) => setItemKey(event.target.value)}><option value="">选择主要或额外项目</option>{catalog.serviceItems.filter((item) => !item.deletedAt).map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>主要：{item.shortName}</option>)}{catalog.addonItems.filter((item) => !item.deletedAt).map((item) => <option key={item.id} value={`ADDON:${item.id}`}>额外：{item.shortName}</option>)}</select><input aria-label="项目专属提成" placeholder="比例 %，留空为清除" value={percent} onChange={(event) => setPercent(event.target.value)} /><button className="primary-action compact" disabled={busy || !itemKey} type="button" onClick={() => void run(async () => { const [itemType, itemId] = itemKey.split(":") as ["SERVICE" | "ADDON", string]; await apiRequest(`/stores/${storeId}/members/${member.id}/commissions/item`, { method: "PUT", idempotent: true, body: { version: member.version, itemType, itemId, commissionBps: parsePercent(percent, "项目专属提成", true) } }); await reload(); close(); })}>保存规则</button></div><div className="commission-current">{!history ? <span>正在读取历史…</span> : activeHistory.length === 0 ? <span>暂无生效中的项目专属规则。</span> : activeHistory.map((item) => <span key={item.id}>{itemName(item.itemType, item.itemId) ?? "已删除项目"}：{item.commissionBps / 100}%</span>)}</div></div>;
 }
 
+interface PriceOptionDraft {
+  key: string;
+  duration: string;
+  amount: string;
+}
+
+const newPriceOption = (duration = "60", amount = ""): PriceOptionDraft => ({
+  key: crypto.randomUUID(),
+  duration,
+  amount,
+});
+
 function CatalogPanel({ storeId, canManage, catalog, busy, run, reload }: { storeId: string; canManage: boolean; catalog: CatalogResponse; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
   const [kind, setKind] = useState<CatalogKind>("SERVICE");
   const [name, setName] = useState("");
   const [shortName, setShortName] = useState("");
   const [amount, setAmount] = useState("");
-  const [duration, setDuration] = useState("60");
+  const [duration, setDuration] = useState("");
+  const [priceOptions, setPriceOptions] = useState<PriceOptionDraft[]>([newPriceOption()]);
   const [commission, setCommission] = useState("");
-  const active = [...catalog.serviceItems, ...catalog.addonItems, ...catalog.discountItems].filter((item) => !item.deletedAt).length;
-  return <section className="manage-section"><section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">价格与规则</p><h2>项目目录</h2></div><span className="status-chip">{active} 项启用</span></div>{canManage && <form className="catalog-create" onSubmit={(event) => { event.preventDefault(); void run(async () => { const body = kind === "SERVICE" ? { type: kind, fullName: name, shortName, priceCents: parseMoney(amount, "项目金额"), durationMinutes: Number(duration), commissionBps: undefined } : kind === "ADDON" ? { type: kind, name, shortName, amountCents: parseMoney(amount, "项目金额"), durationMinutes: duration.trim() ? Number(duration) : null } : { type: kind, name, shortName, amountCents: parseMoney(amount, "折扣金额") }; if (kind !== "DISCOUNT" && commission.trim()) Object.assign(body, { defaultCommissionBps: parsePercent(commission, "项目默认提成") }); await apiRequest(`/stores/${storeId}/catalog/items`, { method: "POST", idempotent: true, body }); setName(""); setShortName(""); setAmount(""); await reload(); }); }}><select aria-label="新增项目类型" value={kind} onChange={(event) => setKind(event.target.value as CatalogKind)}><option value="SERVICE">主要项目</option><option value="ADDON">额外项目</option><option value="DISCOUNT">折扣项目</option></select><input required placeholder={kind === "SERVICE" ? "项目全名" : "项目名称"} value={name} onChange={(event) => setName(event.target.value)} /><input required maxLength={30} placeholder="简称" value={shortName} onChange={(event) => setShortName(event.target.value)} /><input required inputMode="decimal" placeholder={kind === "DISCOUNT" ? "折扣美元" : "金额美元"} value={amount} onChange={(event) => setAmount(event.target.value)} />{kind !== "DISCOUNT" && <><input inputMode="numeric" placeholder="分钟" value={duration} onChange={(event) => setDuration(event.target.value)} /><input inputMode="decimal" placeholder="默认提成 %（可留空）" value={commission} onChange={(event) => setCommission(event.target.value)} /></>}<button className="primary-action compact" disabled={busy} type="submit">新增项目</button></form>}<h3 className="catalog-group-title">主要项目</h3><div className="catalog-list">{catalog.serviceItems.map((item) => <CatalogItemEditor key={`${item.id}-${item.version}`} storeId={storeId} type="SERVICE" item={item} canManage={canManage} busy={busy} run={run} reload={reload} />)}</div><h3 className="catalog-group-title">额外项目</h3><div className="catalog-list">{catalog.addonItems.length ? catalog.addonItems.map((item) => <CatalogItemEditor key={`${item.id}-${item.version}`} storeId={storeId} type="ADDON" item={item} canManage={canManage} busy={busy} run={run} reload={reload} />) : <p className="empty-state">还没有额外项目。</p>}</div><h3 className="catalog-group-title">折扣项目</h3><div className="catalog-list">{catalog.discountItems.length ? catalog.discountItems.map((item) => <CatalogItemEditor key={`${item.id}-${item.version}`} storeId={storeId} type="DISCOUNT" item={item} canManage={canManage} busy={busy} run={run} reload={reload} />) : <p className="empty-state">还没有折扣项目。</p>}</div></section></section>;
+  const active = [...catalog.serviceItems, ...catalog.addonItems, ...catalog.discountItems].filter((item) => !item.deletedAt && item.isEnabled).length;
+
+  const updatePriceOption = (key: string, changes: Partial<PriceOptionDraft>) => {
+    setPriceOptions((current) => current.map((option) => option.key === key ? { ...option, ...changes } : option));
+  };
+
+  return <section className="manage-section"><section className="manage-card">
+    <div className="manage-heading"><div><p className="eyebrow">价格与规则</p><h2>项目目录</h2></div><span className="status-chip">{active} 项启用</span></div>
+    {canManage && <form className="catalog-create" onSubmit={(event) => { event.preventDefault(); void run(async () => {
+      const body = kind === "SERVICE"
+        ? { type: kind, fullName: name, shortName, priceOptions: priceOptions.map((option) => ({ durationMinutes: Number(option.duration), priceCents: parseMoney(option.amount, `${option.duration} 分钟价格`) })) }
+        : kind === "ADDON"
+          ? { type: kind, name, shortName, amountCents: parseMoney(amount, "项目金额"), durationMinutes: duration.trim() ? Number(duration) : null }
+          : { type: kind, name, shortName, amountCents: parseMoney(amount, "折扣金额") };
+      if (kind !== "DISCOUNT" && commission.trim()) Object.assign(body, { defaultCommissionBps: parsePercent(commission, "项目默认提成") });
+      await apiRequest(`/stores/${storeId}/catalog/items`, { method: "POST", idempotent: true, body });
+      setName(""); setShortName(""); setAmount(""); setDuration(""); setCommission(""); setPriceOptions([newPriceOption()]);
+      await reload();
+    }); }}>
+      <select aria-label="新增项目类型" value={kind} onChange={(event) => setKind(event.target.value as CatalogKind)}><option value="SERVICE">主要项目</option><option value="ADDON">额外项目</option><option value="DISCOUNT">折扣项目</option></select>
+      <input required placeholder={kind === "SERVICE" ? "项目全名，例如 Body Massage" : "项目名称"} value={name} onChange={(event) => setName(event.target.value)} />
+      <input required maxLength={30} placeholder="简称" value={shortName} onChange={(event) => setShortName(event.target.value)} />
+      {kind === "SERVICE" ? <div className="catalog-price-options-edit">
+        <strong>时长与价格</strong>
+        {priceOptions.map((option, index) => <div className="catalog-price-option-row" key={option.key}>
+          <input required type="number" min="1" max="720" inputMode="numeric" aria-label={`第 ${index + 1} 个时长`} placeholder="分钟" value={option.duration} onChange={(event) => updatePriceOption(option.key, { duration: event.target.value })} />
+          <input required inputMode="decimal" aria-label={`第 ${index + 1} 个价格`} placeholder="价格（美元）" value={option.amount} onChange={(event) => updatePriceOption(option.key, { amount: event.target.value })} />
+          {priceOptions.length > 1 && <button className="danger-link" type="button" onClick={() => setPriceOptions((current) => current.filter((candidate) => candidate.key !== option.key))}>移除</button>}
+        </div>)}
+        <button className="secondary-action compact" type="button" onClick={() => setPriceOptions((current) => [...current, newPriceOption("")])}>＋ 添加时长价格</button>
+      </div> : <input required inputMode="decimal" placeholder={kind === "DISCOUNT" ? "折扣美元" : "金额美元"} value={amount} onChange={(event) => setAmount(event.target.value)} />}
+      {kind === "ADDON" && <input inputMode="numeric" placeholder="分钟（可留空）" value={duration} onChange={(event) => setDuration(event.target.value)} />}
+      {kind !== "DISCOUNT" && <input inputMode="decimal" placeholder="默认提成 %（可留空）" value={commission} onChange={(event) => setCommission(event.target.value)} />}
+      <button className="primary-action compact" disabled={busy} type="submit">新增项目</button>
+    </form>}
+    <h3 className="catalog-group-title">主要项目</h3><div className="catalog-list">{catalog.serviceItems.map((item) => <CatalogItemEditor key={`${item.id}-${item.version}`} storeId={storeId} type="SERVICE" item={item} canManage={canManage} busy={busy} run={run} reload={reload} />)}</div>
+    <h3 className="catalog-group-title">额外项目</h3><div className="catalog-list">{catalog.addonItems.length ? catalog.addonItems.map((item) => <CatalogItemEditor key={`${item.id}-${item.version}`} storeId={storeId} type="ADDON" item={item} canManage={canManage} busy={busy} run={run} reload={reload} />) : <p className="empty-state">还没有额外项目。</p>}</div>
+    <h3 className="catalog-group-title">折扣项目</h3><div className="catalog-list">{catalog.discountItems.length ? catalog.discountItems.map((item) => <CatalogItemEditor key={`${item.id}-${item.version}`} storeId={storeId} type="DISCOUNT" item={item} canManage={canManage} busy={busy} run={run} reload={reload} />) : <p className="empty-state">还没有折扣项目。</p>}</div>
+  </section></section>;
 }
 
 function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload }: { storeId: string; type: CatalogKind; item: ServiceItem | AddonItem | DiscountItem; canManage: boolean; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
@@ -276,12 +326,50 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload }
   const discount = type === "DISCOUNT" ? item as DiscountItem : null;
   const [name, setName] = useState(service?.fullName ?? addon?.name ?? discount?.name ?? "");
   const [shortName, setShortName] = useState(item.shortName);
-  const [amount, setAmount] = useState(((service?.priceCents ?? addon?.amountCents ?? discount?.amountCents ?? 0) / 100).toFixed(2));
-  const [duration, setDuration] = useState((service?.durationMinutes ?? addon?.durationMinutes ?? "").toString());
+  const [amount, setAmount] = useState(((addon?.amountCents ?? discount?.amountCents ?? 0) / 100).toFixed(2));
+  const [duration, setDuration] = useState((addon?.durationMinutes ?? "").toString());
+  const [priceOptions, setPriceOptions] = useState<PriceOptionDraft[]>(
+    service?.priceOptions.map((option) => newPriceOption(option.durationMinutes.toString(), (option.priceCents / 100).toFixed(2))) ?? [],
+  );
   const [commission, setCommission] = useState(service?.defaultCommissionBps === null || addon?.defaultCommissionBps === null ? "" : ((service?.defaultCommissionBps ?? addon?.defaultCommissionBps ?? 0) / 100).toString());
   const deleted = Boolean(item.deletedAt);
-  const amountCents = service?.priceCents ?? addon?.amountCents ?? discount?.amountCents ?? 0;
-  return <article className={`catalog-item ${deleted ? "deleted" : ""}`}><div className="catalog-summary"><strong>{shortName}</strong><span>{name}</span><em>{type === "DISCOUNT" ? `-${money(amountCents)}` : money(amountCents)}</em>{type !== "DISCOUNT" && <small>{duration || "0"} 分钟 · {commission ? `默认提成 ${commission}%` : "无项目默认提成"}</small>}<small>{deleted ? "已删除，可恢复" : item.isEnabled ? "启用中" : "已停用"}</small></div>{canManage && !deleted && <div className="catalog-edit-fields"><input aria-label={`${item.shortName}名称`} value={name} onChange={(event) => setName(event.target.value)} /><input aria-label={`${item.shortName}简称`} value={shortName} onChange={(event) => setShortName(event.target.value)} /><input aria-label={`${item.shortName}金额`} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />{type !== "DISCOUNT" && <><input aria-label={`${item.shortName}分钟`} inputMode="numeric" value={duration} onChange={(event) => setDuration(event.target.value)} /><input aria-label={`${item.shortName}提成`} inputMode="decimal" placeholder="默认提成 %" value={commission} onChange={(event) => setCommission(event.target.value)} /></>}<button className="secondary-action compact" disabled={busy} type="button" onClick={() => void run(async () => { const body = type === "SERVICE" ? { type, version: item.version, fullName: name, shortName, priceCents: parseMoney(amount, "项目金额"), durationMinutes: Number(duration), defaultCommissionBps: parsePercent(commission, "项目默认提成", true) } : type === "ADDON" ? { type, version: item.version, name, shortName, amountCents: parseMoney(amount, "项目金额"), durationMinutes: duration.trim() ? Number(duration) : null, defaultCommissionBps: parsePercent(commission, "项目默认提成", true) } : { type, version: item.version, name, shortName, amountCents: parseMoney(amount, "折扣金额") }; await apiRequest(`/stores/${storeId}/catalog/items/${item.id}`, { method: "PATCH", idempotent: true, body }); await reload(); })}>保存</button><button className="table-action danger" disabled={busy} type="button" onClick={() => { const reason = window.prompt("请填写删除项目原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${storeId}/catalog/items/${item.id}`, { method: "DELETE", idempotent: true, body: { type, version: item.version, reason: reason.trim() } }); await reload(); }); }}>删除</button></div>}{canManage && deleted && <button className="primary-action compact" disabled={busy} type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/catalog/items/${item.id}/restore`, { method: "POST", idempotent: true, body: { type, version: item.version } }); await reload(); })}>恢复项目</button>}</article>;
+  const amountCents = addon?.amountCents ?? discount?.amountCents ?? 0;
+  const updatePriceOption = (key: string, changes: Partial<PriceOptionDraft>) => setPriceOptions((current) => current.map((option) => option.key === key ? { ...option, ...changes } : option));
+
+  return <article className={`catalog-item ${deleted ? "deleted" : ""}`}>
+    <div className="catalog-summary">
+      <strong>{shortName}</strong><span>{name}</span>
+      {service ? <div className="catalog-price-summary">{service.priceOptions.map((option) => <em key={option.id}>{option.durationMinutes} 分钟 · {money(option.priceCents)}</em>)}</div> : <em>{type === "DISCOUNT" ? `-${money(amountCents)}` : money(amountCents)}</em>}
+      <small>{type !== "DISCOUNT" ? (commission ? `默认提成 ${commission}%` : "无项目默认提成") : "折扣项目"}</small>
+      <small>{deleted ? "已删除，可恢复" : item.isEnabled ? "启用中" : "已停用"}</small>
+    </div>
+    {canManage && !deleted && <div className="catalog-edit-fields">
+      <input aria-label={`${item.shortName}名称`} value={name} onChange={(event) => setName(event.target.value)} />
+      <input aria-label={`${item.shortName}简称`} value={shortName} onChange={(event) => setShortName(event.target.value)} />
+      {service ? <div className="catalog-price-options-edit">
+        <strong>时长与价格</strong>
+        {priceOptions.map((option, index) => <div className="catalog-price-option-row" key={option.key}>
+          <input type="number" min="1" max="720" inputMode="numeric" aria-label={`${item.shortName}第 ${index + 1} 个时长`} value={option.duration} onChange={(event) => updatePriceOption(option.key, { duration: event.target.value })} />
+          <input inputMode="decimal" aria-label={`${item.shortName}第 ${index + 1} 个价格`} value={option.amount} onChange={(event) => updatePriceOption(option.key, { amount: event.target.value })} />
+          {priceOptions.length > 1 && <button className="danger-link" type="button" onClick={() => setPriceOptions((current) => current.filter((candidate) => candidate.key !== option.key))}>移除</button>}
+        </div>)}
+        <button className="secondary-action compact" type="button" onClick={() => setPriceOptions((current) => [...current, newPriceOption("")])}>＋ 添加时长价格</button>
+      </div> : <input aria-label={`${item.shortName}金额`} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />}
+      {addon && <input aria-label={`${item.shortName}分钟`} inputMode="numeric" value={duration} onChange={(event) => setDuration(event.target.value)} />}
+      {type !== "DISCOUNT" && <input aria-label={`${item.shortName}提成`} inputMode="decimal" placeholder="默认提成 %" value={commission} onChange={(event) => setCommission(event.target.value)} />}
+      <button className="secondary-action compact" disabled={busy} type="button" onClick={() => void run(async () => {
+        const body = service
+          ? { type, version: item.version, fullName: name, shortName, priceOptions: priceOptions.map((option) => ({ durationMinutes: Number(option.duration), priceCents: parseMoney(option.amount, `${option.duration} 分钟价格`) })), defaultCommissionBps: parsePercent(commission, "项目默认提成", true) }
+          : addon
+            ? { type, version: item.version, name, shortName, amountCents: parseMoney(amount, "项目金额"), durationMinutes: duration.trim() ? Number(duration) : null, defaultCommissionBps: parsePercent(commission, "项目默认提成", true) }
+            : { type, version: item.version, name, shortName, amountCents: parseMoney(amount, "折扣金额") };
+        await apiRequest(`/stores/${storeId}/catalog/items/${item.id}`, { method: "PATCH", idempotent: true, body });
+        await reload();
+      })}>保存</button>
+      <button className="table-action danger" disabled={busy} type="button" onClick={() => { const reason = window.prompt("请填写删除项目原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${storeId}/catalog/items/${item.id}`, { method: "DELETE", idempotent: true, body: { type, version: item.version, reason: reason.trim() } }); await reload(); }); }}>删除</button>
+    </div>}
+    {canManage && deleted && <button className="primary-action compact" disabled={busy} type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/catalog/items/${item.id}/restore`, { method: "POST", idempotent: true, body: { type, version: item.version } }); await reload(); })}>恢复项目</button>}
+  </article>;
 }
 
 function AuditPanel({ storeId, members }: { storeId: string; members: StoreMember[] }) {

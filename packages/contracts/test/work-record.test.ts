@@ -78,6 +78,7 @@ describe("记工项目来源契约", () => {
       updateWorkRecordSchema.safeParse({
         version: 1,
         serviceItemId: itemId,
+        serviceDurationMinutes: 60,
         customService: {
           name: "自定义",
           shortName: "自定",

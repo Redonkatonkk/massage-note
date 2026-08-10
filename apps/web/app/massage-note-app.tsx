@@ -40,8 +40,8 @@ function ProfileSetup({ onDone }: { onDone: () => Promise<void> }) {
         <p className="eyebrow">首次使用</p><h1>先填写你的姓名</h1>
         <p className="field-help">姓名用于创建店铺、加入申请和审计记录。店内显示名之后可单独修改。</p>
         <div className="editor-grid">
-          <label className="field-label">名<input autoComplete="given-name" required maxLength={80} value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label>
-          <label className="field-label">姓<input autoComplete="family-name" required maxLength={80} value={lastName} onChange={(event) => setLastName(event.target.value)} /></label>
+          <label className="field-label">名<input autoComplete="given-name" required maxLength={50} value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label>
+          <label className="field-label">姓<input autoComplete="family-name" required maxLength={50} value={lastName} onChange={(event) => setLastName(event.target.value)} /></label>
         </div>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="primary-action" type="submit" disabled={busy}>{busy ? "正在保存…" : "保存并继续"}</button>
@@ -121,11 +121,17 @@ function StoreSetup({ me, onDone }: { me: MeResponse; onDone: () => Promise<void
 }
 
 function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; onDone: () => Promise<void> }) {
-  const [services, setServices] = useState([{ key: crypto.randomUUID(), fullName: "", shortName: "", duration: "60", price: "", commission: "" }]);
+  const [services, setServices] = useState([{ key: crypto.randomUUID(), fullName: "", shortName: "", priceOptions: [{ key: crypto.randomUUID(), duration: "60", price: "" }], commission: "" }]);
   const [addons, setAddons] = useState<Array<{ key: string; name: string; shortName: string; duration: string; amount: string; commission: string }>>([]);
   const [discounts, setDiscounts] = useState<Array<{ key: string; name: string; shortName: string; amount: string }>>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const updateServicePrice = (serviceKey: string, optionKey: string, changes: { duration?: string; price?: string }) => {
+    setServices((current) => current.map((service) => service.key === serviceKey ? {
+      ...service,
+      priceOptions: service.priceOptions.map((option) => option.key === optionKey ? { ...option, ...changes } : option),
+    } : service));
+  };
   if (membership.role === "EMPLOYEE") {
     return <main className="center-page center-page--with-nav"><section className="setup-card"><h1>项目尚未设置</h1><p className="field-help">请联系店长或经理完成主要项目设置后再开始记工。</p><button className="secondary-action" onClick={() => onDone()} type="button">重新检查</button></section><AppNav active="today" storeId={membership.store.id} /></main>;
   }
@@ -137,7 +143,7 @@ function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; o
           const amount = (value: string, label: string) => { if (!/^\d+(?:\.\d{0,2})?$/.test(value.trim())) throw new Error(`${label}必须是非负金额，最多两位小数`); return Math.round(Number(value) * 100); };
           const commission = (value: string, label: string) => { if (!/^\d+(?:\.\d{0,2})?$/.test(value.trim()) || Number(value) > 100) throw new Error(`${label}必须在 0% 到 100% 之间`); return Math.round(Number(value) * 100); };
           const serviceItems = services.map((item) => ({
-            fullName: item.fullName.trim(), shortName: item.shortName.trim(), durationMinutes: Number(item.duration), priceCents: amount(item.price, `主要项目“${item.fullName}”金额`),
+            fullName: item.fullName.trim(), shortName: item.shortName.trim(), priceOptions: item.priceOptions.map((option) => ({ durationMinutes: Number(option.duration), priceCents: amount(option.price, `主要项目“${item.fullName}”${option.duration} 分钟价格`) })),
             ...(item.commission.trim() ? { defaultCommissionBps: commission(item.commission, `主要项目“${item.fullName}”提成`) } : {}),
           }));
           const addonItems = addons.map((item) => ({ name: item.name.trim(), shortName: item.shortName.trim(), amountCents: amount(item.amount, `额外项目“${item.name}”金额`), durationMinutes: item.duration.trim() ? Number(item.duration) : null, ...(item.commission.trim() ? { defaultCommissionBps: commission(item.commission, `额外项目“${item.name}”提成`) } : {}) }));
@@ -148,16 +154,19 @@ function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; o
         <p className="eyebrow">首次设置</p><h1>设置店铺项目</h1><p className="field-help">主要项目至少一项；额外项目和折扣可以现在添加，也可以稍后在“店铺设置”中维护。底部可以进入财务、店铺设置和个人页面；今日和财务页面右下角都有 AI 助手悬浮入口。</p>
         <h2 className="setup-section-title">主要项目</h2>
         <div className="setup-lines">
-          {services.map((item, index) => <div className="setup-line" key={item.key}>
-            <label>项目全名<input required placeholder="例如：60 分钟按摩" value={item.fullName} onChange={(event) => setServices((current) => current.map((row) => row.key === item.key ? { ...row, fullName: event.target.value } : row))} /></label>
-            <label>简称<input required placeholder="60分" maxLength={30} value={item.shortName} onChange={(event) => setServices((current) => current.map((row) => row.key === item.key ? { ...row, shortName: event.target.value } : row))} /></label>
-            <label>分钟<input type="number" min="1" max="720" required value={item.duration} onChange={(event) => setServices((current) => current.map((row) => row.key === item.key ? { ...row, duration: event.target.value } : row))} /></label>
-            <label>金额（美元）<input inputMode="decimal" required value={item.price} onChange={(event) => setServices((current) => current.map((row) => row.key === item.key ? { ...row, price: event.target.value } : row))} /></label>
+          {services.map((item, index) => <div className="setup-line setup-line--service" key={item.key}>
+            <label>项目全名<input required placeholder="例如：Body Massage" value={item.fullName} onChange={(event) => setServices((current) => current.map((row) => row.key === item.key ? { ...row, fullName: event.target.value } : row))} /></label>
+            <label>简称<input required placeholder="Body" maxLength={30} value={item.shortName} onChange={(event) => setServices((current) => current.map((row) => row.key === item.key ? { ...row, shortName: event.target.value } : row))} /></label>
+            <div className="setup-price-options"><strong>时长与价格</strong>{item.priceOptions.map((option, optionIndex) => <div className="setup-price-option-row" key={option.key}>
+              <label>分钟<input type="number" min="1" max="720" required value={option.duration} onChange={(event) => updateServicePrice(item.key, option.key, { duration: event.target.value })} /></label>
+              <label>金额（美元）<input inputMode="decimal" required value={option.price} onChange={(event) => updateServicePrice(item.key, option.key, { price: event.target.value })} /></label>
+              {item.priceOptions.length > 1 && <button className="danger-link" type="button" onClick={() => setServices((current) => current.map((service) => service.key === item.key ? { ...service, priceOptions: service.priceOptions.filter((candidate) => candidate.key !== option.key) } : service))}>移除第 {optionIndex + 1} 个价格</button>}
+            </div>)}<button className="secondary-action compact" type="button" onClick={() => setServices((current) => current.map((service) => service.key === item.key ? { ...service, priceOptions: [...service.priceOptions, { key: crypto.randomUUID(), duration: "", price: "" }] } : service))}>＋ 添加时长价格</button></div>
             <label>项目提成（%）<input inputMode="decimal" placeholder="可留空" value={item.commission} onChange={(event) => setServices((current) => current.map((row) => row.key === item.key ? { ...row, commission: event.target.value } : row))} /></label>
             {services.length > 1 && <button className="danger-link" type="button" onClick={() => setServices((current) => current.filter((row) => row.key !== item.key))}>移除第 {index + 1} 项</button>}
           </div>)}
         </div>
-        <button className="secondary-action" type="button" onClick={() => setServices((current) => [...current, { key: crypto.randomUUID(), fullName: "", shortName: "", duration: "60", price: "", commission: "" }])}>＋ 再加一个项目</button>
+        <button className="secondary-action" type="button" onClick={() => setServices((current) => [...current, { key: crypto.randomUUID(), fullName: "", shortName: "", priceOptions: [{ key: crypto.randomUUID(), duration: "60", price: "" }], commission: "" }])}>＋ 再加一个项目</button>
         <h2 className="setup-section-title">额外项目（可选）</h2>
         <div className="setup-lines">{addons.map((item, index) => <div className="setup-line setup-line--addon" key={item.key}><label>名称<input required placeholder="例如：热石" value={item.name} onChange={(event) => setAddons((current) => current.map((row) => row.key === item.key ? { ...row, name: event.target.value } : row))} /></label><label>简称<input required maxLength={30} value={item.shortName} onChange={(event) => setAddons((current) => current.map((row) => row.key === item.key ? { ...row, shortName: event.target.value } : row))} /></label><label>分钟<input type="number" min="0" max="720" placeholder="可留空" value={item.duration} onChange={(event) => setAddons((current) => current.map((row) => row.key === item.key ? { ...row, duration: event.target.value } : row))} /></label><label>金额（美元）<input required inputMode="decimal" value={item.amount} onChange={(event) => setAddons((current) => current.map((row) => row.key === item.key ? { ...row, amount: event.target.value } : row))} /></label><label>项目提成（%）<input inputMode="decimal" placeholder="可留空" value={item.commission} onChange={(event) => setAddons((current) => current.map((row) => row.key === item.key ? { ...row, commission: event.target.value } : row))} /></label><button className="danger-link" type="button" onClick={() => setAddons((current) => current.filter((row) => row.key !== item.key))}>移除第 {index + 1} 项</button></div>)}</div>
         <button className="secondary-action" type="button" onClick={() => setAddons((current) => [...current, { key: crypto.randomUUID(), name: "", shortName: "", duration: "", amount: "", commission: "" }])}>＋ 添加额外项目</button>
@@ -253,8 +262,8 @@ export function MassageNoteApp() {
       </header>
       {membership.role !== "EMPLOYEE" && <section className="history-toolbar" aria-label="切换营业日"><form className="history-date-form" onSubmit={(event) => { event.preventDefault(); const value = new FormData(event.currentTarget).get("businessDate"); if (typeof value !== "string" || !value) return; viewDateRef.current = value; setViewDate(value); void loadStore(); }}><label>查看营业日<input key={viewDate} name="businessDate" type="date" defaultValue={viewDate} max={currentDay.businessDate} /></label><button className="secondary-action compact" type="submit">查看</button></form>{viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => { viewDateRef.current = currentDay.businessDate; setViewDate(currentDay.businessDate); void loadStore(); }}>返回今天</button>}<span>{viewDate === currentDay.businessDate ? "当前营业日" : "历史营业日；已日结时须先取消日结才能修改"}</span></section>}
       {error && <p className="form-error" role="alert">{error}</p>}
-      <TodayBoard membership={membership} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} board={board} catalog={catalog} members={members} onReload={loadStore} />
-      <FloatingAiAssistant storeId={membership.store.id} type="work" onWorkChanged={loadStore} />
+      <TodayBoard key={membership.store.id} membership={membership} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} board={board} catalog={catalog} members={members} onReload={loadStore} />
+      <FloatingAiAssistant key={membership.store.id} storeId={membership.store.id} type="work" onWorkChanged={loadStore} />
       <AppNav active="today" storeId={membership.store.id} />
     </main>
   );

@@ -39,6 +39,26 @@ function serviceFor(passwordHash: string | null, verifies = true) {
 }
 
 describe("个人密码", () => {
+  it("个人资料只返回仍然有效的店铺成员关系", async () => {
+    const { service, prisma } = serviceFor(null);
+
+    await service.me(user.id);
+
+    expect(prisma.user.findUniqueOrThrow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          memberships: expect.objectContaining({
+            where: {
+              status: "ACTIVE",
+              deletedAt: null,
+              store: { status: "ACTIVE", deletedAt: null },
+            },
+          }),
+        }),
+      }),
+    );
+  });
+
   it("允许验证码注册的老账号在登录后首次设置密码", async () => {
     const { service, prisma, passwords } = serviceFor(null);
 

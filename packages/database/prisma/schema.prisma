@@ -264,9 +264,26 @@ model ServiceItem {
   updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   store Store @relation(fields: [storeId], references: [id])
+  priceOptions ServiceItemPriceOption[]
 
   @@index([storeId, isEnabled, position])
   @@map("service_items")
+}
+
+model ServiceItemPriceOption {
+  id              String   @id @default(uuid()) @db.Uuid
+  serviceItemId   String   @map("service_item_id") @db.Uuid
+  durationMinutes Int      @map("duration_minutes")
+  priceCents      BigInt   @map("price_cents")
+  position        Int
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  serviceItem ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceItemId, durationMinutes])
+  @@index([serviceItemId, position])
+  @@map("service_item_price_options")
 }
 
 model AddonItem {

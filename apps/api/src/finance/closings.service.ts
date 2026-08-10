@@ -10,6 +10,7 @@ import type {
   CloseBusinessDayInput,
 } from "@massage-note/contracts";
 import { businessDateFor } from "@massage-note/domain";
+import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
@@ -61,14 +62,7 @@ export class ClosingsService {
         responseCode: 201,
       },
       async (transaction) => {
-        await transaction.$queryRaw`
-          WITH acquired_lock AS (
-            SELECT pg_advisory_xact_lock(
-              hashtextextended(${`${storeId}:${businessDate}`}, 0)
-            )
-          )
-          SELECT 1::int AS locked FROM acquired_lock
-        `;
+        await lockBusinessDay(transaction, storeId, businessDate);
         const active = await transaction.businessDayClosing.findFirst({
           where: {
             storeId,
@@ -167,14 +161,7 @@ export class ClosingsService {
         responseCode: 200,
       },
       async (transaction) => {
-        await transaction.$queryRaw`
-          WITH acquired_lock AS (
-            SELECT pg_advisory_xact_lock(
-              hashtextextended(${`${storeId}:${businessDate}`}, 0)
-            )
-          )
-          SELECT 1::int AS locked FROM acquired_lock
-        `;
+        await lockBusinessDay(transaction, storeId, businessDate);
         const current = await transaction.businessDayClosing.findFirst({
           where: {
             storeId,

@@ -208,10 +208,21 @@ export function RecordEditor({
     if (value === "__custom__") return;
     const item = catalog.serviceItems.find((candidate) => candidate.id === value);
     if (!item) return;
+    const option = item.priceOptions[0];
+    if (!option) return;
     setServiceName(item.fullName);
     setServiceShortName(item.shortName);
-    setServiceDuration(item.durationMinutes.toString());
-    setServiceAmount(dollars(item.priceCents));
+    setServiceDuration(option.durationMinutes.toString());
+    setServiceAmount(dollars(option.priceCents));
+  }
+
+  function chooseServiceDuration(value: string) {
+    setServiceDuration(value);
+    const item = catalog.serviceItems.find((candidate) => candidate.id === serviceChoice);
+    const option = item?.priceOptions.find(
+      (candidate) => candidate.durationMinutes.toString() === value,
+    );
+    if (option) setServiceAmount(dollars(option.priceCents));
   }
 
   function updateAddon(key: string, changes: Partial<AddonDraft>) {
@@ -288,7 +299,14 @@ export function RecordEditor({
     const amountCents = cents(serviceAmount, "主要项目金额");
     if (amountCents !== service?.amountCents) payload.mainServiceAmountCents = amountCents;
     const originalChoice = service?.sourceServiceItemId ?? "__custom__";
-    if (serviceChoice !== originalChoice) {
+    if (
+      serviceChoice !== "__custom__" &&
+      (serviceChoice !== originalChoice ||
+        Number(serviceDuration) !== service?.durationMinutes)
+    ) {
+      payload.serviceItemId = serviceChoice;
+      payload.serviceDurationMinutes = Number(serviceDuration);
+    } else if (serviceChoice !== originalChoice) {
       if (serviceChoice === "__custom__") {
         payload.customService = {
           name: serviceName.trim(),
@@ -296,8 +314,6 @@ export function RecordEditor({
           amountCents,
           durationMinutes: Number(serviceDuration),
         };
-      } else {
-        payload.serviceItemId = serviceChoice;
       }
     } else if (
       serviceChoice === "__custom__" &&
@@ -413,6 +429,12 @@ export function RecordEditor({
     ? draftCashService !== null && draftCardService !== null ? draftCashService + draftCardService : null
     : null;
   const draftDifference = draftServicePaid !== null && draftDiscounted !== null ? draftServicePaid - draftDiscounted : null;
+  const selectedCatalogService = catalog.serviceItems.find(
+    (item) => item.id === serviceChoice,
+  );
+  const hasCurrentDuration = selectedCatalogService?.priceOptions.some(
+    (option) => option.durationMinutes.toString() === serviceDuration,
+  );
 
   return (
     <div className="modal-backdrop modal-backdrop--editor" role="presentation">
@@ -441,6 +463,9 @@ export function RecordEditor({
           </label>
           <label className="field-label">主要项目
             <select value={serviceChoice} onChange={(event) => chooseService(event.target.value)}>
+              {serviceChoice !== "__custom__" && !catalog.serviceItems.some((item) => item.id === serviceChoice && item.isEnabled && !item.deletedAt) && (
+                <option value={serviceChoice}>{service?.name ?? "历史项目"}（历史项目）</option>
+              )}
               {catalog.serviceItems.filter((item) => item.isEnabled && !item.deletedAt).map((item) => (
                 <option key={item.id} value={item.id}>{item.fullName}</option>
               ))}
@@ -453,6 +478,16 @@ export function RecordEditor({
               <label className="field-label">项目简称<input value={serviceShortName} onChange={(event) => setServiceShortName(event.target.value)} /></label>
               <label className="field-label">时长（分钟）<input type="number" min="1" max="720" value={serviceDuration} onChange={(event) => setServiceDuration(event.target.value)} /></label>
             </>
+          )}
+          {serviceChoice !== "__custom__" && (
+            <label className="field-label">项目时长与价格
+              <select value={serviceDuration} onChange={(event) => chooseServiceDuration(event.target.value)}>
+                {!hasCurrentDuration && <option value={serviceDuration}>{serviceDuration} 分钟（历史档位）</option>}
+                {selectedCatalogService?.priceOptions.map((option) => (
+                  <option key={option.id} value={option.durationMinutes}>{option.durationMinutes} 分钟 · ${dollars(option.priceCents)}</option>
+                ))}
+              </select>
+            </label>
           )}
           <label className="field-label">主要项目金额（美元）<input inputMode="decimal" value={serviceAmount} onChange={(event) => setServiceAmount(event.target.value)} /></label>
           <label className="field-label">本单主要项目提成（%）<input inputMode="decimal" value={serviceCommission} disabled={!canManage} onChange={(event) => setServiceCommission(event.target.value)} /><small>{canManage ? "修改会保留审计记录" : "只有店长或经理可以修改"}</small></label>

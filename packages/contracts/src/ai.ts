@@ -33,6 +33,7 @@ export const aiWorkToolArgumentsSchema = z.discriminatedUnion("operation", [
     operation: z.literal("CREATE"),
     employeeName: z.string().trim().min(1).max(80),
     serviceName: z.string().trim().min(1).max(120),
+    serviceDurationMinutes: z.number().int().min(1).max(720),
     ...aiWorkDetails,
   }).strict(),
   z.object({
@@ -40,8 +41,17 @@ export const aiWorkToolArgumentsSchema = z.discriminatedUnion("operation", [
     recordId: uuidSchema,
     employeeName: z.string().trim().min(1).max(80).optional(),
     serviceName: z.string().trim().min(1).max(120).optional(),
+    serviceDurationMinutes: z.number().int().min(1).max(720).optional(),
     ...aiWorkDetails,
-  }).strict(),
+  }).strict().superRefine((value, context) => {
+    if (Boolean(value.serviceName) !== Boolean(value.serviceDurationMinutes)) {
+      context.addIssue({
+        code: "custom",
+        path: [value.serviceName ? "serviceDurationMinutes" : "serviceName"],
+        message: "更换主要项目时必须同时提供项目名称和时长",
+      });
+    }
+  }),
   z.object({
     operation: z.literal("DELETE"),
     recordId: uuidSchema,

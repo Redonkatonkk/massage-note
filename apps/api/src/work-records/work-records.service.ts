@@ -25,6 +25,7 @@ import {
   resolveCustomItemCommission,
 } from "@massage-note/domain";
 import { PrismaService } from "../database/prisma.service.js";
+import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
 
@@ -164,20 +165,12 @@ export class WorkRecordsService {
       let isCustom: boolean;
 
       if (input.serviceItemId) {
-        const item = await transaction.serviceItem.findFirst({
-          where: {
-            id: input.serviceItemId,
-            storeId,
-            isEnabled: true,
-            deletedAt: null,
-          },
-        });
-        if (!item) {
-          throw new NotFoundException({
-            code: "SERVICE_ITEM_NOT_FOUND",
-            messageZh: "主要项目不存在或已经停用",
-          });
-        }
+        const { item, option } = await this.resolveServiceSelection(
+          transaction,
+          storeId,
+          input.serviceItemId,
+          input.serviceDurationMinutes,
+        );
         const employeeItemBps = await this.resolveEmployeeItemCommission(
           transaction,
           storeId,
@@ -195,8 +188,8 @@ export class WorkRecordsService {
         sourceServiceItemId = item.id;
         serviceName = item.fullName;
         shortName = item.shortName;
-        amountCents = item.priceCents;
-        durationMinutes = item.durationMinutes;
+        amountCents = option.priceCents;
+        durationMinutes = option.durationMinutes;
         commissionBps = commission.bps;
         commissionSource = commission.source;
         isCustom = false;
@@ -519,8 +512,12 @@ export class WorkRecordsService {
             manualPriceFlag = false;
           } else if (input.serviceItemId || input.mainServiceAmountCents !== undefined) {
             const template = service.sourceServiceItemId
-              ? await transaction.serviceItem.findFirst({
-                  where: { id: service.sourceServiceItemId, storeId },
+              ? await transaction.serviceItemPriceOption.findFirst({
+                  where: {
+                    serviceItemId: service.sourceServiceItemId,
+                    durationMinutes: service.durationMinutes,
+                    serviceItem: { storeId },
+                  },
                   select: { priceCents: true },
                 })
               : null;
@@ -1125,20 +1122,12 @@ export class WorkRecordsService {
     let commissionSource = current.commissionSource;
 
     if (input.serviceItemId) {
-      const item = await transaction.serviceItem.findFirst({
-        where: {
-          id: input.serviceItemId,
-          storeId,
-          isEnabled: true,
-          deletedAt: null,
-        },
-      });
-      if (!item) {
-        throw new NotFoundException({
-          code: "SERVICE_ITEM_NOT_FOUND",
-          messageZh: "主要项目不存在或已经停用",
-        });
-      }
+      const { item, option } = await this.resolveServiceSelection(
+        transaction,
+        storeId,
+        input.serviceItemId,
+        input.serviceDurationMinutes,
+      );
       const employeeItemBps = await this.resolveEmployeeItemCommission(
         transaction,
         storeId,
@@ -1158,9 +1147,9 @@ export class WorkRecordsService {
       name = item.fullName;
       shortName = item.shortName;
       amountCents = input.mainServiceAmountCents === undefined
-        ? item.priceCents
+        ? option.priceCents
         : BigInt(input.mainServiceAmountCents);
-      durationMinutes = item.durationMinutes;
+      durationMinutes = option.durationMinutes;
       commissionBps = commission.bps;
       commissionSource = commission.source;
     } else if (input.customService) {
@@ -1531,6 +1520,7 @@ export class WorkRecordsService {
     store: StoreBusinessSettings,
     businessDate: string,
   ): Promise<void> {
+    await lockBusinessDay(transaction, store.id, businessDate);
     const closing = await transaction.businessDayClosing.findFirst({
       where: {
         storeId: store.id,
@@ -1579,6 +1569,50 @@ export class WorkRecordsService {
       messageZh: "记工已被其他设备修改，请刷新后重试",
       latestResource: latest,
     });
+  }
+
+  private async resolveServiceSelection(
+    transaction: Prisma.TransactionClient,
+    storeId: string,
+    serviceItemId: string,
+    durationMinutes?: number,
+  ) {
+    const item = await transaction.serviceItem.findFirst({
+      where: {
+        id: serviceItemId,
+        storeId,
+        isEnabled: true,
+        deletedAt: null,
+      },
+      include: {
+        priceOptions: {
+          orderBy: [{ position: "asc" }, { durationMinutes: "asc" }],
+        },
+      },
+    });
+    if (!item) {
+      throw new NotFoundException({
+        code: "SERVICE_ITEM_NOT_FOUND",
+        messageZh: "主要项目不存在或已经停用",
+      });
+    }
+    const option = durationMinutes === undefined
+      ? item.priceOptions.length === 1
+        ? item.priceOptions[0]
+        : undefined
+      : item.priceOptions.find(
+          (candidate) => candidate.durationMinutes === durationMinutes,
+        );
+    if (!option) {
+      throw new BadRequestException({
+        code: "SERVICE_PRICE_OPTION_REQUIRED",
+        messageZh:
+          durationMinutes === undefined
+            ? "请选择该项目的服务时长"
+            : "该项目没有这个时长价格，请刷新后重新选择",
+      });
+    }
+    return { item, option };
   }
 
   private dateOnly(value: Date): string {

@@ -13,8 +13,7 @@ describe("项目初始化契约", () => {
           {
             fullName: "60 分钟按摩",
             shortName: "60分",
-            durationMinutes: 60,
-            priceCents: 10_000,
+            priceOptions: [{ durationMinutes: 60, priceCents: 10_000 }],
           },
         ],
       }),
@@ -23,8 +22,7 @@ describe("项目初始化契约", () => {
         {
           fullName: "60 分钟按摩",
           shortName: "60分",
-          durationMinutes: 60,
-          priceCents: 10_000,
+          priceOptions: [{ durationMinutes: 60, priceCents: 10_000 }],
         },
       ],
       addonItems: [],
@@ -41,10 +39,23 @@ describe("项目初始化契约", () => {
         type: "SERVICE",
         fullName: "90 分钟按摩",
         shortName: "90分",
-        durationMinutes: 90,
-        priceCents: 15_000,
+        priceOptions: [
+          { durationMinutes: 60, priceCents: 10_000 },
+          { durationMinutes: 90, priceCents: 15_000 },
+        ],
       }).success,
     ).toBe(true);
+    expect(
+      createCatalogItemSchema.safeParse({
+        type: "SERVICE",
+        fullName: "重复时长",
+        shortName: "重复",
+        priceOptions: [
+          { durationMinutes: 60, priceCents: 10_000 },
+          { durationMinutes: 60, priceCents: 12_000 },
+        ],
+      }).success,
+    ).toBe(false);
     expect(
       createCatalogItemSchema.safeParse({
         type: "DISCOUNT",

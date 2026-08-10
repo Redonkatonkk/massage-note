@@ -38,7 +38,7 @@ describe.skipIf(!enabled).sequential("AI 预览、确认和确定性财务工具
     await prisma.store.create({ data: { id: storeId, storeCode: randomInt(0, 1_000_000).toString().padStart(6, "0"), name: "AI 测试店", timezone: "America/New_York", businessCutoffLocal: "22:00", globalCommissionBps: 5_000, status: "ACTIVE" } });
     await prisma.storeMembership.create({ data: { id: membershipId, storeId, userId, role: "OWNER", displayName: "AI店主", displayNameNormalized: "ai店主", isServiceProvider: true } });
     await prisma.store.update({ where: { id: storeId }, data: { ownerMembershipId: membershipId } });
-    await prisma.serviceItem.create({ data: { id: serviceItemId, storeId, fullName: "60 分钟按摩", shortName: "60分", durationMinutes: 60, priceCents: 10_000n, defaultCommissionBps: 6_000, position: 0 } });
+    await prisma.serviceItem.create({ data: { id: serviceItemId, storeId, fullName: "按摩", shortName: "按摩", durationMinutes: 60, priceCents: 10_000n, defaultCommissionBps: 6_000, position: 0, priceOptions: { create: [{ durationMinutes: 30, priceCents: 6_000n, position: 0 }, { durationMinutes: 60, priceCents: 10_000n, position: 1 }] } } });
     await prisma.addonItem.create({ data: { id: addonItemId, storeId, name: "热石加项", shortName: "热石", amountCents: 2_000n, durationMinutes: 15, defaultCommissionBps: 5_000, position: 0 } });
     await prisma.discountItem.create({ data: { id: discountItemId, storeId, name: "会员优惠", shortName: "会员减", amountCents: 1_000n, position: 0 } });
   });
@@ -66,7 +66,7 @@ describe.skipIf(!enabled).sequential("AI 预览、确认和确定性财务工具
   });
 
   it("无模型密钥时仍可生成简单新增预览，且确认只能消费一次", async () => {
-    const message = await ai.workMessage(actor, storeId, { text: "给AI店主记60分，现金大费100，刷卡小费20" });
+    const message = await ai.workMessage(actor, storeId, { text: "给AI店主记60分按摩，现金大费100，刷卡小费20" });
     expect(message.preview).toMatchObject({ operation: "CREATE_WORK_RECORD" });
     const previewId = message.preview!.previewId;
     const confirmed = await ai.confirmPreview(actor, storeId, previewId, "ai-confirm-test");
@@ -78,7 +78,7 @@ describe.skipIf(!enabled).sequential("AI 预览、确认和确定性财务工具
   });
 
   it("并发确认同一预览时只有一个请求能进入执行流程", async () => {
-    const message = await ai.workMessage(actor, storeId, { text: "给AI店主记60分，现金大费80，现金小费10" });
+    const message = await ai.workMessage(actor, storeId, { text: "给AI店主记60分按摩，现金大费80，现金小费10" });
     const previewId = message.preview!.previewId;
     const originalCreate = workRecords.create.bind(workRecords);
     let releaseExecution!: () => void;
@@ -130,7 +130,8 @@ describe.skipIf(!enabled).sequential("AI 预览、确认和确定性财务工具
         arguments: {
           operation: "CREATE",
           employeeName: "AI店主",
-          serviceName: "60分",
+          serviceName: "按摩",
+          serviceDurationMinutes: 60,
           startAt: startAt.toISOString(),
           endAt: endAt.toISOString(),
           addons: [{ name: "热石" }],
@@ -143,8 +144,8 @@ describe.skipIf(!enabled).sequential("AI 预览、确认和确定性财务工具
       provider: "test",
       model: "test",
     });
-    const response = await ai.workMessage(actor, storeId, { text: "给我记一单60分，加热石和会员优惠，现金大费110，没有小费" });
-    expect(response.preview?.after).toMatchObject({ employee: "AI店主", service: "60 分钟按摩", note: "AI 完整录入" });
+    const response = await ai.workMessage(actor, storeId, { text: "给我记一单60分按摩，加热石和会员优惠，现金大费110，没有小费" });
+    expect(response.preview?.after).toMatchObject({ employee: "AI店主", service: "按摩", durationMinutes: 60, note: "AI 完整录入" });
     const confirmed = await ai.confirmPreview(actor, storeId, response.preview!.previewId, "ai-complete-create");
     expect(confirmed).toMatchObject({ status: "CONSUMED" });
     const saved = await prisma.workRecord.findFirstOrThrow({ where: { storeId, note: "AI 完整录入" }, include: { addonSnapshots: true, discountSnapshots: true } });

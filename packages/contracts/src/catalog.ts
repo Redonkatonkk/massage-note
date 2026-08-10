@@ -16,11 +16,33 @@ const catalogShortNameSchema = z
   .min(1, "项目简称不能为空")
   .max(30);
 
+export const catalogServicePriceOptionSchema = z.object({
+  durationMinutes: z.number().int().min(1).max(720),
+  priceCents: moneyCentsSchema,
+});
+
+const catalogServicePriceOptionsSchema = z
+  .array(catalogServicePriceOptionSchema)
+  .min(1, "每个主要项目至少需要一个时长价格")
+  .max(20)
+  .superRefine((options, context) => {
+    const seen = new Set<number>();
+    options.forEach((option, index) => {
+      if (seen.has(option.durationMinutes)) {
+        context.addIssue({
+          code: "custom",
+          path: [index, "durationMinutes"],
+          message: "同一项目不能重复设置相同时长",
+        });
+      }
+      seen.add(option.durationMinutes);
+    });
+  });
+
 export const catalogServiceItemSchema = z.object({
   fullName: catalogNameSchema,
   shortName: catalogShortNameSchema,
-  durationMinutes: z.number().int().min(1).max(720),
-  priceCents: moneyCentsSchema,
+  priceOptions: catalogServicePriceOptionsSchema,
   defaultCommissionBps: commissionBpsSchema.nullable().optional(),
 });
 
@@ -76,8 +98,7 @@ export const updateCatalogItemSchema = z.discriminatedUnion("type", [
     ...updateBase,
     fullName: catalogNameSchema.optional(),
     shortName: catalogShortNameSchema.optional(),
-    durationMinutes: z.number().int().min(1).max(720).optional(),
-    priceCents: moneyCentsSchema.optional(),
+    priceOptions: catalogServicePriceOptionsSchema.optional(),
     defaultCommissionBps: commissionBpsSchema.nullable().optional(),
   }),
   z.object({

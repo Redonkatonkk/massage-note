@@ -8,6 +8,8 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://massage:massage@localhost:5432/massage_note
     services:
       postgres:
         image: postgres:17-alpine

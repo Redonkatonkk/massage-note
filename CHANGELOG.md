@@ -2,6 +2,10 @@
 
 本项目遵循语义化版本。每次 AI 修补或开发都必须迭代版本号并在这里记录。
 
+## 0.2.2 - 2026-08-10
+
+- 为干净的 GitHub Actions runner 显式提供仅用于测试的 PostgreSQL URL，修复 Prisma schema 校验在没有本机 `.env` 时失败的问题。
+
 ## 0.2.1 - 2026-08-10
 
 - CI 测试通过后自动构建 `linux/amd64` NAS 镜像，并发布到公开 GHCR 的版本、`latest` 与提交标签。

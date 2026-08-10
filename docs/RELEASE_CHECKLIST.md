@@ -7,6 +7,8 @@
 - [ ] 本次 AI/人工修改已经按语义化版本迭代 `VERSION`，并同步全部 `package.json`、`CHANGELOG.md`、镜像标签和 PWA 缓存名；`pnpm version:check` 已通过。
 - [ ] `pnpm typecheck`、`pnpm test`、`pnpm test:integration`、`pnpm build` 全部通过。
 - [ ] `docker compose ... config --quiet` 与生产镜像构建通过。
+- [ ] 已按本次 commit SHA 等到 GitHub Actions 的 `verify` 与 `publish-nas-image` 成功；没有用另一条 run 或 `latest` 代替。
+- [ ] 目标语义版本的 GHCR manifest 存在、平台为 `linux/amd64`，并已用隔离的未登录 Docker 配置验证可匿名读取。
 - [ ] 新迁移已在生产数据副本执行，耗时和锁影响可接受。
 - [ ] 发布前备份成功，SHA-256 可验证；最近一次独立恢复演练仍在约定周期内。
 - [ ] 数据库管理 URL 与应用 URL 使用不同账号，应用账号不是 superuser/BYPASSRLS/表拥有者。
@@ -17,6 +19,7 @@
 - [ ] `DEV_AUTH_ENABLED=false`，生产前端未显示本地测试登录。
 - [ ] Firebase Authorized domains、Phone provider、短信配额和预算告警已配置。
 - [ ] PostgreSQL、Redis、Firebase、MiniMax、Google 密钥没有提交到仓库，且权限最小。
+- [ ] 完整 Git 历史和本次暂存改动已经过秘密扫描；GitHub 只接收四项浏览器公开的 `NEXT_PUBLIC_FIREBASE_*` Repository Variables。
 - [ ] PostgreSQL、Redis、3000、4000 未直接暴露公网。
 - [ ] CSP、HSTS、`HttpOnly`/`Secure` 会话 Cookie、严格 Origin 和 429 限流已抽查。
 - [ ] 反向代理关闭 SSE 缓冲，保留 `Last-Event-ID`，请求体上限支持 8 MB 录音。
@@ -37,6 +40,8 @@
 ## 上线后
 
 - [ ] `/health`、`/health/ready` 与 Web 登录页外部监控正常。
+- [ ] NAS 项目仍为 `mn`，原 PostgreSQL/Redis 命名卷未变化，三个长期容器健康，`migrate`/`harden` 为 exited (0)。
+- [ ] `app`、`migrate`、`harden` 实际镜像均为目标 GHCR 版本，`sw.js` cache 名与目标版本一致。
 - [ ] 观察至少一个完整营业日的 5xx、429、数据库连接、磁盘、备份和短信/AI 费用。
 - [ ] 店主已阅读软件内 `/help`，并知道强制日结、软删除和工资调整的含义。
 - [ ] 发布版本、迁移编号、开始/结束时间、执行人和回滚判断已记录。

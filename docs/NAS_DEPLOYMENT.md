@@ -12,7 +12,21 @@ GitHub Actions 先跑完整测试
 群晖 Container Manager 直接 pull 并重建 mn 项目
 ```
 
-镜像地址：`ghcr.io/redonkatonkk/massage-note`。当前版本：`0.2.4`。正常升级不再构建和上传约 250 MB 的 tar；`scripts/build-nas-image.sh` 只作为 GHCR 故障时的离线备用方案。
+镜像地址：`ghcr.io/redonkatonkk/massage-note`。当前版本：`0.2.5`。正常升级不再构建和上传约 250 MB 的 tar；`scripts/build-nas-image.sh` 只作为 GHCR 故障时的离线备用方案。
+
+## 0. AI 接手后的最短正确路径
+
+不要凭记忆部署。依次执行：
+
+1. 阅读 `docs/AI_HANDOFF.md`、本文件和被忽略的 `.local-ai/DEPLOYMENT_SECRETS.md`。
+2. 运行 `git status --short`，保留不属于本次任务的文件；当前用户的 `IDEA.md` 不得顺手提交。
+3. 修改代码和版本，完成第 3.1 节的全部本地检查。
+4. 只暂存本次文件，检查暂存区和秘密扫描，再 commit、push `main`。
+5. 按本次 commit SHA 找到并等待对应的 GitHub Actions run；不能只看最新一条就假定是自己的构建。
+6. 先验证版本镜像可匿名读取，再备份数据库、更新 NAS 项目 `mn`。
+7. 等迁移任务和重建任务真正结束，检查容器、卷、镜像名、健康接口和真实业务流程。
+
+任何一步失败都停止部署并保留旧容器/卷；不要用删除项目、删除卷或复用旧版本标签“解决”。
 
 ## 1. 永远不要混淆的秘密边界
 
@@ -50,6 +64,8 @@ gh repo view Redonkatonkk/massage-note --json visibility,url
 
 仓库已经设置为 public。公开意味着任何人都能看代码、历史 Actions 日志和 fork；公开前必须运行第 7 节的秘密扫描。
 
+注意：仓库公开和 GHCR package 公开是两套独立设置。仓库为 public 不代表 NAS 已经能匿名拉镜像。
+
 ### 2.2 设置四项公开构建变量
 
 在 GitHub 仓库的 `Settings → Secrets and variables → Actions → Variables` 中创建：
@@ -76,14 +92,33 @@ gh variable set NEXT_PUBLIC_FIREBASE_APP_ID --repo Redonkatonkk/massage-note
 
 首次工作流成功后会出现 package `massage-note`。打开 GitHub 个人主页的 `Packages → massage-note → Package settings → Change visibility → Public`。
 
-验证匿名拉取；必须不执行 `docker login ghcr.io`：
+AI 若使用 GitHub API 修改 package，可先检查 `gh auth status` 是否包含 `read:packages`、`write:packages`。没有时运行：
 
 ```bash
-docker logout ghcr.io 2>/dev/null || true
-docker manifest inspect ghcr.io/redonkatonkk/massage-note:0.2.4 >/dev/null
+gh auth refresh -h github.com -s read:packages,write:packages
+```
+
+该命令会启动 GitHub device authorization。必须让用户在 GitHub 页面确认；终端一直无输出通常是在等待网页授权，不是卡死。授权完成后：
+
+```bash
+gh api /user/packages/container/massage-note --jq '{name,visibility}'
+gh api --method PATCH /user/packages/container/massage-note -f visibility=public
+```
+
+不得把 `gh auth token` 的输出复制到命令、文件、NAS 或聊天中。若 API 因 scope 返回 403，完成上述 device authorization；不要创建并硬编码新的 PAT 绕过。
+
+验证匿名拉取时使用隔离的空 Docker 配置，避免本机已有登录造成假阳性，也不要用 `docker logout` 改坏用户现有登录：
+
+```bash
+task_docker_config=$(mktemp -d /tmp/massage-note-docker.XXXXXX)
+DOCKER_CONFIG="$task_docker_config" \
+  docker manifest inspect ghcr.io/redonkatonkk/massage-note:0.2.5 >/dev/null
+rmdir "$task_docker_config"
 ```
 
 如果匿名检查失败，说明 package 仍为 private。不要把个人访问令牌写入 NAS Compose；先把 package 改为 public。
+
+经验：设置空 `DOCKER_CONFIG` 后 Docker 可能找不到 `buildx` CLI 插件，所以匿名检查使用内置的 `docker manifest inspect`；正常登录环境才使用 `docker buildx imagetools inspect`。
 
 ## 3. 每次发布：本机到 GitHub
 
@@ -99,6 +134,8 @@ pnpm test:integration
 pnpm build
 ```
 
+版本标签视为不可变产物：哪怕只改文档，也要递增 patch 版本。禁止覆盖已经发布的 `0.x.y` 标签；否则 NAS、浏览器 PWA 缓存和排错记录会指向不同内容。
+
 ### 3.2 提交并 push
 
 先确认没有 `.env`、私钥或用户文件进入暂存区：
@@ -107,6 +144,8 @@ pnpm build
 git status --short
 git diff --check
 git diff --cached --name-only
+docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+  git --staged /repo --redact=100 --no-banner
 git commit -m "描述本次变化"
 git push origin main
 ```
@@ -118,27 +157,36 @@ git push origin main
 `.github/workflows/ci.yml` 的顺序固定为：完整验证 → 构建 NAS 镜像 → 推送 GHCR。Pull Request 只测试，不发布镜像；只有 `main` push 或在 `main` 手动运行 workflow 才发布。
 
 ```bash
-gh run list --repo Redonkatonkk/massage-note --workflow ci.yml --limit 5
-gh run watch --repo Redonkatonkk/massage-note --exit-status
+release_sha=$(git rev-parse HEAD)
+gh run list --repo Redonkatonkk/massage-note --workflow ci.yml \
+  --commit "$release_sha" --limit 5
+run_id=$(gh run list --repo Redonkatonkk/massage-note --workflow ci.yml \
+  --commit "$release_sha" --json databaseId --jq '.[0].databaseId')
+test -n "$run_id"
+gh run watch "$run_id" --repo Redonkatonkk/massage-note --exit-status
 ```
+
+`verify` 必须先通过；随后 `publish-nas-image` 才会运行。干净 GitHub runner 没有本机 `.env`、生成物或测试数据库，因此工作流显式提供一次性 PostgreSQL/Redis service，`pnpm typecheck` 的 pre-hook 会先生成 Prisma Client/内部包。不要为了让 CI 绿而上传生产 `.env`。
 
 成功后产生三个标签：
 
-- `0.2.4`：版本标签，NAS 正式部署使用；
+- `0.2.5`：版本标签，NAS 正式部署使用；
 - `latest`：最新 main，仅用于查看，不建议作为生产固定版本；
 - `sha-xxxxxxx`：对应 Git 提交，精确排错或回滚使用。
 
 验证线上镜像：
 
 ```bash
-docker buildx imagetools inspect ghcr.io/redonkatonkk/massage-note:0.2.4
+docker buildx imagetools inspect ghcr.io/redonkatonkk/massage-note:0.2.5
 ```
+
+同时检查 manifest 平台为 `linux/amd64`。群晖不是本机 Mac 的架构环境；不要把未经指定平台的本机构建当作 NAS 产物。
 
 ## 4. 第一次创建 NAS 项目
 
 1. 在 NAS 的 `/volume1/docker/massage-note-v2` 保存 `docker-compose.nas.yml` 和只存在 NAS 的 `.env`。
 2. 以 `.env.nas.example` 为模板填写随机且互不相同的数据库/Redis 密码和所需运行时秘密。
-3. 设置 `MASSAGE_NOTE_IMAGE_TAG=0.2.4`、`APP_HTTP_PORT=3100`、`WEB_ORIGIN=https://massagenote.waltonjin.com`。
+3. 设置 `MASSAGE_NOTE_IMAGE_TAG=0.2.5`、`APP_HTTP_PORT=3100`、`WEB_ORIGIN=https://massagenote.waltonjin.com`。
 4. Container Manager 新建项目，项目名固定为 `mn`，使用上述目录的 Compose。
 5. DSM 反向代理固定为 `https://massagenote.waltonjin.com:443` → `http://localhost:3100`。
 
@@ -160,7 +208,7 @@ gzip -t backup-before-upgrade.sql.gz
 
 ### 5.2 更新版本并拉取
 
-把 NAS `.env` 的 `MASSAGE_NOTE_IMAGE_TAG` 改为已经在 GHCR 验证存在的版本，例如 `0.2.4`，然后：
+把 NAS `.env` 的 `MASSAGE_NOTE_IMAGE_TAG` 改为已经在 GHCR 验证存在的版本，例如 `0.2.5`。确认 `app`、`migrate`、`harden` 三个服务最终引用同一个标签，然后：
 
 ```bash
 cd /volume1/docker/massage-note-v2
@@ -170,6 +218,14 @@ docker compose --env-file .env -f docker-compose.nas.yml ps
 ```
 
 Container Manager UI 等价操作：打开项目 `mn` → 编辑 Compose/环境 → 将版本标签改为目标版本 → “构建/启动”。不要点“删除项目并删除数据”。
+
+AI 通过 DSM API 自动更新时还必须遵守：
+
+- 每次按项目名 `mn` 查询当前 project ID；不要永久记录临时 UUID。
+- API 返回的 Compose 内容含生产秘密，只能写入权限 `0600` 的临时文件，禁止输出完整响应、运行 `jq .` 或贴进日志。
+- 以 NAS 当前 Compose 为基础，只替换三个应用镜像标签；不得用仓库示例覆盖生产密码、域名、卷或其他环境。
+- 提交更新后持续读取 build stream/task，直到明确成功或失败；收到 update 请求的 task ID 不等于部署完成。
+- 无论成功失败都退出 DSM API 会话并清理临时文件。凭据从 macOS Keychain 读取，不进入命令历史。
 
 正常结果：
 
@@ -183,10 +239,12 @@ Container Manager UI 等价操作：打开项目 `mn` → 编辑 Compose/环境 
 curl --fail https://massagenote.waltonjin.com/
 curl --fail https://massagenote.waltonjin.com/api/v1/health
 curl --fail https://massagenote.waltonjin.com/api/v1/health/ready
-curl --fail https://massagenote.waltonjin.com/sw.js | grep 'massage-note-v0.2.4'
+curl --fail https://massagenote.waltonjin.com/sw.js | grep 'massage-note-v0.2.5'
 ```
 
 再用真实浏览器完成登录、快速记工“项目 + 时长”、经理修改项目档位和财务页冒烟测试。
+
+仅返回 HTTP 200 不足以验收。还要确认 `app`、`migrate`、`harden` 三个应用容器都使用 `ghcr.io/redonkatonkk/massage-note:<目标版本>`，现有两个数据库卷名未变化，三个长期容器健康，`migrate`/`harden` 退出码为 0。浏览器若仍显示旧界面，先检查 `sw.js` cache 名和强制刷新，不要立即重跑数据库迁移。
 
 ## 6. 回滚
 
@@ -208,6 +266,8 @@ docker compose --env-file .env -f docker-compose.nas.yml up -d --remove-orphans
 ```bash
 docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
   git /repo --redact=100 --no-banner
+docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+  git --staged /repo --redact=100 --no-banner
 git ls-files | grep -E '(^|/)\.env($|\.)' || true
 git status --short
 ```
@@ -221,7 +281,20 @@ git status --short
 ```bash
 pnpm version:check
 ./scripts/build-nas-image.sh
-shasum -a 256 -c artifacts/massage-note-0.2.4-linux-amd64.tar.sha256
+shasum -a 256 -c artifacts/massage-note-0.2.5-linux-amd64.tar.sha256
 ```
 
 然后在 Container Manager 的“映像 → 新增 → 从文件新增”导入。恢复网络后应回到 GHCR 流程，避免本机跨架构构建与大文件上传。
+
+## 9. 本次实操形成的排错表
+
+| 现象 | 真实含义/处理 |
+| --- | --- |
+| `gh api` 返回 package scope 403 | 当前 `gh` OAuth token 缺少 `read:packages`/`write:packages`；运行 `gh auth refresh` 并让用户完成网页授权。 |
+| 公开仓库后匿名 pull 仍 unauthorized | GHCR package 仍为 private；单独修改 package visibility。 |
+| 空 `DOCKER_CONFIG` 下提示 `docker buildx` 不存在 | 隔离配置隐藏了 CLI plugin 查找信息；匿名验证改用 `docker manifest inspect`。 |
+| CI 本机通过、GitHub typecheck 失败 | 干净 runner 缺生成物或 `DATABASE_URL`；修复 pre-hook/测试 service，不上传本机 `.env`。 |
+| CI 集成测试试图创建本机 Compose 测试库 | GitHub 应直接使用 workflow 的一次性 service database；不要调用只面向本机 Docker 的准备脚本。 |
+| Container Manager 项目显示 WARNING | 先看 `migrate`/`harden` 是否 exited (0)；一次性容器正常退出可能触发汇总警告。 |
+| 更新请求很快返回但线上仍是旧版 | DSM API 只返回异步 task；继续等 build stream 完成，再检查实际容器镜像和 `sw.js`。 |
+| 上线后像是数据丢失 | 先核对项目名和卷名；新建了另一 Compose project 会创建新卷，禁止删除任何卷。 |

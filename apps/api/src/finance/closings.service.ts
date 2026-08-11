@@ -10,7 +10,11 @@ import type {
   CancelBusinessDayClosingInput,
   CloseBusinessDayInput,
 } from "@massage-note/contracts";
-import { businessDateFor, canReadEmployeeFinance } from "@massage-note/domain";
+import {
+  businessDateFor,
+  calculateDailyCashSettlement,
+  canReadEmployeeFinance,
+} from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
@@ -95,6 +99,7 @@ export class ClosingsService {
       customerTotalPaidCents: 0,
       totalLargeFeeWageCents: 0,
       employeeIncomeCents: 0,
+      cashToSubmitToStoreCents: 0,
       incompleteRecordCount: 0,
     };
     const activeClosing = preview.activeClosing
@@ -425,6 +430,13 @@ export class ClosingsService {
         customerTotalPaidCents: bigint;
         totalLargeFeeWageCents: bigint;
         employeeIncomeCents: bigint;
+        cashRecords: Array<{
+          cashServiceCents: bigint;
+          cashTipCents: bigint;
+          cashAllocatedServiceWageCents: bigint;
+          cashAcquiredServiceWageCents: bigint;
+          cashWageShortfallCents: bigint;
+        }>;
         incompleteRecordCount: number;
       }
     >();
@@ -441,6 +453,7 @@ export class ClosingsService {
         customerTotalPaidCents: 0n,
         totalLargeFeeWageCents: 0n,
         employeeIncomeCents: 0n,
+        cashRecords: [],
         incompleteRecordCount: 0,
       };
       current.recordCount += 1;
@@ -453,11 +466,28 @@ export class ClosingsService {
       current.totalLargeFeeWageCents += record.totalLargeFeeWageCents;
       current.employeeIncomeCents +=
         record.totalLargeFeeWageCents + (record.totalTipCents ?? 0n);
+      if (record.status === "CONFIRMED") {
+        current.cashRecords.push({
+          cashServiceCents: record.cashServiceCents ?? 0n,
+          cashTipCents: record.cashTipCents ?? 0n,
+          cashAllocatedServiceWageCents:
+            record.cashAllocatedServiceWageCents ?? 0n,
+          cashAcquiredServiceWageCents:
+            record.cashAcquiredServiceWageCents ?? 0n,
+          cashWageShortfallCents: record.cashWageShortfallCents ?? 0n,
+        });
+      }
       if (record.status === "PENDING_PAYMENT") current.incompleteRecordCount += 1;
       employeeMap.set(record.employeeMembershipId, current);
     }
-    const employees = [...employeeMap.values()].map((item) =>
-      this.safeTotals(item),
+    const employees = [...employeeMap.values()].map(
+      ({ cashRecords, ...item }) =>
+        this.safeTotals({
+          ...item,
+          cashToSubmitToStoreCents:
+            calculateDailyCashSettlement(cashRecords)
+              .cashToSubmitToStoreCents,
+        }),
     );
     const storeTotals = employees.reduce(
       (total, item) => ({

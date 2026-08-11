@@ -23,10 +23,12 @@ const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 interface BoardStatistics {
   recordCount: number;
   grossFeeBaseCents: bigint;
+  discountTotalCents: bigint;
   discountedFeePerformanceCents: bigint;
   totalTipCents: bigint;
   totalLargeFeeWageCents: bigint;
   employeeIncomeCents: bigint;
+  storeIncomeCents: bigint;
 }
 
 @Injectable()
@@ -678,33 +680,48 @@ export class BoardsService {
   private calculateRowStatistics(
     records: Array<{
       grossFeeBaseCents: bigint;
+      discountTotalCents: bigint;
       discountedFeePerformanceCents: bigint;
       totalTipCents: bigint | null;
       totalLargeFeeWageCents: bigint;
     }>,
   ) {
     return records.reduce<BoardStatistics>(
-      (total, record) => ({
-        recordCount: total.recordCount + 1,
-        grossFeeBaseCents: total.grossFeeBaseCents + record.grossFeeBaseCents,
-        discountedFeePerformanceCents:
-          total.discountedFeePerformanceCents +
-          record.discountedFeePerformanceCents,
-        totalTipCents: total.totalTipCents + (record.totalTipCents ?? 0n),
-        totalLargeFeeWageCents:
-          total.totalLargeFeeWageCents + record.totalLargeFeeWageCents,
-        employeeIncomeCents:
-          total.employeeIncomeCents +
-          record.totalLargeFeeWageCents +
-          (record.totalTipCents ?? 0n),
-      }),
+      (total, record) => {
+        const totalTipCents = record.totalTipCents ?? 0n;
+        const employeeIncomeCents =
+          record.totalLargeFeeWageCents + totalTipCents;
+        return {
+          recordCount: total.recordCount + 1,
+          grossFeeBaseCents:
+            total.grossFeeBaseCents + record.grossFeeBaseCents,
+          discountTotalCents:
+            total.discountTotalCents + record.discountTotalCents,
+          discountedFeePerformanceCents:
+            total.discountedFeePerformanceCents +
+            record.discountedFeePerformanceCents,
+          totalTipCents: total.totalTipCents + totalTipCents,
+          totalLargeFeeWageCents:
+            total.totalLargeFeeWageCents + record.totalLargeFeeWageCents,
+          employeeIncomeCents:
+            total.employeeIncomeCents + employeeIncomeCents,
+          storeIncomeCents:
+            total.storeIncomeCents +
+            record.grossFeeBaseCents -
+            record.discountTotalCents +
+            totalTipCents -
+            employeeIncomeCents,
+        };
+      },
       {
         recordCount: 0,
         grossFeeBaseCents: 0n,
+        discountTotalCents: 0n,
         discountedFeePerformanceCents: 0n,
         totalTipCents: 0n,
         totalLargeFeeWageCents: 0n,
         employeeIncomeCents: 0n,
+        storeIncomeCents: 0n,
       },
     );
   }

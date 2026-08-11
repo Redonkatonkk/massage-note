@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
+import { discountBadgeText } from "../lib/board";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
 import { activeWorkRecord } from "../lib/work-status";
 import type {
@@ -279,11 +280,8 @@ export function TodayBoard({
       {canManage && <section className="summary-strip" aria-label="今日全店汇总">
         <div><span>大费总额（折扣前）</span><strong>{money(board.statistics.grossFeeBaseCents)}</strong></div>
         <div><span>小费总额</span><strong>{money(board.statistics.totalTipCents)}</strong></div>
-        <div><span>员工应得</span><strong>{money(board.statistics.employeeIncomeCents)}</strong></div>
-        <div className={board.rows.some((row) => row.workRecords.some((record) => record.status === "PENDING_PAYMENT")) ? "summary-warning" : undefined}>
-          <span>待结账</span>
-          <strong>{board.rows.reduce((count, row) => count + row.workRecords.filter((record) => record.status === "PENDING_PAYMENT").length, 0)} 单</strong>
-        </div>
+        <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
+        <div title="大费总额－折扣总额＋小费总额－员工应得"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
       </section>}
 
       <section className="board-toolbar" aria-label="今日操作">
@@ -365,8 +363,7 @@ export function TodayBoard({
                                 aria-label={`折扣 ${money(record.discountTotalCents)}`}
                                 title={`折扣 ${money(record.discountTotalCents)}`}
                               >
-                                <span>off</span>
-                                <b>{money(record.discountTotalCents)}</b>
+                                {discountBadgeText(record.discountTotalCents)}
                               </span>
                             )}
                             {record.status === "PENDING_PAYMENT" && <em>待结账</em>}

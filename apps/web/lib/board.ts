@@ -6,3 +6,18 @@ export function deduplicateMembershipRows<T extends { membershipId: string }>(ro
     return true;
   });
 }
+
+export function discountBadgeText(cents: number): string {
+  const normalizedCents = Math.trunc(cents);
+  const sign = normalizedCents < 0 ? "-" : "";
+  const absoluteCents = Math.abs(normalizedCents);
+  const dollars = Math.trunc(absoluteCents / 100);
+  const remainder = absoluteCents % 100;
+  const decimal = remainder === 0
+    ? ""
+    : remainder % 10 === 0
+      ? `.${remainder / 10}`
+      : `.${remainder.toString().padStart(2, "0")}`;
+
+  return `off${sign}${dollars}${decimal}`;
+}

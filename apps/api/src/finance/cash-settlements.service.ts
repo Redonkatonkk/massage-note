@@ -410,26 +410,17 @@ export class CashSettlementsService {
         messageZh: "不能结算未来营业日的现金",
       });
     }
-    const [memberships, records, existing, allStoreMemberships] = await Promise.all([
-      client.storeMembership.findMany({
-        where: {
-          storeId,
-          status: "ACTIVE",
-          deletedAt: null,
-          isServiceProvider: true,
-        },
-        select: { id: true, displayName: true, role: true },
-        orderBy: { joinedAt: "asc" },
-      }),
+    const [records, existing, allStoreMemberships] = await Promise.all([
       client.workRecord.findMany({
         where: {
           storeId,
           businessDate: dateAtUtc(businessDate),
-          status: "CONFIRMED",
           deletedAt: null,
         },
+        orderBy: { startAt: "asc" },
         select: {
           employeeMembershipId: true,
+          status: true,
           cashServiceCents: true,
           cashTipCents: true,
           cashAllocatedServiceWageCents: true,
@@ -453,9 +444,10 @@ export class CashSettlementsService {
     ]);
     const settledByName = new Map<string, string>();
     for (const item of allStoreMemberships) if (!settledByName.has(item.userId)) settledByName.set(item.userId, item.displayName);
-    const identities = new Map(
-      memberships.map((membership) => [membership.id, membership]),
-    );
+    const identities = new Map<
+      string,
+      { id: string; displayName: string; role: string }
+    >();
     for (const record of records) {
       if (!identities.has(record.employeeMembershipId)) {
         identities.set(record.employeeMembershipId, {
@@ -468,18 +460,13 @@ export class CashSettlementsService {
     const storedByMembership = new Map(
       existing.map((settlement) => [settlement.membershipId, settlement]),
     );
-    for (const settlement of existing) {
-      if (!identities.has(settlement.membershipId)) {
-        const membership = await client.storeMembership.findFirst({
-          where: { id: settlement.membershipId, storeId },
-          select: { id: true, displayName: true, role: true },
-        });
-        if (membership) identities.set(membership.id, membership);
-      }
-    }
     return [...identities.values()].map((membership) => {
       const memberRecords = records
-        .filter((record) => record.employeeMembershipId === membership.id)
+        .filter(
+          (record) =>
+            record.employeeMembershipId === membership.id &&
+            record.status === "CONFIRMED",
+        )
         .map((record) => ({
           cashServiceCents: record.cashServiceCents ?? 0n,
           cashTipCents: record.cashTipCents ?? 0n,

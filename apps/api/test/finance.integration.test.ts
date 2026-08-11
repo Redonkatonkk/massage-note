@@ -164,6 +164,9 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     recordVersion = confirmed.version;
 
     const preview = await cash.list(actor(managerId), storeId, businessDate);
+    expect(preview.rows.map((row) => row.membershipId)).toEqual([
+      employeeMembershipId,
+    ]);
     const employeeCash = preview.rows.find(
       (row) => row.membershipId === employeeMembershipId,
     );
@@ -242,6 +245,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
         totalTipCents: 3_000,
         totalLargeFeeWageCents: 6_000,
         employeeIncomeCents: 9_000,
+        cashToSubmitToStoreCents: 1_600,
       },
     });
     expect(own).not.toHaveProperty("storeTotals");
@@ -393,7 +397,36 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
   });
 
   it("一键现金结清使用完整版本集合，修改记工后自动回退", async () => {
+    const managerRecord = await workRecords.create(
+      actor(managerId),
+      storeId,
+      {
+        employeeMembershipId: managerMembershipId,
+        startAt: `${businessDate}T17:00:00.000Z`,
+        serviceItemId,
+      },
+      "finance-create-manager-record-0001",
+      "finance-create-manager-record",
+    );
+    await workRecords.confirmPayment(
+      actor(managerId),
+      storeId,
+      managerRecord.id,
+      {
+        version: managerRecord.version,
+        cashServiceCents: 0,
+        cardServiceCents: 10_000,
+        cashTipCents: 0,
+        cardTipCents: 0,
+      },
+      "finance-confirm-manager-record-0001",
+      "finance-confirm-manager-record",
+    );
     const before = await cash.list(actor(managerId), storeId, businessDate);
+    expect(before.rows).toHaveLength(2);
+    expect(before.rows.some((row) => row.membershipId === ownerMembershipId)).toBe(
+      false,
+    );
     const settled = await cash.settleAll(
       actor(managerId),
       storeId,
@@ -407,7 +440,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       "cash-settle-all-0001",
       "cash-settle-all",
     );
-    expect(settled.settlements).toHaveLength(3);
+    expect(settled.settlements).toHaveLength(2);
     expect(settled.settlements.every((item) => item.status === "SETTLED")).toBe(
       true,
     );
@@ -426,7 +459,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     const automaticAudits = await prisma.auditLog.count({
       where: { storeId, action: "cash_settlement.reopened_automatically" },
     });
-    expect(automaticAudits).toBe(3);
+    expect(automaticAudits).toBe(2);
 
     await cash.settleAll(
       actor(managerId),

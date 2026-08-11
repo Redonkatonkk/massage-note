@@ -255,10 +255,12 @@ export interface DeletedWorkRecord extends WorkRecord {
 export interface BoardStatistics {
   recordCount: number;
   grossFeeBaseCents: number;
+  discountTotalCents: number;
   discountedFeePerformanceCents: number;
   totalTipCents: number;
   totalLargeFeeWageCents: number;
   employeeIncomeCents: number;
+  storeIncomeCents: number;
 }
 
 export interface Shift {
@@ -416,6 +418,7 @@ export interface ClosingEmployeeTotals extends ClosingTotals {
   membershipId: string;
   displayName: string;
   role: StoreRole;
+  cashToSubmitToStoreCents: number;
 }
 
 export interface ActiveClosingSummary {

@@ -316,14 +316,15 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
           status: "CONFIRMED",
           mainServiceAmountCents: 10_000,
           grossFeeBaseCents: 10_000,
-          discountedFeePerformanceCents: 10_000,
+          discountTotalCents: 1_000,
+          discountedFeePerformanceCents: 9_000,
           cashServiceCents: 0,
-          cardServiceCents: 10_000,
+          cardServiceCents: 9_000,
           cashTipCents: 0,
           cardTipCents: 2_000,
           totalTipCents: 2_000,
-          actualServiceCollectedCents: 10_000,
-          customerTotalPaidCents: 12_000,
+          actualServiceCollectedCents: 9_000,
+          customerTotalPaidCents: 11_000,
           paymentDifferenceCents: 0,
           mainServiceWageCents: 6_000,
           totalLargeFeeWageCents: 6_000,
@@ -347,14 +348,15 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
           status: "CONFIRMED",
           mainServiceAmountCents: 20_000,
           grossFeeBaseCents: 20_000,
-          discountedFeePerformanceCents: 20_000,
+          discountTotalCents: 2_000,
+          discountedFeePerformanceCents: 18_000,
           cashServiceCents: 0,
-          cardServiceCents: 20_000,
+          cardServiceCents: 18_000,
           cashTipCents: 0,
           cardTipCents: 4_000,
           totalTipCents: 4_000,
-          actualServiceCollectedCents: 20_000,
-          customerTotalPaidCents: 24_000,
+          actualServiceCollectedCents: 18_000,
+          customerTotalPaidCents: 22_000,
           paymentDifferenceCents: 0,
           mainServiceWageCents: 10_000,
           totalLargeFeeWageCents: 10_000,
@@ -391,14 +393,18 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
       shifts: [{ membershipId: employeeMembershipId }],
       statistics: {
         grossFeeBaseCents: 10_000n,
+        discountTotalCents: 1_000n,
         totalTipCents: 2_000n,
         employeeIncomeCents: 8_000n,
+        storeIncomeCents: 3_000n,
       },
     });
     expect(employeeView.statistics).toMatchObject({
       recordCount: 1,
       grossFeeBaseCents: 10_000n,
+      discountTotalCents: 1_000n,
       employeeIncomeCents: 8_000n,
+      storeIncomeCents: 3_000n,
     });
     expect(employeeView.isClosed).toBe(true);
     expect(employeeView.closing).toBeNull();
@@ -415,7 +421,9 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
     expect(ownerView.statistics).toMatchObject({
       recordCount: 2,
       grossFeeBaseCents: 30_000n,
+      discountTotalCents: 3_000n,
       employeeIncomeCents: 22_000n,
+      storeIncomeCents: 11_000n,
     });
     expect(ownerView.closing).toMatchObject({
       totalsSnapshotJson: { privateStoreGrossFeeCents: 30_000 },

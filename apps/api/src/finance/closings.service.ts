@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -9,7 +10,7 @@ import type {
   CancelBusinessDayClosingInput,
   CloseBusinessDayInput,
 } from "@massage-note/contracts";
-import { businessDateFor } from "@massage-note/domain";
+import { businessDateFor, canReadEmployeeFinance } from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
@@ -37,6 +38,86 @@ export class ClosingsService {
   async preview(actor: User, storeId: string, businessDate: string) {
     await this.access.requireCapability(actor.id, storeId, "DAY_CLOSE_MANAGE");
     return this.buildPreview(this.prisma, storeId, businessDate);
+  }
+
+  async previewMember(
+    actor: User,
+    storeId: string,
+    businessDate: string,
+    targetMembershipId: string,
+  ) {
+    const actorMembership = await this.access.requireActiveMembership(
+      actor.id,
+      storeId,
+    );
+    if (
+      !canReadEmployeeFinance({
+        role: actorMembership.role,
+        actorMembershipId: actorMembership.id,
+        targetMembershipId,
+      })
+    ) {
+      throw new ForbiddenException({
+        code: "EMPLOYEE_CLOSING_SCOPE_FORBIDDEN",
+        messageZh: "员工只能查看自己的日结信息",
+      });
+    }
+    const target = await this.prisma.storeMembership.findFirst({
+      where: {
+        id: targetMembershipId,
+        storeId,
+        status: "ACTIVE",
+        deletedAt: null,
+      },
+      include: { store: { select: { name: true } } },
+    });
+    if (!target) {
+      throw new NotFoundException({
+        code: "CLOSING_MEMBERSHIP_NOT_FOUND",
+        messageZh: "没有找到这位在职员工",
+      });
+    }
+    const preview = await this.buildPreview(
+      this.prisma,
+      storeId,
+      businessDate,
+      targetMembershipId,
+    );
+    const employee = preview.employees[0] ?? {
+      membershipId: target.id,
+      displayName: target.displayName,
+      role: target.role,
+      recordCount: 0,
+      grossFeeBaseCents: 0,
+      discountTotalCents: 0,
+      discountedFeePerformanceCents: 0,
+      totalTipCents: 0,
+      customerTotalPaidCents: 0,
+      totalLargeFeeWageCents: 0,
+      employeeIncomeCents: 0,
+      incompleteRecordCount: 0,
+    };
+    const activeClosing = preview.activeClosing
+      ? {
+          id: preview.activeClosing.id,
+          cycleNo: preview.activeClosing.cycleNo,
+          status: preview.activeClosing.status,
+          isForced: preview.activeClosing.isForced,
+          version: preview.activeClosing.version,
+          closedAt: preview.activeClosing.closedAt,
+        }
+      : null;
+    return {
+      storeId,
+      storeName: target.store.name,
+      businessDate,
+      isClosed: preview.isClosed,
+      activeClosing,
+      hasWarnings: preview.hasWarnings,
+      warningCount: preview.warningCount,
+      warnings: preview.warnings,
+      employee,
+    };
   }
 
   async close(
@@ -246,6 +327,7 @@ export class ClosingsService {
     client: FinanceClient,
     storeId: string,
     businessDate: string,
+    membershipId?: string,
   ) {
     const store = await client.store.findFirst({
       where: { id: storeId, status: "ACTIVE", deletedAt: null },
@@ -274,6 +356,7 @@ export class ClosingsService {
           storeId,
           businessDate: dateAtUtc(businessDate),
           deletedAt: null,
+          ...(membershipId ? { employeeMembershipId: membershipId } : {}),
         },
         orderBy: { startAt: "asc" },
         include: {

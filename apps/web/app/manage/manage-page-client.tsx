@@ -206,13 +206,35 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
   const [timezone, setTimezone] = useState(store.timezone);
   const [cutoff, setCutoff] = useState(store.businessCutoffLocal);
   const [commission, setCommission] = useState((store.globalCommissionBps / 100).toString());
+  const [autoDiscountEnabled, setAutoDiscountEnabled] = useState(store.mondayThursdayAutoDiscountEnabled);
+  const [autoDiscountThreshold, setAutoDiscountThreshold] = useState((store.mondayThursdayAutoDiscountThresholdCents / 100).toFixed(2));
+  const [autoDiscountAmount, setAutoDiscountAmount] = useState((store.mondayThursdayAutoDiscountAmountCents / 100).toFixed(2));
   const [nextOwner, setNextOwner] = useState("");
   const canManage = membership.role !== "EMPLOYEE";
   return <section className="manage-section">
-    <form className="manage-card" onSubmit={(event) => { event.preventDefault(); void run(async () => { await apiRequest(`/stores/${store.id}`, { method: "PATCH", idempotent: true, body: { version: store.version, name, timezone, businessCutoffLocal: cutoff, globalCommissionBps: parsePercent(commission, "全店默认提成") } }); await reload(); }); }}>
+    <form className="manage-card" onSubmit={(event) => { event.preventDefault(); void run(async () => {
+      const thresholdCents = autoDiscountThreshold.trim() ? parseMoney(autoDiscountThreshold, "自动折扣应用门槛") : 0;
+      const amountCents = autoDiscountAmount.trim() ? parseMoney(autoDiscountAmount, "自动折扣额度") : 0;
+      await apiRequest(`/stores/${store.id}`, { method: "PATCH", idempotent: true, body: {
+        version: store.version,
+        name,
+        timezone,
+        businessCutoffLocal: cutoff,
+        globalCommissionBps: parsePercent(commission, "全店默认提成"),
+        mondayThursdayAutoDiscountEnabled: autoDiscountEnabled,
+        mondayThursdayAutoDiscountThresholdCents: thresholdCents,
+        mondayThursdayAutoDiscountAmountCents: amountCents,
+      } });
+      await reload();
+    }); }}>
       <div className="manage-heading"><div><p className="eyebrow">基础资料</p><h2>{canManage ? "店铺设置" : "店铺信息"}</h2></div><span className="status-chip">营业中</span></div>
       <div className="manage-form-grid"><label>店铺名称<input disabled={!canManage} required value={name} onChange={(event) => setName(event.target.value)} /></label><label>店铺代码<input disabled value={store.storeCode} /></label><label>时区<input disabled={!canManage} required value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label>营业日截止<input disabled={!canManage} type="time" required value={cutoff} onChange={(event) => setCutoff(event.target.value)} /></label><label>全店默认提成（%）<input disabled={!canManage} inputMode="decimal" required value={commission} onChange={(event) => setCommission(event.target.value)} /></label><label>当前店主<input disabled value={store.ownerMembership?.displayName ?? "—"} /></label></div>
       <p className="field-help">提成优先顺序：员工项目专属比例 → 项目默认比例 → 员工默认比例 → 全店默认比例。历史记工始终使用保存时的快照。</p>
+      <section className={`auto-discount-settings${autoDiscountEnabled ? " enabled" : ""}`}>
+        <div className="auto-discount-heading"><div><strong>周一至周四自动折扣</strong><p>按记工所属营业日判断；达到折前大费门槛后自动添加。</p></div><label className="inline-check"><input type="checkbox" disabled={!canManage} checked={autoDiscountEnabled} onChange={(event) => setAutoDiscountEnabled(event.target.checked)} />开启</label></div>
+        <div className="manage-form-grid auto-discount-fields"><label>大费满多少（美元）<input disabled={!canManage || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 100.00" value={autoDiscountThreshold} onChange={(event) => setAutoDiscountThreshold(event.target.value)} /></label><label>自动折扣额度（美元）<input disabled={!canManage || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 10.00" value={autoDiscountAmount} onChange={(event) => setAutoDiscountAmount(event.target.value)} /></label></div>
+        <p className="field-help">自动折扣和普通折扣一起计入折扣总额，由店铺承担；员工大费工资仍按折扣前的项目和加项金额计算。</p>
+      </section>
       {canManage && <button className="primary-action" disabled={busy} type="submit">保存店铺设置</button>}
     </form>
     {membership.role === "OWNER" && <section className="manage-card danger-zone"><div className="manage-heading"><div><p className="eyebrow">仅店主</p><h2>店主转移与删除店铺</h2></div></div><p className="field-help">转移后你会变为经理，新店主获得全部店主权限。删除店铺会让所有成员立即无法进入，但历史数据不会物理删除。</p><div className="inline-controls"><select value={nextOwner} onChange={(event) => setNextOwner(event.target.value)}><option value="">选择新店主</option>{members.filter((item) => item.id !== membership.id && item.status === "ACTIVE").map((item) => <option key={item.id} value={item.id}>{item.displayName}（{roleText[item.role]}）</option>)}</select><button className="secondary-action" type="button" disabled={busy || !nextOwner} onClick={() => { if (!window.confirm("确认把店主身份转移给所选成员吗？")) return; void run(async () => { await apiRequest(`/stores/${store.id}/owner-transfer`, { method: "POST", idempotent: true, body: { version: store.version, newOwnerMembershipId: nextOwner } }); await reload(); }); }}>转移店主身份</button><button className="danger-button" type="button" disabled={busy} onClick={() => { const answer = window.prompt(`请输入店铺名称“${store.name}”确认删除`); if (answer !== store.name) return; const reason = window.prompt("请填写删除店铺原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${store.id}`, { method: "DELETE", idempotent: true, body: { version: store.version, reason: reason.trim() } }); window.localStorage.removeItem("massage_note_store_id"); window.location.replace("/"); }); }}>删除店铺</button></div></section>}

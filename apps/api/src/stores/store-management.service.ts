@@ -19,6 +19,9 @@ function storeSnapshot(store: {
   timezone: string;
   businessCutoffLocal: string;
   globalCommissionBps: number;
+  mondayThursdayAutoDiscountEnabled: boolean;
+  mondayThursdayAutoDiscountThresholdCents: bigint;
+  mondayThursdayAutoDiscountAmountCents: bigint;
   ownerMembershipId: string | null;
   status: string;
   version: number;
@@ -29,6 +32,12 @@ function storeSnapshot(store: {
     timezone: store.timezone,
     businessCutoffLocal: store.businessCutoffLocal,
     globalCommissionBps: store.globalCommissionBps,
+    mondayThursdayAutoDiscountEnabled:
+      store.mondayThursdayAutoDiscountEnabled,
+    mondayThursdayAutoDiscountThresholdCents:
+      store.mondayThursdayAutoDiscountThresholdCents.toString(),
+    mondayThursdayAutoDiscountAmountCents:
+      store.mondayThursdayAutoDiscountAmountCents.toString(),
     ownerMembershipId: store.ownerMembershipId,
     status: store.status,
     version: store.version,
@@ -101,6 +110,16 @@ export class StoreManagementService {
             ...(input.globalCommissionBps === undefined
               ? {}
               : { globalCommissionBps: input.globalCommissionBps }),
+            ...(input.mondayThursdayAutoDiscountEnabled === undefined
+              ? {}
+              : {
+                  mondayThursdayAutoDiscountEnabled:
+                    input.mondayThursdayAutoDiscountEnabled,
+                  mondayThursdayAutoDiscountThresholdCents:
+                    input.mondayThursdayAutoDiscountThresholdCents!,
+                  mondayThursdayAutoDiscountAmountCents:
+                    input.mondayThursdayAutoDiscountAmountCents!,
+                }),
             version: { increment: 1 },
           },
         });

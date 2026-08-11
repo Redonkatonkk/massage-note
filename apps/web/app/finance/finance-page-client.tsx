@@ -6,6 +6,7 @@ import type {
   CashSettlementResponse,
   ClosingPreview,
   CurrentBusinessDay,
+  EmployeeClosingPreview,
   FinanceSummaryResponse,
   FinanceDetailsResponse,
   MeResponse,
@@ -15,6 +16,7 @@ import type {
 } from "../../lib/types";
 import { useStoreRealtime } from "../../lib/realtime";
 import { AppNav } from "../app-nav";
+import { EmployeeClosingSummary } from "../employee-closing";
 import { FloatingAiAssistant } from "../floating-ai-assistant";
 
 type FinanceTab = "summary" | "cash" | "closing" | "payroll";
@@ -59,6 +61,7 @@ export function FinancePageClient() {
   const [details, setDetails] = useState<FinanceDetailsResponse | null>(null);
   const [cashData, setCashData] = useState<CashSettlementResponse | null>(null);
   const [closing, setClosing] = useState<ClosingPreview | null>(null);
+  const [myClosing, setMyClosing] = useState<EmployeeClosingPreview | null>(null);
   const [payroll, setPayroll] = useState<PayrollSettlement[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -70,7 +73,7 @@ export function FinancePageClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const canManage = membership?.role !== "EMPLOYEE";
+  const canManage = membership ? membership.role !== "EMPLOYEE" : false;
 
   const financeParams = useCallback((override: FinanceRangeOverride = {}) => {
     const params = new URLSearchParams({ paymentMethod, amountType });
@@ -114,12 +117,24 @@ export function FinancePageClient() {
   }, [membership, cashDate]);
 
   const loadClosing = useCallback(async () => {
-    if (!membership || !cashDate || !canManage) return;
-    setClosing(
-      await apiRequest<ClosingPreview>(
-        `/stores/${membership.store.id}/closings/${cashDate}/preview`,
+    if (!membership || !cashDate) return;
+    if (canManage) {
+      setClosing(null);
+      setClosing(
+        await apiRequest<ClosingPreview>(
+          `/stores/${membership.store.id}/closings/${cashDate}/preview`,
+        ),
+      );
+      setMyClosing(null);
+      return;
+    }
+    setMyClosing(null);
+    setMyClosing(
+      await apiRequest<EmployeeClosingPreview>(
+        `/stores/${membership.store.id}/closings/${cashDate}/members/${membership.id}/preview`,
       ),
     );
+    setClosing(null);
   }, [membership, cashDate, canManage]);
 
   const loadPayroll = useCallback(async () => {
@@ -133,7 +148,7 @@ export function FinancePageClient() {
   }, [membership, canManage]);
 
   const realtimeState = useStoreRealtime(membership?.store.id, async () => {
-    await Promise.all([loadSummary(), loadCash(), loadPayroll(), ...(canManage ? [loadClosing()] : [])]);
+    await Promise.all([loadSummary(), loadCash(), loadPayroll(), loadClosing()]);
   });
 
   useEffect(() => {
@@ -197,7 +212,7 @@ export function FinancePageClient() {
   useEffect(() => {
     if (!cashDate || !membership) return;
     void loadCash().catch((caught) => setError(errorMessage(caught)));
-    if (canManage) void loadClosing().catch((caught) => setError(errorMessage(caught)));
+    void loadClosing().catch((caught) => setError(errorMessage(caught)));
   }, [cashDate, membership, canManage, loadCash, loadClosing]);
 
   async function run(action: () => Promise<void>) {
@@ -231,7 +246,8 @@ export function FinancePageClient() {
         {([
           ["summary", "财务汇总"],
           ["cash", "现金结算"],
-          ...(canManage ? ([["closing", "日结"], ["payroll", "工资结算"]] as const) : ([["payroll", "工资结算明细"]] as const)),
+          ["closing", canManage ? "日结" : "我的日结"],
+          ["payroll", canManage ? "工资结算" : "工资结算明细"],
         ] as const).map(([value, label]) => (
           <button key={value} className={tab === value ? "active" : ""} type="button" onClick={() => setTab(value)}>{label}</button>
         ))}
@@ -294,6 +310,14 @@ export function FinancePageClient() {
           {closing.warnings.length > 0 && <div className="warning-list">{closing.warnings.map((warning) => <article key={warning.code}><strong>{warning.labelZh}</strong><span>{warning.count} 条记录</span></article>)}</div>}
           <h2 className="table-title">全店日结合计</h2><div className="finance-cards closing-totals"><article><span>全店大费基数</span><strong>{money(closing.storeTotals.grossFeeBaseCents)}</strong></article><article><span>全店折扣总额</span><strong>{money(closing.storeTotals.discountTotalCents)}</strong></article><article className="balance-card"><span>全店折后大费业绩</span><strong>{money(closing.storeTotals.discountedFeePerformanceCents)}</strong></article><article><span>全店小费总额</span><strong>{money(closing.storeTotals.totalTipCents)}</strong></article><article><span>全店客人总付款</span><strong>{money(closing.storeTotals.customerTotalPaidCents)}</strong></article></div>
           <h2 className="table-title">每位员工日结检查</h2><div className="table-scroll"><table className="data-table"><thead><tr><th>员工</th><th>单数</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>小费</th><th>应得工资</th><th>待结账</th></tr></thead><tbody>{closing.employees.map((row) => <tr key={row.membershipId}><td>{row.displayName}</td><td>{row.recordCount}</td><td>{money(row.grossFeeBaseCents)}</td><td>{money(row.discountTotalCents)}</td><td>{money(row.discountedFeePerformanceCents)}</td><td>{money(row.totalTipCents)}</td><td>{money(row.employeeIncomeCents)}</td><td>{row.incompleteRecordCount}</td></tr>)}</tbody></table></div>
+        </section>
+      )}
+
+      {tab === "closing" && !canManage && (
+        <section className="finance-section employee-closing-finance-section">
+          <div className="date-toolbar"><label>营业日<input type="date" value={cashDate} max={day.businessDate} onChange={(event) => setCashDate(event.target.value)} /></label><button className="secondary-action" type="button" disabled={busy} onClick={() => run(loadClosing)}>重新加载</button></div>
+          <p className="employee-closing-privacy">这里只显示你自己的记工、折扣、小费和收入，不会加载或展示全店及其他员工日结。</p>
+          {myClosing ? <EmployeeClosingSummary key={`${myClosing.businessDate}-${myClosing.employee.membershipId}`} preview={myClosing} /> : <div className="loading-card"><span className="spinner" /><strong>正在加载个人日结…</strong></div>}
         </section>
       )}
 

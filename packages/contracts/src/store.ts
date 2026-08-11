@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { commissionBpsSchema, versionSchema } from "./common.js";
+import {
+  commissionBpsSchema,
+  moneyCentsSchema,
+  versionSchema,
+} from "./common.js";
 
 export const storeCodeSchema = z
   .string()
@@ -42,13 +46,62 @@ export const updateStoreSchema = z
     timezone: timezoneSchema.optional(),
     businessCutoffLocal: businessCutoffSchema.optional(),
     globalCommissionBps: commissionBpsSchema.optional(),
+    mondayThursdayAutoDiscountEnabled: z.boolean().optional(),
+    mondayThursdayAutoDiscountThresholdCents: moneyCentsSchema.optional(),
+    mondayThursdayAutoDiscountAmountCents: moneyCentsSchema.optional(),
+  })
+  .superRefine((value, context) => {
+    const fields = [
+      value.mondayThursdayAutoDiscountEnabled,
+      value.mondayThursdayAutoDiscountThresholdCents,
+      value.mondayThursdayAutoDiscountAmountCents,
+    ];
+    const hasAnyAutomaticDiscountField = fields.some(
+      (field) => field !== undefined,
+    );
+    const hasAllAutomaticDiscountFields = fields.every(
+      (field) => field !== undefined,
+    );
+    if (hasAnyAutomaticDiscountField && !hasAllAutomaticDiscountFields) {
+      context.addIssue({
+        code: "custom",
+        message: "自动折扣开关、门槛和额度必须一起保存",
+        path: ["mondayThursdayAutoDiscountEnabled"],
+      });
+      return;
+    }
+    if (!value.mondayThursdayAutoDiscountEnabled) return;
+    const threshold = value.mondayThursdayAutoDiscountThresholdCents ?? 0;
+    const amount = value.mondayThursdayAutoDiscountAmountCents ?? 0;
+    if (threshold <= 0) {
+      context.addIssue({
+        code: "custom",
+        message: "自动折扣门槛必须大于 0",
+        path: ["mondayThursdayAutoDiscountThresholdCents"],
+      });
+    }
+    if (amount <= 0) {
+      context.addIssue({
+        code: "custom",
+        message: "自动折扣额度必须大于 0",
+        path: ["mondayThursdayAutoDiscountAmountCents"],
+      });
+    }
+    if (amount > threshold) {
+      context.addIssue({
+        code: "custom",
+        message: "自动折扣额度不能高于应用门槛",
+        path: ["mondayThursdayAutoDiscountAmountCents"],
+      });
+    }
   })
   .refine(
     (value) =>
       value.name !== undefined ||
       value.timezone !== undefined ||
       value.businessCutoffLocal !== undefined ||
-      value.globalCommissionBps !== undefined,
+      value.globalCommissionBps !== undefined ||
+      value.mondayThursdayAutoDiscountEnabled !== undefined,
     "至少需要修改一个店铺字段",
   );
 

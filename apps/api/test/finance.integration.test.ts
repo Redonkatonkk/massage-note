@@ -223,6 +223,50 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     });
   });
 
+  it("个人日结只返回目标员工数据，普通员工不能查看他人或全店日结", async () => {
+    const own = await closings.previewMember(
+      actor(employeeId),
+      storeId,
+      businessDate,
+      employeeMembershipId,
+    );
+    expect(own).toMatchObject({
+      storeName: "财务集成测试店",
+      businessDate,
+      isClosed: false,
+      employee: {
+        membershipId: employeeMembershipId,
+        displayName: "财务员工",
+        recordCount: 1,
+        grossFeeBaseCents: 10_000,
+        totalTipCents: 3_000,
+        totalLargeFeeWageCents: 6_000,
+        employeeIncomeCents: 9_000,
+      },
+    });
+    expect(own).not.toHaveProperty("storeTotals");
+    expect(own).not.toHaveProperty("employees");
+    await expect(
+      closings.previewMember(
+        actor(employeeId),
+        storeId,
+        businessDate,
+        managerMembershipId,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      closings.preview(actor(employeeId), storeId, businessDate),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    const managerView = await closings.previewMember(
+      actor(managerId),
+      storeId,
+      businessDate,
+      employeeMembershipId,
+    );
+    expect(managerView.employee.membershipId).toBe(employeeMembershipId);
+  });
+
   it("工资账本支持部分支付、超付、软删除与恢复，并排除店主", async () => {
     const settlement = await payroll.create(
       actor(managerId),

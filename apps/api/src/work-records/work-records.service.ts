@@ -36,6 +36,12 @@ interface StoreBusinessSettings {
   globalCommissionBps: number;
 }
 
+interface MondayThursdayAutoDiscountSettings {
+  mondayThursdayAutoDiscountEnabled: boolean;
+  mondayThursdayAutoDiscountThresholdCents: bigint;
+  mondayThursdayAutoDiscountAmountCents: bigint;
+}
+
 interface DesiredServiceSnapshot {
   sourceServiceItemId: string | null;
   isCustom: boolean;
@@ -64,10 +70,13 @@ interface DesiredAddonSnapshot {
 interface DesiredDiscountSnapshot {
   sourceDiscountItemId: string | null;
   isCustom: boolean;
+  isAutomatic: boolean;
   name: string;
   amountCents: bigint;
   position: number;
 }
+
+const MONDAY_THURSDAY_AUTO_DISCOUNT_NAME = "周一至周四自动折扣";
 
 const recordInclude = {
   employee: {
@@ -115,6 +124,9 @@ export class WorkRecordsService {
           timezone: true,
           businessCutoffLocal: true,
           globalCommissionBps: true,
+          mondayThursdayAutoDiscountEnabled: true,
+          mondayThursdayAutoDiscountThresholdCents: true,
+          mondayThursdayAutoDiscountAmountCents: true,
         },
       });
       if (!store) this.throwStoreNotFound();
@@ -216,6 +228,16 @@ export class WorkRecordsService {
       }
 
       const wageCents = multiplyByBps(amountCents, commissionBps);
+      const discounts = this.applyMondayThursdayAutoDiscount(
+        store,
+        businessDate,
+        amountCents,
+        [],
+      );
+      const discountTotalCents = discounts.reduce(
+        (total, discount) => total + discount.amountCents,
+        0n,
+      );
       const endAt = new Date(startAt.getTime() + durationMinutes * 60_000);
       const record = await transaction.workRecord.create({
         data: {
@@ -231,8 +253,8 @@ export class WorkRecordsService {
           mainServiceAmountCents: amountCents,
           addonTotalCents: 0n,
           grossFeeBaseCents: amountCents,
-          discountTotalCents: 0n,
-          discountedFeePerformanceCents: amountCents,
+          discountTotalCents,
+          discountedFeePerformanceCents: amountCents - discountTotalCents,
           mainServiceWageCents: wageCents,
           addonWageCents: 0n,
           totalLargeFeeWageCents: wageCents,
@@ -251,6 +273,13 @@ export class WorkRecordsService {
               wageCents,
             },
           },
+          ...(discounts.length === 0
+            ? {}
+            : {
+                discountSnapshots: {
+                  create: discounts,
+                },
+              }),
         },
         include: recordInclude,
       });
@@ -396,6 +425,9 @@ export class WorkRecordsService {
               timezone: true,
               businessCutoffLocal: true,
               globalCommissionBps: true,
+              mondayThursdayAutoDiscountEnabled: true,
+              mondayThursdayAutoDiscountThresholdCents: true,
+              mondayThursdayAutoDiscountAmountCents: true,
             },
           });
           if (!store) this.throwStoreNotFound();
@@ -501,11 +533,20 @@ export class WorkRecordsService {
             employeeOrTimeChanged,
             mayOverrideCommission,
           );
-          const discounts = await this.buildDesiredDiscounts(
+          const manualDiscounts = await this.buildDesiredDiscounts(
             transaction,
             storeId,
             record.discountSnapshots,
             input,
+          );
+          const grossFeeBaseCents =
+            service.amountCents +
+            addons.reduce((total, addon) => total + addon.amountCents, 0n);
+          const discounts = this.applyMondayThursdayAutoDiscount(
+            store,
+            businessDate,
+            grossFeeBaseCents,
+            manualDiscounts,
           );
           let manualPriceFlag = record.manualPriceFlag;
           if (service.isCustom) {
@@ -1374,7 +1415,11 @@ export class WorkRecordsService {
     current: DesiredDiscountSnapshot[],
     input: UpdateWorkRecordInput,
   ): Promise<DesiredDiscountSnapshot[]> {
-    if (input.discounts === undefined) return current;
+    if (input.discounts === undefined) {
+      return current
+        .filter((discount) => !discount.isAutomatic)
+        .map((discount, position) => ({ ...discount, position }));
+    }
     const result: DesiredDiscountSnapshot[] = [];
     for (const [position, discount] of input.discounts.entries()) {
       let sourceDiscountItemId: string | null = null;
@@ -1406,12 +1451,51 @@ export class WorkRecordsService {
       result.push({
         sourceDiscountItemId,
         isCustom: discount.isCustom,
+        isAutomatic: false,
         name,
         amountCents: BigInt(discount.amountCents),
         position,
       });
     }
     return result;
+  }
+
+  private applyMondayThursdayAutoDiscount(
+    settings: MondayThursdayAutoDiscountSettings,
+    businessDate: string,
+    grossFeeBaseCents: bigint,
+    manualDiscounts: DesiredDiscountSnapshot[],
+  ): DesiredDiscountSnapshot[] {
+    const discounts = manualDiscounts.map((discount, position) => ({
+      ...discount,
+      isAutomatic: false,
+      position,
+    }));
+    const weekday = new Date(`${businessDate}T00:00:00.000Z`).getUTCDay();
+    const isMondayThroughThursday = weekday >= 1 && weekday <= 4;
+    const threshold = settings.mondayThursdayAutoDiscountThresholdCents;
+    const amount = settings.mondayThursdayAutoDiscountAmountCents;
+    if (
+      !settings.mondayThursdayAutoDiscountEnabled ||
+      !isMondayThroughThursday ||
+      threshold <= 0n ||
+      amount <= 0n ||
+      amount > threshold ||
+      grossFeeBaseCents < threshold
+    ) {
+      return discounts;
+    }
+    return [
+      ...discounts,
+      {
+        sourceDiscountItemId: null,
+        isCustom: false,
+        isAutomatic: true,
+        name: MONDAY_THURSDAY_AUTO_DISCOUNT_NAME,
+        amountCents: amount,
+        position: discounts.length,
+      },
+    ];
   }
 
   private async reopenCashSettlements(

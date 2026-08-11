@@ -64,20 +64,19 @@ export class BoardsService {
       timezone: store.timezone,
       cutoffLocal: store.businessCutoffLocal,
     });
-    if (
+    const personalHistoryMembershipId =
       businessDate !== currentDate &&
       !hasStoreCapability(actorMembership.role, "FINANCE_READ_STORE")
-    ) {
-      throw new ForbiddenException({
-        code: "BOARD_HISTORY_FORBIDDEN",
-        messageZh: "普通员工只能查看当前营业日的全店表格",
-      });
-    }
+        ? actorMembership.id
+        : null;
 
     const board = await this.prisma.dailyBoard.findUnique({
       where: { storeId_businessDate: { storeId, businessDate: dateAtUtc(businessDate) } },
       include: {
         rows: {
+          ...(personalHistoryMembershipId
+            ? { where: { membershipId: personalHistoryMembershipId } }
+            : {}),
           orderBy: [{ position: "asc" }, { createdAt: "asc" }],
           include: {
             membership: {
@@ -99,6 +98,9 @@ export class BoardsService {
           storeId,
           businessDate: dateAtUtc(businessDate),
           deletedAt: null,
+          ...(personalHistoryMembershipId
+            ? { employeeMembershipId: personalHistoryMembershipId }
+            : {}),
         },
         orderBy: { startAt: "asc" },
         include: {
@@ -109,7 +111,13 @@ export class BoardsService {
         },
       }),
       this.prisma.shift.findMany({
-        where: { storeId, businessDate: dateAtUtc(businessDate) },
+        where: {
+          storeId,
+          businessDate: dateAtUtc(businessDate),
+          ...(personalHistoryMembershipId
+            ? { membershipId: personalHistoryMembershipId }
+            : {}),
+        },
         orderBy: { clockInAt: "asc" },
       }),
       this.prisma.businessDayClosing.findFirst({
@@ -122,11 +130,13 @@ export class BoardsService {
       }),
     ]);
 
-    const boardRows = (board?.rows ?? []).filter(
-      (row) =>
-        !row.isHidden ||
-        hasStoreCapability(actorMembership.role, "MEMBERSHIP_MANAGE"),
-    );
+    const boardRows = personalHistoryMembershipId
+      ? board?.rows ?? []
+      : (board?.rows ?? []).filter(
+          (row) =>
+            !row.isHidden ||
+            hasStoreCapability(actorMembership.role, "MEMBERSHIP_MANAGE"),
+        );
     const rows = boardRows.map((row) => {
       const employeeRecords = records.filter(
         (record) => record.employeeMembershipId === row.membershipId,
@@ -147,7 +157,7 @@ export class BoardsService {
       businessDate,
       version: board?.version ?? 0,
       isClosed: Boolean(closing),
-      closing,
+      closing: personalHistoryMembershipId ? null : closing,
       rows,
       statistics: this.calculateRowStatistics(records),
     };

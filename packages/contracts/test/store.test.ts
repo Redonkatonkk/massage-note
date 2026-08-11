@@ -67,6 +67,39 @@ describe("门店输入契约", () => {
     ).toBe(true);
   });
 
+  it("周一至周四自动折扣必须完整配置有效门槛和额度", () => {
+    expect(
+      updateStoreSchema.safeParse({
+        version: 1,
+        mondayThursdayAutoDiscountEnabled: true,
+        mondayThursdayAutoDiscountThresholdCents: 10_000,
+        mondayThursdayAutoDiscountAmountCents: 1_000,
+      }).success,
+    ).toBe(true);
+    expect(
+      updateStoreSchema.safeParse({
+        version: 1,
+        mondayThursdayAutoDiscountEnabled: true,
+        mondayThursdayAutoDiscountThresholdCents: 1_000,
+        mondayThursdayAutoDiscountAmountCents: 2_000,
+      }).success,
+    ).toBe(false);
+    expect(
+      updateStoreSchema.safeParse({
+        version: 1,
+        mondayThursdayAutoDiscountEnabled: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      updateStoreSchema.safeParse({
+        version: 1,
+        mondayThursdayAutoDiscountEnabled: false,
+        mondayThursdayAutoDiscountThresholdCents: 0,
+        mondayThursdayAutoDiscountAmountCents: 0,
+      }).success,
+    ).toBe(true);
+  });
+
   it("Owner 转移必须指定有效成员编号", () => {
     expect(
       transferOwnerSchema.safeParse({

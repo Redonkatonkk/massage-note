@@ -95,20 +95,23 @@ model User {
 }
 
 model Store {
-  id                    String      @id @default(uuid()) @db.Uuid
-  storeCode             String      @unique @map("store_code") @db.Char(6)
-  name                  String
-  timezone              String
-  businessCutoffLocal   String      @map("business_cutoff_local") @db.VarChar(5)
-  globalCommissionBps   Int         @map("global_commission_bps")
-  ownerMembershipId     String?     @unique @map("owner_membership_id") @db.Uuid
-  status                StoreStatus @default(SETUP)
-  version               Int         @default(1)
-  deletedAt             DateTime?   @map("deleted_at") @db.Timestamptz(3)
-  deletedBy             String?     @map("deleted_by") @db.Uuid
-  deleteReason          String?     @map("delete_reason")
-  createdAt             DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt             DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                                       String      @id @default(uuid()) @db.Uuid
+  storeCode                                String      @unique @map("store_code") @db.Char(6)
+  name                                     String
+  timezone                                 String
+  businessCutoffLocal                      String      @map("business_cutoff_local") @db.VarChar(5)
+  globalCommissionBps                      Int         @map("global_commission_bps")
+  mondayThursdayAutoDiscountEnabled        Boolean     @default(false) @map("monday_thursday_auto_discount_enabled")
+  mondayThursdayAutoDiscountThresholdCents BigInt      @default(0) @map("monday_thursday_auto_discount_threshold_cents")
+  mondayThursdayAutoDiscountAmountCents    BigInt      @default(0) @map("monday_thursday_auto_discount_amount_cents")
+  ownerMembershipId                        String?     @unique @map("owner_membership_id") @db.Uuid
+  status                                   StoreStatus @default(SETUP)
+  version                                  Int         @default(1)
+  deletedAt                                DateTime?   @map("deleted_at") @db.Timestamptz(3)
+  deletedBy                                String?     @map("deleted_by") @db.Uuid
+  deleteReason                             String?     @map("delete_reason")
+  createdAt                                DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                                DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   memberships          StoreMembership[]
   ownerMembership      StoreMembership?  @relation("StoreOwnerMembership", fields: [ownerMembershipId], references: [id])
@@ -464,6 +467,7 @@ model WorkRecordDiscountSnapshot {
   workRecordId         String  @map("work_record_id") @db.Uuid
   sourceDiscountItemId String? @map("source_discount_item_id") @db.Uuid
   isCustom             Boolean @map("is_custom")
+  isAutomatic          Boolean @default(false) @map("is_automatic")
   name                 String
   amountCents          BigInt  @map("amount_cents")
   position             Int

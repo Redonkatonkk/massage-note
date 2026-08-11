@@ -7,6 +7,7 @@ import type {
   AddonItem,
   CatalogResponse,
   DiscountItem,
+  StoreDetails,
   StoreMember,
   WorkRecord,
 } from "../lib/types";
@@ -14,6 +15,12 @@ import type {
 interface RecordEditorProps {
   storeId: string;
   timezone: string;
+  businessDate: string;
+  autoDiscountSettings: Pick<StoreDetails,
+    | "mondayThursdayAutoDiscountEnabled"
+    | "mondayThursdayAutoDiscountThresholdCents"
+    | "mondayThursdayAutoDiscountAmountCents"
+  >;
   record: WorkRecord;
   catalog: CatalogResponse;
   members: StoreMember[];
@@ -88,6 +95,8 @@ function discountFromItem(item: DiscountItem): DiscountDraft {
 export function RecordEditor({
   storeId,
   timezone,
+  businessDate,
+  autoDiscountSettings,
   record,
   catalog,
   members,
@@ -114,12 +123,16 @@ export function RecordEditor({
   );
   const initialDiscounts = useMemo<DiscountDraft[]>(
     () =>
-      record.discountSnapshots.map((item) => ({
+      record.discountSnapshots.filter((item) => !item.isAutomatic).map((item) => ({
         key: item.id,
         sourceItemId: item.sourceDiscountItemId ?? "__custom__",
         name: item.name,
         amount: dollars(item.amountCents),
       })),
+    [record.discountSnapshots],
+  );
+  const automaticDiscounts = useMemo(
+    () => record.discountSnapshots.filter((item) => item.isAutomatic),
     [record.discountSnapshots],
   );
   const [employeeId, setEmployeeId] = useState(record.employeeMembershipId);
@@ -423,8 +436,16 @@ export function RecordEditor({
   const draftGross = draftMainAmount !== null && draftAddonAmounts.every((value) => value !== null)
     ? draftMainAmount + draftAddonAmounts.reduce<number>((sum, value) => sum + (value ?? 0), 0)
     : null;
+  const weekday = new Date(`${businessDate}T00:00:00.000Z`).getUTCDay();
+  const draftAutomaticDiscount =
+    draftGross !== null &&
+    autoDiscountSettings.mondayThursdayAutoDiscountEnabled &&
+    weekday >= 1 && weekday <= 4 &&
+    draftGross >= autoDiscountSettings.mondayThursdayAutoDiscountThresholdCents
+      ? autoDiscountSettings.mondayThursdayAutoDiscountAmountCents
+      : 0;
   const draftDiscountTotal = draftDiscountAmounts.every((value) => value !== null)
-    ? draftDiscountAmounts.reduce<number>((sum, value) => sum + (value ?? 0), 0)
+    ? draftDiscountAmounts.reduce<number>((sum, value) => sum + (value ?? 0), 0) + draftAutomaticDiscount
     : null;
   const draftDiscounted = draftGross !== null && draftDiscountTotal !== null ? draftGross - draftDiscountTotal : null;
   const draftCashService = draftCents(cashService || "0");
@@ -516,7 +537,8 @@ export function RecordEditor({
 
         <section className="editor-section">
           <div className="section-heading"><h3>折扣</h3><button type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => [...current, catalog.discountItems[0] ? discountFromItem(catalog.discountItems[0]) : { key: crypto.randomUUID(), sourceItemId: "__custom__", name: "自定义折扣", amount: "0.00" }]); }}>＋ 添加</button></div>
-          {discounts.length === 0 && <p className="empty-note">本单没有折扣</p>}
+          {automaticDiscounts.map((item) => <div className="automatic-discount-line" key={item.id}><div><strong>{item.name}</strong><small>系统按营业日和折前大费自动应用，保存时会重新判断</small></div><span>-{dollars(item.amountCents)}</span></div>)}
+          {discounts.length === 0 && automaticDiscounts.length === 0 && <p className="empty-note">本单没有折扣</p>}
           {discounts.map((item) => (
             <div className="line-item" key={item.key}>
               <select value={item.sourceItemId} onChange={(event) => selectDiscount(item.key, event.target.value)}>

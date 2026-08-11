@@ -237,12 +237,21 @@ describe.skipIf(!enabled).sequential("成员审批与跨店隔离", () => {
     const updatedStore = await storeManagement.update(
       actor(managerId),
       storeId,
-      { version: 1, businessCutoffLocal: "21:30" },
+      {
+        version: 1,
+        businessCutoffLocal: "21:30",
+        mondayThursdayAutoDiscountEnabled: true,
+        mondayThursdayAutoDiscountThresholdCents: 10_000,
+        mondayThursdayAutoDiscountAmountCents: 1_000,
+      },
       "store-update-key-0001",
       "store-update",
     );
     expect(updatedStore).toMatchObject({
       businessCutoffLocal: "21:30",
+      mondayThursdayAutoDiscountEnabled: true,
+      mondayThursdayAutoDiscountThresholdCents: 10_000n,
+      mondayThursdayAutoDiscountAmountCents: 1_000n,
       version: 2,
     });
 

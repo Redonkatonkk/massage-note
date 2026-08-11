@@ -70,6 +70,8 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
       await prisma.auditLog.deleteMany({ where: { storeId } });
       await prisma.domainOutbox.deleteMany({ where: { storeId } });
       await prisma.idempotencyRequest.deleteMany({ where: { storeId } });
+      await prisma.businessDayClosing.deleteMany({ where: { storeId } });
+      await prisma.workRecord.deleteMany({ where: { storeId } });
       await prisma.shift.deleteMany({ where: { storeId } });
       await prisma.dailyEmployeeRow.deleteMany({ where: { storeId } });
       await prisma.dailyBoard.deleteMany({ where: { storeId } });
@@ -251,5 +253,172 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
     const snapshot = await boards.getBoard(actor(employeeId), storeId, businessDate);
     const row = snapshot.rows.find((entry) => entry.id === employeeRowId);
     expect(row?.shifts[0]?.clockOutAt).not.toBeNull();
+  });
+
+  it("员工可查看历史营业日，但服务端只返回本人的行、班次、记工和统计", async () => {
+    const date = new Date(`${businessDate}T00:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() - 2);
+    const historicalBusinessDate = date.toISOString().slice(0, 10);
+    const historicalBoard = await prisma.dailyBoard.create({
+      data: { storeId, businessDate: date },
+    });
+    await prisma.dailyEmployeeRow.createMany({
+      data: [
+        {
+          boardId: historicalBoard.id,
+          storeId,
+          membershipId: employeeMembershipId,
+          position: 1,
+          isHidden: true,
+          addedBy: ownerId,
+        },
+        {
+          boardId: historicalBoard.id,
+          storeId,
+          membershipId: ownerMembershipId,
+          position: 2,
+          addedBy: ownerId,
+        },
+      ],
+    });
+    await prisma.shift.createMany({
+      data: [
+        {
+          storeId,
+          membershipId: employeeMembershipId,
+          businessDate: date,
+          clockInAt: new Date(`${historicalBusinessDate}T14:00:00.000Z`),
+          clockOutAt: new Date(`${historicalBusinessDate}T22:00:00.000Z`),
+          createdBy: employeeId,
+          updatedBy: employeeId,
+        },
+        {
+          storeId,
+          membershipId: ownerMembershipId,
+          businessDate: date,
+          clockInAt: new Date(`${historicalBusinessDate}T15:00:00.000Z`),
+          clockOutAt: new Date(`${historicalBusinessDate}T23:00:00.000Z`),
+          createdBy: ownerId,
+          updatedBy: ownerId,
+        },
+      ],
+    });
+    const [employeeRecord, ownerRecord] = await Promise.all([
+      prisma.workRecord.create({
+        data: {
+          storeId,
+          employeeMembershipId,
+          businessDate: date,
+          storeTimezoneSnapshot: "America/New_York",
+          businessCutoffSnapshot: "22:00",
+          startAt: new Date(`${historicalBusinessDate}T16:00:00.000Z`),
+          endAt: new Date(`${historicalBusinessDate}T17:00:00.000Z`),
+          status: "CONFIRMED",
+          mainServiceAmountCents: 10_000,
+          grossFeeBaseCents: 10_000,
+          discountedFeePerformanceCents: 10_000,
+          cashServiceCents: 0,
+          cardServiceCents: 10_000,
+          cashTipCents: 0,
+          cardTipCents: 2_000,
+          totalTipCents: 2_000,
+          actualServiceCollectedCents: 10_000,
+          customerTotalPaidCents: 12_000,
+          paymentDifferenceCents: 0,
+          mainServiceWageCents: 6_000,
+          totalLargeFeeWageCents: 6_000,
+          employeeTotalIncomeCents: 8_000,
+          cashAllocatedServiceWageCents: 0,
+          cashAcquiredServiceWageCents: 0,
+          cashWageShortfallCents: 0,
+          createdBy: employeeId,
+          updatedBy: employeeId,
+        },
+      }),
+      prisma.workRecord.create({
+        data: {
+          storeId,
+          employeeMembershipId: ownerMembershipId,
+          businessDate: date,
+          storeTimezoneSnapshot: "America/New_York",
+          businessCutoffSnapshot: "22:00",
+          startAt: new Date(`${historicalBusinessDate}T18:00:00.000Z`),
+          endAt: new Date(`${historicalBusinessDate}T19:00:00.000Z`),
+          status: "CONFIRMED",
+          mainServiceAmountCents: 20_000,
+          grossFeeBaseCents: 20_000,
+          discountedFeePerformanceCents: 20_000,
+          cashServiceCents: 0,
+          cardServiceCents: 20_000,
+          cashTipCents: 0,
+          cardTipCents: 4_000,
+          totalTipCents: 4_000,
+          actualServiceCollectedCents: 20_000,
+          customerTotalPaidCents: 24_000,
+          paymentDifferenceCents: 0,
+          mainServiceWageCents: 10_000,
+          totalLargeFeeWageCents: 10_000,
+          employeeTotalIncomeCents: 14_000,
+          cashAllocatedServiceWageCents: 0,
+          cashAcquiredServiceWageCents: 0,
+          cashWageShortfallCents: 0,
+          createdBy: ownerId,
+          updatedBy: ownerId,
+        },
+      }),
+    ]);
+    await prisma.businessDayClosing.create({
+      data: {
+        storeId,
+        businessDate: date,
+        cycleNo: 1,
+        warningSnapshotJson: {},
+        totalsSnapshotJson: { privateStoreGrossFeeCents: 30_000 },
+        closedBy: ownerId,
+      },
+    });
+
+    const employeeView = await boards.getBoard(
+      actor(employeeId),
+      storeId,
+      historicalBusinessDate,
+    );
+    expect(employeeView.rows).toHaveLength(1);
+    expect(employeeView.rows[0]).toMatchObject({
+      membershipId: employeeMembershipId,
+      isHidden: true,
+      workRecords: [{ id: employeeRecord.id }],
+      shifts: [{ membershipId: employeeMembershipId }],
+      statistics: {
+        grossFeeBaseCents: 10_000n,
+        totalTipCents: 2_000n,
+        employeeIncomeCents: 8_000n,
+      },
+    });
+    expect(employeeView.statistics).toMatchObject({
+      recordCount: 1,
+      grossFeeBaseCents: 10_000n,
+      employeeIncomeCents: 8_000n,
+    });
+    expect(employeeView.isClosed).toBe(true);
+    expect(employeeView.closing).toBeNull();
+    expect(employeeView.rows[0]?.workRecords.map((record) => record.id)).not.toContain(
+      ownerRecord.id,
+    );
+
+    const ownerView = await boards.getBoard(
+      actor(ownerId),
+      storeId,
+      historicalBusinessDate,
+    );
+    expect(ownerView.rows).toHaveLength(2);
+    expect(ownerView.statistics).toMatchObject({
+      recordCount: 2,
+      grossFeeBaseCents: 30_000n,
+      employeeIncomeCents: 22_000n,
+    });
+    expect(ownerView.closing).toMatchObject({
+      totalsSnapshotJson: { privateStoreGrossFeeCents: 30_000 },
+    });
   });
 });

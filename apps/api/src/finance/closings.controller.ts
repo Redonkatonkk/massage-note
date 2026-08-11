@@ -40,6 +40,21 @@ export class ClosingsController {
     );
   }
 
+  @Get(":businessDate/members/:membershipId/preview")
+  previewMember(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("storeId") storeId: string,
+    @Param("businessDate") businessDate: string,
+    @Param("membershipId") membershipId: string,
+  ) {
+    return this.closings.previewMember(
+      user,
+      parseRequest(uuidSchema, storeId),
+      parseRequest(businessDateSchema, businessDate),
+      parseRequest(uuidSchema, membershipId),
+    );
+  }
+
   @Post(":businessDate")
   close(
     @CurrentUser() user: AuthenticatedUser,

@@ -44,6 +44,9 @@ export interface StoreMember {
 
 export interface StoreDetails extends StoreSummary {
   globalCommissionBps: number;
+  mondayThursdayAutoDiscountEnabled: boolean;
+  mondayThursdayAutoDiscountThresholdCents: number;
+  mondayThursdayAutoDiscountAmountCents: number;
   version: number;
   ownerMembershipId: string | null;
   ownerMembership: null | { id: string; displayName: string; userId: string };
@@ -193,6 +196,7 @@ export interface DiscountSnapshot {
   id: string;
   sourceDiscountItemId: string | null;
   isCustom: boolean;
+  isAutomatic: boolean;
   name: string;
   amountCents: number;
   position: number;
@@ -395,29 +399,55 @@ export interface ClosingWarning {
   recordIds: string[];
 }
 
+export interface ClosingTotals {
+  recordCount: number;
+  grossFeeBaseCents: number;
+  discountTotalCents: number;
+  discountedFeePerformanceCents: number;
+  totalTipCents: number;
+  customerTotalPaidCents: number;
+  totalLargeFeeWageCents: number;
+  employeeIncomeCents: number;
+  incompleteRecordCount: number;
+}
+
+export interface ClosingEmployeeTotals extends ClosingTotals {
+  membershipId: string;
+  displayName: string;
+  role: StoreRole;
+}
+
+export interface ActiveClosingSummary {
+  id: string;
+  cycleNo: number;
+  status: string;
+  isForced: boolean;
+  version: number;
+  closedAt: string;
+}
+
 export interface ClosingPreview {
   storeId: string;
   businessDate: string;
   isClosed: boolean;
-  activeClosing: null | {
-    id: string;
-    cycleNo: number;
-    status: string;
-    isForced: boolean;
-    version: number;
-    closedAt: string;
-  };
+  activeClosing: ActiveClosingSummary | null;
   hasWarnings: boolean;
   warningCount: number;
   warnings: ClosingWarning[];
-  employees: Array<
-    FinanceTotals & {
-      membershipId: string;
-      displayName: string;
-      role: StoreRole;
-    }
-  >;
-  storeTotals: FinanceTotals;
+  employees: ClosingEmployeeTotals[];
+  storeTotals: ClosingTotals;
+}
+
+export interface EmployeeClosingPreview {
+  storeId: string;
+  storeName: string;
+  businessDate: string;
+  isClosed: boolean;
+  activeClosing: ActiveClosingSummary | null;
+  hasWarnings: boolean;
+  warningCount: number;
+  warnings: ClosingWarning[];
+  employee: ClosingEmployeeTotals;
 }
 
 export interface PayrollSettlement {

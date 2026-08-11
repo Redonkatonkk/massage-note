@@ -401,6 +401,123 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     expect(Number(created.serviceSnapshot?.amountCents)).toBe(10_000);
   });
 
+  it("同一员工可同时保留两笔待结账且时间允许重叠", async () => {
+    const first = await prisma.workRecord.findUniqueOrThrow({
+      where: { id: recordId },
+    });
+    const second = await workRecords.create(
+      actor(employeeId),
+      storeId,
+      {
+        employeeMembershipId,
+        startAt: first.startAt.toISOString(),
+        serviceItemId,
+        serviceDurationMinutes: 30,
+      },
+      "create-overlapping-pending-key-0001",
+      "create-overlapping-pending",
+    );
+
+    expect(first.status).toBe("PENDING_PAYMENT");
+    expect(second.status).toBe("PENDING_PAYMENT");
+    expect(second.startAt.getTime()).toBeLessThan(first.endAt?.getTime() ?? 0);
+    await expect(prisma.workRecord.count({
+      where: {
+        id: { in: [first.id, second.id] },
+        employeeMembershipId,
+        status: "PENDING_PAYMENT",
+      },
+    })).resolves.toBe(2);
+  });
+
+  it("周一至周四达到大费门槛会自动折扣且不减少员工收入", async () => {
+    await prisma.store.update({
+      where: { id: storeId },
+      data: {
+        mondayThursdayAutoDiscountEnabled: true,
+        mondayThursdayAutoDiscountThresholdCents: 10_000,
+        mondayThursdayAutoDiscountAmountCents: 1_000,
+      },
+    });
+    try {
+      const mondayRecord = await workRecords.create(
+        actor(ownerId),
+        storeId,
+        {
+          employeeMembershipId,
+          startAt: "2026-08-10T16:00:00.000Z",
+          serviceItemId,
+          serviceDurationMinutes: 60,
+        },
+        "monday-auto-discount-create-key-0001",
+        "monday-auto-discount-create",
+      );
+      expect(mondayRecord).toMatchObject({
+        grossFeeBaseCents: 10_000n,
+        discountTotalCents: 1_000n,
+        discountedFeePerformanceCents: 9_000n,
+        mainServiceWageCents: 6_000n,
+        totalLargeFeeWageCents: 6_000n,
+      });
+      expect(mondayRecord.discountSnapshots).toEqual([
+        expect.objectContaining({
+          name: "周一至周四自动折扣",
+          amountCents: 1_000n,
+          isAutomatic: true,
+          isCustom: false,
+        }),
+      ]);
+
+      const withManualDiscount = await workRecords.update(
+        actor(ownerId),
+        storeId,
+        mondayRecord.id,
+        {
+          version: mondayRecord.version,
+          discounts: [{
+            sourceItemId: discountItemId,
+            isCustom: false,
+            name: "新客优惠",
+            amountCents: 1_000,
+          }],
+        },
+        "monday-auto-discount-update-key-0001",
+        "monday-auto-discount-update",
+      );
+      expect(withManualDiscount.discountSnapshots).toHaveLength(2);
+      expect(withManualDiscount.discountSnapshots.filter((item) => item.isAutomatic)).toHaveLength(1);
+      expect(withManualDiscount).toMatchObject({
+        discountTotalCents: 2_000n,
+        discountedFeePerformanceCents: 8_000n,
+        totalLargeFeeWageCents: 6_000n,
+      });
+
+      const fridayRecord = await workRecords.create(
+        actor(ownerId),
+        storeId,
+        {
+          employeeMembershipId,
+          startAt: "2026-08-14T16:00:00.000Z",
+          serviceItemId,
+          serviceDurationMinutes: 60,
+        },
+        "friday-auto-discount-create-key-0001",
+        "friday-auto-discount-create",
+      );
+      expect(fridayRecord.discountSnapshots).toHaveLength(0);
+      expect(fridayRecord.discountTotalCents).toBe(0n);
+    } finally {
+      await prisma.store.update({
+        where: { id: storeId },
+        data: {
+          mondayThursdayAutoDiscountEnabled: false,
+          mondayThursdayAutoDiscountThresholdCents: 0,
+          mondayThursdayAutoDiscountAmountCents: 0,
+        },
+      });
+    }
+  });
+
   it("员工项目特殊提成优先，并可回退到员工默认提成", async () => {
     const employeeDefault = await commissions.setDefault(
       actor(ownerId),

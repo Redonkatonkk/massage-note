@@ -37,13 +37,14 @@
 | POST | `/stores/:storeId/catalog/items/:itemId/restore` | 恢复软删除项目 |
 | GET/PUT | `/stores/:storeId/members/:membershipId/commissions/...` | 员工默认与员工项目专属提成 |
 | GET | `/stores/:storeId/business-days/current` | 当前营业日、时区和截止时间 |
-| GET | `/stores/:storeId/boards/:businessDate` | 今日或历史记工表 |
+| GET | `/stores/:storeId/boards/:businessDate` | 今日或历史记工表；普通员工查看历史时仅返回本人行、班次、记工和本人统计 |
 | POST/PATCH | `/stores/:storeId/shifts/...`、`boards/...` | 上下班、行显示与排序 |
-| POST | `/stores/:storeId/work-records` | 快速创建预设或自定义记工 |
+| POST | `/stores/:storeId/work-records` | 快速创建预设或自定义记工；同一员工允许同时存在多笔待结账记录 |
 | GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改与软删除 |
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡大费和小费拆分 |
 | GET/POST | `/stores/:storeId/work-records/deleted`、`.../:id/restore` | 回收站与恢复 |
 | GET/POST | `/stores/:storeId/closings/:businessDate/...` | 日结预览、日结与取消日结 |
+| GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人，响应不含全店或他人数据 |
 | GET/POST | `/stores/:storeId/cash-settlements/:businessDate/...` | 单人/全员现金结清和取消结清 |
 | GET/POST/PATCH/DELETE | `/stores/:storeId/payroll-settlements/:id?` | 工资结算账本与软删除 |
 | POST | `/stores/:storeId/payroll-settlements/:id/restore` | 恢复工资结算 |
@@ -72,9 +73,22 @@
 
 快速创建或把记工切换到预设项目时提交 `serviceItemId` 和 `serviceDurationMinutes`。若项目只有一个档位，服务端为旧客户端兼容可补选该档位；项目有多个档位时缺少时长会返回 `SERVICE_PRICE_OPTION_REQUIRED`。记工保存的仍是名称、时长、价格和提成快照，后续修改或删除价格档位不会改变历史记录。
 
+店铺设置可通过同一次 `PATCH /stores/:storeId` 写入周一至周四自动折扣；三个字段必须一起提交：
+
+```json
+{
+  "version": 3,
+  "mondayThursdayAutoDiscountEnabled": true,
+  "mondayThursdayAutoDiscountThresholdCents": 10000,
+  "mondayThursdayAutoDiscountAmountCents": 1000
+}
+```
+
+启用时门槛和额度必须为正数，且折扣额度不能高于门槛。系统按记工的营业日判断周一至周四，在“主要项目 + 额外项目”的折前大费达到门槛时生成自动折扣快照；该快照与普通折扣共同计算折后业绩，不进入员工工资公式。修改设置不会批量改写历史记工，新建或再次编辑记工时才按当前规则判断。
+
 项目排序提交完整的未删除项目列表及当前版本，例如 `{ "type": "SERVICE", "items": [{ "id": "...", "version": 2 }] }`。服务端在同一事务中校验列表、项目归属和全部版本，再统一写入顺序；列表不完整或任一版本过期时返回 `CATALOG_ORDER_CONFLICT`，不会留下半套排序。
 
-新营业日上班打卡若发现本人仍有旧营业日未结束班次，会先原子结束旧班次并记录 `shift.stale_auto_closed` 审计，再创建当前班次。同一营业日重复上班仍返回 `SHIFT_ALREADY_OPEN`。
+班次接口继续保留给旧客户端和历史审计兼容：新营业日上班打卡若发现本人仍有旧营业日未结束班次，会先原子结束旧班次并记录 `shift.stale_auto_closed` 审计，再创建当前班次。同一营业日重复上班仍返回 `SHIFT_ALREADY_OPEN`。当前今日记工页面不再调用上下班接口，员工工作状态改由记工时间段计算。
 
 ## 财务查询参数
 

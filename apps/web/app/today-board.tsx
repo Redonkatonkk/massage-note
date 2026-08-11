@@ -3,18 +3,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
+import { activeWorkRecord } from "../lib/work-status";
 import type {
   BoardResponse,
   CatalogResponse,
   CurrentBusinessDay,
   MembershipSummary,
+  StoreDetails,
   StoreMember,
   WorkRecord,
 } from "../lib/types";
+import { EmployeeClosingModal } from "./employee-closing";
 import { RecordEditor } from "./record-editor";
 
 interface TodayBoardProps {
   membership: MembershipSummary;
+  store: StoreDetails;
   currentDay: CurrentBusinessDay;
   isCurrentBusinessDay: boolean;
   board: BoardResponse;
@@ -50,6 +54,7 @@ function paymentLabel(record: WorkRecord): string {
 
 export function TodayBoard({
   membership,
+  store,
   currentDay,
   isCurrentBusinessDay,
   board,
@@ -75,17 +80,46 @@ export function TodayBoard({
   const [customServiceDuration, setCustomServiceDuration] = useState("");
   const [startTime, setStartTime] = useState(currentStoreTime(currentDay.timezone));
   const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
+  const [closingEmployee, setClosingEmployee] = useState<{ id: string; displayName: string } | null>(null);
   const [addMemberId, setAddMemberId] = useState("");
   const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [statusNow, setStatusNow] = useState(() => {
+    const serverTime = Date.parse(currentDay.serverTime);
+    return Number.isFinite(serverTime) ? serverTime : Date.now();
+  });
 
   useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(""), 4_000);
     return () => window.clearTimeout(timer);
   }, [notice]);
+
+  useEffect(() => {
+    if (!quickEmployeeId) return;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [quickEmployeeId]);
+
+  useEffect(() => {
+    const serverTime = Date.parse(currentDay.serverTime);
+    const serverStart = Number.isFinite(serverTime) ? serverTime : Date.now();
+    const clientStart = Date.now();
+    setStatusNow(serverStart);
+    if (!isCurrentBusinessDay) return;
+    const timer = window.setInterval(() => {
+      setStatusNow(serverStart + Date.now() - clientStart);
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [currentDay.serverTime, isCurrentBusinessDay]);
 
   const activeServices = useMemo(
     () => catalog.serviceItems.filter(
@@ -117,7 +151,7 @@ export function TodayBoard({
   }, [selectedServiceItem]);
 
   const visibleRows = useMemo(
-    () => board.rows.filter((row) => !row.isHidden || (canManage && showHidden)),
+    () => board.rows.filter((row) => !row.isHidden || !canManage || showHidden),
     [board.rows, canManage, showHidden],
   );
   const availableMembers = members.filter(
@@ -126,9 +160,6 @@ export function TodayBoard({
       member.isServiceProvider &&
       !board.rows.some((row) => row.membershipId === member.id),
   );
-  const ownRow = board.rows.find((row) => row.membershipId === membership.id);
-  const openShift = ownRow?.shifts.find((shift) => !shift.clockOutAt);
-
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -245,7 +276,7 @@ export function TodayBoard({
 
   return (
     <>
-      <section className="summary-strip" aria-label="今日全店汇总">
+      {canManage && <section className="summary-strip" aria-label="今日全店汇总">
         <div><span>大费总额（折扣前）</span><strong>{money(board.statistics.grossFeeBaseCents)}</strong></div>
         <div><span>小费总额</span><strong>{money(board.statistics.totalTipCents)}</strong></div>
         <div><span>员工应得</span><strong>{money(board.statistics.employeeIncomeCents)}</strong></div>
@@ -253,27 +284,10 @@ export function TodayBoard({
           <span>待结账</span>
           <strong>{board.rows.reduce((count, row) => count + row.workRecords.filter((record) => record.status === "PENDING_PAYMENT").length, 0)} 单</strong>
         </div>
-      </section>
+      </section>}
 
       <section className="board-toolbar" aria-label="今日操作">
         <div>
-          {isCurrentBusinessDay && membership.isServiceProvider && !board.isClosed && (
-            <button
-              className={openShift ? "secondary-action" : "primary-action"}
-              type="button"
-              disabled={busy}
-              onClick={() => run(async () => {
-                if (openShift) {
-                  await apiRequest(`/stores/${membership.store.id}/shifts/${openShift.id}/clock-out`, { method: "POST", idempotent: true, body: { version: openShift.version } });
-                  setNotice("下班打卡成功");
-                } else {
-                  await apiRequest(`/stores/${membership.store.id}/shifts/clock-in`, { method: "POST", idempotent: true, body: {} });
-                  setNotice("上班打卡成功，已加入今日上班队列");
-                }
-                await onReload();
-              })}
-            >{openShift ? "下班打卡" : "上班打卡"}</button>
-          )}
           <button className="secondary-action" type="button" disabled={busy} onClick={() => run(onReload)}>刷新</button>
         </div>
         {canManage && board.rows.some((row) => row.isHidden) && (
@@ -285,15 +299,20 @@ export function TodayBoard({
       {notice && <p className="success-banner" role="status">✓ {notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
 
-      <section className="board" id="today" aria-label="今日员工记工表">
+      <section className="board" id="today" aria-label={isCurrentBusinessDay ? "今日员工记工表" : canManage ? "历史员工记工表" : "我的历史记工表"}>
         {visibleRows.length === 0 && (
-          <div className="empty-state"><strong>今日表格还是空的</strong><p>员工上班打卡后会自动出现在这里；店长或经理也可以手动添加员工。</p></div>
+          <div className="empty-state"><strong>{isCurrentBusinessDay ? "今日表格还是空的" : canManage ? "这个营业日没有记工" : "这个营业日没有你的记工"}</strong><p>{isCurrentBusinessDay ? "店长或经理可以把参与记工的员工加入今日表格。" : canManage ? "可以选择其他营业日继续查看。" : "这里只会显示你自己的历史记录，可以选择其他营业日继续查看。"}</p></div>
         )}
         {visibleRows.map((row) => {
           const isCollapsed = collapsed.includes(row.id);
-          const rowOpenShift = row.shifts.find((shift) => !shift.clockOutAt);
+          const activeRecord = isCurrentBusinessDay
+            ? activeWorkRecord(row.workRecords, statusNow)
+            : null;
+          const workStatus = activeRecord
+            ? `下工时间 · ${activeRecord.endAt ? displayTime(activeRecord.endAt, currentDay.timezone) : "未定"}`
+            : "空闲";
           return (
-            <article className={`employee-row${row.isHidden ? " employee-row--hidden" : ""}${draggingRowId === row.id ? " employee-row--dragging" : ""}`} key={row.id} onDragOver={canManage && !board.isClosed ? (event) => event.preventDefault() : undefined} onDrop={canManage && !board.isClosed ? () => void run(() => dropRow(row.id)) : undefined}>
+            <article className={`employee-row${row.isHidden && canManage ? " employee-row--hidden" : ""}${draggingRowId === row.id ? " employee-row--dragging" : ""}`} key={row.id} onDragOver={canManage && !board.isClosed ? (event) => event.preventDefault() : undefined} onDrop={canManage && !board.isClosed ? () => void run(() => dropRow(row.id)) : undefined}>
               <header className="employee-header">
                 <button
                   className="employee-toggle"
@@ -304,20 +323,23 @@ export function TodayBoard({
                   <span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span>
                   <span>
                     <strong>{row.membership.displayName}</strong>
-                    <small className={rowOpenShift ? "on-duty" : "off-duty"}>{rowOpenShift ? `上班中 · ${displayTime(rowOpenShift.clockInAt, currentDay.timezone)}` : row.shifts.length > 0 ? "已下班" : "未打卡"}</small>
+                    <small className={activeRecord ? "on-duty" : "off-duty"}>{workStatus}</small>
                   </span>
-                  {row.isHidden && <em className="hidden-badge">已隐藏</em>}
+                  {row.isHidden && canManage && <em className="hidden-badge">已隐藏</em>}
                   <span className="chevron" aria-hidden="true">{isCollapsed ? "展开" : "收起"}</span>
                 </button>
-                {canManage && !board.isClosed && (
+                {(canManage || row.membershipId === membership.id) && (
                   <div className="row-tools">
-                    <span className="drag-handle" draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDraggingRowId(row.id); }} onDragEnd={() => setDraggingRowId(null)} title="按住并拖动整行排序">拖动排序</span>
-                    <button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button>
-                    <button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button>
-                    <button type="button" disabled={busy} onClick={() => run(async () => {
-                      await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}`, { method: "PATCH", idempotent: true, body: { version: row.version, isHidden: !row.isHidden } });
-                      await onReload();
-                    })}>{row.isHidden ? "重新显示" : "隐藏"}</button>
+                    {canManage && !board.isClosed && <>
+                      <span className="drag-handle" draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDraggingRowId(row.id); }} onDragEnd={() => setDraggingRowId(null)} title="按住并拖动整行排序">拖动排序</span>
+                      <button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button>
+                      <button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button>
+                      <button type="button" disabled={busy} onClick={() => run(async () => {
+                        await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}`, { method: "PATCH", idempotent: true, body: { version: row.version, isHidden: !row.isHidden } });
+                        await onReload();
+                      })}>{row.isHidden ? "重新显示" : "隐藏"}</button>
+                    </>}
+                    {(canManage || row.membershipId === membership.id) && <button className="row-closing-action" type="button" onClick={() => setClosingEmployee({ id: row.membershipId, displayName: row.membership.displayName })}>个人日结</button>}
                   </div>
                 )}
               </header>
@@ -330,15 +352,23 @@ export function TodayBoard({
                         className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}`}
                         key={record.id}
                         type="button"
+                        disabled={!isCurrentBusinessDay && !canManage}
+                        title={!isCurrentBusinessDay && !canManage ? "历史记录只读" : undefined}
                         onClick={() => setEditingRecord(record)}
                       >
-                        <span className="record-card__topline"><strong>{record.serviceSnapshot?.shortName ?? "项目"}</strong>{record.status === "PENDING_PAYMENT" && <em>待结账</em>}</span>
+                        <span className="record-card__topline">
+                          <strong>{record.serviceSnapshot?.shortName ?? "项目"}</strong>
+                          <span className="record-card__badges">
+                            {record.discountSnapshots.length > 0 && <span className="record-discount-badge" aria-label="有折扣" title="有折扣">off</span>}
+                            {record.status === "PENDING_PAYMENT" && <em>待结账</em>}
+                          </span>
+                        </span>
                         <span className="record-time">{displayTime(record.startAt, currentDay.timezone)}–{displayTime(record.endAt, currentDay.timezone)}</span>
                         <span className="record-money"><b>{money(record.grossFeeBaseCents)}</b><small>小费 {money(record.totalTipCents)}</small></span>
-                        <span className="record-meta">{paymentLabel(record)}{record.addonSnapshots.length > 0 && " · 有加项"}{record.discountSnapshots.length > 0 && " · 有折扣"}</span>
+                        <span className="record-meta">{paymentLabel(record)}{record.addonSnapshots.length > 0 && " · 有加项"}</span>
                       </button>
                     ))}
-                    {!board.isClosed && !row.isHidden && (
+                    {!board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage) && (
                       <button className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setQuickMode("PRESET"); setQuickEmployeeId(row.membershipId); }}>
                         <span aria-hidden="true">＋</span>新增记工
                       </button>
@@ -424,6 +454,8 @@ export function TodayBoard({
         <RecordEditor
           storeId={membership.store.id}
           timezone={currentDay.timezone}
+          businessDate={currentDay.businessDate}
+          autoDiscountSettings={store}
           record={editingRecord}
           catalog={catalog}
           members={members}
@@ -431,6 +463,16 @@ export function TodayBoard({
           onClose={() => setEditingRecord(null)}
           onSaved={() => setNotice("记工修改已保存")}
           onChanged={onReload}
+        />
+      )}
+
+      {closingEmployee && (
+        <EmployeeClosingModal
+          storeId={membership.store.id}
+          businessDate={currentDay.businessDate}
+          membershipId={closingEmployee.id}
+          displayName={closingEmployee.displayName}
+          onClose={() => setClosingEmployee(null)}
         />
       )}
     </>

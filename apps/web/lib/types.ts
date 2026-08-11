@@ -231,6 +231,7 @@ export interface WorkRecord {
   employeeTotalIncomeCents: number | null;
   tipSettledManualFlag: boolean;
   largeFeeSettledManualFlag: boolean;
+  automaticDiscountSuppressed: boolean;
   note: string;
   version: number;
   deletedAt: string | null;

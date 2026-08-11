@@ -1,6 +1,6 @@
 {
   "name": "massage-note",
-  "version": "0.6.0",
+  "version": "0.6.3",
   "private": true,
   "packageManager": "pnpm@11.9.0",
   "scripts": {
@@ -12,8 +12,8 @@
     "typecheck": "pnpm -r typecheck",
     "pretest": "pnpm predev",
     "test": "pnpm -r test",
-    "db:test:prepare": "node scripts/prepare-integration-db.mjs && DATABASE_URL=postgresql://massage:massage@localhost:5432/massage_note_test pnpm --filter @massage-note/database migrate:deploy",
-    "test:integration": "pnpm predev && pnpm db:test:prepare && DATABASE_URL=postgresql://massage:massage@localhost:5432/massage_note_test DATABASE_INTEGRATION_TESTS=1 pnpm --filter @massage-note/database test && DATABASE_URL=postgresql://massage:massage@localhost:5432/massage_note_test DATABASE_INTEGRATION_TESTS=1 pnpm --filter @massage-note/api test",
+    "db:test:prepare": "node scripts/prepare-integration-db.mjs && DATABASE_URL=${MASSAGE_NOTE_TEST_DATABASE_URL:-postgresql://massage:massage@localhost:5432/massage_note_test} pnpm --filter @massage-note/database migrate:deploy",
+    "test:integration": "pnpm predev && pnpm db:test:prepare && DATABASE_URL=${MASSAGE_NOTE_TEST_DATABASE_URL:-postgresql://massage:massage@localhost:5432/massage_note_test} DATABASE_INTEGRATION_TESTS=1 pnpm --filter @massage-note/database test && DATABASE_URL=${MASSAGE_NOTE_TEST_DATABASE_URL:-postgresql://massage:massage@localhost:5432/massage_note_test} DATABASE_INTEGRATION_TESTS=1 pnpm --filter @massage-note/api test",
     "test:domain": "pnpm --filter @massage-note/domain test",
     "docker:up": "docker compose up -d",
     "docker:status": "docker compose ps",

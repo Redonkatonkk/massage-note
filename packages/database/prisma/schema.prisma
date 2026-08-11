@@ -400,6 +400,7 @@ model WorkRecord {
   cashWageShortfallCents          BigInt?          @map("cash_wage_shortfall_cents")
   tipSettledManualFlag            Boolean          @default(false) @map("tip_settled_manual_flag")
   largeFeeSettledManualFlag       Boolean          @default(false) @map("large_fee_settled_manual_flag")
+  automaticDiscountSuppressed     Boolean          @default(false) @map("automatic_discount_suppressed")
   manualPriceFlag                 Boolean          @default(false) @map("manual_price_flag")
   note                            String           @default("")
   version                         Int              @default(1)

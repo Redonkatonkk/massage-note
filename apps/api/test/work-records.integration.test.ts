@@ -492,6 +492,55 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
         totalLargeFeeWageCents: 6_000n,
       });
 
+      const withoutAutomaticDiscount = await workRecords.update(
+        actor(ownerId),
+        storeId,
+        mondayRecord.id,
+        {
+          version: withManualDiscount.version,
+          automaticDiscountSuppressed: true,
+        },
+        "monday-auto-discount-remove-key-0001",
+        "monday-auto-discount-remove",
+      );
+      expect(withoutAutomaticDiscount.automaticDiscountSuppressed).toBe(true);
+      expect(withoutAutomaticDiscount.discountSnapshots).toHaveLength(1);
+      expect(withoutAutomaticDiscount.discountSnapshots.some((item) => item.isAutomatic)).toBe(false);
+      expect(withoutAutomaticDiscount).toMatchObject({
+        discountTotalCents: 1_000n,
+        discountedFeePerformanceCents: 9_000n,
+        totalLargeFeeWageCents: 6_000n,
+      });
+
+      const stillWithoutAutomaticDiscount = await workRecords.update(
+        actor(ownerId),
+        storeId,
+        mondayRecord.id,
+        {
+          version: withoutAutomaticDiscount.version,
+          note: "自动折扣已手动移除",
+        },
+        "monday-auto-discount-persist-key-0001",
+        "monday-auto-discount-persist",
+      );
+      expect(stillWithoutAutomaticDiscount.automaticDiscountSuppressed).toBe(true);
+      expect(stillWithoutAutomaticDiscount.discountSnapshots.some((item) => item.isAutomatic)).toBe(false);
+
+      const restoredAutomaticDiscount = await workRecords.update(
+        actor(ownerId),
+        storeId,
+        mondayRecord.id,
+        {
+          version: stillWithoutAutomaticDiscount.version,
+          automaticDiscountSuppressed: false,
+        },
+        "monday-auto-discount-restore-key-0001",
+        "monday-auto-discount-restore",
+      );
+      expect(restoredAutomaticDiscount.automaticDiscountSuppressed).toBe(false);
+      expect(restoredAutomaticDiscount.discountSnapshots).toHaveLength(2);
+      expect(restoredAutomaticDiscount.discountSnapshots.filter((item) => item.isAutomatic)).toHaveLength(1);
+
       const fridayRecord = await workRecords.create(
         actor(ownerId),
         storeId,

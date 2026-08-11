@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { PwaRegister } from "./pwa-register";
+import { ScrollBoundaryGuard } from "./scroll-boundary-guard";
 
 export const metadata: Metadata = {
   title: "Massage note",
@@ -28,7 +29,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
-      <body><PwaRegister />{children}</body>
+      <body><PwaRegister /><ScrollBoundaryGuard />{children}</body>
     </html>
   );
 }

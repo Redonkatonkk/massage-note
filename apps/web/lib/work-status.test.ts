@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { activeWorkRecord } from "./work-status";
 
-const record = (id: string, startAt: string, endAt: string | null) => ({
+const record = (
+  id: string,
+  startAt: string,
+  endAt: string | null,
+  status: "PENDING_PAYMENT" | "CONFIRMED" = "PENDING_PAYMENT",
+) => ({
   id,
   startAt,
   endAt,
-  status: "PENDING_PAYMENT" as const,
+  status,
 });
 
 describe("今日员工工作状态", () => {
@@ -23,6 +28,29 @@ describe("今日员工工作状态", () => {
       record("early", "2026-08-11T15:30:00.000Z", "2026-08-11T16:30:00.000Z"),
       record("late", "2026-08-11T15:45:00.000Z", "2026-08-11T17:00:00.000Z"),
     ], now)?.id).toBe("late");
+  });
+
+  it("所有待结账项目结清后立即恢复为空闲", () => {
+    expect(activeWorkRecord([
+      record(
+        "confirmed",
+        "2026-08-11T15:30:00.000Z",
+        "2026-08-11T17:00:00.000Z",
+        "CONFIRMED",
+      ),
+    ], now)).toBeNull();
+  });
+
+  it("混合状态时只使用仍待结账项目的下工时间", () => {
+    expect(activeWorkRecord([
+      record(
+        "confirmed-late",
+        "2026-08-11T15:30:00.000Z",
+        "2026-08-11T18:00:00.000Z",
+        "CONFIRMED",
+      ),
+      record("pending", "2026-08-11T15:45:00.000Z", "2026-08-11T16:30:00.000Z"),
+    ], now)?.id).toBe("pending");
   });
 
   it("到达下工时间即恢复为空闲，无结束时间则保持进行中", () => {

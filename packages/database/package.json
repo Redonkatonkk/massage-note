@@ -1,6 +1,6 @@
 {
   "name": "@massage-note/database",
-  "version": "0.6.0",
+  "version": "0.6.3",
   "private": true,
   "exports": {
     ".": {

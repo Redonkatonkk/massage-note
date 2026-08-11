@@ -1,6 +1,7 @@
 export interface TimedWorkRecord {
   startAt: string;
   endAt: string | null;
+  status: "PENDING_PAYMENT" | "CONFIRMED";
 }
 
 export function activeWorkRecord<T extends TimedWorkRecord>(
@@ -11,6 +12,8 @@ export function activeWorkRecord<T extends TimedWorkRecord>(
   let activeEnd = Number.NEGATIVE_INFINITY;
 
   for (const record of records) {
+    if (record.status !== "PENDING_PAYMENT") continue;
+
     const start = Date.parse(record.startAt);
     if (!Number.isFinite(start) || start > nowMs) continue;
 

@@ -105,6 +105,18 @@ describe("记工项目来源契约", () => {
     });
   });
 
+  it("详情修改可为单笔记工停用自动折扣", () => {
+    expect(
+      updateWorkRecordSchema.parse({
+        version: 3,
+        automaticDiscountSuppressed: true,
+      }),
+    ).toEqual({
+      version: 3,
+      automaticDiscountSuppressed: true,
+    });
+  });
+
   it("预设加项必须带项目编号，自定义加项不能带项目编号", () => {
     expect(
       addonInputSchema.safeParse({

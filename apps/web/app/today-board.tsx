@@ -359,7 +359,16 @@ export function TodayBoard({
                         <span className="record-card__topline">
                           <strong>{record.serviceSnapshot?.shortName ?? "项目"}</strong>
                           <span className="record-card__badges">
-                            {record.discountSnapshots.length > 0 && <span className="record-discount-badge" aria-label="有折扣" title="有折扣">off</span>}
+                            {record.discountSnapshots.length > 0 && (
+                              <span
+                                className="record-discount-badge"
+                                aria-label={`折扣 ${money(record.discountTotalCents)}`}
+                                title={`折扣 ${money(record.discountTotalCents)}`}
+                              >
+                                <span>off</span>
+                                <b>{money(record.discountTotalCents)}</b>
+                              </span>
+                            )}
                             {record.status === "PENDING_PAYMENT" && <em>待结账</em>}
                           </span>
                         </span>

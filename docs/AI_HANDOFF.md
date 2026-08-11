@@ -1,7 +1,7 @@
 # AI 接管指南
 
 > 最后核对：2026-08-11（America/New_York）
-> 当前版本：`0.6.0`
+> 当前版本：`0.6.3`
 > 目标：用最少上下文安全修改 Massage note；历史过程请查 Git 和 `CHANGELOG.md`。
 
 ## 1. 接手顺序
@@ -74,7 +74,7 @@ scripts              集成库、备份、恢复和维护脚本
 
 折扣由店铺承担，不减少员工大费工资。服务费差额允许存在，但必须提示并保存。现金/刷卡大费至少填写一项；两种小费可以同时留空并按 0 处理。
 
-周一至周四自动折扣是店铺级规则：按记工营业日判断星期，以主要项目加额外项目的折前大费判断门槛，命中后生成 `isAutomatic` 折扣快照。自动折扣可以和手动折扣同时存在，但同样不进入员工工资公式；店铺设置变化不得批量改写历史记录。
+周一至周四自动折扣是店铺级规则：按记工营业日判断星期，以主要项目加额外项目的折前大费判断门槛，命中后生成 `isAutomatic` 折扣快照。自动折扣可以和手动折扣同时存在，但同样不进入员工工资公式；店铺设置变化不得批量改写历史记录。记工详情允许为单笔记录持久设置 `automaticDiscountSuppressed`，移除或恢复自动折扣只影响该记录，不改变全店规则。
 
 只有 `SETTLED` 的现金结算进入余额。Owner 可参与记工并计入经营统计，但不成为工资结算对象；参与记工的 Manager 与 Employee 一样结算。
 
@@ -148,7 +148,7 @@ AI 是可选增强，未配置时手动记工和确定性财务必须正常工�
 
 Prisma schema 位于 `packages/database/prisma/schema.prisma`。迁移只向前追加；生产只用 `prisma migrate deploy`，不要编辑旧迁移或运行 `migrate dev`。删列、改类型和大规模变换采用 expand → backfill → contract。
 
-`0.6.0` 新增迁移 `20260811140000_monday_thursday_auto_discount` 与 `20260811141000_auto_discount_snapshot_constraint`，均为向前扩展；部署后需确认两条迁移都已成功记录，不能只看到新增列就跳过约束迁移。
+`0.6.0` 新增迁移 `20260811140000_monday_thursday_auto_discount` 与 `20260811141000_auto_discount_snapshot_constraint`；`0.6.3` 新增向前迁移 `20260811160000_work_record_auto_discount_suppression`。部署后需确认三条迁移都已成功记录。
 
 ```bash
 pnpm db:generate
@@ -196,11 +196,12 @@ pnpm audit --prod
 ```
 
 `test:integration` 使用独立的 `massage_note_test`，会重建测试 schema，不应指向开发主库、生产库或任何含人工数据的库。
+若本机默认的 PostgreSQL/Redis 端口已被其他项目占用，可用 `POSTGRES_HOST_PORT`、`REDIS_HOST_PORT` 启动本项目 Compose，并把 `MASSAGE_NOTE_TEST_DATABASE_URL` 指向对应 PostgreSQL 端口；不得为测试停止不属于本项目的容器。
 
-最近一次核心质量核对（2026-08-11，版本 0.6.0）：
+最近一次核心质量核对（2026-08-11，版本 0.6.3）：
 
 - `version:check`、typecheck 和生产构建通过；Next 生成 11 个路由。
-- 单元/非集成测试 102 项通过；数据库/API 集成测试 80 项通过。
+- 单元/非集成测试 105 项通过；数据库/API 集成测试 80 项通过，覆盖单笔自动折扣移除、持久保留与恢复。
 - 浏览器点击回归已覆盖今日页无上下班打卡、员工按当前记工显示“空闲/下工时间”、手动加入今日、实时变化不重复、三类项目独立新增与排序、390px 手机详情与快速记工宽度锁定及全局滚动边界、折扣 `off` 标记、桌面员工汇总可读性、员工当前页隐藏全店汇总、员工只读查看本人历史营业日、员工个人日结权限与图片生成、周一至周四自动折扣设置与记工应用，以及记工保存后快速关闭。
 
 测试数字会随用例变化。交接时记录实际命令结果，不要机械复制本节。
@@ -242,6 +243,8 @@ pnpm audit --prod
 - README 和本文件当前版本
 
 运行 `pnpm version:check`。未同步版本的修改不算完成。
+
+当用户说“更新部署”时，视为完整发布授权：先更新相关产品/API/运维文档和语义版本，再只提交本次项目文件并 push Git，等待该 commit 的 CI 验证和 GHCR 版本镜像成功，然后严格按 NAS 手册完成备份、迁移、项目 `mn` 升级与线上验收。不得把“更新部署”缩减为只改本地代码，也不得跳过 CI、备份或 NAS 健康检查。
 
 文档归属：产品/金额改 `PRD.md` 和 `/help`；API 改 `docs/API.md`；环境和发布改 env 模板及部署文档；安全边界改 `SECURITY.md`；运维改 `OPERATIONS.md`。本文件只保留接管所需的稳定事实，不再记录 PID、临时容器 ID、一次性 tunnel 地址或逐日开发流水账。
 

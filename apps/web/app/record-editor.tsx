@@ -154,6 +154,9 @@ export function RecordEditor({
   );
   const [addons, setAddons] = useState(initialAddons);
   const [discounts, setDiscounts] = useState(initialDiscounts);
+  const [automaticDiscountSuppressed, setAutomaticDiscountSuppressed] = useState(
+    record.automaticDiscountSuppressed,
+  );
   const [cashService, setCashService] = useState(dollars(record.cashServiceCents));
   const [cardService, setCardService] = useState(dollars(record.cardServiceCents));
   const [cashTip, setCashTip] = useState(dollars(record.cashTipCents));
@@ -187,6 +190,9 @@ export function RecordEditor({
           if (typeof draft.serviceCommission === "string") setServiceCommission(draft.serviceCommission);
           if (Array.isArray(draft.addons)) setAddons(draft.addons as AddonDraft[]);
           if (Array.isArray(draft.discounts)) setDiscounts(draft.discounts as DiscountDraft[]);
+          if (typeof draft.automaticDiscountSuppressed === "boolean") {
+            setAutomaticDiscountSuppressed(draft.automaticDiscountSuppressed);
+          }
           if (typeof draft.cashService === "string") setCashService(draft.cashService);
           if (typeof draft.cardService === "string") setCardService(draft.cardService);
           if (typeof draft.cashTip === "string") setCashTip(draft.cashTip);
@@ -208,8 +214,8 @@ export function RecordEditor({
 
   useEffect(() => {
     if (!draftLoaded || !draftDirty) return;
-    window.localStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, cashService, cardService, cashTip, cardTip, tipSettled, largeFeeSettled, note }));
-  }, [draftLoaded, draftDirty, draftKey, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, cashService, cardService, cashTip, cardTip, tipSettled, largeFeeSettled, note]);
+    window.localStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, cashService, cardService, cashTip, cardTip, tipSettled, largeFeeSettled, note }));
+  }, [draftLoaded, draftDirty, draftKey, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, cashService, cardService, cashTip, cardTip, tipSettled, largeFeeSettled, note]);
 
   const initialAddonSignature = JSON.stringify(
     initialAddons.map(({ key: _key, ...item }) => item),
@@ -297,6 +303,12 @@ export function RecordEditor({
     }
   }
 
+  function removeAutomaticDiscount() {
+    if (!window.confirm("确认只为这笔记工移除自动折扣吗？员工收入不会改变。")) return;
+    setDraftDirty(true);
+    setAutomaticDiscountSuppressed(true);
+  }
+
   function buildUpdate(version: number) {
     const payload: Record<string, unknown> = {
       version,
@@ -380,6 +392,9 @@ export function RecordEditor({
         amountCents: cents(item.amount, `折扣“${item.name}”金额`),
       }));
     }
+    if (automaticDiscountSuppressed !== record.automaticDiscountSuppressed) {
+      payload.automaticDiscountSuppressed = automaticDiscountSuppressed;
+    }
     return payload;
   }
 
@@ -438,6 +453,7 @@ export function RecordEditor({
     : null;
   const weekday = new Date(`${businessDate}T00:00:00.000Z`).getUTCDay();
   const draftAutomaticDiscount =
+    !automaticDiscountSuppressed &&
     draftGross !== null &&
     autoDiscountSettings.mondayThursdayAutoDiscountEnabled &&
     weekday >= 1 && weekday <= 4 &&
@@ -537,8 +553,26 @@ export function RecordEditor({
 
         <section className="editor-section">
           <div className="section-heading"><h3>折扣</h3><button type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => [...current, catalog.discountItems[0] ? discountFromItem(catalog.discountItems[0]) : { key: crypto.randomUUID(), sourceItemId: "__custom__", name: "自定义折扣", amount: "0.00" }]); }}>＋ 添加</button></div>
-          {automaticDiscounts.map((item) => <div className="automatic-discount-line" key={item.id}><div><strong>{item.name}</strong><small>系统按营业日和折前大费自动应用，保存时会重新判断</small></div><span>-{dollars(item.amountCents)}</span></div>)}
-          {discounts.length === 0 && automaticDiscounts.length === 0 && <p className="empty-note">本单没有折扣</p>}
+          {automaticDiscountSuppressed ? (
+            <div className="automatic-discount-line automatic-discount-line--removed">
+              <div><strong>本单已手动移除自动折扣</strong><small>只影响这笔记工，不会关闭店铺的周一至周四自动折扣规则</small></div>
+              <button className="secondary-action compact" type="button" onClick={() => { setDraftDirty(true); setAutomaticDiscountSuppressed(false); }}>恢复自动折扣</button>
+            </div>
+          ) : automaticDiscounts.map((item) => (
+            <div className="automatic-discount-line" key={item.id}>
+              <div><strong>{item.name}</strong><small>系统按营业日和折前大费自动应用，保存时会重新判断</small></div>
+              <span>-{dollars(item.amountCents)}</span>
+              <button className="danger-link" type="button" onClick={removeAutomaticDiscount}>移除</button>
+            </div>
+          ))}
+          {!automaticDiscountSuppressed && automaticDiscounts.length === 0 && draftAutomaticDiscount > 0 && (
+            <div className="automatic-discount-line">
+              <div><strong>周一至周四自动折扣</strong><small>保存时将按当前店铺规则重新应用</small></div>
+              <span>-{dollars(draftAutomaticDiscount)}</span>
+              <button className="danger-link" type="button" onClick={removeAutomaticDiscount}>移除</button>
+            </div>
+          )}
+          {discounts.length === 0 && automaticDiscounts.length === 0 && draftAutomaticDiscount === 0 && !automaticDiscountSuppressed && <p className="empty-note">本单没有折扣</p>}
           {discounts.map((item) => (
             <div className="line-item" key={item.key}>
               <select value={item.sourceItemId} onChange={(event) => selectDiscount(item.key, event.target.value)}>

@@ -22,9 +22,11 @@
 }
 
 html {
+  width: 100%;
+  height: 100%;
   min-height: 100%;
   max-width: 100%;
-  overflow-x: clip;
+  overflow: hidden;
   overscroll-behavior: none;
   background: var(--page);
   color: var(--ink);
@@ -32,10 +34,14 @@ html {
 }
 
 body {
-  min-height: 100dvh;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   max-width: 100%;
-  overflow-x: clip;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
   margin: 0;
   min-width: 320px;
   background:
@@ -382,10 +388,11 @@ h2 {
 }
 
 .record-discount-badge {
-  display: inline-grid;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   min-width: 28px;
   min-height: 24px;
-  place-items: center;
   padding: 2px 5px;
   border-radius: 7px;
   background: #c9362b;
@@ -396,6 +403,13 @@ h2 {
   line-height: 1;
   text-transform: lowercase;
   box-shadow: 0 2px 6px rgba(153, 31, 24, 0.24);
+  white-space: nowrap;
+}
+
+.record-discount-badge b {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .record-time,
@@ -1850,10 +1864,14 @@ h2 {
 .manage-heading .eyebrow { margin: 0; }
 .status-chip { display: inline-flex; align-items: center; min-height: 30px; padding: 4px 11px; border-radius: 999px; background: #edf7f0; color: #237445; font-size: .82rem; font-weight: 700; white-space: nowrap; }
 .manage-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.manage-form-grid label, .member-fields label, .audit-filters label { display: grid; gap: 7px; color: var(--muted); font-size: .84rem; font-weight: 700; }
+.manage-form-grid label, .member-fields label, .audit-filters label { display: grid; min-width: 0; gap: 7px; color: var(--muted); font-size: .84rem; font-weight: 700; }
 .manage-form-grid input, .member-fields input, .member-fields select, .inline-controls input, .inline-controls select, .catalog-create input, .catalog-create select, .catalog-edit-fields input, .audit-filters select { width: 100%; min-height: 44px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: var(--ink); font: inherit; }
+.business-cutoff-field, .business-cutoff-field input { min-width: 0; max-width: 100%; }
+.business-cutoff-field input { display: block; inline-size: 100%; min-inline-size: 0; max-inline-size: 100%; }
+.business-cutoff-field input::-webkit-date-and-time-value { min-width: 0; text-align: left; }
 .manage-form-grid input:disabled, .member-fields input:disabled, .member-fields select:disabled { color: #655f59; background: #f5f2ee; opacity: 1; }
 .manage-card > .primary-action { margin-top: 18px; }
+.manage-save-success { margin: 18px 0 0; }
 .auto-discount-settings { margin-top: 20px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: #faf8f5; }
 .auto-discount-settings.enabled { border-color: rgba(142, 62, 47, .38); background: var(--brand-soft); }
 .auto-discount-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
@@ -1861,10 +1879,12 @@ h2 {
 .auto-discount-heading p { margin: 5px 0 0; color: var(--muted); font-size: .84rem; line-height: 1.5; }
 .auto-discount-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
 .auto-discount-settings > .field-help { margin-bottom: 0; }
-.automatic-discount-line { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 9px; padding: 12px 14px; border: 1px solid rgba(167, 38, 38, .2); border-radius: 14px; background: #fff5f4; color: #a72626; }
-.automatic-discount-line div { display: grid; gap: 3px; }
+.automatic-discount-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 9px; padding: 12px 14px; border: 1px solid rgba(167, 38, 38, .2); border-radius: 14px; background: #fff5f4; color: #a72626; }
+.automatic-discount-line > div { display: grid; flex: 1; min-width: 0; gap: 3px; }
 .automatic-discount-line small { color: #7c625f; line-height: 1.45; }
 .automatic-discount-line span { flex: 0 0 auto; font-weight: 850; }
+.automatic-discount-line .danger-link { flex: 0 0 auto; }
+.automatic-discount-line--removed { border-color: var(--line); background: #f7f4f0; color: var(--muted); }
 .danger-zone { border-color: #efc6c2; background: #fffafa; }
 .inline-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .inline-controls select { min-width: 230px; flex: 1; }

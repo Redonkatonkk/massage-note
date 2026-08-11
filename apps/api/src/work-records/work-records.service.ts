@@ -542,12 +542,17 @@ export class WorkRecordsService {
           const grossFeeBaseCents =
             service.amountCents +
             addons.reduce((total, addon) => total + addon.amountCents, 0n);
-          const discounts = this.applyMondayThursdayAutoDiscount(
-            store,
-            businessDate,
-            grossFeeBaseCents,
-            manualDiscounts,
-          );
+          const automaticDiscountSuppressed =
+            input.automaticDiscountSuppressed ??
+            record.automaticDiscountSuppressed;
+          const discounts = automaticDiscountSuppressed
+            ? manualDiscounts
+            : this.applyMondayThursdayAutoDiscount(
+                store,
+                businessDate,
+                grossFeeBaseCents,
+                manualDiscounts,
+              );
           let manualPriceFlag = record.manualPriceFlag;
           if (service.isCustom) {
             manualPriceFlag = false;
@@ -643,6 +648,7 @@ export class WorkRecordsService {
                     largeFeeSettledManualFlag:
                       input.largeFeeSettledManualFlag,
                   }),
+              automaticDiscountSuppressed,
               manualPriceFlag,
               updatedBy: actor.id,
               version: { increment: 1 },
@@ -704,6 +710,8 @@ export class WorkRecordsService {
                 startAt: record.startAt.toISOString(),
                 grossFeeBaseCents: record.grossFeeBaseCents.toString(),
                 discountTotalCents: record.discountTotalCents.toString(),
+                automaticDiscountSuppressed:
+                  record.automaticDiscountSuppressed,
                 version: record.version,
               },
               afterJson: {
@@ -712,6 +720,8 @@ export class WorkRecordsService {
                 startAt: updated.startAt.toISOString(),
                 grossFeeBaseCents: updated.grossFeeBaseCents.toString(),
                 discountTotalCents: updated.discountTotalCents.toString(),
+                automaticDiscountSuppressed:
+                  updated.automaticDiscountSuppressed,
                 version: updated.version,
               },
               requestId,

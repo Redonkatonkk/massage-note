@@ -90,6 +90,7 @@ export const updateWorkRecordSchema = z.object({
   mainServiceCommissionBps: commissionBpsSchema.optional(),
   addons: z.array(addonInputSchema).max(30).optional(),
   discounts: z.array(discountInputSchema).max(30).optional(),
+  automaticDiscountSuppressed: z.boolean().optional(),
   tipSettledManualFlag: z.boolean().optional(),
   largeFeeSettledManualFlag: z.boolean().optional(),
   note: z.string().max(2_000).optional(),

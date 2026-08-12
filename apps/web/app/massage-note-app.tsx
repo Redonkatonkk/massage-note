@@ -196,6 +196,7 @@ export function MassageNoteApp() {
   const [currentDay, setCurrentDay] = useState<CurrentBusinessDay | null>(null);
   const [viewDate, setViewDate] = useState("");
   const viewDateRef = useRef("");
+  const [initialRecordId, setInitialRecordId] = useState("");
   const [board, setBoard] = useState<BoardResponse | null>(null);
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [storeDetails, setStoreDetails] = useState<StoreDetails | null>(null);
@@ -209,8 +210,13 @@ export function MassageNoteApp() {
       const profile = await apiRequest<MeResponse>("/me");
       setMe(profile);
       if (profile.memberships.length > 0) {
+        const params = new URL(window.location.href).searchParams;
+        const requestedStore = params.get("store");
         const remembered = window.localStorage.getItem("massage_note_store_id");
-        const selected = profile.memberships.find((item) => item.store.id === remembered) ?? profile.memberships[0]!;
+        const selected = profile.memberships.find((item) => item.store.id === requestedStore) ?? profile.memberships.find((item) => item.store.id === remembered) ?? profile.memberships[0]!;
+        const requestedDate = params.get("date");
+        if (requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) viewDateRef.current = requestedDate;
+        setInitialRecordId(params.get("record") ?? "");
         setMembership(selected);
         window.localStorage.setItem("massage_note_store_id", selected.store.id);
       } else setMembership(null);
@@ -277,7 +283,7 @@ export function MassageNoteApp() {
       </header>
       <section className="history-toolbar" aria-label="切换营业日"><form className="history-date-form" onSubmit={(event) => { event.preventDefault(); const value = new FormData(event.currentTarget).get("businessDate"); if (typeof value !== "string" || !value) return; viewDateRef.current = value; void loadStore(); }}><label>{membership.role === "EMPLOYEE" ? "查看自己的营业日" : "查看营业日"}<input key={viewDate} name="businessDate" type="date" defaultValue={viewDate} max={currentDay.businessDate} /></label><button className="secondary-action compact" type="submit">查看</button></form>{viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => { viewDateRef.current = currentDay.businessDate; void loadStore(); }}>返回今天</button>}<span>{viewDate === currentDay.businessDate ? "当前营业日" : membership.role === "EMPLOYEE" ? "历史营业日；只显示你自己的记工" : "历史营业日；已日结时须先取消日结才能修改"}</span></section>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <TodayBoard key={`today-${membership.store.id}-${viewDate}`} membership={membership} store={storeDetails} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} board={board} catalog={catalog} members={members} onReload={loadStore} />
+      <TodayBoard key={`today-${membership.store.id}-${viewDate}`} membership={membership} store={storeDetails} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} board={board} catalog={catalog} members={members} initialRecordId={initialRecordId || undefined} onInitialRecordOpened={() => { setInitialRecordId(""); const url = new URL(window.location.href); url.searchParams.delete("record"); window.history.replaceState(null, "", `${url.pathname}${url.search}`); }} onReload={loadStore} />
       <FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} type="work" onWorkChanged={loadStore} />
       <AppNav active="today" storeId={membership.store.id} />
     </main>

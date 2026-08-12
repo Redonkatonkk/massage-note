@@ -15,6 +15,7 @@ import type {
   StoreMember,
 } from "../../lib/types";
 import { useStoreRealtime } from "../../lib/realtime";
+import { workRecordHref } from "../../lib/navigation";
 import { AppNav } from "../app-nav";
 import { EmployeeClosingSummary } from "../employee-closing";
 import { FloatingAiAssistant } from "../floating-ai-assistant";
@@ -172,7 +173,16 @@ export function FinancePageClient() {
           `/stores/${selected.store.id}/business-days/current`,
         );
         setDay(current);
-        setCashDate(current.businessDate);
+        const requestedTab = new URL(window.location.href).searchParams.get("tab");
+        if (["summary", "cash", "closing", "payroll"].includes(requestedTab ?? "")) {
+          setTab(requestedTab as FinanceTab);
+        }
+        const requestedDate = new URL(window.location.href).searchParams.get("date");
+        setCashDate(
+          requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) && requestedDate <= current.businessDate
+            ? requestedDate
+            : current.businessDate,
+        );
         if (selected.role !== "EMPLOYEE") {
           setMembers(
             await apiRequest<StoreMember[]>(`/stores/${selected.store.id}/members`),
@@ -308,7 +318,7 @@ export function FinancePageClient() {
         <section className="finance-section">
           <div className="date-toolbar"><label>营业日<input type="date" value={cashDate} max={day.businessDate} onChange={(event) => setCashDate(event.target.value)} /></label><button className="secondary-action" type="button" disabled={busy} onClick={() => run(loadClosing)}>重新检查</button></div>
           <div className={`closing-status ${closing.hasWarnings ? "warning" : "ready"}`}><div><span>{closing.isClosed ? "已日结" : closing.hasWarnings ? "发现日结异常" : "可以正常日结"}</span><strong>{closing.isClosed ? `第 ${closing.activeClosing?.cycleNo ?? 0} 次日结` : closing.hasWarnings ? `${closing.warningCount} 项提示` : "检查通过"}</strong></div>{closing.isClosed ? <button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { const reason = window.prompt("请填写取消日结原因"); if (!reason?.trim() || !closing.activeClosing) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}/cancel`, { method: "POST", idempotent: true, body: { version: closing.activeClosing.version, reason: reason.trim() } }); await loadClosing(); await loadCash(); })}>取消日结</button> : <div className="closing-actions"><button className="primary-action" type="button" disabled={busy || closing.hasWarnings} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: false } }); await loadClosing(); })}>确认日结</button>{closing.hasWarnings && <button className="danger-button" type="button" disabled={busy} onClick={() => run(async () => { const reason = window.prompt("强制日结会保留全部异常快照，请填写原因"); if (!reason?.trim()) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: true, forceReason: reason.trim() } }); await loadClosing(); })}>强制日结</button>}</div>}</div>
-          {closing.warnings.length > 0 && <div className="warning-list">{closing.warnings.map((warning) => <article key={warning.code}><strong>{warning.labelZh}</strong><span>{warning.count} 条记录</span></article>)}</div>}
+          {closing.warnings.length > 0 && <div className="warning-list">{closing.warnings.map((warning) => <article key={warning.code}><div className="warning-list__heading"><strong>{warning.labelZh}</strong><span>{warning.count} 条记录</span></div><div className="warning-record-links">{warning.recordIds.map((recordId, index) => <a className="secondary-action compact" key={recordId} href={workRecordHref(membership.store.id, closing.businessDate, recordId)} aria-label={`查看${warning.labelZh}第 ${index + 1} 单`}>查看第 {index + 1} 单</a>)}</div></article>)}</div>}
           <h2 className="table-title">全店日结合计</h2><div className="finance-cards closing-totals"><article><span>全店大费基数</span><strong>{money(closing.storeTotals.grossFeeBaseCents)}</strong></article><article><span>全店折扣总额</span><strong>{money(closing.storeTotals.discountTotalCents)}</strong></article><article className="balance-card"><span>全店折后大费业绩</span><strong>{money(closing.storeTotals.discountedFeePerformanceCents)}</strong></article><article><span>全店小费总额</span><strong>{money(closing.storeTotals.totalTipCents)}</strong></article><article><span>全店客人总付款</span><strong>{money(closing.storeTotals.customerTotalPaidCents)}</strong></article></div>
           <h2 className="table-title">每位员工日结检查</h2><div className="table-scroll"><table className="data-table"><thead><tr><th>员工</th><th>单数</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>小费</th><th>应得工资</th><th>待结账</th></tr></thead><tbody>{closing.employees.map((row) => <tr key={row.membershipId}><td>{row.displayName}</td><td>{row.recordCount}</td><td>{money(row.grossFeeBaseCents)}</td><td>{money(row.discountTotalCents)}</td><td>{money(row.discountedFeePerformanceCents)}</td><td>{money(row.totalTipCents)}</td><td>{money(row.employeeIncomeCents)}</td><td>{row.incompleteRecordCount}</td></tr>)}</tbody></table></div>
         </section>

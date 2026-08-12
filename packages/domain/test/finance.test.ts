@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DomainError,
   calculateDailyCashSettlement,
+  calculatePersonalClosingCashToSubmit,
   calculatePayrollBalance,
   calculatePayrollPaymentTotal,
   calculateWorkRecordFinance,
@@ -159,6 +160,16 @@ describe("单条记工财务", () => {
 });
 
 describe("日现金结算与工资余额", () => {
+  it("个人日结按现金大费项目的折前基数计算店铺四成", () => {
+    expect(
+      calculatePersonalClosingCashToSubmit([
+        { grossFeeBaseCents: 10_000n, cashServiceCents: 9_500n },
+        { grossFeeBaseCents: 8_000n, cashServiceCents: 1n },
+        { grossFeeBaseCents: 12_000n, cashServiceCents: 0n },
+      ]),
+    ).toBe(7_200n);
+  });
+
   it("汇总多条记录", () => {
     const records = [
       calculateWorkRecordFinance(record()),
@@ -209,4 +220,3 @@ describe("日现金结算与工资余额", () => {
     ).toBe(61_000n);
   });
 });
-

@@ -310,7 +310,7 @@ export function EmployeeClosingSummary({ preview }: EmployeeClosingSummaryProps)
       <div className="employee-closing-metrics">
         <article><span>记工单数</span><strong>{employee.recordCount} 单</strong><small>{employee.incompleteRecordCount > 0 ? `${employee.incompleteRecordCount} 单待结账` : "全部已确认"}</small></article>
         <article><span>大费基数</span><strong>{money(employee.grossFeeBaseCents)}</strong><small>主要项目＋加项</small></article>
-        <article><span>应提交现金</span><strong>{money(employee.cashToSubmitToStoreCents)}</strong><small>交回店铺的现金</small></article>
+        <article><span>应提交现金</span><strong>{money(employee.cashToSubmitToStoreCents)}</strong><small>现金大费项目折前基数 × 40%</small></article>
         <article className="highlight"><span>折后大费</span><strong>{money(employee.discountedFeePerformanceCents)}</strong><small>折扣后店铺业绩</small></article>
         <article><span>小费</span><strong>{money(employee.totalTipCents)}</strong><small>现金＋刷卡小费</small></article>
         <article className="income"><span>大费工资</span><strong>{money(employee.totalLargeFeeWageCents)}</strong><small>项目提成合计</small></article>

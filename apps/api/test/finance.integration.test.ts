@@ -245,7 +245,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
         totalTipCents: 3_000,
         totalLargeFeeWageCents: 6_000,
         employeeIncomeCents: 9_000,
-        cashToSubmitToStoreCents: 1_600,
+        cashToSubmitToStoreCents: 4_000,
       },
     });
     expect(own).not.toHaveProperty("storeTotals");

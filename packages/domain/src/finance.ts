@@ -191,6 +191,29 @@ export function calculateDailyCashSettlement(
   };
 }
 
+export interface PersonalClosingCashRecord {
+  grossFeeBaseCents: Cents;
+  cashServiceCents: Cents;
+}
+
+/**
+ * 个人日结的“应提交现金”按含现金大费的已确认项目折前基数计算，
+ * 不使用折后实收现金，也不复用每日现金结算中的实际留存公式。
+ */
+export function calculatePersonalClosingCashToSubmit(
+  records: readonly PersonalClosingCashRecord[],
+): Cents {
+  const cashProjectGrossFeeBaseCents = sumCents(
+    records.map((record) => {
+      const grossFeeBaseCents = cents(record.grossFeeBaseCents);
+      const cashServiceCents = cents(record.cashServiceCents);
+      return cashServiceCents > 0n ? grossFeeBaseCents : 0n;
+    }),
+  );
+
+  return multiplyByBps(cashProjectGrossFeeBaseCents, 4_000);
+}
+
 export interface PayrollBalance {
   rawBalanceCents: bigint;
   employerOwesCents: Cents;

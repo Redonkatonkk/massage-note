@@ -33,7 +33,7 @@ services:
     networks: [backend]
 
   migrate:
-    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.6.6}
+    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.6.8}
     command: ["migrate"]
     environment:
       DATABASE_URL: postgresql://massage_note_admin:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/massage_note

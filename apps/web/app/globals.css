@@ -1810,7 +1810,10 @@ h2 {
 .employee-closing-privacy { margin: 0 0 16px; padding: 12px 14px; border-radius: 13px; background: #edf8f1; color: var(--success); font-size: .84rem; font-weight: 700; }
 .danger-button { min-height: 54px; padding: 0 20px; border: 1px solid #9d2c24; border-radius: 15px; background: #9d2c24; color: #fff; font-weight: 800; cursor: pointer; }
 .warning-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.warning-list article { display: flex; justify-content: space-between; gap: 10px; padding: 13px; border: 1px solid #e2b77d; border-radius: 13px; background: #fff8e9; }
+.warning-list article { display: grid; gap: 10px; padding: 13px; border: 1px solid #e2b77d; border-radius: 13px; background: #fff8e9; }
+.warning-list__heading { display: flex; justify-content: space-between; gap: 10px; }
+.warning-record-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.warning-record-links .secondary-action { min-height: 38px; padding: 0 12px; background: #fff; }
 .payroll-form { padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
 .payroll-form h2 { margin-bottom: 16px; font-size: 1.2rem; }
 .payroll-fields { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 10px; }

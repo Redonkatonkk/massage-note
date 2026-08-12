@@ -12,7 +12,7 @@ import type {
 } from "@massage-note/contracts";
 import {
   businessDateFor,
-  calculateDailyCashSettlement,
+  calculatePersonalClosingCashToSubmit,
   canReadEmployeeFinance,
 } from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
@@ -430,12 +430,9 @@ export class ClosingsService {
         customerTotalPaidCents: bigint;
         totalLargeFeeWageCents: bigint;
         employeeIncomeCents: bigint;
-        cashRecords: Array<{
+        personalClosingCashRecords: Array<{
+          grossFeeBaseCents: bigint;
           cashServiceCents: bigint;
-          cashTipCents: bigint;
-          cashAllocatedServiceWageCents: bigint;
-          cashAcquiredServiceWageCents: bigint;
-          cashWageShortfallCents: bigint;
         }>;
         incompleteRecordCount: number;
       }
@@ -453,7 +450,7 @@ export class ClosingsService {
         customerTotalPaidCents: 0n,
         totalLargeFeeWageCents: 0n,
         employeeIncomeCents: 0n,
-        cashRecords: [],
+        personalClosingCashRecords: [],
         incompleteRecordCount: 0,
       };
       current.recordCount += 1;
@@ -467,26 +464,22 @@ export class ClosingsService {
       current.employeeIncomeCents +=
         record.totalLargeFeeWageCents + (record.totalTipCents ?? 0n);
       if (record.status === "CONFIRMED") {
-        current.cashRecords.push({
+        current.personalClosingCashRecords.push({
+          grossFeeBaseCents: record.grossFeeBaseCents,
           cashServiceCents: record.cashServiceCents ?? 0n,
-          cashTipCents: record.cashTipCents ?? 0n,
-          cashAllocatedServiceWageCents:
-            record.cashAllocatedServiceWageCents ?? 0n,
-          cashAcquiredServiceWageCents:
-            record.cashAcquiredServiceWageCents ?? 0n,
-          cashWageShortfallCents: record.cashWageShortfallCents ?? 0n,
         });
       }
       if (record.status === "PENDING_PAYMENT") current.incompleteRecordCount += 1;
       employeeMap.set(record.employeeMembershipId, current);
     }
     const employees = [...employeeMap.values()].map(
-      ({ cashRecords, ...item }) =>
+      ({ personalClosingCashRecords, ...item }) =>
         this.safeTotals({
           ...item,
           cashToSubmitToStoreCents:
-            calculateDailyCashSettlement(cashRecords)
-              .cashToSubmitToStoreCents,
+            calculatePersonalClosingCashToSubmit(
+              personalClosingCashRecords,
+            ),
         }),
     );
     const storeTotals = employees.reduce(

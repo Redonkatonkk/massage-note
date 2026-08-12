@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
 import { discountBadgeText } from "../lib/board";
+import { financeClosingHref } from "../lib/navigation";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
 import { activeWorkRecord } from "../lib/work-status";
 import type {
@@ -25,6 +26,8 @@ interface TodayBoardProps {
   board: BoardResponse;
   catalog: CatalogResponse;
   members: StoreMember[];
+  initialRecordId?: string | undefined;
+  onInitialRecordOpened?: () => void;
   onReload: () => Promise<void>;
 }
 
@@ -61,6 +64,8 @@ export function TodayBoard({
   board,
   catalog,
   members,
+  initialRecordId,
+  onInitialRecordOpened,
   onReload,
 }: TodayBoardProps) {
   const canManage = membership.role !== "EMPLOYEE";
@@ -97,6 +102,22 @@ export function TodayBoard({
     const timer = window.setTimeout(() => setNotice(""), 4_000);
     return () => window.clearTimeout(timer);
   }, [notice]);
+
+  useEffect(() => {
+    if (!initialRecordId) return;
+    const row = board.rows.find((candidate) =>
+      candidate.workRecords.some((record) => record.id === initialRecordId),
+    );
+    const record = row?.workRecords.find((candidate) => candidate.id === initialRecordId);
+    if (row && record) {
+      setCollapsed((current) => current.filter((id) => id !== row.id));
+      if (row.isHidden) setShowHidden(true);
+      setEditingRecord(record);
+    } else {
+      setError("没有找到这条异常记工，记录可能已被删除或不属于当前店铺。");
+    }
+    onInitialRecordOpened?.();
+  }, [board.rows, initialRecordId, onInitialRecordOpened]);
 
   useEffect(() => {
     if (!quickEmployeeId) return;
@@ -287,6 +308,7 @@ export function TodayBoard({
       <section className="board-toolbar" aria-label="今日操作">
         <div>
           <button className="secondary-action" type="button" disabled={busy} onClick={() => run(onReload)}>刷新</button>
+          {canManage && <a className="primary-action" href={financeClosingHref(membership.store.id, currentDay.businessDate)}>{board.isClosed ? "查看全店日结" : "全店日结"}</a>}
         </div>
         {canManage && board.rows.some((row) => row.isHidden) && (
           <label className="inline-check"><input type="checkbox" checked={showHidden} onChange={(event) => setShowHidden(event.target.checked)} /> 显示已隐藏员工</label>

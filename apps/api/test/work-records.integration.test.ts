@@ -430,6 +430,47 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     })).resolves.toBe(2);
   });
 
+  it("修改项目时长会自动重算下工时间", async () => {
+    await prisma.serviceItemPriceOption.create({
+      data: {
+        serviceItemId,
+        durationMinutes: 90,
+        priceCents: 15_000,
+        position: 2,
+      },
+    });
+    const startAt = new Date("2026-08-13T14:00:00.000Z");
+    const durationRecord = await workRecords.create(
+      actor(employeeId),
+      storeId,
+      {
+        employeeMembershipId,
+        startAt: startAt.toISOString(),
+        serviceItemId,
+        serviceDurationMinutes: 60,
+      },
+      "duration-change-create-key-0001",
+      "duration-change-create",
+    );
+
+    const updated = await workRecords.update(
+      actor(employeeId),
+      storeId,
+      durationRecord.id,
+      {
+        version: durationRecord.version,
+        serviceItemId,
+        serviceDurationMinutes: 90,
+      },
+      "duration-change-update-key-0001",
+      "duration-change-update",
+    );
+
+    expect(updated.serviceSnapshot?.durationMinutes).toBe(90);
+    expect(updated.endAt).toEqual(new Date("2026-08-13T15:30:00.000Z"));
+    expect(updated.actualDurationMinutes).toBe(90);
+  });
+
   it("周一至周四达到大费门槛会自动折扣且不减少员工收入", async () => {
     await prisma.store.update({
       where: { id: storeId },

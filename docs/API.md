@@ -73,7 +73,7 @@ Web 页面支持用于排查日结异常的深链接：`/finance?store=<storeId>
 }
 ```
 
-快速创建或把记工切换到预设项目时提交 `serviceItemId` 和 `serviceDurationMinutes`。若项目只有一个档位，服务端为旧客户端兼容可补选该档位；项目有多个档位时缺少时长会返回 `SERVICE_PRICE_OPTION_REQUIRED`。记工保存的仍是名称、时长、价格和提成快照，后续修改或删除价格档位不会改变历史记录。
+快速创建或把记工切换到预设项目时提交 `serviceItemId` 和 `serviceDurationMinutes`。若项目只有一个档位，服务端为旧客户端兼容可补选该档位；项目有多个档位时缺少时长会返回 `SERVICE_PRICE_OPTION_REQUIRED`。更新记工时，如果主要项目时长发生变化且请求没有明确提交 `endAt`，服务端按 `startAt + 新时长` 自动重算结束时间；明确提交的 `endAt` 仍优先。记工保存的仍是名称、时长、价格和提成快照，后续修改或删除价格档位不会改变历史记录。
 
 店铺设置可通过同一次 `PATCH /stores/:storeId` 写入周一至周四自动折扣；三个字段必须一起提交：
 
@@ -101,7 +101,7 @@ Web 页面支持用于排查日结异常的深链接：`/finance?store=<storeId>
 
 项目排序提交完整的未删除项目列表及当前版本，例如 `{ "type": "SERVICE", "items": [{ "id": "...", "version": 2 }] }`。服务端在同一事务中校验列表、项目归属和全部版本，再统一写入顺序；列表不完整或任一版本过期时返回 `CATALOG_ORDER_CONFLICT`，不会留下半套排序。
 
-班次接口继续保留给旧客户端和历史审计兼容：新营业日上班打卡若发现本人仍有旧营业日未结束班次，会先原子结束旧班次并记录 `shift.stale_auto_closed` 审计，再创建当前班次。同一营业日重复上班仍返回 `SHIFT_ALREADY_OPEN`。当前今日记工页面不再调用上下班接口，员工工作状态改由记工时间段计算。
+今日记工页面只调用 `POST /stores/:storeId/shifts/clock-in` 支持普通员工把本人加入当前营业日表格，不调用下班接口。新营业日上班若发现本人仍有旧营业日未结束班次，会先原子结束旧班次并记录 `shift.stale_auto_closed` 审计，再创建当前班次和本人表格行；同一营业日重复上班返回 `SHIFT_ALREADY_OPEN`。`clock-out` 继续保留给旧客户端和历史审计兼容，员工页面不提供对应按钮；员工工作状态仍完全由记工时间段计算。
 
 ## 财务查询参数
 

@@ -1733,6 +1733,19 @@ h2 {
 .finance-cards span, .finance-cards small { color: var(--muted); font-size: 0.78rem; }
 .finance-cards strong { font-size: 1.3rem; }
 .finance-cards .balance-card { border-color: #d5b283; background: #fff8e9; }
+.finance-cards .finance-summary-card { position: relative; display: block; min-width: 0; padding: 0; transition: border-color 160ms ease, transform 160ms ease; }
+.finance-summary-card:hover, .finance-summary-card:focus-within { z-index: 5; border-color: var(--brand); transform: translateY(-1px); }
+.finance-summary-card__main { display: grid; width: 100%; min-height: 128px; align-content: center; gap: 7px; padding: 17px 48px 17px 17px; border: 0; border-radius: inherit; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.finance-summary-card__main:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 35%, transparent); outline-offset: -4px; }
+.finance-summary-info { position: absolute; top: 12px; right: 12px; }
+.finance-summary-info summary { display: grid; width: 25px; height: 25px; place-items: center; border: 1.5px solid var(--brand); border-radius: 999px; background: var(--surface); color: var(--brand); font-size: 0.82rem; font-weight: 900; line-height: 1; list-style: none; cursor: help; user-select: none; }
+.finance-summary-info summary::-webkit-details-marker { display: none; }
+.finance-summary-info summary:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 30%, transparent); outline-offset: 2px; }
+.finance-summary-tooltip { position: absolute; top: 34px; right: 0; display: none; width: min(320px, calc(100vw - 48px)); padding: 14px; border: 1px solid color-mix(in srgb, var(--brand) 32%, var(--line)); border-radius: 14px; background: #fffdf9; box-shadow: 0 14px 36px rgb(49 36 23 / 18%); color: var(--ink); cursor: default; }
+.finance-summary-info:hover .finance-summary-tooltip, .finance-summary-info:focus-within .finance-summary-tooltip, .finance-summary-info[open] .finance-summary-tooltip { display: grid; gap: 5px; }
+.finance-cards .finance-summary-tooltip strong { font-size: 0.95rem; }
+.finance-cards .finance-summary-tooltip span { color: var(--brand); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.05em; }
+.finance-summary-tooltip p { margin: 0 0 5px; color: var(--ink); font-size: 0.82rem; line-height: 1.55; }
 .amount-link { padding: 3px 5px; border: 0; border-bottom: 1px dashed var(--brand); background: transparent; color: var(--brand); font: inherit; font-weight: 800; white-space: nowrap; cursor: pointer; }
 .amount-link:hover { background: var(--brand-soft); }
 .filter-actions { display: grid; gap: 7px; }

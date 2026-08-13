@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
-import { discountBadgeText } from "../lib/board";
+import { canShowEmployeeClockIn, discountBadgeText } from "../lib/board";
 import { financeClosingHref } from "../lib/navigation";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
 import { activeWorkRecord } from "../lib/work-status";
@@ -182,6 +182,13 @@ export function TodayBoard({
       member.isServiceProvider &&
       !board.rows.some((row) => row.membershipId === member.id),
   );
+  const showEmployeeClockIn = canShowEmployeeClockIn({
+    role: membership.role,
+    isServiceProvider: membership.isServiceProvider,
+    isCurrentBusinessDay,
+    isClosed: board.isClosed,
+    hasOwnRow: board.rows.some((row) => row.membershipId === membership.id),
+  });
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -308,6 +315,11 @@ export function TodayBoard({
       <section className="board-toolbar" aria-label="今日操作">
         <div>
           <button className="secondary-action" type="button" disabled={busy} onClick={() => run(onReload)}>刷新</button>
+          {showEmployeeClockIn && <button className="primary-action" type="button" disabled={busy} onClick={() => run(async () => {
+            await apiRequest(`/stores/${membership.store.id}/shifts/clock-in`, { method: "POST", idempotent: true, body: {} });
+            setNotice("已上班，并加入今日表格");
+            await onReload();
+          })}>{busy ? "正在上班…" : "上班"}</button>}
           {canManage && <a className="primary-action" href={financeClosingHref(membership.store.id, currentDay.businessDate)}>{board.isClosed ? "查看全店日结" : "全店日结"}</a>}
         </div>
         {canManage && board.rows.some((row) => row.isHidden) && (
@@ -321,7 +333,7 @@ export function TodayBoard({
 
       <section className="board" id="today" aria-label={isCurrentBusinessDay ? "今日员工记工表" : canManage ? "历史员工记工表" : "我的历史记工表"}>
         {visibleRows.length === 0 && (
-          <div className="empty-state"><strong>{isCurrentBusinessDay ? "今日表格还是空的" : canManage ? "这个营业日没有记工" : "这个营业日没有你的记工"}</strong><p>{isCurrentBusinessDay ? "店长或经理可以把参与记工的员工加入今日表格。" : canManage ? "可以选择其他营业日继续查看。" : "这里只会显示你自己的历史记录，可以选择其他营业日继续查看。"}</p></div>
+          <div className="empty-state"><strong>{isCurrentBusinessDay ? "今日表格还是空的" : canManage ? "这个营业日没有记工" : "这个营业日没有你的记工"}</strong><p>{showEmployeeClockIn ? "点击上方“上班”，把自己加入今日表格。" : isCurrentBusinessDay ? "店长或经理可以把参与记工的员工加入今日表格。" : canManage ? "可以选择其他营业日继续查看。" : "这里只会显示你自己的历史记录，可以选择其他营业日继续查看。"}</p></div>
         )}
         {visibleRows.map((row) => {
           const isCollapsed = collapsed.includes(row.id);

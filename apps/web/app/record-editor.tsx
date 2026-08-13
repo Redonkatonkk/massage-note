@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
-import { localDateTimeValue, zonedLocalToIso } from "../lib/time";
+import {
+  endLocalDateTimeForDuration,
+  localDateTimeValue,
+  zonedLocalToIso,
+} from "../lib/time";
 import type {
   AddonItem,
   CatalogResponse,
@@ -235,6 +239,7 @@ export function RecordEditor({
     setServiceShortName(item.shortName);
     setServiceDuration(option.durationMinutes.toString());
     setServiceAmount(dollars(option.priceCents));
+    setEndAt(endLocalDateTimeForDuration(startAt, option.durationMinutes, timezone));
   }
 
   function chooseServiceDuration(value: string) {
@@ -243,7 +248,18 @@ export function RecordEditor({
     const option = item?.priceOptions.find(
       (candidate) => candidate.durationMinutes.toString() === value,
     );
-    if (option) setServiceAmount(dollars(option.priceCents));
+    if (option) {
+      setServiceAmount(dollars(option.priceCents));
+      setEndAt(endLocalDateTimeForDuration(startAt, option.durationMinutes, timezone));
+    }
+  }
+
+  function changeCustomServiceDuration(value: string) {
+    setServiceDuration(value);
+    const durationMinutes = Number(value);
+    if (Number.isInteger(durationMinutes) && durationMinutes >= 1 && durationMinutes <= 720) {
+      setEndAt(endLocalDateTimeForDuration(startAt, durationMinutes, timezone));
+    }
   }
 
   function updateAddon(key: string, changes: Partial<AddonDraft>) {
@@ -517,7 +533,7 @@ export function RecordEditor({
             <>
               <label className="field-label">项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} /></label>
               <label className="field-label">项目简称<input value={serviceShortName} onChange={(event) => setServiceShortName(event.target.value)} /></label>
-              <label className="field-label">时长（分钟）<input type="number" min="1" max="720" value={serviceDuration} onChange={(event) => setServiceDuration(event.target.value)} /></label>
+              <label className="field-label">时长（分钟）<input type="number" min="1" max="720" value={serviceDuration} onChange={(event) => changeCustomServiceDuration(event.target.value)} /></label>
             </>
           )}
           {serviceChoice !== "__custom__" && (

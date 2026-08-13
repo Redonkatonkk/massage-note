@@ -7,6 +7,20 @@ export function deduplicateMembershipRows<T extends { membershipId: string }>(ro
   });
 }
 
+export function canShowEmployeeClockIn(input: {
+  role: "OWNER" | "MANAGER" | "EMPLOYEE";
+  isServiceProvider: boolean;
+  isCurrentBusinessDay: boolean;
+  isClosed: boolean;
+  hasOwnRow: boolean;
+}): boolean {
+  return input.role === "EMPLOYEE" &&
+    input.isServiceProvider &&
+    input.isCurrentBusinessDay &&
+    !input.isClosed &&
+    !input.hasOwnRow;
+}
+
 export function discountBadgeText(cents: number): string {
   const normalizedCents = Math.trunc(cents);
   const sign = normalizedCents < 0 ? "-" : "";

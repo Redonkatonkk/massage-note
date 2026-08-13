@@ -56,6 +56,21 @@ export function zonedLocalToIso(value: string, timezone: string): string {
   return new Date(guess).toISOString();
 }
 
+export function endLocalDateTimeForDuration(
+  startLocalDateTime: string,
+  durationMinutes: number,
+  timezone: string,
+): string {
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 720) {
+    throw new Error("项目时长必须是 1 至 720 分钟的整数");
+  }
+  const startAt = new Date(zonedLocalToIso(startLocalDateTime, timezone));
+  return localDateTimeValue(
+    new Date(startAt.getTime() + durationMinutes * 60_000).toISOString(),
+    timezone,
+  );
+}
+
 export function businessTimeToIso(
   businessDate: string,
   time: string,

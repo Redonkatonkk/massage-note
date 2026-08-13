@@ -222,7 +222,7 @@ export class BoardsService {
             if (openShift.businessDate.getTime() === dateAtUtc(businessDate).getTime()) {
               throw new ConflictException({
                 code: "SHIFT_ALREADY_OPEN",
-                messageZh: "你已经上班，请先下班后再重新打卡",
+                messageZh: "你已经上班并加入今日表格，请刷新页面",
                 latestResource: openShift,
               });
             }
@@ -298,7 +298,7 @@ export class BoardsService {
       ) {
         throw new ConflictException({
           code: "SHIFT_ALREADY_OPEN",
-          messageZh: "你已经上班，请先下班后再重新打卡",
+          messageZh: "你已经上班并加入今日表格，请刷新页面",
         });
       }
       throw error;

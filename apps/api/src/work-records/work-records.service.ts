@@ -484,21 +484,6 @@ export class WorkRecordsService {
             businessDate,
           );
           }
-          const endAt =
-            input.endAt === undefined
-              ? record.endAt
-              : input.endAt === null
-                ? null
-                : new Date(input.endAt);
-          if (endAt && endAt < startAt) {
-            throw new BadRequestException({
-              code: "END_BEFORE_START",
-              messageZh: "结束时间不能早于开始时间",
-            });
-          }
-          const actualDurationMinutes = endAt
-            ? Math.round((endAt.getTime() - startAt.getTime()) / 60_000)
-            : null;
           const employeeDefaultBps = await this.resolveEmployeeDefaultCommission(
             transaction,
             storeId,
@@ -521,6 +506,25 @@ export class WorkRecordsService {
             employeeOrTimeChanged,
             mayOverrideCommission,
           );
+          const serviceDurationChanged =
+            service.durationMinutes !== record.serviceSnapshot.durationMinutes;
+          const endAt =
+            input.endAt === undefined
+              ? serviceDurationChanged
+                ? new Date(startAt.getTime() + service.durationMinutes * 60_000)
+                : record.endAt
+              : input.endAt === null
+                ? null
+                : new Date(input.endAt);
+          if (endAt && endAt < startAt) {
+            throw new BadRequestException({
+              code: "END_BEFORE_START",
+              messageZh: "结束时间不能早于开始时间",
+            });
+          }
+          const actualDurationMinutes = endAt
+            ? Math.round((endAt.getTime() - startAt.getTime()) / 60_000)
+            : null;
           const addons = await this.buildDesiredAddons(
             transaction,
             storeId,

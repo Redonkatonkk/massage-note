@@ -19,6 +19,10 @@ import { workRecordHref } from "../../lib/navigation";
 import { AppNav } from "../app-nav";
 import { EmployeeClosingSummary } from "../employee-closing";
 import { FloatingAiAssistant } from "../floating-ai-assistant";
+import {
+  financeSummaryMetrics,
+  type FinanceSummaryMetricKey,
+} from "./summary-metrics";
 
 type FinanceTab = "summary" | "cash" | "closing" | "payroll";
 type FinanceRangeOverride = { dateFrom?: string; dateTo?: string; memberIds?: string[] };
@@ -50,6 +54,42 @@ function shiftDate(value: string, days: number): string {
   const date = new Date(`${value}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function FinanceSummaryCard({
+  label,
+  value,
+  caption,
+  explanation,
+  calculation,
+  onViewDetails,
+}: {
+  label: string;
+  value: string;
+  caption: string;
+  explanation: string;
+  calculation: string;
+  onViewDetails: () => void;
+}) {
+  return (
+    <article className="finance-summary-card">
+      <button className="finance-summary-card__main" type="button" onClick={onViewDetails} aria-label={`${label}：${value}，查看组成明细`}>
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{caption}</small>
+      </button>
+      <details className="finance-summary-info">
+        <summary aria-label={`查看“${label}”的解释和计算方法`}>!</summary>
+        <div className="finance-summary-tooltip" role="tooltip">
+          <strong>{label}</strong>
+          <span>词条解释</span>
+          <p>{explanation}</p>
+          <span>计算方法</span>
+          <p>{calculation}</p>
+        </div>
+      </details>
+    </article>
+  );
 }
 
 export function FinancePageClient() {
@@ -276,24 +316,34 @@ export function FinancePageClient() {
             <div className="filter-actions"><button className="primary-action" type="submit" disabled={busy}>应用筛选</button><a className="secondary-action export-link" href={`${apiBase}/stores/${membership.store.id}/finance/export.csv?${currentFinanceParams()}`} download>导出 CSV</a></div>
           </form>
           <div className="finance-cards">
-            <button type="button" onClick={() => void run(loadDetails)}><span>项目数量</span><strong>{summary.totals.recordCount} 单</strong><small>{summary.totals.incompleteRecordCount > 0 ? `${summary.totals.incompleteRecordCount} 单待结账` : "全部已确认"}</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>主要项目金额</span><strong>{money(summary.totals.mainServiceAmountCents)}</strong><small>不含额外项目</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>额外项目总额</span><strong>{money(summary.totals.addonTotalCents)}</strong><small>全部加项金额</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>大费基数</span><strong>{money(summary.totals.grossFeeBaseCents)}</strong><small>主要项目＋额外项目</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>折扣总额</span><strong>{money(summary.totals.discountTotalCents)}</strong><small>不降低员工提成工资</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>折后大费业绩</span><strong>{money(summary.totals.discountedFeePerformanceCents)}</strong><small>折扣由店铺承担</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>实收服务费</span><strong>{money(summary.totals.actualServiceCollectedCents)}</strong><small>现金大费＋刷卡大费</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>现金大费</span><strong>{money(summary.totals.cashServiceCents)}</strong><small>客人以现金支付的大费</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>刷卡大费</span><strong>{money(summary.totals.cardServiceCents)}</strong><small>客人以刷卡支付的大费</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>现金小费</span><strong>{money(summary.totals.cashTipCents)}</strong><small>客人以现金支付的小费</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>刷卡小费</span><strong>{money(summary.totals.cardTipCents)}</strong><small>客人以刷卡支付的小费</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>小费总额</span><strong>{money(summary.totals.totalTipCents)}</strong><small>现金＋刷卡小费</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>客人总付款</span><strong>{money(summary.totals.customerTotalPaidCents)}</strong><small>实收服务费＋小费</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>大费工资</span><strong>{money(summary.totals.totalLargeFeeWageCents)}</strong><small>主要项目工资＋加项工资</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>员工总收入</span><strong>{money(summary.totals.employeeIncomeCents)}</strong><small>大费工资＋小费</small></button>
-            <button type="button" onClick={() => void run(loadDetails)}><span>已通过现金取得</span><strong>{money(summary.totals.settledCashAcquiredWithinRangeCents)}</strong><small>仅计算已结清的现金工资与现金小费</small></button>
-            <button className="balance-card" type="button" onClick={() => void run(loadDetails)}><span>老板尚欠</span><strong>{money(summary.totals.employerOwesCents)}</strong><small>{summary.totals.overpaidCents > 0 ? `已超额支付 ${money(summary.totals.overpaidCents)}` : "点击查看记工组成；余额见下方"}</small></button>
-            <button type="button" onClick={() => setTab("payroll")}><span>本期工资结算</span><strong>{money(summary.totals.payrollPaidWithinRangeCents)}</strong><small>点击查看工资结算账本</small></button>
+            {(() => {
+              const values: Record<FinanceSummaryMetricKey, { value: string; caption: string }> = {
+                recordCount: { value: `${summary.totals.recordCount} 单`, caption: summary.totals.incompleteRecordCount > 0 ? `${summary.totals.incompleteRecordCount} 单待结账` : "全部已确认" },
+                mainServiceAmountCents: { value: money(summary.totals.mainServiceAmountCents), caption: "不含额外项目" },
+                addonTotalCents: { value: money(summary.totals.addonTotalCents), caption: "全部加项金额" },
+                grossFeeBaseCents: { value: money(summary.totals.grossFeeBaseCents), caption: "主要项目＋额外项目" },
+                discountTotalCents: { value: money(summary.totals.discountTotalCents), caption: "不降低员工提成工资" },
+                discountedFeePerformanceCents: { value: money(summary.totals.discountedFeePerformanceCents), caption: "折扣由店铺承担" },
+                actualServiceCollectedCents: { value: money(summary.totals.actualServiceCollectedCents), caption: "现金大费＋刷卡大费" },
+                cashServiceCents: { value: money(summary.totals.cashServiceCents), caption: "客人以现金支付的大费" },
+                cardServiceCents: { value: money(summary.totals.cardServiceCents), caption: "客人以刷卡支付的大费" },
+                cashTipCents: { value: money(summary.totals.cashTipCents), caption: "客人以现金支付的小费" },
+                cardTipCents: { value: money(summary.totals.cardTipCents), caption: "客人以刷卡支付的小费" },
+                totalTipCents: { value: money(summary.totals.totalTipCents), caption: "现金＋刷卡小费" },
+                customerTotalPaidCents: { value: money(summary.totals.customerTotalPaidCents), caption: "实收服务费＋小费" },
+                totalLargeFeeWageCents: { value: money(summary.totals.totalLargeFeeWageCents), caption: "主要项目工资＋加项工资" },
+                employeeIncomeCents: { value: money(summary.totals.employeeIncomeCents), caption: "大费工资＋小费" },
+                settledCashAcquiredWithinRangeCents: { value: money(summary.totals.settledCashAcquiredWithinRangeCents), caption: "仅计算已结清的现金工资与现金小费" },
+              };
+              return financeSummaryMetrics.map(({ key, ...metric }) => (
+                <FinanceSummaryCard
+                  key={key}
+                  {...metric}
+                  {...values[key]}
+                  onViewDetails={() => void run(loadDetails)}
+                />
+              ));
+            })()}
           </div>
           {details && <section className="finance-details"><div className="manage-heading"><div><p className="eyebrow">{details.filters.dateFrom} 至 {details.filters.dateTo}</p><h2>组成明细</h2></div><button className="close-button" type="button" onClick={() => setDetails(null)}>收起</button></div><div className="table-scroll"><table className="data-table"><thead><tr><th>营业日</th><th>员工</th><th>项目</th><th>状态</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>现金大费</th><th>刷卡大费</th><th>现金小费</th><th>刷卡小费</th><th>客人总付款</th><th>大费工资</th><th>员工总收入</th></tr></thead><tbody>{details.records.map((record) => <tr key={record.id}><td>{dateOnly(record.businessDate)}</td><td>{record.employee.displayName}</td><td>{record.serviceSnapshot?.shortName ?? "自定义"}</td><td>{record.status === "CONFIRMED" ? "已确认" : "待结账"}</td><td>{money(record.mainServiceAmountCents)}</td><td>{money(record.addonTotalCents)}</td><td>{money(record.grossFeeBaseCents)}</td><td>{money(record.discountTotalCents)}</td><td>{money(record.discountedFeePerformanceCents)}</td><td>{money(record.cashServiceCents)}</td><td>{money(record.cardServiceCents)}</td><td>{money(record.cashTipCents)}</td><td>{money(record.cardTipCents)}</td><td>{money(record.customerTotalPaidCents)}</td><td>{money(record.totalLargeFeeWageCents)}</td><td>{money(record.employeeTotalIncomeCents)}</td></tr>)}</tbody></table></div>{details.records.length === 0 && <p className="empty-state">当前范围没有明细记录。</p>}</section>}
           <h2 className="table-title">员工小计</h2>

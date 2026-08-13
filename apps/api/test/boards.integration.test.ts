@@ -94,7 +94,7 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
   let ownerRowId = "";
   let boardVersion = 0;
 
-  it("服务端给出当前营业日，并发重复打卡只建立一条班次和员工行", async () => {
+  it("员工上班可把本人加入今日表格，并发重复点击只建立一条班次和员工行", async () => {
     const current = await boards.currentBusinessDay(actor(employeeId), storeId);
     businessDate = current.businessDate;
     const [first, replay] = await Promise.all([
@@ -116,6 +116,7 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
     boardVersion = first.board.version;
 
     expect(replay.shift.id).toBe(shiftId);
+    expect(first.row.membershipId).toBe(employeeMembershipId);
     await expect(
       prisma.shift.count({ where: { storeId, membershipId: employeeMembershipId } }),
     ).resolves.toBe(1);

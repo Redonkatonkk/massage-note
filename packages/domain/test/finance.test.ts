@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DomainError,
   calculateDailyCashSettlement,
+  calculatePersonalClosingCardDividends,
   calculatePersonalClosingCashToSubmit,
   calculatePayrollBalance,
   calculatePayrollPaymentTotal,
@@ -168,6 +169,34 @@ describe("日现金结算与工资余额", () => {
         { grossFeeBaseCents: 12_000n, cashServiceCents: 0n },
       ]),
     ).toBe(7_200n);
+  });
+
+  it("个人日结按已确认付款分摊刷卡大费分红并汇总刷卡小费", () => {
+    expect(
+      calculatePersonalClosingCardDividends([
+        {
+          totalLargeFeeWageCents: 6_000n,
+          cashAllocatedServiceWageCents: 2_400n,
+          cardServiceCents: 6_000n,
+          cardTipCents: 2_000n,
+        },
+        {
+          totalLargeFeeWageCents: 4_000n,
+          cashAllocatedServiceWageCents: 0n,
+          cardServiceCents: 8_000n,
+          cardTipCents: 1_500n,
+        },
+        {
+          totalLargeFeeWageCents: 1_000n,
+          cashAllocatedServiceWageCents: 0n,
+          cardServiceCents: 0n,
+          cardTipCents: 500n,
+        },
+      ]),
+    ).toEqual({
+      cardLargeFeeDividendCents: 7_600n,
+      cardTipDividendCents: 4_000n,
+    });
   });
 
   it("汇总多条记录", () => {

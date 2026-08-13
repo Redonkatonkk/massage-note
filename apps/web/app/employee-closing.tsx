@@ -170,12 +170,12 @@ async function generateClosingImage(
   y += heroHeight + 14 * scale;
 
   const metrics: Array<[string, string]> = [
-    ["记工单数", `${preview.employee.recordCount} 单`],
     ["大费基数", money(preview.employee.grossFeeBaseCents)],
-    ["应提交现金", money(preview.employee.cashToSubmitToStoreCents)],
-    ["折后大费", money(preview.employee.discountedFeePerformanceCents)],
-    ["小费", money(preview.employee.totalTipCents)],
     ["大费工资", money(preview.employee.totalLargeFeeWageCents)],
+    ["小费", money(preview.employee.totalTipCents)],
+    ["应提交现金", money(preview.employee.cashToSubmitToStoreCents)],
+    ["刷卡大费分红", money(preview.employee.cardLargeFeeDividendCents)],
+    ["刷卡小费分红", money(preview.employee.cardTipDividendCents)],
   ];
   const columns = landscape ? 3 : 2;
   const gap = 10 * scale;
@@ -307,13 +307,23 @@ export function EmployeeClosingSummary({ preview }: EmployeeClosingSummaryProps)
         <div className="employee-closing-income"><span>今日总收入</span><strong>{money(employee.employeeIncomeCents)}</strong><small>大费工资＋小费</small></div>
       </header>
 
-      <div className="employee-closing-metrics">
-        <article><span>记工单数</span><strong>{employee.recordCount} 单</strong><small>{employee.incompleteRecordCount > 0 ? `${employee.incompleteRecordCount} 单待结账` : "全部已确认"}</small></article>
-        <article><span>大费基数</span><strong>{money(employee.grossFeeBaseCents)}</strong><small>主要项目＋加项</small></article>
-        <article><span>应提交现金</span><strong>{money(employee.cashToSubmitToStoreCents)}</strong><small>现金大费项目折前基数 × 40%</small></article>
-        <article className="highlight"><span>折后大费</span><strong>{money(employee.discountedFeePerformanceCents)}</strong><small>折扣后店铺业绩</small></article>
-        <article><span>小费</span><strong>{money(employee.totalTipCents)}</strong><small>现金＋刷卡小费</small></article>
-        <article className="income"><span>大费工资</span><strong>{money(employee.totalLargeFeeWageCents)}</strong><small>项目提成合计</small></article>
+      <div className="employee-closing-breakdown">
+        <section aria-labelledby="employee-closing-income-title">
+          <h3 id="employee-closing-income-title">收入组成</h3>
+          <div className="employee-closing-metrics">
+            <article><span>大费基数</span><strong>{money(employee.grossFeeBaseCents)}</strong><small>主要项目＋加项</small></article>
+            <article className="income"><span>大费工资</span><strong>{money(employee.totalLargeFeeWageCents)}</strong><small>全部项目提成合计</small></article>
+            <article><span>小费</span><strong>{money(employee.totalTipCents)}</strong><small>现金＋刷卡小费</small></article>
+          </div>
+        </section>
+        <section aria-labelledby="employee-closing-settlement-title">
+          <h3 id="employee-closing-settlement-title">结算往来</h3>
+          <div className="employee-closing-metrics settlement">
+            <article className="outgoing"><span>应提交现金</span><strong>{money(employee.cashToSubmitToStoreCents)}</strong><small>员工应交店铺 · 现金大费项目折前基数 × 40%</small></article>
+            <article className="receivable"><span>刷卡大费分红</span><strong>{money(employee.cardLargeFeeDividendCents)}</strong><small>店铺应付员工 · 刷卡付款对应的大费工资</small></article>
+            <article className="receivable"><span>刷卡小费分红</span><strong>{money(employee.cardTipDividendCents)}</strong><small>店铺应付员工 · 已确认刷卡小费</small></article>
+          </div>
+        </section>
       </div>
 
       {preview.warnings.length > 0 ? (

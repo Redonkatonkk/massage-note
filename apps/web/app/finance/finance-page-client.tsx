@@ -327,7 +327,7 @@ export function FinancePageClient() {
       {tab === "closing" && !canManage && (
         <section className="finance-section employee-closing-finance-section">
           <div className="date-toolbar"><label>营业日<input type="date" value={cashDate} max={day.businessDate} onChange={(event) => setCashDate(event.target.value)} /></label><button className="secondary-action" type="button" disabled={busy} onClick={() => run(loadClosing)}>重新加载</button></div>
-          <p className="employee-closing-privacy">这里只显示你自己的记工、应提交现金、小费和收入，不会加载或展示全店及其他员工日结。</p>
+          <p className="employee-closing-privacy">这里只显示你自己的收入、应提交现金和刷卡分红，不会加载或展示全店及其他员工日结。</p>
           {myClosing ? <EmployeeClosingSummary key={`${myClosing.businessDate}-${myClosing.employee.membershipId}`} preview={myClosing} /> : <div className="loading-card"><span className="spinner" /><strong>正在加载个人日结…</strong></div>}
         </section>
       )}

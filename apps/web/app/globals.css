@@ -1788,10 +1788,13 @@ h2 {
 .employee-closing-income { display: grid; min-width: 235px; align-content: center; gap: 5px; padding: 22px 24px; border-radius: 20px; background: var(--brand); color: white; }
 .employee-closing-income span, .employee-closing-income small { color: rgba(255,255,255,.76); }
 .employee-closing-income strong { font-size: clamp(1.8rem, 4vw, 2.55rem); font-variant-numeric: tabular-nums; }
+.employee-closing-breakdown { display: grid; gap: 18px; padding: 0 0 18px; }
+.employee-closing-breakdown h3 { margin: 0; padding: 0 20px 9px; color: #6b635a; font-size: .82rem; letter-spacing: .08em; }
 .employee-closing-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border-top: 1px solid #eadbd0; border-bottom: 1px solid #eadbd0; background: #eadbd0; }
 .employee-closing-metrics article { display: grid; min-width: 0; align-content: center; gap: 5px; min-height: 122px; padding: 18px 20px; background: rgba(255,255,255,.9); }
-.employee-closing-metrics article.highlight { background: #fff1de; }
 .employee-closing-metrics article.income { background: #f6ece7; }
+.employee-closing-metrics article.outgoing { background: #fff1de; }
+.employee-closing-metrics article.receivable { background: #edf8f1; }
 .employee-closing-metrics span { color: var(--muted); font-size: .8rem; font-weight: 700; }
 .employee-closing-metrics strong { font-size: clamp(1.2rem, 3vw, 1.55rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .employee-closing-metrics small { color: #897d73; font-size: .72rem; line-height: 1.45; }
@@ -1846,6 +1849,7 @@ h2 {
   .employee-closing-hero { grid-template-columns: 1fr; }
   .employee-closing-income { min-width: 0; }
   .employee-closing-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .employee-closing-metrics article:first-child { grid-column: 1 / -1; }
   .employee-closing-metrics article { min-height: 108px; padding: 15px; }
   .employee-closing-image-actions { display: grid; }
 }

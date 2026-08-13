@@ -214,6 +214,52 @@ export function calculatePersonalClosingCashToSubmit(
   return multiplyByBps(cashProjectGrossFeeBaseCents, 4_000);
 }
 
+export interface PersonalClosingCardRecord {
+  totalLargeFeeWageCents: Cents;
+  cashAllocatedServiceWageCents: Cents;
+  cardServiceCents: Cents;
+  cardTipCents: Cents;
+}
+
+export interface PersonalClosingCardDividends {
+  cardLargeFeeDividendCents: Cents;
+  cardTipDividendCents: Cents;
+}
+
+/**
+ * 刷卡大费分红是已确认记工中未分配到现金付款部分的大费工资；
+ * 刷卡小费分红是已确认的刷卡小费。混合大费沿用记工确认时的付款比例分摊。
+ */
+export function calculatePersonalClosingCardDividends(
+  records: readonly PersonalClosingCardRecord[],
+): PersonalClosingCardDividends {
+  const cardLargeFeeDividendCents = sumCents(
+    records.map((record) => {
+      const totalLargeFeeWageCents = cents(record.totalLargeFeeWageCents);
+      const cashAllocatedServiceWageCents = cents(
+        record.cashAllocatedServiceWageCents,
+      );
+      const cardServiceCents = cents(record.cardServiceCents);
+      if (cashAllocatedServiceWageCents > totalLargeFeeWageCents) {
+        throw new DomainError(
+          "CASH_ALLOCATED_WAGE_EXCEEDS_TOTAL",
+          "现金对应工资不能超过大费工资",
+        );
+      }
+      return cardServiceCents > 0n
+        ? totalLargeFeeWageCents - cashAllocatedServiceWageCents
+        : 0n;
+    }),
+  );
+
+  return {
+    cardLargeFeeDividendCents,
+    cardTipDividendCents: sumCents(
+      records.map((record) => cents(record.cardTipCents)),
+    ),
+  };
+}
+
 export interface PayrollBalance {
   rawBalanceCents: bigint;
   employerOwesCents: Cents;

@@ -12,6 +12,7 @@ import type {
 } from "@massage-note/contracts";
 import {
   businessDateFor,
+  calculatePersonalClosingCardDividends,
   calculatePersonalClosingCashToSubmit,
   canReadEmployeeFinance,
 } from "@massage-note/domain";
@@ -100,6 +101,8 @@ export class ClosingsService {
       totalLargeFeeWageCents: 0,
       employeeIncomeCents: 0,
       cashToSubmitToStoreCents: 0,
+      cardLargeFeeDividendCents: 0,
+      cardTipDividendCents: 0,
       incompleteRecordCount: 0,
     };
     const activeClosing = preview.activeClosing
@@ -434,6 +437,12 @@ export class ClosingsService {
           grossFeeBaseCents: bigint;
           cashServiceCents: bigint;
         }>;
+        personalClosingCardRecords: Array<{
+          totalLargeFeeWageCents: bigint;
+          cashAllocatedServiceWageCents: bigint;
+          cardServiceCents: bigint;
+          cardTipCents: bigint;
+        }>;
         incompleteRecordCount: number;
       }
     >();
@@ -451,6 +460,7 @@ export class ClosingsService {
         totalLargeFeeWageCents: 0n,
         employeeIncomeCents: 0n,
         personalClosingCashRecords: [],
+        personalClosingCardRecords: [],
         incompleteRecordCount: 0,
       };
       current.recordCount += 1;
@@ -468,19 +478,31 @@ export class ClosingsService {
           grossFeeBaseCents: record.grossFeeBaseCents,
           cashServiceCents: record.cashServiceCents ?? 0n,
         });
+        current.personalClosingCardRecords.push({
+          totalLargeFeeWageCents: record.totalLargeFeeWageCents,
+          cashAllocatedServiceWageCents:
+            record.cashAllocatedServiceWageCents ?? 0n,
+          cardServiceCents: record.cardServiceCents ?? 0n,
+          cardTipCents: record.cardTipCents ?? 0n,
+        });
       }
       if (record.status === "PENDING_PAYMENT") current.incompleteRecordCount += 1;
       employeeMap.set(record.employeeMembershipId, current);
     }
     const employees = [...employeeMap.values()].map(
-      ({ personalClosingCashRecords, ...item }) =>
-        this.safeTotals({
+      ({ personalClosingCashRecords, personalClosingCardRecords, ...item }) => {
+        const cardDividends = calculatePersonalClosingCardDividends(
+          personalClosingCardRecords,
+        );
+        return this.safeTotals({
           ...item,
           cashToSubmitToStoreCents:
             calculatePersonalClosingCashToSubmit(
               personalClosingCashRecords,
             ),
-        }),
+          ...cardDividends,
+        });
+      },
     );
     const storeTotals = employees.reduce(
       (total, item) => ({

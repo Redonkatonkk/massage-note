@@ -419,6 +419,8 @@ export interface ClosingEmployeeTotals extends ClosingTotals {
   displayName: string;
   role: StoreRole;
   cashToSubmitToStoreCents: number;
+  cardLargeFeeDividendCents: number;
+  cardTipDividendCents: number;
 }
 
 export interface ActiveClosingSummary {

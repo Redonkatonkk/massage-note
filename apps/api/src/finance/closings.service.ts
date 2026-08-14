@@ -12,8 +12,8 @@ import type {
 } from "@massage-note/contracts";
 import {
   businessDateFor,
-  calculatePersonalClosingCardDividends,
   calculatePersonalClosingCashToSubmit,
+  calculatePersonalClosingPaymentDividends,
   canReadEmployeeFinance,
 } from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
@@ -101,6 +101,8 @@ export class ClosingsService {
       totalLargeFeeWageCents: 0,
       employeeIncomeCents: 0,
       cashToSubmitToStoreCents: 0,
+      cashLargeFeeDividendCents: 0,
+      cashTipDividendCents: 0,
       cardLargeFeeDividendCents: 0,
       cardTipDividendCents: 0,
       incompleteRecordCount: 0,
@@ -437,10 +439,12 @@ export class ClosingsService {
           grossFeeBaseCents: bigint;
           cashServiceCents: bigint;
         }>;
-        personalClosingCardRecords: Array<{
+        personalClosingPaymentRecords: Array<{
           totalLargeFeeWageCents: bigint;
           cashAllocatedServiceWageCents: bigint;
+          cashServiceCents: bigint;
           cardServiceCents: bigint;
+          cashTipCents: bigint;
           cardTipCents: bigint;
         }>;
         incompleteRecordCount: number;
@@ -460,7 +464,7 @@ export class ClosingsService {
         totalLargeFeeWageCents: 0n,
         employeeIncomeCents: 0n,
         personalClosingCashRecords: [],
-        personalClosingCardRecords: [],
+        personalClosingPaymentRecords: [],
         incompleteRecordCount: 0,
       };
       current.recordCount += 1;
@@ -478,11 +482,13 @@ export class ClosingsService {
           grossFeeBaseCents: record.grossFeeBaseCents,
           cashServiceCents: record.cashServiceCents ?? 0n,
         });
-        current.personalClosingCardRecords.push({
+        current.personalClosingPaymentRecords.push({
           totalLargeFeeWageCents: record.totalLargeFeeWageCents,
           cashAllocatedServiceWageCents:
             record.cashAllocatedServiceWageCents ?? 0n,
+          cashServiceCents: record.cashServiceCents ?? 0n,
           cardServiceCents: record.cardServiceCents ?? 0n,
+          cashTipCents: record.cashTipCents ?? 0n,
           cardTipCents: record.cardTipCents ?? 0n,
         });
       }
@@ -490,9 +496,9 @@ export class ClosingsService {
       employeeMap.set(record.employeeMembershipId, current);
     }
     const employees = [...employeeMap.values()].map(
-      ({ personalClosingCashRecords, personalClosingCardRecords, ...item }) => {
-        const cardDividends = calculatePersonalClosingCardDividends(
-          personalClosingCardRecords,
+      ({ personalClosingCashRecords, personalClosingPaymentRecords, ...item }) => {
+        const paymentDividends = calculatePersonalClosingPaymentDividends(
+          personalClosingPaymentRecords,
         );
         return this.safeTotals({
           ...item,
@@ -500,7 +506,7 @@ export class ClosingsService {
             calculatePersonalClosingCashToSubmit(
               personalClosingCashRecords,
             ),
-          ...cardDividends,
+          ...paymentDividends,
         });
       },
     );

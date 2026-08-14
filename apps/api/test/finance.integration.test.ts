@@ -246,6 +246,8 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
         totalLargeFeeWageCents: 6_000,
         employeeIncomeCents: 9_000,
         cashToSubmitToStoreCents: 4_000,
+        cashLargeFeeDividendCents: 2_400,
+        cashTipDividendCents: 1_000,
         cardLargeFeeDividendCents: 3_600,
         cardTipDividendCents: 2_000,
       },

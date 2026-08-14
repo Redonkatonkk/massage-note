@@ -44,7 +44,7 @@
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡大费和小费拆分 |
 | GET/POST | `/stores/:storeId/work-records/deleted`、`.../:id/restore` | 回收站与恢复 |
 | GET/POST | `/stores/:storeId/closings/:businessDate/...` | 日结预览、日结与取消日结 |
-| GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人；应提交现金按含现金大费的已确认项目折前基数合计 × 40% 计算；另返回已确认记工的刷卡大费分红与刷卡小费分红；不含全店或他人数据 |
+| GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人；应提交现金按含现金大费的已确认项目折前基数合计 × 40% 计算；另按付款比例返回已确认记工的现金／刷卡大费分红，并分别汇总现金／刷卡小费分红；不含全店或他人数据 |
 | GET/POST | `/stores/:storeId/cash-settlements/:businessDate/...` | 单人/全员现金结清和取消结清；列表仅含当日有记工的员工 |
 | GET/POST/PATCH/DELETE | `/stores/:storeId/payroll-settlements/:id?` | 工资结算账本与软删除 |
 | POST | `/stores/:storeId/payroll-settlements/:id/restore` | 恢复工资结算 |

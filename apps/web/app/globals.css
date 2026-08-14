@@ -1793,14 +1793,27 @@ h2 {
 .employee-closing-modal { width: min(920px, 100%); max-height: calc(100dvh - 36px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 22px; border-radius: 26px; background: #fffaf3; box-shadow: 0 26px 90px rgba(45, 28, 18, .3); }
 .employee-closing-modal-heading { margin-bottom: 16px; }
 .employee-closing-card { overflow: hidden; border: 1px solid #e5d1c4; border-radius: 24px; background: linear-gradient(145deg, #fff 0%, #fff8ef 56%, #f9e5dc 100%); box-shadow: 0 16px 42px rgba(83, 54, 31, .1); }
-.employee-closing-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 18px; padding: clamp(20px, 4vw, 32px); }
+.employee-closing-hero { display: grid; gap: 22px; padding: clamp(20px, 4vw, 32px); }
 .employee-closing-hero h2 { margin: 2px 0 14px; font-size: clamp(1.65rem, 4vw, 2.3rem); }
+.employee-closing-heading { min-width: 0; }
 .employee-closing-status { display: inline-flex; min-height: 34px; align-items: center; padding: 5px 11px; border-radius: 999px; font-size: .8rem; font-weight: 800; }
 .employee-closing-status.ready { background: #e7f5ed; color: var(--success); }
 .employee-closing-status.warning { background: var(--pending); color: #8a4b08; }
+.employee-closing-overview { display: grid; grid-template-columns: minmax(220px, .72fr) minmax(0, 1.45fr); gap: 14px; }
 .employee-closing-income { display: grid; min-width: 235px; align-content: center; gap: 5px; padding: 22px 24px; border-radius: 20px; background: var(--brand); color: white; }
 .employee-closing-income span, .employee-closing-income small { color: rgba(255,255,255,.76); }
 .employee-closing-income strong { font-size: clamp(1.8rem, 4vw, 2.55rem); font-variant-numeric: tabular-nums; }
+.employee-closing-dividends { display: grid; gap: 12px; padding: 16px; border: 1px solid #e5d1c4; border-radius: 20px; background: rgba(255,255,255,.82); }
+.employee-closing-dividends-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+.employee-closing-dividends-heading h3 { margin: 0; color: var(--ink); font-size: .92rem; }
+.employee-closing-dividends-heading small { color: var(--muted); font-size: .7rem; text-align: right; }
+.employee-closing-dividend-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.employee-closing-dividend-grid article { display: grid; min-width: 0; gap: 4px; padding: 12px 13px; border-radius: 14px; }
+.employee-closing-dividend-grid article.cash { background: #fff1de; }
+.employee-closing-dividend-grid article.card { background: #edf8f1; }
+.employee-closing-dividend-grid span { color: var(--muted); font-size: .75rem; font-weight: 800; }
+.employee-closing-dividend-grid strong { font-size: clamp(1rem, 2.5vw, 1.28rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.employee-closing-dividend-grid small { color: #897d73; font-size: .67rem; line-height: 1.35; }
 .employee-closing-breakdown { display: grid; gap: 18px; padding: 0 0 18px; }
 .employee-closing-breakdown h3 { margin: 0; padding: 0 20px 9px; color: #6b635a; font-size: .82rem; letter-spacing: .08em; }
 .employee-closing-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border-top: 1px solid #eadbd0; border-bottom: 1px solid #eadbd0; background: #eadbd0; }
@@ -1811,6 +1824,14 @@ h2 {
 .employee-closing-metrics span { color: var(--muted); font-size: .8rem; font-weight: 700; }
 .employee-closing-metrics strong { font-size: clamp(1.2rem, 3vw, 1.55rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .employee-closing-metrics small { color: #897d73; font-size: .72rem; line-height: 1.45; }
+.employee-closing-handoff { display: grid; grid-template-columns: minmax(0, 1fr) minmax(290px, 1.25fr); align-items: center; gap: 18px; padding: 0 20px; }
+.employee-closing-handoff > div { display: grid; gap: 5px; }
+.employee-closing-handoff > div h3 { padding: 0; }
+.employee-closing-handoff > div p { margin: 0; color: var(--muted); font-size: .76rem; line-height: 1.5; }
+.employee-closing-handoff article { display: grid; gap: 5px; padding: 16px 18px; border: 1px solid #e2b77d; border-radius: 16px; background: #fff1de; }
+.employee-closing-handoff article span { color: #8a4b08; font-size: .78rem; font-weight: 800; }
+.employee-closing-handoff article strong { font-size: clamp(1.25rem, 3vw, 1.65rem); font-variant-numeric: tabular-nums; }
+.employee-closing-handoff article small { color: #806a54; font-size: .72rem; line-height: 1.45; }
 .employee-closing-warnings { display: grid; gap: 12px; margin: 18px; padding: 16px; border: 1px solid #e2b77d; border-radius: 16px; background: #fff8e9; color: #7d4c0d; }
 .employee-closing-warnings > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .employee-closing-warnings span { display: inline-flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 999px; background: #fff; font-size: .78rem; }
@@ -1859,11 +1880,14 @@ h2 {
   .closing-actions { display: grid; }
   .employee-closing-backdrop { align-items: stretch; padding: 0; }
   .employee-closing-modal { width: 100vw; max-height: 100dvh; padding: 16px; border-radius: 0; }
-  .employee-closing-hero { grid-template-columns: 1fr; }
+  .employee-closing-overview { grid-template-columns: 1fr; }
   .employee-closing-income { min-width: 0; }
+  .employee-closing-dividends-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .employee-closing-dividends-heading small { text-align: left; }
   .employee-closing-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .employee-closing-metrics article:first-child { grid-column: 1 / -1; }
   .employee-closing-metrics article { min-height: 108px; padding: 15px; }
+  .employee-closing-handoff { grid-template-columns: 1fr; padding: 0 16px; }
   .employee-closing-image-actions { display: grid; }
 }
 

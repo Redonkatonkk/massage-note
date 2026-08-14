@@ -214,46 +214,62 @@ export function calculatePersonalClosingCashToSubmit(
   return multiplyByBps(cashProjectGrossFeeBaseCents, 4_000);
 }
 
-export interface PersonalClosingCardRecord {
+export interface PersonalClosingPaymentRecord {
   totalLargeFeeWageCents: Cents;
   cashAllocatedServiceWageCents: Cents;
+  cashServiceCents: Cents;
   cardServiceCents: Cents;
+  cashTipCents: Cents;
   cardTipCents: Cents;
 }
 
-export interface PersonalClosingCardDividends {
+export interface PersonalClosingPaymentDividends {
+  cashLargeFeeDividendCents: Cents;
+  cashTipDividendCents: Cents;
   cardLargeFeeDividendCents: Cents;
   cardTipDividendCents: Cents;
 }
 
 /**
- * 刷卡大费分红是已确认记工中未分配到现金付款部分的大费工资；
- * 刷卡小费分红是已确认的刷卡小费。混合大费沿用记工确认时的付款比例分摊。
+ * 个人日结的四项分红只汇总已确认记工：大费工资沿用付款确认时的现金／刷卡
+ * 比例分摊，小费则按实际确认的现金／刷卡金额归类。
  */
-export function calculatePersonalClosingCardDividends(
-  records: readonly PersonalClosingCardRecord[],
-): PersonalClosingCardDividends {
-  const cardLargeFeeDividendCents = sumCents(
-    records.map((record) => {
-      const totalLargeFeeWageCents = cents(record.totalLargeFeeWageCents);
-      const cashAllocatedServiceWageCents = cents(
-        record.cashAllocatedServiceWageCents,
+export function calculatePersonalClosingPaymentDividends(
+  records: readonly PersonalClosingPaymentRecord[],
+): PersonalClosingPaymentDividends {
+  const wageDividends = records.map((record) => {
+    const totalLargeFeeWageCents = cents(record.totalLargeFeeWageCents);
+    const cashAllocatedServiceWageCents = cents(
+      record.cashAllocatedServiceWageCents,
+    );
+    const cashServiceCents = cents(record.cashServiceCents);
+    const cardServiceCents = cents(record.cardServiceCents);
+    if (cashAllocatedServiceWageCents > totalLargeFeeWageCents) {
+      throw new DomainError(
+        "CASH_ALLOCATED_WAGE_EXCEEDS_TOTAL",
+        "现金对应工资不能超过大费工资",
       );
-      const cardServiceCents = cents(record.cardServiceCents);
-      if (cashAllocatedServiceWageCents > totalLargeFeeWageCents) {
-        throw new DomainError(
-          "CASH_ALLOCATED_WAGE_EXCEEDS_TOTAL",
-          "现金对应工资不能超过大费工资",
-        );
-      }
-      return cardServiceCents > 0n
-        ? totalLargeFeeWageCents - cashAllocatedServiceWageCents
-        : 0n;
-    }),
-  );
+    }
+    return {
+      cashLargeFeeDividendCents:
+        cashServiceCents > 0n ? cashAllocatedServiceWageCents : 0n,
+      cardLargeFeeDividendCents:
+        cardServiceCents > 0n
+          ? totalLargeFeeWageCents - cashAllocatedServiceWageCents
+          : 0n,
+    };
+  });
 
   return {
-    cardLargeFeeDividendCents,
+    cashLargeFeeDividendCents: sumCents(
+      wageDividends.map((record) => record.cashLargeFeeDividendCents),
+    ),
+    cashTipDividendCents: sumCents(
+      records.map((record) => cents(record.cashTipCents)),
+    ),
+    cardLargeFeeDividendCents: sumCents(
+      wageDividends.map((record) => record.cardLargeFeeDividendCents),
+    ),
     cardTipDividendCents: sumCents(
       records.map((record) => cents(record.cardTipCents)),
     ),

@@ -443,7 +443,11 @@ export class CashSettlementsService {
       }),
     ]);
     const settledByName = new Map<string, string>();
-    for (const item of allStoreMemberships) if (!settledByName.has(item.userId)) settledByName.set(item.userId, item.displayName);
+    for (const item of allStoreMemberships) {
+      if (item.userId && !settledByName.has(item.userId)) {
+        settledByName.set(item.userId, item.displayName);
+      }
+    }
     const identities = new Map<
       string,
       { id: string; displayName: string; role: string }

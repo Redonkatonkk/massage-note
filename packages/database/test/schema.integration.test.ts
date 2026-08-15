@@ -115,6 +115,24 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
     ).rejects.toSatisfy(expectUniqueConstraint);
   });
 
+  it("允许先创建尚未关联登录账号的员工关系", async () => {
+    const membership = await prisma.storeMembership.create({
+      data: {
+        storeId,
+        userId: null,
+        role: "EMPLOYEE",
+        displayName: "待注册员工",
+        displayNameNormalized: "待注册员工",
+      },
+    });
+
+    expect(membership).toMatchObject({
+      userId: null,
+      displayName: "待注册员工",
+      status: "ACTIVE",
+    });
+  });
+
   it("数据库包含迁移追加的关键检查约束", async () => {
     const rows = await prisma.$queryRaw<Array<{ conname: string }>>`
       SELECT conname

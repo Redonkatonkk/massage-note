@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import {
   approveJoinRequestSchema,
+  createEmployeeSchema,
   deactivateMembershipSchema,
   rejectJoinRequestSchema,
   restoreMembershipSchema,
@@ -80,6 +81,21 @@ export class MembershipsController {
     @Param("storeId") storeId: string,
   ) {
     return this.memberships.listMembers(user, parseRequest(uuidSchema, storeId));
+  }
+
+  @Post("members")
+  createEmployee(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("storeId") storeId: string,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.memberships.createEmployee(
+      user,
+      parseRequest(uuidSchema, storeId),
+      parseRequest(createEmployeeSchema, body),
+      response.locals.requestId as string,
+    );
   }
 
   @Patch("members/:membershipId")

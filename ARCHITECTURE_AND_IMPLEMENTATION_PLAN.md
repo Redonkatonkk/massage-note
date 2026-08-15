@@ -168,8 +168,11 @@ flowchart TD
     H --> I["进入今日主页"]
     F -- 加入 --> J["输入六位店铺 ID"]
     J --> K["显示店名并确认"]
-    K --> L["等待 Owner/Manager 审批"]
-    L --> I
+    K --> L{"注册 First Name 是否匹配待认领员工"}
+    L -- 是 --> M["绑定真实账号到原成员关系"]
+    M --> I
+    L -- 否 --> N["等待 Owner/Manager 审批"]
+    N --> I
 ```
 
 ### 3.2 快速记工与付款确认
@@ -229,6 +232,7 @@ flowchart TD
 | 使用财务 AI | 全店 | 全店 | 仅自己 |
 | 管理项目、折扣和提成 | 是 | 是 | 否 |
 | 审批加入申请 | 是 | 是 | 否 |
+| 只填名字预先创建员工 | 是 | 是 | 否 |
 | 修改普通成员/经理角色 | 是 | 是 | 否 |
 | 修改、移除或降级 Owner | 仅通过转移流程 | 否 | 否 |
 | 指定其他 Manager | 是 | 是 | 否 |
@@ -308,7 +312,7 @@ erDiagram
 |---|---|---|
 | `users` | `firebase_uid`, `phone_e164`, `first_name`, `last_name`, `status` | `firebase_uid`、手机号唯一；手机号加密/受控展示 |
 | `stores` | `store_code`, `name`, `timezone`, `business_cutoff_local`, `owner_membership_id`, `status`, `version` | `store_code` 全局唯一；时区为 IANA 名称；删除为软删除 |
-| `store_memberships` | `store_id`, `user_id`, `role`, `display_name`, `is_service_provider`, `default_commission_bps`, `status`, `joined_at`, `left_at`, `version` | 活跃显示名大小写不敏感唯一；每店仅一个活跃 Owner |
+| `store_memberships` | `store_id`, `user_id`, `role`, `display_name`, `is_service_provider`, `default_commission_bps`, `status`, `joined_at`, `left_at`, `version` | `user_id` 在预建员工认领前可为空；活跃显示名大小写不敏感唯一；每店仅一个活跃 Owner |
 | `store_join_requests` | `store_id`, `user_id`, `requested_display_name`, `status`, `reviewed_by`, `reviewed_at`, `version` | 同一用户同店只允许一个待审批申请 |
 
 Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同时更新旧/新角色与 `owner_membership_id`。任何一步失败则整体回滚。
@@ -561,6 +565,7 @@ total_paid = service_wage + cash_tip + card_tip + adjustment
 | POST | `/stores/:storeId/join-requests/:id/approve` | 审批 |
 | POST | `/stores/:storeId/join-requests/:id/reject` | 拒绝 |
 | GET/PATCH/DELETE | `/stores/:storeId/members/:membershipId` | 成员、角色、参与记工、离职 |
+| POST | `/stores/:storeId/members` | Owner/Manager 只填名字创建待认领员工 |
 | POST | `/stores/:storeId/members/:membershipId/restore` | 恢复成员关系 |
 
 ### 8.4 排班、今日表格和记工

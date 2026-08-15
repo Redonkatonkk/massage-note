@@ -25,20 +25,34 @@ const otherStoreId = randomUUID();
 const ownerId = randomUUID();
 const managerId = randomUUID();
 const applicantId = randomUUID();
+const claimantId = randomUUID();
+const impostorId = randomUUID();
 const outsiderId = randomUUID();
 const ownerMembershipId = randomUUID();
 const managerMembershipId = randomUUID();
 const outsiderMembershipId = randomUUID();
 const joinRequestId = randomUUID();
-const actor = (id: string) => ({ id }) as User;
+const actor = (id: string) => ({
+  id,
+  firstName: id === claimantId
+    ? "待认领员工"
+    : id === impostorId
+      ? "其他名字"
+      : null,
+}) as User;
 
 describe.skipIf(!enabled).sequential("成员审批与跨店隔离", () => {
   beforeAll(async () => {
     await prisma.user.createMany({
-      data: [ownerId, managerId, applicantId, outsiderId].map((id, index) => ({
+      data: [ownerId, managerId, applicantId, claimantId, impostorId, outsiderId].map((id, index) => ({
         id,
         firebaseUid: `membership-test-${id}`,
         phoneE164: `+1646${(randomInt(10_000_000, 99_000_000) + index).toString()}`,
+        firstName: id === claimantId
+          ? "待认领员工"
+          : id === impostorId
+            ? "其他名字"
+            : null,
       })),
     });
     const firstCode = randomInt(0, 500_000);
@@ -135,7 +149,7 @@ describe.skipIf(!enabled).sequential("成员审批与跨店隔离", () => {
         where: { id: { in: [storeId, otherStoreId] } },
       });
       await prisma.user.deleteMany({
-        where: { id: { in: [ownerId, managerId, applicantId, outsiderId] } },
+        where: { id: { in: [ownerId, managerId, applicantId, claimantId, impostorId, outsiderId] } },
       });
     }
     await prisma.$disconnect();
@@ -174,6 +188,95 @@ describe.skipIf(!enabled).sequential("成员审批与跨店隔离", () => {
     await expect(
       memberships.listMembers(actor(outsiderId), storeId),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("经理只填名字创建员工，同名账号加入时自动认领原成员关系", async () => {
+    await expect(
+      memberships.createEmployee(
+        actor(applicantId),
+        storeId,
+        { name: "越权员工" },
+        "forbidden-create-employee",
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    const unclaimed = await memberships.createEmployee(
+      actor(managerId),
+      storeId,
+      { name: "待认领员工" },
+      "create-unclaimed-employee",
+    );
+    expect(unclaimed).toMatchObject({
+      userId: null,
+      role: "EMPLOYEE",
+      displayName: "待认领员工",
+      isServiceProvider: true,
+      status: "ACTIVE",
+    });
+
+    const result = await stores.requestToJoin(
+      actor(claimantId),
+      storeId,
+      { displayName: "待认领员工" },
+      "claim-employee-account",
+    );
+    expect(result.autoMatched).toBe(true);
+    if (!result.autoMatched) throw new Error("同名员工账号没有自动关联");
+    expect(result.membership).toMatchObject({
+      id: unclaimed.id,
+      userId: claimantId,
+      displayName: "待认领员工",
+      version: unclaimed.version + 1,
+    });
+    await expect(stores.listForUser(claimantId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: unclaimed.id }),
+      ]),
+    );
+    await expect(
+      prisma.storeJoinRequest.count({
+        where: { storeId, userId: claimantId, status: "PENDING" },
+      }),
+    ).resolves.toBe(0);
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          storeId,
+          entityId: unclaimed.id,
+          action: {
+            in: ["membership.created_unclaimed", "membership.account_claimed"],
+          },
+        },
+      }),
+    ).resolves.toBe(2);
+  });
+
+  it("只按账号注册名字自动认领，不能靠填写别人的店内名冒领", async () => {
+    const protectedMembership = await memberships.createEmployee(
+      actor(managerId),
+      storeId,
+      { name: "目标员工" },
+      "create-protected-employee",
+    );
+
+    const result = await stores.requestToJoin(
+      actor(impostorId),
+      storeId,
+      { displayName: "目标员工" },
+      "impostor-join-request",
+    );
+    expect(result.autoMatched).toBe(false);
+    await expect(
+      prisma.storeMembership.findUniqueOrThrow({
+        where: { id: protectedMembership.id },
+        select: { userId: true },
+      }),
+    ).resolves.toEqual({ userId: null });
+    await expect(
+      prisma.storeJoinRequest.count({
+        where: { storeId, userId: impostorId, status: "PENDING" },
+      }),
+    ).resolves.toBe(1);
   });
 
   it("乐观锁阻止旧版本覆盖其他经理的修改", async () => {

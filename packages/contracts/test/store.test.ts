@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   approveJoinRequestSchema,
+  createEmployeeSchema,
   createStoreSchema,
   storeCodeSchema,
   transferOwnerSchema,
@@ -45,6 +46,16 @@ describe("门店输入契约", () => {
       role: "EMPLOYEE",
       isServiceProvider: true,
     });
+  });
+
+  it("店长创建员工时只需要名字", () => {
+    expect(createEmployeeSchema.parse({ name: "  小林  " })).toEqual({
+      name: "小林",
+    });
+    expect(createEmployeeSchema.safeParse({ name: "   " }).success).toBe(false);
+    expect(
+      createEmployeeSchema.safeParse({ name: "小林", lastName: "陈" }).success,
+    ).toBe(true);
   });
 
   it("拒绝通过成员修改接口直接授予 Owner", () => {

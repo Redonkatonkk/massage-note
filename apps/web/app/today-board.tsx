@@ -320,7 +320,7 @@ export function TodayBoard({
             setNotice("已上班，并加入今日表格");
             await onReload();
           })}>{busy ? "正在上班…" : "上班"}</button>}
-          {canManage && <a className="primary-action" href={financeClosingHref(membership.store.id, currentDay.businessDate)}>{board.isClosed ? "查看全店日结" : "全店日结"}</a>}
+          {canManage && <a className="primary-action board-closing-action" href={financeClosingHref(membership.store.id, currentDay.businessDate)}>{board.isClosed ? "查看全店日结" : "全店日结"}</a>}
         </div>
         {canManage && board.rows.some((row) => row.isHidden) && (
           <label className="inline-check"><input type="checkbox" checked={showHidden} onChange={(event) => setShowHidden(event.target.checked)} /> 显示已隐藏员工</label>

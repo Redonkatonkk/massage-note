@@ -160,17 +160,18 @@ describe("加入店铺申请", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     } as const;
-    const findFirst = vi
+    const storeFindFirst = vi.fn().mockResolvedValue({ id: pending.storeId });
+    const membershipFindFirst = vi.fn().mockResolvedValue(null);
+    const joinRequestFindFirst = vi
       .fn()
-      .mockResolvedValueOnce({ id: pending.storeId })
-      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(pending);
+    const transaction = vi.fn().mockRejectedValue(uniqueConflict());
     const service = new StoresService({
-      store: { findFirst },
-      storeMembership: { findFirst },
-      storeJoinRequest: { findFirst },
-      $transaction: vi.fn().mockRejectedValue(uniqueConflict()),
+      store: { findFirst: storeFindFirst },
+      storeMembership: { findFirst: membershipFindFirst },
+      storeJoinRequest: { findFirst: joinRequestFindFirst },
+      $transaction: transaction,
     } as unknown as PrismaService);
 
     await expect(
@@ -180,7 +181,7 @@ describe("加入店铺申请", () => {
         { displayName: "小林" },
         "request-1",
       ),
-    ).resolves.toEqual(pending);
-    expect(findFirst).toHaveBeenCalledTimes(4);
+    ).resolves.toEqual({ ...pending, autoMatched: false });
+    expect(transaction).toHaveBeenCalledOnce();
   });
 });

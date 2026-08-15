@@ -139,7 +139,7 @@ model Store {
 model StoreMembership {
   id                    String           @id @default(uuid()) @db.Uuid
   storeId               String           @map("store_id") @db.Uuid
-  userId                String           @map("user_id") @db.Uuid
+  userId                String?          @map("user_id") @db.Uuid
   role                  MembershipRole
   displayName           String           @map("display_name")
   displayNameNormalized String           @map("display_name_normalized")
@@ -157,7 +157,7 @@ model StoreMembership {
 
   store                 Store            @relation(fields: [storeId], references: [id])
   ownedStore            Store?           @relation("StoreOwnerMembership")
-  user                  User             @relation(fields: [userId], references: [id])
+  user                  User?            @relation(fields: [userId], references: [id])
   shifts                Shift[]
   dailyRows             DailyEmployeeRow[]
   employeeDefaultCommissions EmployeeDefaultCommission[]

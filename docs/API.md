@@ -27,9 +27,10 @@
 | GET | `/stores/resolve-code/:code` | 加入前解析店铺代码并显示店名供确认 |
 | GET/PATCH/DELETE | `/stores/:storeId` | 店铺详情、设置与软删除 |
 | POST | `/stores/:storeId/owner-transfer` | 原子转移店主身份 |
-| POST/GET | `/stores/:storeId/join-requests` | 提交、查看加入申请 |
+| POST/GET | `/stores/:storeId/join-requests` | 提交、查看加入申请；注册 First Name 匹配待认领员工时自动绑定账号 |
 | POST | `/stores/:storeId/join-requests/:id/approve`、`reject` | 审批加入申请 |
 | GET/PATCH/DELETE | `/stores/:storeId/members/:membershipId?` | 成员列表、资料、角色和停用 |
+| POST | `/stores/:storeId/members` | 店主或经理以 `{ "name": "小林" }` 创建待认领员工，不需要姓氏或手机号 |
 | POST | `/stores/:storeId/members/:membershipId/restore` | 恢复成员关系 |
 | GET/POST | `/stores/:storeId/catalog`、`catalog/setup` | 项目目录与首次设置 |
 | POST/PATCH/DELETE | `/stores/:storeId/catalog/items/:itemId?` | 主要、额外和折扣项目管理 |
@@ -59,6 +60,8 @@ Web 页面支持用于排查日结异常的深链接：`/finance?store=<storeId>
 | POST | `/stores/:storeId/ai/finance/messages` | 使用后端确定性统计回答财务问题 |
 | POST | `/stores/:storeId/ai/work/transcribe` | 语音转文字 |
 | GET/POST/DELETE | `/stores/:storeId/ai/previews/:previewId/...` | 查看、确认或取消一次性 AI 预览 |
+
+店主或经理创建的待认领员工拥有正常的成员 ID，可立即进入今日表格、记工和配置提成，只是 `userId` 暂时为空。员工注册后用店铺代码加入时，服务端仅以账号注册资料中的 First Name 对本店待认领员工名字做规范化精确匹配；匹配成功返回 `{ "autoMatched": true, "membership": ... }` 并在原成员关系上绑定账号，因此既有记录不会搬迁或丢失。未匹配时仍返回带 `autoMatched: false` 的待审批申请。加入表单中临时填写的显示名不能用于冒领其他员工账号。
 
 主要项目使用 `priceOptions` 表示一个或多个时长价格档位，例如：
 

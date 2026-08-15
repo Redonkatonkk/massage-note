@@ -125,6 +125,10 @@ export const approveJoinRequestSchema = z.object({
   isServiceProvider: z.boolean().default(true),
 });
 
+export const createEmployeeSchema = z.object({
+  name: z.string().trim().min(1, "员工名字不能为空").max(80),
+});
+
 export const rejectJoinRequestSchema = z.object({
   version: versionSchema,
   reviewNote: z.string().trim().max(500, "审核备注不能超过 500 个字").optional(),
@@ -167,6 +171,7 @@ export type DeleteStoreInput = z.input<typeof deleteStoreSchema>;
 export type TransferOwnerInput = z.input<typeof transferOwnerSchema>;
 export type ApproveJoinRequestInput = z.input<typeof approveJoinRequestSchema>;
 export type ApproveJoinRequest = z.output<typeof approveJoinRequestSchema>;
+export type CreateEmployeeInput = z.input<typeof createEmployeeSchema>;
 export type RejectJoinRequestInput = z.input<typeof rejectJoinRequestSchema>;
 export type UpdateMembershipInput = z.input<typeof updateMembershipSchema>;
 export type DeactivateMembershipInput = z.input<typeof deactivateMembershipSchema>;

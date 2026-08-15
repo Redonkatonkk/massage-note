@@ -7,6 +7,7 @@ import type {
   BoardResponse,
   CatalogResponse,
   CurrentBusinessDay,
+  JoinStoreResponse,
   MeResponse,
   MembershipSummary,
   StoreDetails,
@@ -67,7 +68,7 @@ function StoreSetup({ me, onDone }: { me: MeResponse; onDone: () => Promise<void
   const [commission, setCommission] = useState("50");
   const [storeCode, setStoreCode] = useState("");
   const [resolvedStore, setResolvedStore] = useState<{ id: string; name: string; storeCode: string } | null>(null);
-  const [displayName, setDisplayName] = useState(`${me.firstName ?? ""} ${me.lastName ?? ""}`.trim());
+  const [displayName, setDisplayName] = useState(me.firstName?.trim() || `${me.firstName ?? ""} ${me.lastName ?? ""}`.trim());
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -84,7 +85,11 @@ function StoreSetup({ me, onDone }: { me: MeResponse; onDone: () => Promise<void
       setResolvedStore(await apiRequest<{ id: string; name: string; storeCode: string }>(`/stores/resolve-code/${storeCode}`));
       return;
     }
-    await apiRequest(`/stores/${resolvedStore.id}/join-requests`, { method: "POST", body: { displayName } });
+    const result = await apiRequest<JoinStoreResponse>(`/stores/${resolvedStore.id}/join-requests`, { method: "POST", body: { displayName } });
+    if (result.autoMatched) {
+      await onDone();
+      return;
+    }
     setSubmitted(true);
   }
 
@@ -119,7 +124,7 @@ function StoreSetup({ me, onDone }: { me: MeResponse; onDone: () => Promise<void
             <div className="modal-heading"><div><h1>加入已有店铺</h1></div><button className="close-button" type="button" onClick={() => setMode("choose")}>返回</button></div>
             <label className="field-label">6 位店铺代码<input disabled={Boolean(resolvedStore)} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required value={storeCode} onChange={(event) => { setStoreCode(event.target.value.replace(/\D/g, "").slice(0, 6)); setResolvedStore(null); }} /></label>
             {resolvedStore && <div className="resolved-store" role="status"><strong>{resolvedStore.name}</strong><span>店铺代码 {resolvedStore.storeCode}</span><button className="table-action" type="button" onClick={() => setResolvedStore(null)}>不是这家店</button></div>}
-            {resolvedStore && <label className="field-label">店内显示名称<input required maxLength={80} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>}
+            {resolvedStore && <label className="field-label">店内显示名称<input required maxLength={80} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /><small>如果店长或经理已用这个名字创建了员工，提交后会自动关联原有记工和资料。</small></label>}
             {error && <p className="form-error" role="alert">{error}</p>}
             <button className="primary-action" type="submit" disabled={busy}>{busy ? "正在处理…" : resolvedStore ? "确认并提交加入申请" : "查找店铺"}</button>
           </form>

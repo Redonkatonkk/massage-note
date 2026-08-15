@@ -34,6 +34,8 @@ const actionText: Record<string, string> = {
   "membership.join_approved": "批准加入申请",
   "membership.join_approved_and_restored": "批准并恢复成员",
   "membership.join_rejected": "拒绝加入申请",
+  "membership.created_unclaimed": "创建待注册员工",
+  "membership.account_claimed": "员工账号自动关联",
   "membership.updated": "修改成员",
   "membership.deactivated": "成员离职或停用",
   "membership.restored": "恢复成员",
@@ -256,7 +258,17 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
 }
 
 function MembersPanel({ storeId, currentRole, members, requests, catalog, busy, run, reload }: { storeId: string; currentRole: MembershipSummary["role"]; members: StoreMember[]; requests: JoinRequest[]; catalog: CatalogResponse; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
+  const [employeeName, setEmployeeName] = useState("");
+  async function createEmployee() {
+    await apiRequest(`/stores/${storeId}/members`, {
+      method: "POST",
+      body: { name: employeeName },
+    });
+    setEmployeeName("");
+    await reload();
+  }
   return <section className="manage-section">
+    <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">快速建档</p><h2>创建新员工</h2></div></div><p className="field-help">只需填写名字。员工以后注册账号并用相同名字加入本店时，系统会自动关联这份资料和已有记工。</p><form className="inline-controls" onSubmit={(event) => { event.preventDefault(); void run(createEmployee); }}><label>员工名字<input required maxLength={80} value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} /></label><button className="primary-action compact" type="submit" disabled={busy || !employeeName.trim()}>{busy ? "正在创建…" : "创建员工"}</button></form></section>
     <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">待处理</p><h2>加入申请</h2></div><span className="status-chip">{requests.length} 个</span></div>{requests.length === 0 ? <p className="empty-state">目前没有待审批的加入申请。</p> : <div className="request-list">{requests.map((request) => <article key={request.id}><div><strong>{request.requestedDisplayName}</strong><span>账号姓名：{[request.user.firstName, request.user.lastName].filter(Boolean).join(" ") || "未填写"} · {formatTime(request.createdAt)}</span></div><div><button className="primary-action compact" disabled={busy} type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/join-requests/${request.id}/approve`, { method: "POST", body: { version: request.version, role: "EMPLOYEE", isServiceProvider: true } }); await reload(); })}>批准为员工</button><button className="secondary-action compact" disabled={busy} type="button" onClick={() => { const note = window.prompt("拒绝备注（可留空）"); if (note === null) return; void run(async () => { await apiRequest(`/stores/${storeId}/join-requests/${request.id}/reject`, { method: "POST", body: { version: request.version, ...(note.trim() ? { reviewNote: note.trim() } : {}) } }); await reload(); }); }}>拒绝</button></div></article>)}</div>}</section>
     <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">权限与记工</p><h2>成员列表</h2></div><span className="status-chip">{members.filter((item) => item.status === "ACTIVE").length} 人在职</span></div><div className="member-list">{members.map((member) => <MemberEditor key={`${member.id}-${member.version}`} storeId={storeId} member={member} currentRole={currentRole} catalog={catalog} busy={busy} run={run} reload={reload} />)}</div></section>
   </section>;
@@ -285,7 +297,7 @@ function MemberEditor({ storeId, member, currentRole, catalog, busy, run, reload
     setCommissionOpen(true);
     setHistory(await apiRequest<CommissionHistoryResponse>(`/stores/${storeId}/members/${member.id}/commissions`));
   }
-  return <article className={`member-card ${active ? "" : "inactive"}`}><header><div className="member-avatar">{member.displayName.slice(0, 1)}</div><div><strong>{member.displayName}</strong><span>{roleText[member.role]} · {active ? "在职" : "已离职/停用"}</span></div><em>{member.isServiceProvider ? "参与记工" : "不参与记工"}</em></header><div className="member-fields"><label>店内显示名<input disabled={!active || isOwner} value={name} onChange={(event) => setName(event.target.value)} /></label><label>角色<select disabled={!active || isOwner} value={role} onChange={(event) => setRole(event.target.value as "MANAGER" | "EMPLOYEE")}>
+  return <article className={`member-card ${active ? "" : "inactive"}`}><header><div className="member-avatar">{member.displayName.slice(0, 1)}</div><div><strong>{member.displayName}</strong><span>{roleText[member.role]} · {active ? "在职" : "已离职/停用"} · {member.user ? "已关联账号" : "等待注册"}</span></div><em>{member.isServiceProvider ? "参与记工" : "不参与记工"}</em></header><div className="member-fields"><label>店内显示名<input disabled={!active || isOwner} value={name} onChange={(event) => setName(event.target.value)} /></label><label>角色<select disabled={!active || isOwner} value={role} onChange={(event) => setRole(event.target.value as "MANAGER" | "EMPLOYEE")}>
   {isOwner && <option value="OWNER">店主</option>}<option value="EMPLOYEE">员工</option><option value="MANAGER">经理</option></select></label><label className="check-field"><input disabled={!active || isOwner} type="checkbox" checked={provider} onChange={(event) => setProvider(event.target.checked)} />参与记工</label><label>员工默认提成（%）<input disabled={!active || isOwner} placeholder="留空则继续向下匹配" inputMode="decimal" value={defaultCommission} onChange={(event) => setDefaultCommission(event.target.value)} /></label></div><div className="member-actions">{active && !isOwner && <><button className="secondary-action compact" disabled={busy} type="button" onClick={() => void run(saveMember)}>保存成员资料</button><button className="secondary-action compact" disabled={busy} type="button" onClick={() => void run(saveDefaultCommission)}>保存默认提成</button><button className="table-action" type="button" onClick={() => void run(openCommission)}>项目专属提成</button><button className="table-action danger" disabled={busy} type="button" onClick={() => { const reason = window.prompt("请填写离职或停用原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${storeId}/members/${member.id}`, { method: "DELETE", body: { version: member.version, reason: reason.trim() } }); await reload(); }); }}>离职/停用</button></>}{!active && !isOwner && <button className="primary-action compact" disabled={busy} type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/members/${member.id}/restore`, { method: "POST", body: { version: member.version } }); await reload(); })}>恢复为在职成员</button>}{isOwner && <span className="field-help">店主资料和身份需通过店主转移流程修改。</span>}</div>{commissionOpen && <ItemCommissionPanel storeId={storeId} member={member} catalog={catalog} history={history} busy={busy} run={run} close={() => setCommissionOpen(false)} reload={reload} />}</article>;
 }
 

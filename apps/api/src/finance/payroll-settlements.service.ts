@@ -71,7 +71,11 @@ export class PayrollSettlementsService {
       this.prisma.storeMembership.findMany({ where: { storeId }, select: { userId: true, displayName: true }, orderBy: { joinedAt: "desc" } }),
     ]);
     const names = new Map<string, string>();
-    for (const item of actors) if (!names.has(item.userId)) names.set(item.userId, item.displayName);
+    for (const item of actors) {
+      if (item.userId && !names.has(item.userId)) {
+        names.set(item.userId, item.displayName);
+      }
+    }
     const coveredRecords = settlements.length === 0 ? [] : await this.prisma.workRecord.findMany({
       where: {
         storeId,
@@ -108,7 +112,11 @@ export class PayrollSettlementsService {
       this.throwPayrollReadForbidden();
     }
     const actors = await this.prisma.storeMembership.findMany({ where: { storeId, userId: { in: [settlement.createdBy, settlement.updatedBy] } }, select: { userId: true, displayName: true }, orderBy: { joinedAt: "desc" } });
-    const names = new Map(actors.map((item) => [item.userId, item.displayName]));
+    const names = new Map(
+      actors.flatMap((item) =>
+        item.userId ? [[item.userId, item.displayName] as const] : [],
+      ),
+    );
     return { ...settlement, createdByDisplayName: names.get(settlement.createdBy) ?? "原店铺成员", updatedByDisplayName: names.get(settlement.updatedBy) ?? "原店铺成员" };
   }
 

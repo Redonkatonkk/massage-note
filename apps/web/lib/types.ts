@@ -39,7 +39,7 @@ export interface StoreMember {
   version: number;
   defaultCommissionBps: number | null;
   deletedAt: string | null;
-  user?: { id: string; firstName: string | null; lastName: string | null };
+  user?: null | { id: string; firstName: string | null; lastName: string | null };
 }
 
 export interface StoreDetails extends StoreSummary {
@@ -60,6 +60,10 @@ export interface JoinRequest {
   createdAt: string;
   user: { id: string; firstName: string | null; lastName: string | null };
 }
+
+export type JoinStoreResponse =
+  | { autoMatched: true; membership: StoreMember }
+  | (JoinRequest & { autoMatched: false });
 
 export interface CommissionHistoryResponse {
   membership: StoreMember;

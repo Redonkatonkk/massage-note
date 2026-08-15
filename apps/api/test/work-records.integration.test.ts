@@ -439,7 +439,8 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
         position: 2,
       },
     });
-    const startAt = new Date("2026-08-13T14:00:00.000Z");
+    const startAt = new Date();
+    startAt.setUTCSeconds(0, 0);
     const durationRecord = await workRecords.create(
       actor(employeeId),
       storeId,
@@ -467,7 +468,7 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     );
 
     expect(updated.serviceSnapshot?.durationMinutes).toBe(90);
-    expect(updated.endAt).toEqual(new Date("2026-08-13T15:30:00.000Z"));
+    expect(updated.endAt).toEqual(new Date(startAt.getTime() + 90 * 60_000));
     expect(updated.actualDurationMinutes).toBe(90);
   });
 

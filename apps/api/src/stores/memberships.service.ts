@@ -10,6 +10,7 @@ import {
 } from "@massage-note/database";
 import type {
   ApproveJoinRequest,
+  CreateEmployeeInput,
   DeactivateMembershipInput,
   RejectJoinRequestInput,
   RestoreMembershipInput,
@@ -63,6 +64,49 @@ export class MembershipsService {
         },
       },
     });
+  }
+
+  async createEmployee(
+    actor: User,
+    storeId: string,
+    input: CreateEmployeeInput,
+    requestId: string,
+  ) {
+    const actorMembership = await this.access.requireCapability(
+      actor.id,
+      storeId,
+      "MEMBERSHIP_MANAGE",
+    );
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        const membership = await transaction.storeMembership.create({
+          data: {
+            storeId,
+            userId: null,
+            role: "EMPLOYEE",
+            displayName: input.name,
+            displayNameNormalized: normalizeDisplayName(input.name),
+            isServiceProvider: true,
+          },
+        });
+        await transaction.auditLog.create({
+          data: {
+            storeId,
+            actorUserId: actor.id,
+            actorMembershipId: actorMembership.id,
+            source: "api",
+            action: "membership.created_unclaimed",
+            entityType: "store_membership",
+            entityId: membership.id,
+            afterJson: membershipSnapshot(membership),
+            requestId,
+          },
+        });
+        return membership;
+      });
+    } catch (error) {
+      this.rethrowDisplayNameConflict(error);
+    }
   }
 
   async approveJoinRequest(

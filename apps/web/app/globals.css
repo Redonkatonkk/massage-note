@@ -791,6 +791,13 @@ h2 {
   min-height: 46px;
 }
 
+.board-closing-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 .closed-banner,
 .success-banner,
 .form-error {

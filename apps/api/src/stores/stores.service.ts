@@ -183,21 +183,49 @@ export class StoresService {
       });
     }
 
-    const activeMembership = await this.prisma.storeMembership.findFirst({
-      where: { storeId, userId: user.id, status: "ACTIVE", deletedAt: null },
-      select: { id: true },
+    const existingMembership = await this.prisma.storeMembership.findFirst({
+      where: { storeId, userId: user.id },
+      select: { id: true, status: true, deletedAt: true },
     });
-    if (activeMembership) {
+    if (
+      existingMembership?.status === "ACTIVE" &&
+      existingMembership.deletedAt === null
+    ) {
       throw new ConflictException({
         code: "ALREADY_STORE_MEMBER",
         messageZh: "你已经是这家店的成员",
       });
     }
 
+    if (!existingMembership) {
+      const claimedMembership = await this.claimEmployeeAccount(
+        user,
+        storeId,
+        requestId,
+      );
+      if (claimedMembership) {
+        return { autoMatched: true as const, membership: claimedMembership };
+      }
+      const concurrentlyClaimed = await this.prisma.storeMembership.findFirst({
+        where: {
+          storeId,
+          userId: user.id,
+          status: "ACTIVE",
+          deletedAt: null,
+        },
+      });
+      if (concurrentlyClaimed) {
+        return {
+          autoMatched: true as const,
+          membership: concurrentlyClaimed,
+        };
+      }
+    }
+
     const pending = await this.prisma.storeJoinRequest.findFirst({
       where: { storeId, userId: user.id, status: "PENDING" },
     });
-    if (pending) return pending;
+    if (pending) return { ...pending, autoMatched: false as const };
 
     try {
       return await this.prisma.$transaction(async (transaction) => {
@@ -220,7 +248,7 @@ export class StoresService {
             requestId,
           },
         });
-        return joinRequest;
+        return { ...joinRequest, autoMatched: false as const };
       });
     } catch (error) {
       if (
@@ -230,10 +258,90 @@ export class StoresService {
         const existing = await this.prisma.storeJoinRequest.findFirst({
           where: { storeId, userId: user.id, status: "PENDING" },
         });
-        if (existing) return existing;
+        if (existing) return { ...existing, autoMatched: false as const };
       }
       throw error;
     }
+  }
+
+  private async claimEmployeeAccount(
+    user: User,
+    storeId: string,
+    requestId: string,
+  ) {
+    if (!user.firstName?.trim()) return null;
+    const normalizedRegisteredName = normalizeDisplayName(user.firstName);
+
+    return this.prisma.$transaction(async (transaction) => {
+      const membership = await transaction.storeMembership.findFirst({
+        where: {
+          storeId,
+          userId: null,
+          status: "ACTIVE",
+          deletedAt: null,
+          displayNameNormalized: normalizedRegisteredName,
+        },
+      });
+      if (!membership) return null;
+
+      const claimed = await transaction.storeMembership.updateMany({
+        where: {
+          id: membership.id,
+          storeId,
+          userId: null,
+          status: "ACTIVE",
+          deletedAt: null,
+          version: membership.version,
+        },
+        data: {
+          userId: user.id,
+          version: { increment: 1 },
+        },
+      });
+      if (claimed.count !== 1) return null;
+
+      const updated = await transaction.storeMembership.findUniqueOrThrow({
+        where: { id: membership.id },
+      });
+      await transaction.storeJoinRequest.updateMany({
+        where: { storeId, userId: user.id, status: "PENDING" },
+        data: {
+          status: "APPROVED",
+          reviewedAt: new Date(),
+          reviewNote: "同名员工账号已自动匹配",
+          version: { increment: 1 },
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          storeId,
+          actorUserId: user.id,
+          actorMembershipId: updated.id,
+          source: "api",
+          action: "membership.account_claimed",
+          entityType: "store_membership",
+          entityId: updated.id,
+          beforeJson: {
+            id: membership.id,
+            userId: null,
+            role: membership.role,
+            displayName: membership.displayName,
+            status: membership.status,
+            version: membership.version,
+          },
+          afterJson: {
+            id: updated.id,
+            userId: updated.userId,
+            role: updated.role,
+            displayName: updated.displayName,
+            status: updated.status,
+            version: updated.version,
+          },
+          requestId,
+        },
+      });
+      return updated;
+    });
   }
 
   private isStoreCodeCollision(error: Prisma.PrismaClientKnownRequestError): boolean {

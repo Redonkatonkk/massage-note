@@ -3,7 +3,9 @@ import { aiMessageSchema, aiWorkToolArgumentsSchema, confirmAiPreviewSchema } fr
 
 describe("AI 安全契约", () => {
   it("限制消息长度并要求显式确认", () => {
-    expect(aiMessageSchema.parse({ text: "  查一下今天小费  " }).text).toBe("查一下今天小费");
+    expect(aiMessageSchema.parse({ text: "  查一下今天小费  " })).toMatchObject({ text: "查一下今天小费", locale: "zh-CN" });
+    expect(aiMessageSchema.parse({ text: "tips today", locale: "en-US" }).locale).toBe("en-US");
+    expect(aiMessageSchema.safeParse({ text: "tips today", locale: "fr-FR" }).success).toBe(false);
     expect(confirmAiPreviewSchema.safeParse({ confirm: false }).success).toBe(false);
   });
 

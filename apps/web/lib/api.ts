@@ -1,3 +1,10 @@
+import {
+  isAppLocale,
+  registerCatalogNamesFromPayload,
+  translateApiError,
+  translateText,
+} from "./i18n";
+
 export const apiBase =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1";
 
@@ -10,10 +17,15 @@ export class ApiError extends Error {
     const body = payload as
       | { messageZh?: string; message?: string; code?: string; latestResource?: unknown }
       | null;
-    super(body?.messageZh ?? body?.message ?? "请求失败，请稍后重试");
+    const code = body?.code ?? "REQUEST_FAILED";
+    const message = body?.messageZh ?? body?.message ?? "请求失败，请稍后重试";
+    const locale = typeof document !== "undefined" && isAppLocale(document.documentElement.lang)
+      ? document.documentElement.lang
+      : "zh-CN";
+    super(translateApiError(code, message, locale));
     this.name = "ApiError";
     this.status = status;
-    this.code = body?.code ?? "REQUEST_FAILED";
+    this.code = code;
     this.latestResource = body?.latestResource;
   }
 }
@@ -30,6 +42,9 @@ export async function apiRequest<T>(
   const { body, idempotent, ...requestOptions } = options;
   const headers = new Headers(requestOptions.headers);
   if (body !== undefined) headers.set("Content-Type", "application/json");
+  if (typeof document !== "undefined" && isAppLocale(document.documentElement.lang)) {
+    headers.set("Accept-Language", document.documentElement.lang);
+  }
   if (idempotent) headers.set("Idempotency-Key", crypto.randomUUID());
   const response = await fetch(`${apiBase}${path}`, {
     ...requestOptions,
@@ -41,9 +56,14 @@ export async function apiRequest<T>(
     ? null
     : await response.json().catch(() => null);
   if (!response.ok) throw new ApiError(response.status, payload);
+  registerCatalogNamesFromPayload(payload, path);
   return payload as T;
 }
 
 export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "操作失败，请稍后重试";
+  const message = error instanceof Error ? error.message : "操作失败，请稍后重试";
+  const locale = typeof document !== "undefined" && isAppLocale(document.documentElement.lang)
+    ? document.documentElement.lang
+    : "zh-CN";
+  return translateText(message, locale);
 }

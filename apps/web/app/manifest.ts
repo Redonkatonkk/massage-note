@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Massage note",
     short_name: "Massage note",
-    description: "按摩店记工与财务管理系统",
+    description: "按摩店记工与财务管理系统 / Massage work-record and finance management",
     start_url: "/",
     display: "standalone",
     background_color: "#fffaf3",

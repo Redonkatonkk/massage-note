@@ -4,6 +4,7 @@ import { uuidSchema } from "./common.js";
 export const aiMessageSchema = z.object({
   text: z.string().trim().min(1, "请输入要询问或记录的内容").max(4_000),
   conversationId: uuidSchema.optional(),
+  locale: z.enum(["zh-CN", "en-US"]).default("zh-CN"),
 });
 
 export const confirmAiPreviewSchema = z.object({

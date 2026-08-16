@@ -23,7 +23,7 @@ export class AiController {
   }
 
   @Post("work/transcribe")
-  async transcribe(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Headers("content-type") contentType: string | undefined, @Req() request: Request) {
+  async transcribe(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Headers("content-type") contentType: string | undefined, @Headers("accept-language") acceptLanguage: string | undefined, @Req() request: Request) {
     if (!contentType?.toLowerCase().startsWith("audio/webm")) throw new BadRequestException({ code: "AUDIO_TYPE_UNSUPPORTED", messageZh: "录音必须使用浏览器 WebM/Opus 格式" });
     const chunks: Buffer[] = [];
     let size = 0;
@@ -33,7 +33,12 @@ export class AiController {
       if (size > 8 * 1024 * 1024) throw new BadRequestException({ code: "AUDIO_TOO_LARGE", messageZh: "录音不能超过 8 MB 或 60 秒" });
       chunks.push(buffer);
     }
-    return this.ai.transcribe(user, parseRequest(uuidSchema, storeId), Buffer.concat(chunks));
+    return this.ai.transcribe(
+      user,
+      parseRequest(uuidSchema, storeId),
+      Buffer.concat(chunks),
+      acceptLanguage?.toLowerCase().startsWith("en") ? "en-US" : "zh-CN",
+    );
   }
 
   @Get("previews/:previewId")

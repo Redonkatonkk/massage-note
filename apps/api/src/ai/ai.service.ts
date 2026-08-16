@@ -64,10 +64,10 @@ export class AiService {
     private readonly speech: GoogleSpeechToTextProvider,
   ) {}
 
-  async transcribe(actor: User, storeId: string, audio: Buffer) {
+  async transcribe(actor: User, storeId: string, audio: Buffer, locale: "zh-CN" | "en-US" = "zh-CN") {
     await this.access.requireActiveMembership(actor.id, storeId);
     if (audio.length > 8 * 1024 * 1024) throw new BadRequestException({ code: "AUDIO_TOO_LARGE", messageZh: "录音不能超过 8 MB 或 60 秒" });
-    return this.speech.transcribe(audio);
+    return this.speech.transcribe(audio, locale);
   }
 
   async financeMessage(actor: User, storeId: string, input: AiMessageInput) {
@@ -78,16 +78,22 @@ export class AiService {
       where: { storeId, status: "ACTIVE", deletedAt: null, ...(membership.role === "EMPLOYEE" ? { id: membership.id } : {}) },
       select: { id: true, displayName: true },
     });
-    const mentioned = members.filter((item) => input.text.toLocaleLowerCase().includes(item.displayName.toLocaleLowerCase()));
+    const locale = input.locale ?? "zh-CN";
+    const lowerText = input.text.toLocaleLowerCase();
+    const mentioned = members.filter((item) => lowerText.includes(item.displayName.toLocaleLowerCase()));
     const membershipIds = membership.role === "EMPLOYEE" ? [membership.id] : mentioned.map((item) => item.id);
-    const paymentMethod: FinanceQuery["paymentMethod"] = input.text.includes("现金") ? "CASH" : input.text.includes("刷卡") ? "CARD" : "ALL";
-    const amountType: FinanceQuery["amountType"] = input.text.includes("小费") && !input.text.includes("大费") ? "TIP" : input.text.includes("大费") && !input.text.includes("小费") ? "SERVICE" : "ALL";
+    const mentionsCash = input.text.includes("现金") || /\bcash\b/i.test(input.text);
+    const mentionsCard = input.text.includes("刷卡") || /\b(?:card|credit|debit)\b/i.test(input.text);
+    const mentionsTips = input.text.includes("小费") || /\btips?\b/i.test(input.text);
+    const mentionsServiceFees = input.text.includes("大费") || /\b(?:service fees?|service charges?)\b/i.test(input.text);
+    const paymentMethod: FinanceQuery["paymentMethod"] = mentionsCash && !mentionsCard ? "CASH" : mentionsCard && !mentionsCash ? "CARD" : "ALL";
+    const amountType: FinanceQuery["amountType"] = mentionsTips && !mentionsServiceFees ? "TIP" : mentionsServiceFees && !mentionsTips ? "SERVICE" : "ALL";
     const dates = await this.financeDates(storeId, input.text);
     const query: FinanceQuery = { ...dates, membershipIds, paymentMethod, amountType };
     try {
       const summary = await this.finance.summary(actor, storeId, query);
       let cashContext: unknown = null;
-      if (input.text.includes("现金") && (input.text.includes("结清") || input.text.includes("应交") || input.text.includes("保留"))) {
+      if (mentionsCash && (/(结清|应交|保留)/u.test(input.text) || /\b(?:settled?|submit|keep|retain)\b/i.test(input.text))) {
         cashContext = await this.cash.list(actor, storeId, dates.dateTo!);
       }
       const safeContext = toJsonSafe({ summary, cash: cashContext });
@@ -96,7 +102,9 @@ export class AiService {
       let model = "finance-engine";
       if (this.model.isConfigured()) {
         const result = await this.model.complete({
-          system: "你是按摩店财务解释助手。只能依据提供的确定性统计上下文回答，不自行计算、不猜测、不得要求或暴露其他店铺数据。回答必须用中文，注明日期范围、员工范围和付款口径。金额使用美元。",
+          system: locale === "en-US"
+            ? "You are a massage-store finance explanation assistant. Use only the supplied deterministic statistics. Do not calculate independently, guess, request, or expose data from other stores. Answer in English and state the date range, employee scope, and payment scope. Use U.S. dollars."
+            : "你是按摩店财务解释助手。只能依据提供的确定性统计上下文回答，不自行计算、不猜测、不得要求或暴露其他店铺数据。回答必须用中文，注明日期范围、员工范围和付款口径。金额使用美元。",
           user: `用户问题：${input.text}\n\n后端确定性统计上下文：${JSON.stringify(safeContext)}`,
         });
         answer = result.content;
@@ -108,13 +116,18 @@ export class AiService {
           membership.role === "EMPLOYEE" ? [membership.displayName] : mentioned.map((item) => item.displayName),
           paymentMethod,
           amountType,
+          locale,
         );
         if (cashContext && typeof cashContext === "object" && "rows" in cashContext) {
           const rows = (cashContext as { rows: Array<{ displayName: string; status: string; cashToSubmitToStoreCents: bigint; cashRetainedCents: bigint }> }).rows;
           const unsettled = rows.filter((row) => row.status === "UNSETTLED");
-          answer += unsettled.length === 0
-            ? " 当前范围内的现金结算已经全部结清。"
-            : ` 尚未结清现金：${unsettled.map((row) => `${row.displayName}（应提交店铺 ${money(row.cashToSubmitToStoreCents)}，应保留 ${money(row.cashRetainedCents)}）`).join("；")}。`;
+          answer += locale === "en-US"
+            ? unsettled.length === 0
+              ? " All cash settlements in this range are fully settled."
+              : ` Unsettled cash: ${unsettled.map((row) => `${row.displayName} (submit ${money(row.cashToSubmitToStoreCents)} to the store; keep ${money(row.cashRetainedCents)})`).join("; ")}.`
+            : unsettled.length === 0
+              ? " 当前范围内的现金结算已经全部结清。"
+              : ` 尚未结清现金：${unsettled.map((row) => `${row.displayName}（应提交店铺 ${money(row.cashToSubmitToStoreCents)}，应保留 ${money(row.cashRetainedCents)}）`).join("；")}。`;
         }
       }
       await this.logQuery(conversation.id, storeId, actor.id, provider, model, input.text, { query }, safeContext, "SUCCESS", Date.now() - started);
@@ -134,9 +147,12 @@ export class AiService {
     let content = "";
     let provider = "deterministic";
     let modelName = "safe-parser";
+    const locale = input.locale ?? "zh-CN";
     if (this.model.isConfigured()) {
       const result = await this.model.complete({
-        system: `你是中文按摩店记工助手。只能从给定员工、主要项目及其时长价格、额外项目、折扣和今日记录中选择，不得编造 ID。新增或更换主要项目时必须同时提供 serviceName 和 serviceDurationMinutes；信息不完整或有歧义时直接追问，不调用工具。所有金额参数必须换算为整数美分。修改记录时 addons 和 discounts 若出现，必须表示修改后的完整列表；结合记录上下文保留用户没有要求删除的原有项目。删除必须有明确原因。当前调用者是“${membership.displayName}”。`,
+        system: locale === "en-US"
+          ? `You are a massage-store work-record assistant. Select only from the supplied employees, main services and duration/price options, add-ons, discounts, and today's records; never invent IDs. Creating or changing a main service requires both serviceName and serviceDurationMinutes. Ask a clarifying question without calling a tool if information is incomplete or ambiguous. Convert every amount to integer cents. When addons or discounts are present in an edit, they must be the complete updated list and must retain existing items the user did not ask to remove. Deletion requires an explicit reason. The current user is “${membership.displayName}”. Respond in English.`
+          : `你是中文按摩店记工助手。只能从给定员工、主要项目及其时长价格、额外项目、折扣和今日记录中选择，不得编造 ID。新增或更换主要项目时必须同时提供 serviceName 和 serviceDurationMinutes；信息不完整或有歧义时直接追问，不调用工具。所有金额参数必须换算为整数美分。修改记录时 addons 和 discounts 若出现，必须表示修改后的完整列表；结合记录上下文保留用户没有要求删除的原有项目。删除必须有明确原因。当前调用者是“${membership.displayName}”。`,
         user: `用户输入：${input.text}\n可选员工、项目和今日记录：${JSON.stringify(toJsonSafe(context))}`,
         tools: [{ type: "function", function: { name: "prepare_work_change", description: "只生成记工变更预览，不直接写入", parameters: workChangeToolParameters } }],
       });
@@ -146,16 +162,22 @@ export class AiService {
       if (result.toolCall?.name === "prepare_work_change") {
         const validation = aiWorkToolArgumentsSchema.safeParse(result.toolCall.arguments);
         if (validation.success) parsed = validation.data;
-        else content = "我还不能唯一确定要操作的员工、项目或记工记录。请补充员工显示名、项目简称、时间和金额后再试。";
+        else content = locale === "en-US"
+          ? "I could not uniquely identify the employee, service, or record. Add the employee display name, service short name, time, and amounts, then try again."
+          : "我还不能唯一确定要操作的员工、项目或记工记录。请补充员工显示名、项目简称、时间和金额后再试。";
       }
-      if (!parsed && !content) content = "我还需要更明确的信息。请说出员工显示名、项目简称、时间和金额；如需修改或删除，也请说明具体记录和原因。";
+      if (!parsed && !content) content = locale === "en-US"
+        ? "I need more specific information. Include the employee display name, service short name, time, and amounts. For an edit or deletion, identify the record and give the reason."
+        : "我还需要更明确的信息。请说出员工显示名、项目简称、时间和金额；如需修改或删除，也请说明具体记录和原因。";
     } else {
       parsed = this.fallbackCreate(input.text, context, membership.displayName);
-      if (!parsed) content = "AI 模型尚未配置。我仍可识别简单新增记工：请明确说出员工显示名、项目简称，以及现金/刷卡大费和小费，例如“给 Amy 记 60分，现金大费100，刷卡小费20”。修改或删除请先配置 MiniMax，或使用记工详情页。";
+      if (!parsed) content = locale === "en-US"
+        ? "The AI model is not configured. I can still recognize simple new records. Include the employee display name, service short name, and cash/card service fees and tips—for example, “Add a 60 min record for Amy, cash service fee 100, card tip 20.” Configure MiniMax for edits and deletions, or use record details."
+        : "AI 模型尚未配置。我仍可识别简单新增记工：请明确说出员工显示名、项目简称，以及现金/刷卡大费和小费，例如“给 Amy 记 60分，现金大费100，刷卡小费20”。修改或删除请先配置 MiniMax，或使用记工详情页。";
     }
     const preview = parsed ? await this.preparePreview(actor, storeId, parsed, context) : null;
     await this.logQuery(conversation.id, storeId, actor.id, provider, modelName, input.text, parsed ? { parsed } : null, preview ? { previewId: preview.previewId, operation: preview.operation } : { clarification: content }, preview ? "PREVIEW" : "CLARIFICATION", Date.now() - started);
-    return { conversationId: conversation.id, answer: preview ? "我已整理成结构化预览。请核对员工、项目、时间和金额，确认后才会写入。" : content, preview, providerConfigured: this.model.isConfigured() };
+    return { conversationId: conversation.id, answer: preview ? locale === "en-US" ? "I prepared a structured preview. Check the employee, service, time, and amounts; it will only be saved after you confirm." : "我已整理成结构化预览。请核对员工、项目、时间和金额，确认后才会写入。" : content, preview, providerConfigured: this.model.isConfigured() };
   }
 
   async getPreview(actor: User, storeId: string, previewId: string) {
@@ -292,7 +314,7 @@ export class AiService {
   }
 
   private fallbackCreate(text: string, context: Awaited<ReturnType<AiService["workContext"]>>, ownName: string): AiWorkToolArguments | null {
-    if (!text.includes("记") || text.includes("删除") || text.includes("修改")) return null;
+    if ((!text.includes("记") && !/\b(?:add|record|log)\b/i.test(text)) || /(删除|修改)/u.test(text) || /\b(?:delete|remove|edit|change|update)\b/i.test(text)) return null;
     const employee = context.members.find((item) => text.includes(item.displayName)) ?? context.members.find((item) => item.displayName === ownName);
     const service = context.services.find((item) => text.includes(item.shortName) || text.includes(item.fullName));
     if (!employee || !service) return null;
@@ -303,10 +325,17 @@ export class AiService {
         ? service.priceOptions[0]!.durationMinutes
         : null;
     if (!durationMinutes || !service.priceOptions.some((option) => option.durationMinutes === durationMinutes)) return null;
-    const amount = (label: string) => { const match = text.match(new RegExp(`${label}\\s*[：:]?\\s*\\$?(\\d+(?:\\.\\d{1,2})?)`)); return match?.[1] ? Math.round(Number(match[1]) * 100) : undefined; };
+    const amount = (...labels: string[]) => {
+      const match = labels.map((label) => text.match(new RegExp(`${label}\\s*[：:]?\\s*\\$?(\\d+(?:\\.\\d{1,2})?)`, "i"))).find(Boolean);
+      return match?.[1] ? Math.round(Number(match[1]) * 100) : undefined;
+    };
     const addons = context.addons.filter((item) => text.includes(item.name) || text.includes(item.shortName)).map((item) => ({ name: item.shortName }));
     const discounts = context.discounts.filter((item) => text.includes(item.name) || text.includes(item.shortName)).map((item) => ({ name: item.shortName }));
-    return { operation: "CREATE", employeeName: employee.displayName, serviceName: service.shortName, serviceDurationMinutes: durationMinutes, ...(addons.length ? { addons } : {}), ...(discounts.length ? { discounts } : {}), ...(amount("现金大费") !== undefined ? { cashServiceCents: amount("现金大费") } : {}), ...(amount("刷卡大费") !== undefined ? { cardServiceCents: amount("刷卡大费") } : {}), ...(amount("现金小费") !== undefined ? { cashTipCents: amount("现金小费") } : {}), ...(amount("刷卡小费") !== undefined ? { cardTipCents: amount("刷卡小费") } : {}) };
+    const cashServiceCents = amount("现金大费", "cash\\s+(?:service\\s+)?fee");
+    const cardServiceCents = amount("刷卡大费", "(?:card|credit|debit)\\s+(?:service\\s+)?fee");
+    const cashTipCents = amount("现金小费", "cash\\s+tip");
+    const cardTipCents = amount("刷卡小费", "(?:card|credit|debit)\\s+tip");
+    return { operation: "CREATE", employeeName: employee.displayName, serviceName: service.shortName, serviceDurationMinutes: durationMinutes, ...(addons.length ? { addons } : {}), ...(discounts.length ? { discounts } : {}), ...(cashServiceCents !== undefined ? { cashServiceCents } : {}), ...(cardServiceCents !== undefined ? { cardServiceCents } : {}), ...(cashTipCents !== undefined ? { cashTipCents } : {}), ...(cardTipCents !== undefined ? { cardTipCents } : {}) };
   }
 
   private addonInputs(items: Array<{ name: string; amountCents?: number | undefined }> | undefined, context: Awaited<ReturnType<AiService["workContext"]>>) {
@@ -373,14 +402,20 @@ export class AiService {
     const store = await this.prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { timezone: true, businessCutoffLocal: true } });
     const today = businessDateFor({ startAt: new Date(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
     const from = new Date(`${today}T00:00:00.000Z`);
-    if (text.includes("今天") || text.includes("今日")) return { dateFrom: today, dateTo: today };
-    if (text.includes("本月")) return { dateFrom: `${today.slice(0, 8)}01`, dateTo: today };
-    const days = Number(text.match(/(?:最近|近)\s*(\d+)\s*天/)?.[1] ?? 7);
+    if (text.includes("今天") || text.includes("今日") || /\btoday\b/i.test(text)) return { dateFrom: today, dateTo: today };
+    if (text.includes("本月") || /\bthis month\b/i.test(text)) return { dateFrom: `${today.slice(0, 8)}01`, dateTo: today };
+    const days = Number(text.match(/(?:最近|近)\s*(\d+)\s*天/u)?.[1] ?? text.match(/(?:last|recent)\s*(\d+)\s*days?/i)?.[1] ?? 7);
     from.setUTCDate(from.getUTCDate() - Math.max(1, Math.min(days, 366)) + 1);
     return { dateFrom: from.toISOString().slice(0, 10), dateTo: today };
   }
 
-  private deterministicFinanceAnswer(summary: Awaited<ReturnType<FinanceQueriesService["summary"]>>, names: string[], method: string, amountType: string) {
+  private deterministicFinanceAnswer(summary: Awaited<ReturnType<FinanceQueriesService["summary"]>>, names: string[], method: string, amountType: string, locale: "zh-CN" | "en-US" = "zh-CN") {
+    if (locale === "en-US") {
+      const scope = names.length ? names.join(", ") : "all employees within your permissions";
+      const methodText = method === "CASH" ? "cash" : method === "CARD" ? "card" : "all payment methods";
+      const typeText = amountType === "TIP" ? "tips only" : amountType === "SERVICE" ? "service fees only" : "service fees and tips";
+      return `Range: ${summary.filters.dateFrom} to ${summary.filters.dateTo}; ${scope}; ${methodText}; ${typeText}. ${summary.totals.recordCount} records; service-fee base ${money(summary.totals.grossFeeBaseCents)}, performance after discounts ${money(summary.totals.discountedFeePerformanceCents)}, service fees collected ${money(summary.totals.actualServiceCollectedCents)}, tips ${money(summary.totals.totalTipCents)}, employee earnings ${money(summary.totals.employeeIncomeCents)}, payroll still owed ${money(summary.totals.employerOwesCents)}. Every amount comes from the deterministic server-side finance engine.`;
+    }
     const scope = names.length ? names.join("、") : "当前权限范围内的全部员工";
     const methodText = method === "CASH" ? "现金" : method === "CARD" ? "刷卡" : "全部付款方式";
     const typeText = amountType === "TIP" ? "仅小费" : amountType === "SERVICE" ? "仅大费" : "大费与小费";

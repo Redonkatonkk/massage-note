@@ -14,6 +14,8 @@ export function firebaseAuth(): Auth {
   const config = { apiKey, authDomain, projectId, appId };
   const app = getApps().length > 0 ? getApp() : initializeApp(config);
   const auth = getAuth(app);
-  auth.languageCode = "zh-CN";
+  auth.languageCode = typeof document !== "undefined" && document.documentElement.lang === "en-US"
+    ? "en-US"
+    : "zh-CN";
   return auth;
 }

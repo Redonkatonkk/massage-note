@@ -1,6 +1,6 @@
 # API 使用说明
 
-本系统的 HTTP API 供当前中文 Web/PWA 与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
+本系统的 HTTP API 供当前中英文 Web/PWA 与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
 
 ## 认证与通用规则
 
@@ -54,12 +54,14 @@
 | GET | `/stores/:storeId/finance/export.csv` | 防公式注入的 UTF-8 CSV 导出 |
 | GET | `/stores/:storeId/audit-logs` | 按时间、对象、动作和操作人查询审计 |
 | GET | `/stores/:storeId/events` | 支持 `Last-Event-ID` 的 SSE 实时事件流 |
-
-Web 页面支持用于排查日结异常的深链接：`/finance?store=<storeId>&tab=closing&date=<businessDate>` 直接打开指定营业日的全店日结；`/?store=<storeId>&date=<businessDate>&record=<recordId>` 自动切换到该营业日并打开对应记工详情。两种链接都只导航和读取，不会自动执行日结或修改记录。
 | POST | `/stores/:storeId/ai/work/messages` | 生成记工操作预览，不直接写入 |
 | POST | `/stores/:storeId/ai/finance/messages` | 使用后端确定性统计回答财务问题 |
 | POST | `/stores/:storeId/ai/work/transcribe` | 语音转文字 |
 | GET/POST/DELETE | `/stores/:storeId/ai/previews/:previewId/...` | 查看、确认或取消一次性 AI 预览 |
+
+Web 页面支持用于排查日结异常的深链接：`/finance?store=<storeId>&tab=closing&date=<businessDate>` 直接打开指定营业日的全店日结；`/?store=<storeId>&date=<businessDate>&record=<recordId>` 自动切换到该营业日并打开对应记工详情。两种链接都只导航和读取，不会自动执行日结或修改记录。
+
+两个 AI 消息端点的请求体均接受 `locale: "zh-CN" | "en-US"`，省略时默认 `zh-CN`。该字段决定模型提示、确定性财务回答和安全降级说明的语言。语音转写使用 `Accept-Language` 选择主要识别语言，并保留另一种语言作为候选。其他业务错误继续返回稳定 `code` 与 `messageZh`；Web 英文界面按稳定错误码显示英语说明，未知错误码使用不泄露内部信息的通用英语提示。
 
 店主或经理创建的待认领员工拥有正常的成员 ID，可立即进入今日表格、记工和配置提成，只是 `userId` 暂时为空。员工注册后用店铺代码加入时，服务端仅以账号注册资料中的 First Name 对本店待认领员工名字做规范化精确匹配；匹配成功返回 `{ "autoMatched": true, "membership": ... }` 并在原成员关系上绑定账号，因此既有记录不会搬迁或丢失。未匹配时仍返回带 `autoMatched: false` 的待审批申请。加入表单中临时填写的显示名不能用于冒领其他员工账号。
 

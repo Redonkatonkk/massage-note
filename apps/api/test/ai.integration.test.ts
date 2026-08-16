@@ -217,4 +217,30 @@ describe.skipIf(!enabled).sequential("AI 预览、确认和确定性财务工具
     expect(response.answer).toContain("确定性财务引擎");
     expect(await prisma.aiQueryLog.count({ where: { storeId } })).toBeGreaterThanOrEqual(2);
   });
+
+  it("英语安全降级模式可解析简单新增记工并返回英语预览说明", async () => {
+    const response = await ai.workMessage(actor, storeId, {
+      text: "Add a 60 min 按摩 record for AI店主, cash service fee 90, card tip 10",
+      locale: "en-US",
+    });
+    expect(response.answer).toContain("structured preview");
+    expect(response.preview).toMatchObject({
+      operation: "CREATE_WORK_RECORD",
+      after: {
+        employee: "AI店主",
+        service: "按摩",
+        payment: { cashServiceCents: 9_000, cardTipCents: 1_000 },
+      },
+    });
+  });
+
+  it("英语财务问题使用英语确定性回答和英语筛选词", async () => {
+    const response = await ai.financeMessage(actor, storeId, {
+      text: "Show service fees and tips for today",
+      locale: "en-US",
+    });
+    expect(response.answer).toContain("service fees collected $270.00");
+    expect(response.answer).toContain("tips $35.00");
+    expect(response.answer).toContain("deterministic server-side finance engine");
+  });
 });

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { apiBase, apiRequest, errorMessage } from "../../lib/api";
 import { useStoreRealtime } from "../../lib/realtime";
 import type { AiMessageResponse, AiPreview, MeResponse, MembershipSummary } from "../../lib/types";
+import { useLanguage } from "../language-provider";
 
 type AssistantType = "work" | "finance";
 type ChatMessage = { id: string; role: "user" | "assistant"; text: string; preview?: AiPreview | null; providerConfigured?: boolean };
@@ -59,6 +60,7 @@ function previewItems(value: unknown): string {
 }
 
 export function AssistantPageClient() {
+  const { locale, t } = useLanguage();
   const [membership, setMembership] = useState<MembershipSummary | null>(null);
   const [type, setType] = useState<AssistantType>("work");
   const [messages, setMessages] = useState<Record<AssistantType, ChatMessage[]>>({ work: [{ id: "welcome-work", role: "assistant", text: "告诉我想新增、修改或删除哪条记工。我会先展示完整预览，只有你确认后才写入。" }], finance: [{ id: "welcome-finance", role: "assistant", text: "可以问我今天、本月或最近几天的大费、小费、员工收入、现金结算和老板尚欠。所有数字都由后端财务引擎计算。" }] });
@@ -87,7 +89,7 @@ export function AssistantPageClient() {
     setInput(""); setBusy(true); setError("");
     setMessages((current) => ({ ...current, [type]: [...current[type], { id: crypto.randomUUID(), role: "user", text }] }));
     try {
-      const response = await apiRequest<AiMessageResponse>(`/stores/${membership.store.id}/ai/${type}/messages`, { method: "POST", body: { text, ...(conversationIds[type] ? { conversationId: conversationIds[type] } : {}) } });
+      const response = await apiRequest<AiMessageResponse>(`/stores/${membership.store.id}/ai/${type}/messages`, { method: "POST", body: { text, locale, ...(conversationIds[type] ? { conversationId: conversationIds[type] } : {}) } });
       setConversationIds((current) => ({ ...current, [type]: response.conversationId }));
       setMessages((current) => ({ ...current, [type]: [...current[type], { id: crypto.randomUUID(), role: "assistant", text: response.answer, preview: response.preview, providerConfigured: response.providerConfigured }] }));
     } catch (caught) { setError(errorMessage(caught)); }
@@ -136,7 +138,7 @@ export function AssistantPageClient() {
         setRecording(false);
         const blob = new Blob(chunks, { type: "audio/webm" });
         setBusy(true);
-        void fetch(`${apiBase}/stores/${membership.store.id}/ai/work/transcribe`, { method: "POST", credentials: "include", headers: { "Content-Type": "audio/webm" }, body: blob })
+        void fetch(`${apiBase}/stores/${membership.store.id}/ai/work/transcribe`, { method: "POST", credentials: "include", headers: { "Content-Type": "audio/webm", "Accept-Language": locale }, body: blob })
           .then(async (response) => { const payload = await response.json().catch(() => null) as { text?: string; messageZh?: string } | null; if (!response.ok) throw new Error(payload?.messageZh ?? "语音识别失败"); if (payload?.text) setInput(payload.text); })
           .catch((caught) => setError(errorMessage(caught))).finally(() => setBusy(false));
       };
@@ -151,7 +153,7 @@ export function AssistantPageClient() {
   }
 
   if (!membership) return <main className="center-page"><div className="loading-card"><span className="spinner" /><strong>{error || "正在打开 AI 助手…"}</strong></div></main>;
-  const examples = type === "work" ? ["给我记 60分，现金大费100，刷卡小费20", "把 Amy 今天 3 点那单备注改成老客", "删除 Amy 今天的 60分，原因是重复录入"] : ["今天全店大费和小费是多少？", "最近 7 天 Amy 的刷卡小费", "今天还有谁的现金没有结清？", "本月老板尚欠员工多少钱？"];
+  const examples = (type === "work" ? ["给我记 60分，现金大费100，刷卡小费20", "把 Amy 今天 3 点那单备注改成老客", "删除 Amy 今天的 60分，原因是重复录入"] : ["今天全店大费和小费是多少？", "最近 7 天 Amy 的刷卡小费", "今天还有谁的现金没有结清？", "本月老板尚欠员工多少钱？"]).map(t);
   return <main className="app-shell assistant-shell"><header className="topbar"><div><p className="eyebrow">{membership.store.name}</p><h1>AI 助手</h1><p className="business-date">先预览再执行 · 财务只读 <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div><a className="store-switcher header-link" href="/">返回今日记工</a></header><nav className="section-tabs" aria-label="AI 助手类型"><button className={type === "work" ? "active" : ""} type="button" onClick={() => setType("work")}>记工助手</button><button className={type === "finance" ? "active" : ""} type="button" onClick={() => setType("finance")}>财务助手</button></nav><section className="assistant-layout"><aside className="assistant-examples"><h2>可以这样说</h2>{examples.map((example) => <button key={example} type="button" onClick={() => setInput(example)}>{example}</button>)}<p>{type === "work" ? "AI 无权跳过预览；删除必须明确原因并二次确认。" : "AI 不自行计算，也不能修改日结、现金或工资结算。"}</p></aside><section className="chat-panel" aria-label={type === "work" ? "记工助手对话" : "财务助手对话"}><div className="chat-messages">{messages[type].map((message) => <article key={message.id} className={`chat-message ${message.role}`}><span>{message.role === "user" ? "你" : "助"}</span><div><p>{message.text}</p>{message.role === "assistant" && message.providerConfigured === false && <small>当前使用安全降级模式；配置 MiniMax 后可理解更复杂的表达。</small>}{message.preview && <PreviewCard preview={message.preview} busy={busy} confirm={confirm} cancel={cancel} />}</div></article>)}{busy && <article className="chat-message assistant"><span>助</span><div><p>正在核对权限和数据…</p></div></article>}<div ref={endRef} /></div>{error && <p className="form-error" role="alert">{error}</p>}<form className="chat-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><textarea aria-label="给 AI 助手的消息" maxLength={4000} rows={3} placeholder={type === "work" ? "说出员工、项目、时间和金额…" : "询问日期、员工和金额口径…"} value={input} onChange={(event) => setInput(event.target.value)} /><div><span>{input.length}/4000</span><div className="composer-actions">{type === "work" && <button className={`voice-button ${recording ? "recording" : ""}`} type="button" disabled={busy} onClick={recording ? stopRecording : () => void startRecording()}>{recording ? "停止并转写" : "语音输入"}</button>}<button className="primary-action" type="submit" disabled={busy || recording || !input.trim()}>{busy ? "处理中…" : "发送"}</button></div></div></form></section></section></main>;
 }
 

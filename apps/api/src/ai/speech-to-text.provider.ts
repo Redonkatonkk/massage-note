@@ -13,7 +13,7 @@ export class GoogleSpeechToTextProvider {
     );
   }
 
-  async transcribe(audio: Buffer) {
+  async transcribe(audio: Buffer, locale: "zh-CN" | "en-US" = "zh-CN") {
     if (!this.isConfigured()) {
       throw new ServiceUnavailableException({ code: "STT_NOT_CONFIGURED", messageZh: "语音转文字尚未配置，请使用文字输入或手机键盘听写" });
     }
@@ -37,8 +37,8 @@ export class GoogleSpeechToTextProvider {
         audio: { content: audio.toString("base64") },
         config: {
           encoding: "WEBM_OPUS",
-          languageCode: "zh-CN",
-          alternativeLanguageCodes: ["en-US"],
+          languageCode: locale,
+          alternativeLanguageCodes: [locale === "zh-CN" ? "en-US" : "zh-CN"],
           enableAutomaticPunctuation: true,
         },
       });

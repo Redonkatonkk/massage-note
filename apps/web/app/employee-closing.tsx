@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
+import { type AppLocale, translateText } from "../lib/i18n";
 import type { EmployeeClosingPreview } from "../lib/types";
+import { useLanguage } from "./language-provider";
 
 interface EmployeeClosingSummaryProps {
   preview: EmployeeClosingPreview;
@@ -26,16 +28,16 @@ interface GeneratedClosingImage {
 
 const imageFont = '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
-function money(cents: number): string {
-  return new Intl.NumberFormat("zh-CN", {
+function money(cents: number, locale: AppLocale = "zh-CN"): string {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 2,
   }).format(cents / 100);
 }
 
-function chineseDate(value: string): string {
-  return new Intl.DateTimeFormat("zh-CN", {
+function localizedDate(value: string, locale: AppLocale = "zh-CN"): string {
+  return new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -91,7 +93,9 @@ function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 
 async function generateClosingImage(
   preview: EmployeeClosingPreview,
+  locale: AppLocale,
 ): Promise<GeneratedClosingImage> {
+  const tr = (value: string) => translateText(value, locale);
   const logicalWidth = Math.max(1, Math.round(window.screen?.width || window.innerWidth));
   const logicalHeight = Math.max(1, Math.round(window.screen?.height || window.innerHeight));
   const pixelRatio = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
@@ -124,7 +128,7 @@ async function generateClosingImage(
   let y = margin;
   context.fillStyle = "#8e3e2f";
   context.font = `800 ${Math.round(12 * scale)}px ${imageFont}`;
-  context.fillText(`${preview.storeName} · 个人日结`, margin, y + 12 * scale, contentWidth);
+  context.fillText(tr(`${preview.storeName} · 个人日结`), margin, y + 12 * scale, contentWidth);
   y += 32 * scale;
 
   context.fillStyle = "#211d18";
@@ -133,7 +137,7 @@ async function generateClosingImage(
   y += 42 * scale;
   context.fillStyle = "#6b635a";
   context.font = `600 ${Math.round(14 * scale)}px ${imageFont}`;
-  context.fillText(chineseDate(preview.businessDate), margin, y + 14 * scale, contentWidth);
+  context.fillText(localizedDate(preview.businessDate, locale), margin, y + 14 * scale, contentWidth);
   y += 30 * scale;
 
   const statusText = preview.isClosed
@@ -144,17 +148,18 @@ async function generateClosingImage(
   const statusColor = preview.isClosed ? "#176b45" : preview.hasWarnings ? "#9a5a0c" : "#176b45";
   const statusBackground = preview.isClosed ? "#e7f5ed" : preview.hasWarnings ? "#fff0d8" : "#e7f5ed";
   context.font = `800 ${Math.round(12 * scale)}px ${imageFont}`;
-  const statusWidth = Math.min(contentWidth, context.measureText(statusText).width + 24 * scale);
+  const localizedStatusText = tr(statusText);
+  const statusWidth = Math.min(contentWidth, context.measureText(localizedStatusText).width + 24 * scale);
   fillRoundedRect(context, margin, y, statusWidth, 30 * scale, 15 * scale, statusBackground);
   context.fillStyle = statusColor;
-  context.fillText(statusText, margin + 12 * scale, y + 20 * scale, statusWidth - 24 * scale);
+  context.fillText(localizedStatusText, margin + 12 * scale, y + 20 * scale, statusWidth - 24 * scale);
   y += 42 * scale;
 
   const dividendMetrics: Array<[string, string, string]> = [
-    ["现金大费分红", money(preview.employee.cashLargeFeeDividendCents), "#fff2dc"],
-    ["现金小费分红", money(preview.employee.cashTipDividendCents), "#fff2dc"],
-    ["刷卡大费分红", money(preview.employee.cardLargeFeeDividendCents), "#edf8f1"],
-    ["刷卡小费分红", money(preview.employee.cardTipDividendCents), "#edf8f1"],
+    [tr("现金大费分红"), money(preview.employee.cashLargeFeeDividendCents, locale), "#fff2dc"],
+    [tr("现金小费分红"), money(preview.employee.cashTipDividendCents, locale), "#fff2dc"],
+    [tr("刷卡大费分红"), money(preview.employee.cardLargeFeeDividendCents, locale), "#edf8f1"],
+    [tr("刷卡小费分红"), money(preview.employee.cardTipDividendCents, locale), "#edf8f1"],
   ];
   const overviewGap = 12 * scale;
   const dividendGap = 8 * scale;
@@ -175,18 +180,18 @@ async function generateClosingImage(
   fillRoundedRect(context, margin, y, incomeWidth, incomeHeight, 22 * scale, "#8e3e2f");
   context.fillStyle = "rgba(255,255,255,0.76)";
   context.font = `700 ${Math.round(13 * scale)}px ${imageFont}`;
-  context.fillText("今日总收入", margin + 20 * scale, y + 27 * scale);
+  context.fillText(tr("今日总收入"), margin + 20 * scale, y + 27 * scale, incomeWidth - 40 * scale);
   context.fillStyle = "#ffffff";
   context.font = `900 ${Math.round((landscape ? 25 : 32) * scale)}px ${imageFont}`;
   context.fillText(
-    money(preview.employee.employeeIncomeCents),
+    money(preview.employee.employeeIncomeCents, locale),
     margin + 20 * scale,
     y + (landscape ? 68 : 66) * scale,
     incomeWidth - 40 * scale,
   );
   context.fillStyle = "rgba(255,255,255,0.72)";
   context.font = `600 ${Math.round(11 * scale)}px ${imageFont}`;
-  context.fillText("大费工资＋小费", margin + 20 * scale, y + (landscape ? 96 : 82) * scale);
+  context.fillText(tr("大费工资＋小费"), margin + 20 * scale, y + (landscape ? 96 : 82) * scale, incomeWidth - 40 * scale);
 
   fillRoundedRect(
     context,
@@ -199,7 +204,7 @@ async function generateClosingImage(
   );
   context.fillStyle = "#6b635a";
   context.font = `800 ${Math.round(11 * scale)}px ${imageFont}`;
-  context.fillText("已确认收入分配 · 按现金／刷卡拆分", dividendPanelX + 14 * scale, dividendPanelY + 23 * scale);
+  context.fillText(tr("已确认收入分配 · 按现金／刷卡拆分"), dividendPanelX + 14 * scale, dividendPanelY + 23 * scale, dividendPanelWidth - 28 * scale);
   const dividendCardWidth =
     (dividendPanelWidth - 28 * scale - dividendGap * (dividendColumns - 1)) /
     dividendColumns;
@@ -221,10 +226,10 @@ async function generateClosingImage(
     : incomeHeight + overviewGap + dividendPanelHeight + 14 * scale;
 
   const metrics: Array<[string, string]> = [
-    ["大费基数", money(preview.employee.grossFeeBaseCents)],
-    ["大费工资", money(preview.employee.totalLargeFeeWageCents)],
-    ["小费", money(preview.employee.totalTipCents)],
-    ["应提交现金", money(preview.employee.cashToSubmitToStoreCents)],
+    [tr("大费基数"), money(preview.employee.grossFeeBaseCents, locale)],
+    [tr("大费工资"), money(preview.employee.totalLargeFeeWageCents, locale)],
+    [tr("小费"), money(preview.employee.totalTipCents, locale)],
+    [tr("应提交现金"), money(preview.employee.cashToSubmitToStoreCents, locale)],
   ];
   const columns = landscape ? 4 : 2;
   const gap = 10 * scale;
@@ -252,11 +257,11 @@ async function generateClosingImage(
     fillRoundedRect(context, margin, y, contentWidth, warningHeight, 15 * scale, "rgba(255,240,216,0.94)");
     context.fillStyle = "#8a4b08";
     context.font = `800 ${Math.round(11 * scale)}px ${imageFont}`;
-    context.fillText("待核对", margin + 13 * scale, y + 20 * scale);
+    context.fillText(tr("待核对"), margin + 13 * scale, y + 20 * scale);
     context.font = `700 ${Math.round(10 * scale)}px ${imageFont}`;
     preview.warnings.slice(0, landscape ? 2 : 4).forEach((warning, index) => {
       context.fillText(
-        `${warning.labelZh} ${warning.count} 条`,
+        tr(`${warning.labelZh} ${warning.count} 条`),
         margin + 13 * scale,
         y + (39 + index * 17) * scale,
       );
@@ -266,12 +271,12 @@ async function generateClosingImage(
   context.fillStyle = "#756b62";
   context.font = `600 ${Math.round(10 * scale)}px ${imageFont}`;
   context.textAlign = "left";
-  context.fillText("Massage note · 数据以系统保存的营业日快照为准", margin, footerY, contentWidth);
+  context.fillText(tr("Massage note · 数据以系统保存的营业日快照为准"), margin, footerY, contentWidth);
 
   const blob = await canvasBlob(canvas);
   return {
     blob,
-    fileName: `个人日结-${preview.employee.displayName.replace(/[\\/:*?"<>|]/g, "-")}-${preview.businessDate}.png`,
+    fileName: `${locale === "en-US" ? "employee-closing" : "个人日结"}-${preview.employee.displayName.replace(/[\\/:*?"<>|]/g, "-")}-${preview.businessDate}.png`,
     height: canvas.height,
     url: URL.createObjectURL(blob),
     width: canvas.width,
@@ -288,6 +293,7 @@ function downloadImage(image: GeneratedClosingImage) {
 }
 
 export function EmployeeClosingSummary({ preview }: EmployeeClosingSummaryProps) {
+  const { locale, t } = useLanguage();
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<GeneratedClosingImage | null>(null);
   const [imageMessage, setImageMessage] = useState("");
@@ -297,12 +303,18 @@ export function EmployeeClosingSummary({ preview }: EmployeeClosingSummaryProps)
     if (generated) URL.revokeObjectURL(generated.url);
   }, [generated]);
 
+  useEffect(() => {
+    setGenerated(null);
+    setImageMessage("");
+    setImageError("");
+  }, [locale]);
+
   async function createImage() {
     setGenerating(true);
     setImageError("");
     setImageMessage("");
     try {
-      const next = await generateClosingImage(preview);
+      const next = await generateClosingImage(preview, locale);
       setGenerated(next);
       setImageMessage(`已按当前设备屏幕生成 ${next.width} × ${next.height} PNG`);
     } catch (caught) {
@@ -323,8 +335,8 @@ export function EmployeeClosingSummary({ preview }: EmployeeClosingSummaryProps)
       ) {
         await navigator.share({
           files: [file],
-          title: `${preview.employee.displayName} ${preview.businessDate} 个人日结`,
-          text: "个人日结图片",
+          title: t(`${preview.employee.displayName} ${preview.businessDate} 个人日结`),
+          text: t("个人日结图片"),
         });
         setImageMessage("已打开系统分享菜单；请选择“存储图像”保存到相册");
         return;
@@ -343,7 +355,7 @@ export function EmployeeClosingSummary({ preview }: EmployeeClosingSummaryProps)
     <section className="employee-closing-card" aria-label={`${employee.displayName}个人日结`}>
       <header className="employee-closing-hero">
         <div className="employee-closing-heading">
-          <p className="eyebrow">{preview.storeName} · {chineseDate(preview.businessDate)}</p>
+          <p className="eyebrow">{preview.storeName} · {localizedDate(preview.businessDate, locale)}</p>
           <h2>{employee.displayName}的个人日结</h2>
           <span className={`employee-closing-status ${preview.hasWarnings ? "warning" : "ready"}`}>
             {preview.isClosed

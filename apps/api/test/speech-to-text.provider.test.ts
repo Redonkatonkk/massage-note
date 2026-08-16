@@ -46,4 +46,24 @@ describe("GoogleSpeechToTextProvider", () => {
       },
     });
   });
+
+  it("uses English as the primary language when the UI requests it", async () => {
+    process.env.GOOGLE_CLOUD_PROJECT_ID = "test-project";
+    process.env.GOOGLE_CLOUD_CREDENTIALS_JSON = JSON.stringify({
+      project_id: "test-project",
+      client_email: "speech@test-project.iam.gserviceaccount.com",
+      private_key: "test-private-key",
+    });
+    speechMocks.recognize.mockResolvedValue([{ results: [{ alternatives: [{ transcript: "record Amy" }] }] }]);
+
+    const result = await new GoogleSpeechToTextProvider().transcribe(Buffer.from("webm-opus"), "en-US");
+
+    expect(result.text).toBe("record Amy");
+    expect(speechMocks.recognize).toHaveBeenCalledWith(expect.objectContaining({
+      config: expect.objectContaining({
+        languageCode: "en-US",
+        alternativeLanguageCodes: ["zh-CN"],
+      }),
+    }));
+  });
 });

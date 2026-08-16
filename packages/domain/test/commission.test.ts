@@ -16,11 +16,17 @@ describe("提成优先级", () => {
     ).toEqual({ bps: 7_000, source: "EMPLOYEE_ITEM" });
   });
 
-  it("依次回退到项目、员工和店铺默认比例", () => {
+  it("依次回退到员工、项目和店铺默认比例", () => {
     expect(
       resolveCommission({
         itemDefaultBps: 6_500,
         employeeDefaultBps: 6_000,
+        storeDefaultBps: 5_500,
+      }).source,
+    ).toBe("EMPLOYEE_DEFAULT");
+    expect(
+      resolveCommission({
+        itemDefaultBps: 6_500,
         storeDefaultBps: 5_500,
       }).source,
     ).toBe("ITEM_DEFAULT");
@@ -44,4 +50,3 @@ describe("提成优先级", () => {
     ).toEqual({ bps: 6_200, source: "EMPLOYEE_DEFAULT" });
   });
 });
-

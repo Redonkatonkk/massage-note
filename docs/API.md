@@ -36,7 +36,7 @@
 | POST/PATCH/DELETE | `/stores/:storeId/catalog/items/:itemId?` | 主要、额外和折扣项目管理 |
 | POST | `/stores/:storeId/catalog/reorder` | 原子调整一类项目的完整顺序 |
 | POST | `/stores/:storeId/catalog/items/:itemId/restore` | 恢复软删除项目 |
-| GET/PUT | `/stores/:storeId/members/:membershipId/commissions/...` | 员工默认与员工项目专属提成 |
+| GET/PUT | `/stores/:storeId/members/:membershipId/commissions/...` | 员工默认与员工项目专属提成；保存后重算该员工未日结的当前营业日记工，历史与已日结快照不变 |
 | GET | `/stores/:storeId/business-days/current` | 当前营业日、时区和截止时间 |
 | GET | `/stores/:storeId/boards/:businessDate` | 今日或历史记工表；普通员工查看历史时仅返回本人行、班次、记工和本人统计 |
 | POST/PATCH | `/stores/:storeId/shifts/...`、`boards/...` | 上下班、行显示与排序；店主和经理可在日结后继续调整行的显示状态，其他业务数据仍只读 |

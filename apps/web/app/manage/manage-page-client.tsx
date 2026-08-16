@@ -58,6 +58,7 @@ const actionText: Record<string, string> = {
   "work_record.created": "新增记工",
   "work_record.created_with_custom_service": "新增自定义项目记工",
   "work_record.updated": "修改记工",
+  "work_record.commission_refreshed": "按最新提成重算当日记工",
   "work_record.payment_confirmed": "确认付款",
   "work_record.deleted": "删除记工",
   "work_record.restored": "恢复记工",
@@ -244,7 +245,7 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
     }); }}>
       <div className="manage-heading"><div><p className="eyebrow">基础资料</p><h2>{canManage ? "店铺设置" : "店铺信息"}</h2></div><span className="status-chip">营业中</span></div>
       <div className="manage-form-grid"><label>店铺名称<input disabled={!canManage} required value={name} onChange={(event) => setName(event.target.value)} /></label><label>店铺代码<input disabled value={store.storeCode} /></label><label>时区<input disabled={!canManage} required value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label className="business-cutoff-field">营业日截止<input disabled={!canManage} type="time" required value={cutoff} onChange={(event) => setCutoff(event.target.value)} /></label><label>全店默认提成（%）<input disabled={!canManage} inputMode="decimal" required value={commission} onChange={(event) => setCommission(event.target.value)} /></label><label>当前店主<input disabled value={store.ownerMembership?.displayName ?? "—"} /></label></div>
-      <p className="field-help">提成优先顺序：员工项目专属比例 → 项目默认比例 → 员工默认比例 → 全店默认比例。历史记工始终使用保存时的快照。</p>
+      <p className="field-help">提成优先顺序：员工项目专属比例 → 员工默认比例 → 项目默认比例 → 全店默认比例。保存员工提成后会重算未日结的当前营业日；已日结和历史记工继续使用原快照。</p>
       <section className={`auto-discount-settings${autoDiscountEnabled ? " enabled" : ""}`}>
         <div className="auto-discount-heading"><div><strong>周一至周四自动折扣</strong><p>按记工所属营业日判断；达到折前大费门槛后自动添加。</p></div><label className="inline-check"><input type="checkbox" disabled={!canManage} checked={autoDiscountEnabled} onChange={(event) => setAutoDiscountEnabled(event.target.checked)} />开启</label></div>
         <div className="manage-form-grid auto-discount-fields"><label>大费满多少（美元）<input disabled={!canManage || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 100.00" value={autoDiscountThreshold} onChange={(event) => setAutoDiscountThreshold(event.target.value)} /></label><label>自动折扣额度（美元）<input disabled={!canManage || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 10.00" value={autoDiscountAmount} onChange={(event) => setAutoDiscountAmount(event.target.value)} /></label></div>
@@ -259,6 +260,14 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
 
 function MembersPanel({ storeId, currentRole, members, requests, catalog, busy, run, reload }: { storeId: string; currentRole: MembershipSummary["role"]; members: StoreMember[]; requests: JoinRequest[]; catalog: CatalogResponse; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
   const [employeeName, setEmployeeName] = useState("");
+  const [savedMember, setSavedMember] = useState<{ id: string; refreshedToday: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!savedMember) return;
+    const timer = window.setTimeout(() => setSavedMember(null), 4_000);
+    return () => window.clearTimeout(timer);
+  }, [savedMember]);
+
   async function createEmployee() {
     await apiRequest(`/stores/${storeId}/members`, {
       method: "POST",
@@ -270,11 +279,11 @@ function MembersPanel({ storeId, currentRole, members, requests, catalog, busy, 
   return <section className="manage-section">
     <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">快速建档</p><h2>创建新员工</h2></div></div><p className="field-help">只需填写名字。员工以后注册账号并用相同名字加入本店时，系统会自动关联这份资料和已有记工。</p><form className="inline-controls" onSubmit={(event) => { event.preventDefault(); void run(createEmployee); }}><label>员工名字<input required maxLength={80} value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} /></label><button className="primary-action compact" type="submit" disabled={busy || !employeeName.trim()}>{busy ? "正在创建…" : "创建员工"}</button></form></section>
     <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">待处理</p><h2>加入申请</h2></div><span className="status-chip">{requests.length} 个</span></div>{requests.length === 0 ? <p className="empty-state">目前没有待审批的加入申请。</p> : <div className="request-list">{requests.map((request) => <article key={request.id}><div><strong>{request.requestedDisplayName}</strong><span>账号姓名：{[request.user.firstName, request.user.lastName].filter(Boolean).join(" ") || "未填写"} · {formatTime(request.createdAt)}</span></div><div><button className="primary-action compact" disabled={busy} type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/join-requests/${request.id}/approve`, { method: "POST", body: { version: request.version, role: "EMPLOYEE", isServiceProvider: true } }); await reload(); })}>批准为员工</button><button className="secondary-action compact" disabled={busy} type="button" onClick={() => { const note = window.prompt("拒绝备注（可留空）"); if (note === null) return; void run(async () => { await apiRequest(`/stores/${storeId}/join-requests/${request.id}/reject`, { method: "POST", body: { version: request.version, ...(note.trim() ? { reviewNote: note.trim() } : {}) } }); await reload(); }); }}>拒绝</button></div></article>)}</div>}</section>
-    <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">权限与记工</p><h2>成员列表</h2></div><span className="status-chip">{members.filter((item) => item.status === "ACTIVE").length} 人在职</span></div><div className="member-list">{members.map((member) => <MemberEditor key={`${member.id}-${member.version}`} storeId={storeId} member={member} currentRole={currentRole} catalog={catalog} busy={busy} run={run} reload={reload} />)}</div></section>
+    <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">权限与记工</p><h2>成员列表</h2></div><span className="status-chip">{members.filter((item) => item.status === "ACTIVE").length} 人在职</span></div><div className="member-list">{members.map((member) => <MemberEditor key={`${member.id}-${member.version}`} storeId={storeId} member={member} currentRole={currentRole} catalog={catalog} busy={busy} saved={savedMember?.id === member.id} refreshedToday={savedMember?.id === member.id && savedMember.refreshedToday} onDirty={() => setSavedMember(null)} onSaved={(refreshedToday) => setSavedMember({ id: member.id, refreshedToday })} run={run} reload={reload} />)}</div></section>
   </section>;
 }
 
-function MemberEditor({ storeId, member, currentRole, catalog, busy, run, reload }: { storeId: string; member: StoreMember; currentRole: MembershipSummary["role"]; catalog: CatalogResponse; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
+function MemberEditor({ storeId, member, currentRole, catalog, busy, saved, refreshedToday, onDirty, onSaved, run, reload }: { storeId: string; member: StoreMember; currentRole: MembershipSummary["role"]; catalog: CatalogResponse; busy: boolean; saved: boolean; refreshedToday: boolean; onDirty: () => void; onSaved: (refreshedToday: boolean) => void; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
   const [name, setName] = useState(member.displayName);
   const [role, setRole] = useState(member.role);
   const [provider, setProvider] = useState(member.isServiceProvider);
@@ -286,19 +295,29 @@ function MemberEditor({ storeId, member, currentRole, catalog, busy, run, reload
 
   async function saveMember() {
     if (role === "OWNER") throw new Error("店主身份只能通过店主转移流程修改");
-    await apiRequest(`/stores/${storeId}/members/${member.id}`, { method: "PATCH", body: { version: member.version, displayName: name, role, isServiceProvider: provider } });
+    const commissionBps = parsePercent(defaultCommission, "员工默认提成", true);
+    let version = member.version;
+    let refreshedToday = false;
+    try {
+      if (name.trim() !== member.displayName || role !== member.role || provider !== member.isServiceProvider) {
+        const updated = await apiRequest<StoreMember>(`/stores/${storeId}/members/${member.id}`, { method: "PATCH", body: { version, displayName: name, role, isServiceProvider: provider } });
+        version = updated.version;
+      }
+      const commissionResult = await apiRequest<{ refreshedCurrentDayRecordCount: number }>(`/stores/${storeId}/members/${member.id}/commissions/default`, { method: "PUT", idempotent: true, body: { version, commissionBps } });
+      refreshedToday = commissionResult.refreshedCurrentDayRecordCount > 0;
+    } catch (caught) {
+      await reload();
+      throw caught;
+    }
     await reload();
-  }
-  async function saveDefaultCommission() {
-    await apiRequest(`/stores/${storeId}/members/${member.id}/commissions/default`, { method: "PUT", idempotent: true, body: { version: member.version, commissionBps: parsePercent(defaultCommission, "员工默认提成", true) } });
-    await reload();
+    onSaved(refreshedToday);
   }
   async function openCommission() {
     setCommissionOpen(true);
     setHistory(await apiRequest<CommissionHistoryResponse>(`/stores/${storeId}/members/${member.id}/commissions`));
   }
-  return <article className={`member-card ${active ? "" : "inactive"}`}><header><div className="member-avatar">{member.displayName.slice(0, 1)}</div><div><strong>{member.displayName}</strong><span>{roleText[member.role]} · {active ? "在职" : "已离职/停用"} · {member.user ? "已关联账号" : "等待注册"}</span></div><em>{member.isServiceProvider ? "参与记工" : "不参与记工"}</em></header><div className="member-fields"><label>店内显示名<input disabled={!active || isOwner} value={name} onChange={(event) => setName(event.target.value)} /></label><label>角色<select disabled={!active || isOwner} value={role} onChange={(event) => setRole(event.target.value as "MANAGER" | "EMPLOYEE")}>
-  {isOwner && <option value="OWNER">店主</option>}<option value="EMPLOYEE">员工</option><option value="MANAGER">经理</option></select></label><label className="check-field"><input disabled={!active || isOwner} type="checkbox" checked={provider} onChange={(event) => setProvider(event.target.checked)} />参与记工</label><label>员工默认提成（%）<input disabled={!active || isOwner} placeholder="留空则继续向下匹配" inputMode="decimal" value={defaultCommission} onChange={(event) => setDefaultCommission(event.target.value)} /></label></div><div className="member-actions">{active && !isOwner && <><button className="secondary-action compact" disabled={busy} type="button" onClick={() => void run(saveMember)}>保存成员资料</button><button className="secondary-action compact" disabled={busy} type="button" onClick={() => void run(saveDefaultCommission)}>保存默认提成</button><button className="table-action" type="button" onClick={() => void run(openCommission)}>项目专属提成</button><button className="table-action danger" disabled={busy} type="button" onClick={() => { const reason = window.prompt("请填写离职或停用原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${storeId}/members/${member.id}`, { method: "DELETE", body: { version: member.version, reason: reason.trim() } }); await reload(); }); }}>离职/停用</button></>}{!active && !isOwner && <button className="primary-action compact" disabled={busy} type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/members/${member.id}/restore`, { method: "POST", body: { version: member.version } }); await reload(); })}>恢复为在职成员</button>}{isOwner && <span className="field-help">店主资料和身份需通过店主转移流程修改。</span>}</div>{commissionOpen && <ItemCommissionPanel storeId={storeId} member={member} catalog={catalog} history={history} busy={busy} run={run} close={() => setCommissionOpen(false)} reload={reload} />}</article>;
+  return <article className={`member-card ${active ? "" : "inactive"}`}><header><div className="member-avatar">{member.displayName.slice(0, 1)}</div><div><strong>{member.displayName}</strong><span>{roleText[member.role]} · {active ? "在职" : "已离职/停用"} · {member.user ? "已关联账号" : "等待注册"}</span></div><em>{member.isServiceProvider ? "参与记工" : "不参与记工"}</em></header><div className="member-fields"><label>店内显示名<input disabled={!active || isOwner} value={name} onChange={(event) => { onDirty(); setName(event.target.value); }} /></label><label>角色<select disabled={!active || isOwner} value={role} onChange={(event) => { onDirty(); setRole(event.target.value as "MANAGER" | "EMPLOYEE"); }}>
+  {isOwner && <option value="OWNER">店主</option>}<option value="EMPLOYEE">员工</option><option value="MANAGER">经理</option></select></label><label className="check-field"><input disabled={!active || isOwner} type="checkbox" checked={provider} onChange={(event) => { onDirty(); setProvider(event.target.checked); }} />参与记工</label><label>员工默认提成（%）<input disabled={!active || isOwner} placeholder="留空则继续向下匹配" inputMode="decimal" value={defaultCommission} onChange={(event) => { onDirty(); setDefaultCommission(event.target.value); }} /></label></div>{saved && <p className="success-banner manage-save-success" role="status">{refreshedToday ? "✓ 成员资料与默认提成已保存，今日记工小结已同步" : "✓ 成员资料与默认提成已保存"}</p>}<div className="member-actions">{active && !isOwner && <><button className="secondary-action compact" disabled={busy} type="button" onClick={() => void run(saveMember)}>保存成员资料</button><button className="table-action" type="button" onClick={() => void run(openCommission)}>项目专属提成</button><button className="table-action danger" disabled={busy} type="button" onClick={() => { const reason = window.prompt("请填写离职或停用原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${storeId}/members/${member.id}`, { method: "DELETE", body: { version: member.version, reason: reason.trim() } }); await reload(); }); }}>离职/停用</button></>}{!active && !isOwner && <button className="primary-action compact" disabled={busy} type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/members/${member.id}/restore`, { method: "POST", body: { version: member.version } }); await reload(); })}>恢复为在职成员</button>}{isOwner && <span className="field-help">店主资料和身份需通过店主转移流程修改。</span>}</div>{commissionOpen && <ItemCommissionPanel storeId={storeId} member={member} catalog={catalog} history={history} busy={busy} run={run} close={() => setCommissionOpen(false)} reload={reload} />}</article>;
 }
 
 function ItemCommissionPanel({ storeId, member, catalog, history, busy, run, close, reload }: { storeId: string; member: StoreMember; catalog: CatalogResponse; history: CommissionHistoryResponse | null; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; close: () => void; reload: () => Promise<void> }) {

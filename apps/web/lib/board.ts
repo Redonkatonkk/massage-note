@@ -21,6 +21,14 @@ export function canShowEmployeeClockIn(input: {
     !input.hasOwnRow;
 }
 
+export function canViewEmployeeTotals(input: {
+  role: "OWNER" | "MANAGER" | "EMPLOYEE";
+  viewerMembershipId: string;
+  rowMembershipId: string;
+}): boolean {
+  return input.role !== "EMPLOYEE" || input.viewerMembershipId === input.rowMembershipId;
+}
+
 export function discountBadgeText(cents: number): string {
   const normalizedCents = Math.trunc(cents);
   const sign = normalizedCents < 0 ? "-" : "";

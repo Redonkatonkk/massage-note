@@ -207,6 +207,28 @@ describe("日现金结算与工资余额", () => {
     });
   });
 
+  it("免费项目的工资归入非现金分红并保持已确认收入守恒", () => {
+    const dividends = calculatePersonalClosingPaymentDividends([
+      {
+        totalLargeFeeWageCents: 6_000n,
+        cashAllocatedServiceWageCents: 0n,
+        cashServiceCents: 0n,
+        cardServiceCents: 0n,
+        cashTipCents: 500n,
+        cardTipCents: 1_000n,
+      },
+    ]);
+
+    expect(dividends).toEqual({
+      cashLargeFeeDividendCents: 0n,
+      cashTipDividendCents: 500n,
+      cardLargeFeeDividendCents: 6_000n,
+      cardTipDividendCents: 1_000n,
+    });
+    expect(Object.values(dividends).reduce((sum, amount) => sum + amount, 0n))
+      .toBe(7_500n);
+  });
+
   it("汇总多条记录", () => {
     const records = [
       calculateWorkRecordFinance(record()),

@@ -27,16 +27,16 @@ export function resolveCommission(
       source: "EMPLOYEE_ITEM",
     };
   }
-  if (input.itemDefaultBps != null) {
-    return {
-      bps: basisPoints(input.itemDefaultBps),
-      source: "ITEM_DEFAULT",
-    };
-  }
   if (input.employeeDefaultBps != null) {
     return {
       bps: basisPoints(input.employeeDefaultBps),
       source: "EMPLOYEE_DEFAULT",
+    };
+  }
+  if (input.itemDefaultBps != null) {
+    return {
+      bps: basisPoints(input.itemDefaultBps),
+      source: "ITEM_DEFAULT",
     };
   }
   return {
@@ -60,4 +60,3 @@ export function resolveCustomItemCommission(input: {
     source: "STORE_DEFAULT",
   };
 }
-

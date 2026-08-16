@@ -13,6 +13,8 @@ import { StoreAccessService } from "../src/stores/store-access.service.js";
 import { CommissionsService } from "../src/stores/commissions.service.js";
 import { WorkRecordsService } from "../src/work-records/work-records.service.js";
 import { IdempotencyService } from "../src/common/idempotency.service.js";
+import { BoardsService } from "../src/boards/boards.service.js";
+import { ClosingsService } from "../src/finance/closings.service.js";
 
 const enabled = process.env.DATABASE_INTEGRATION_TESTS === "1";
 const prisma = new PrismaService();
@@ -21,6 +23,8 @@ const idempotency = new IdempotencyService(prisma);
 const catalog = new CatalogService(prisma, access, idempotency);
 const commissions = new CommissionsService(prisma, access, idempotency);
 const workRecords = new WorkRecordsService(prisma, access, idempotency);
+const boards = new BoardsService(prisma, access, idempotency);
+const closings = new ClosingsService(prisma, access, idempotency);
 const storeId = randomUUID();
 const ownerId = randomUUID();
 const employeeId = randomUUID();
@@ -90,6 +94,9 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
       await prisma.discountItem.deleteMany({ where: { storeId } });
       await prisma.employeeItemCommission.deleteMany({ where: { storeId } });
       await prisma.employeeDefaultCommission.deleteMany({ where: { storeId } });
+      await prisma.dailyCashSettlement.deleteMany({ where: { storeId } });
+      await prisma.dailyEmployeeRow.deleteMany({ where: { storeId } });
+      await prisma.dailyBoard.deleteMany({ where: { storeId } });
       await prisma.store.updateMany({
         where: { id: storeId },
         data: { ownerMembershipId: null },
@@ -107,6 +114,7 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
   let addonItemId = "";
   let discountItemId = "";
   let recordId = "";
+  let historicalRecordId = "";
   let recordVersion = 0;
 
   it("店主一次性初始化项目，员工可读取项目", async () => {
@@ -346,7 +354,7 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it("快速记工保存价格、时长和项目默认提成快照", async () => {
+  it("快速记工优先保存员工默认提成快照", async () => {
     await expect(
       workRecords.create(
         actor(employeeId),
@@ -392,12 +400,12 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
       actualDurationMinutes: 60,
       serviceSnapshot: {
         sourceServiceItemId: serviceItemId,
-        commissionBps: 6_000,
-        commissionSource: "ITEM_DEFAULT",
+        commissionBps: 5_500,
+        commissionSource: "EMPLOYEE_DEFAULT",
       },
     });
     expect(Number(created.mainServiceAmountCents)).toBe(10_000);
-    expect(Number(created.mainServiceWageCents)).toBe(6_000);
+    expect(Number(created.mainServiceWageCents)).toBe(5_500);
     expect(Number(created.serviceSnapshot?.amountCents)).toBe(10_000);
   });
 
@@ -494,12 +502,13 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
         "monday-auto-discount-create-key-0001",
         "monday-auto-discount-create",
       );
+      historicalRecordId = mondayRecord.id;
       expect(mondayRecord).toMatchObject({
         grossFeeBaseCents: 10_000n,
         discountTotalCents: 1_000n,
         discountedFeePerformanceCents: 9_000n,
-        mainServiceWageCents: 6_000n,
-        totalLargeFeeWageCents: 6_000n,
+        mainServiceWageCents: 5_500n,
+        totalLargeFeeWageCents: 5_500n,
       });
       expect(mondayRecord.discountSnapshots).toEqual([
         expect.objectContaining({
@@ -531,7 +540,7 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
       expect(withManualDiscount).toMatchObject({
         discountTotalCents: 2_000n,
         discountedFeePerformanceCents: 8_000n,
-        totalLargeFeeWageCents: 6_000n,
+        totalLargeFeeWageCents: 5_500n,
       });
 
       const withoutAutomaticDiscount = await workRecords.update(
@@ -551,7 +560,7 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
       expect(withoutAutomaticDiscount).toMatchObject({
         discountTotalCents: 1_000n,
         discountedFeePerformanceCents: 9_000n,
-        totalLargeFeeWageCents: 6_000n,
+        totalLargeFeeWageCents: 5_500n,
       });
 
       const stillWithoutAutomaticDiscount = await workRecords.update(
@@ -618,12 +627,92 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
       "commission-default-key-0001",
       "set-default-commission",
     );
-    const itemOverride = await commissions.setItem(
+    expect(employeeDefault.refreshedCurrentDayRecordCount).toBeGreaterThan(0);
+    const afterEmployeeDefault = await prisma.workRecord.findUniqueOrThrow({
+      where: { id: recordId },
+      include: { serviceSnapshot: true },
+    });
+    expect(afterEmployeeDefault).toMatchObject({
+      mainServiceWageCents: 6_200n,
+      totalLargeFeeWageCents: 6_200n,
+      serviceSnapshot: {
+        commissionBps: 6_200,
+        commissionSource: "EMPLOYEE_DEFAULT",
+        wageCents: 6_200n,
+      },
+    });
+    await expect(prisma.workRecord.findUniqueOrThrow({
+      where: { id: historicalRecordId },
+      include: { serviceSnapshot: true },
+    })).resolves.toMatchObject({
+      totalLargeFeeWageCents: 5_500n,
+      serviceSnapshot: {
+        commissionBps: 5_500,
+        commissionSource: "EMPLOYEE_DEFAULT",
+      },
+    });
+    await prisma.workRecordServiceSnapshot.update({
+      where: { workRecordId: recordId },
+      data: {
+        commissionBps: 6_000,
+        commissionSource: "ITEM_DEFAULT",
+        wageCents: 6_000,
+      },
+    });
+    await prisma.workRecord.update({
+      where: { id: recordId },
+      data: {
+        mainServiceWageCents: 6_000,
+        totalLargeFeeWageCents: 6_000,
+      },
+    });
+    const settledCash = await prisma.dailyCashSettlement.create({
+      data: {
+        storeId,
+        businessDate: afterEmployeeDefault.businessDate,
+        membershipId: employeeMembershipId,
+        cashServiceCents: 0,
+        cashTipCents: 0,
+        cashReceivedCents: 0,
+        cashAllocatedServiceWageCents: 0,
+        cashAcquiredServiceWageCents: 0,
+        cashWageShortfallCents: 0,
+        cashRetainedCents: 0,
+        cashToSubmitToStoreCents: 0,
+        status: "SETTLED",
+        settledBy: ownerId,
+        settledAt: new Date(),
+      },
+    });
+    const sameEmployeeDefault = await commissions.setDefault(
       actor(ownerId),
       storeId,
       employeeMembershipId,
       {
         version: employeeDefault.membership.version,
+        commissionBps: 6_200,
+      },
+      "commission-default-refresh-key-0001",
+      "refresh-same-default-commission",
+    );
+    expect(sameEmployeeDefault.refreshedCurrentDayRecordCount).toBeGreaterThan(0);
+    await expect(prisma.employeeDefaultCommission.count({
+      where: { storeId, membershipId: employeeMembershipId },
+    })).resolves.toBe(1);
+    await expect(prisma.dailyCashSettlement.findUniqueOrThrow({
+      where: { id: settledCash.id },
+    })).resolves.toMatchObject({
+      status: "UNSETTLED",
+      settledBy: null,
+      settledAt: null,
+      version: 2,
+    });
+    const itemOverride = await commissions.setItem(
+      actor(ownerId),
+      storeId,
+      employeeMembershipId,
+      {
+        version: sameEmployeeDefault.membership.version,
         itemType: "SERVICE",
         itemId: serviceItemId,
         commissionBps: 7_000,
@@ -664,7 +753,7 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
       "commission-item-clear-key-0001",
       "clear-item-commission",
     );
-    expect(cleared.membership.version).toBe(4);
+    expect(cleared.membership.version).toBe(5);
     const history = await commissions.list(
       actor(ownerId),
       storeId,
@@ -672,6 +761,63 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     );
     expect(history.defaultHistory[0]?.commissionBps).toBe(6_200);
     expect(history.itemHistory[0]?.effectiveTo).not.toBeNull();
+    const afterItemClear = await prisma.workRecord.findUniqueOrThrow({
+      where: { id: recordId },
+      include: { serviceSnapshot: true },
+    });
+    expect(afterItemClear.serviceSnapshot).toMatchObject({
+      commissionBps: 6_200,
+      commissionSource: "EMPLOYEE_DEFAULT",
+      wageCents: 6_200n,
+    });
+    const currentBusinessDate = afterItemClear.businessDate
+      .toISOString()
+      .slice(0, 10);
+    await boards.addRow(
+      actor(ownerId),
+      storeId,
+      currentBusinessDate,
+      { membershipId: employeeMembershipId },
+      "commission-summary-board-row-key-0001",
+      "commission-summary-board-row",
+    );
+    const currentRecords = await prisma.workRecord.findMany({
+      where: {
+        storeId,
+        employeeMembershipId,
+        businessDate: afterItemClear.businessDate,
+        deletedAt: null,
+      },
+    });
+    const expectedLargeFeeWage = currentRecords.reduce(
+      (sum, record) => sum + record.totalLargeFeeWageCents,
+      0n,
+    );
+    const expectedTip = currentRecords.reduce(
+      (sum, record) => sum + (record.totalTipCents ?? 0n),
+      0n,
+    );
+    const board = await boards.getBoard(
+      actor(ownerId),
+      storeId,
+      currentBusinessDate,
+    );
+    expect(board.rows.find((row) => row.membershipId === employeeMembershipId)?.statistics)
+      .toMatchObject({
+        totalLargeFeeWageCents: expectedLargeFeeWage,
+        employeeIncomeCents: expectedLargeFeeWage + expectedTip,
+      });
+    const closing = await closings.previewMember(
+      actor(ownerId),
+      storeId,
+      currentBusinessDate,
+      employeeMembershipId,
+    );
+    expect(closing.employee).toMatchObject({
+      totalLargeFeeWageCents: Number(expectedLargeFeeWage),
+      employeeIncomeCents: Number(expectedLargeFeeWage + expectedTip),
+    });
+    recordVersion = afterItemClear.version;
   });
 
   it("后来修改项目价格不改变旧记工，付款确认按现金上限计算", async () => {
@@ -713,9 +859,9 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     });
     expect(Number(confirmed.mainServiceAmountCents)).toBe(10_000);
     expect(Number(confirmed.actualServiceCollectedCents)).toBe(10_000);
-    expect(Number(confirmed.employeeTotalIncomeCents)).toBe(8_000);
-    expect(Number(confirmed.cashAllocatedServiceWageCents)).toBe(600);
-    expect(Number(confirmed.cashAcquiredServiceWageCents)).toBe(600);
+    expect(Number(confirmed.employeeTotalIncomeCents)).toBe(8_200);
+    expect(Number(confirmed.cashAllocatedServiceWageCents)).toBe(620);
+    expect(Number(confirmed.cashAcquiredServiceWageCents)).toBe(620);
     expect(Number(confirmed.cashWageShortfallCents)).toBe(0);
     expect(confirmed.payment).toMatchObject({
       cashServiceCents: expect.anything(),
@@ -817,9 +963,9 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
       grossFeeBaseCents: 13_500n,
       discountTotalCents: 1_500n,
       discountedFeePerformanceCents: 12_000n,
-      addonWageCents: 1_870n,
-      totalLargeFeeWageCents: 8_370n,
-      employeeTotalIncomeCents: 10_370n,
+      addonWageCents: 2_170n,
+      totalLargeFeeWageCents: 8_670n,
+      employeeTotalIncomeCents: 10_670n,
       paymentDifferenceCents: -2_000n,
       tipSettledManualFlag: true,
       largeFeeSettledManualFlag: true,
@@ -948,5 +1094,24 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
         "closed-day-payment",
       ),
     ).rejects.toBeInstanceOf(ConflictException);
+    const membership = await prisma.storeMembership.findUniqueOrThrow({
+      where: { id: employeeMembershipId },
+    });
+    const closedDayCommission = await commissions.setDefault(
+      actor(ownerId),
+      storeId,
+      employeeMembershipId,
+      { version: membership.version, commissionBps: 6_500 },
+      "closed-day-commission-key-0001",
+      "closed-day-commission",
+    );
+    expect(closedDayCommission.refreshedCurrentDayRecordCount).toBe(0);
+    await expect(prisma.workRecordServiceSnapshot.findUniqueOrThrow({
+      where: { workRecordId: custom.id },
+    })).resolves.toMatchObject({
+      commissionBps: 6_200,
+      commissionSource: "EMPLOYEE_DEFAULT",
+      wageCents: 7_440n,
+    });
   });
 });

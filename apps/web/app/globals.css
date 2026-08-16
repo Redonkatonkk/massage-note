@@ -310,6 +310,10 @@ h2 {
   min-width: 0;
 }
 
+.employee-content--records-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .record-track {
   display: flex;
   min-width: 0;

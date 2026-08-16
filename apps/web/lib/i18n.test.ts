@@ -16,6 +16,14 @@ describe("bilingual UI translation", () => {
   it("translates fixed labels and preserves surrounding whitespace", () => {
     expect(translateText("  店铺设置 ", "en-US")).toBe("  Store settings ");
     expect(translateText("现金大费", "en-US")).toBe("Cash service fees");
+    expect(translateText("✓ 成员资料与默认提成已保存", "en-US"))
+      .toBe("✓ Member details and default commission saved");
+    expect(translateText("✓ 成员资料与默认提成已保存，今日记工小结已同步", "en-US"))
+      .toContain("today's record totals are updated");
+    expect(translateText("员工页面不显示全店经营汇总；今日可查看同事记工，但每行的大费、小费和应得小结只显示本人。", "en-US"))
+      .toContain("totals are shown only on their own row");
+    expect(translateText("提成优先顺序：员工项目专属比例 → 员工默认比例 → 项目默认比例 → 全店默认比例。保存员工提成后会重算未日结的当前营业日；已日结和历史记工继续使用原快照。", "en-US"))
+      .toContain("employee default → service default");
   });
 
   it("translates dynamic status text without changing user names", () => {

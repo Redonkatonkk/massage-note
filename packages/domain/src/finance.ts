@@ -231,8 +231,8 @@ export interface PersonalClosingPaymentDividends {
 }
 
 /**
- * 个人日结的四项分红只汇总已确认记工：大费工资沿用付款确认时的现金／刷卡
- * 比例分摊，小费则按实际确认的现金／刷卡金额归类。
+ * 个人日结的四项分红只汇总已确认记工：大费工资先按现金付款比例分配，
+ * 其余未通过现金分配的工资归入刷卡／非现金，小费按实际确认方式归类。
  */
 export function calculatePersonalClosingPaymentDividends(
   records: readonly PersonalClosingPaymentRecord[],
@@ -242,8 +242,6 @@ export function calculatePersonalClosingPaymentDividends(
     const cashAllocatedServiceWageCents = cents(
       record.cashAllocatedServiceWageCents,
     );
-    const cashServiceCents = cents(record.cashServiceCents);
-    const cardServiceCents = cents(record.cardServiceCents);
     if (cashAllocatedServiceWageCents > totalLargeFeeWageCents) {
       throw new DomainError(
         "CASH_ALLOCATED_WAGE_EXCEEDS_TOTAL",
@@ -251,12 +249,9 @@ export function calculatePersonalClosingPaymentDividends(
       );
     }
     return {
-      cashLargeFeeDividendCents:
-        cashServiceCents > 0n ? cashAllocatedServiceWageCents : 0n,
+      cashLargeFeeDividendCents: cashAllocatedServiceWageCents,
       cardLargeFeeDividendCents:
-        cardServiceCents > 0n
-          ? totalLargeFeeWageCents - cashAllocatedServiceWageCents
-          : 0n,
+        totalLargeFeeWageCents - cashAllocatedServiceWageCents,
     };
   });
 

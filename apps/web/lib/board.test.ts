@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canShowEmployeeClockIn,
+  canViewEmployeeTotals,
   deduplicateMembershipRows,
   discountBadgeText,
 } from "./board";
@@ -39,5 +40,14 @@ describe("今日表格行整理", () => {
     expect(canShowEmployeeClockIn({ ...eligible, isCurrentBusinessDay: false })).toBe(false);
     expect(canShowEmployeeClockIn({ ...eligible, isClosed: true })).toBe(false);
     expect(canShowEmployeeClockIn({ ...eligible, hasOwnRow: true })).toBe(false);
+  });
+
+  it("员工只能看到自己的行小结，店长和经理可以看到所有行小结", () => {
+    const rowMembershipId = "employee-2";
+
+    expect(canViewEmployeeTotals({ role: "OWNER", viewerMembershipId: "owner", rowMembershipId })).toBe(true);
+    expect(canViewEmployeeTotals({ role: "MANAGER", viewerMembershipId: "manager", rowMembershipId })).toBe(true);
+    expect(canViewEmployeeTotals({ role: "EMPLOYEE", viewerMembershipId: rowMembershipId, rowMembershipId })).toBe(true);
+    expect(canViewEmployeeTotals({ role: "EMPLOYEE", viewerMembershipId: "employee-1", rowMembershipId })).toBe(false);
   });
 });

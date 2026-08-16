@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
-import { canShowEmployeeClockIn, discountBadgeText } from "../lib/board";
+import { canShowEmployeeClockIn, canViewEmployeeTotals, discountBadgeText } from "../lib/board";
 import { financeClosingHref } from "../lib/navigation";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
 import { activeWorkRecord } from "../lib/work-status";
@@ -364,6 +364,11 @@ export function TodayBoard({
           const workStatus = activeRecord
             ? `下工时间 · ${activeRecord.endAt ? displayTime(activeRecord.endAt, currentDay.timezone) : "未定"}`
             : "空闲";
+          const showTotals = canViewEmployeeTotals({
+            role: membership.role,
+            viewerMembershipId: membership.id,
+            rowMembershipId: row.membershipId,
+          });
           return (
             <article className={`employee-row${row.isHidden && canManage ? " employee-row--hidden" : ""}${draggingRowId === row.id ? " employee-row--dragging" : ""}`} key={row.id} onDragOver={canManage && !board.isClosed ? (event) => event.preventDefault() : undefined} onDrop={canManage && !board.isClosed ? () => void run(() => dropRow(row.id)) : undefined}>
               <header className="employee-header">
@@ -393,7 +398,7 @@ export function TodayBoard({
               </header>
 
               {!isCollapsed && (
-                <div className="employee-content">
+                <div className={`employee-content${showTotals ? "" : " employee-content--records-only"}`}>
                   <div className="record-track">
                     {row.workRecords.map((record) => (
                       <button
@@ -430,11 +435,11 @@ export function TodayBoard({
                       </button>
                     )}
                   </div>
-                  <dl className="employee-totals">
+                  {showTotals && <dl className="employee-totals">
                     <div><dt>大费</dt><dd>{money(row.statistics.grossFeeBaseCents)}</dd></div>
                     <div><dt>小费</dt><dd>{money(row.statistics.totalTipCents)}</dd></div>
                     <div><dt>应得</dt><dd>{money(row.statistics.employeeIncomeCents)}</dd></div>
-                  </dl>
+                  </dl>}
                 </div>
               )}
             </article>

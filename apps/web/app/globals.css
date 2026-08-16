@@ -857,6 +857,71 @@ h2 {
   opacity: 0.68;
 }
 
+.hidden-rows-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid #d8cbbd;
+  border-radius: 16px;
+  background: #f8f5f1;
+}
+
+.hidden-rows-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.hidden-rows-panel > header p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: .8rem;
+}
+
+.hidden-rows-panel > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.hidden-rows-panel article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+}
+
+.hidden-rows-panel article .employee-avatar {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+  border-radius: 11px;
+}
+
+.hidden-rows-panel article > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.hidden-rows-panel article strong,
+.hidden-rows-panel article small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hidden-rows-panel article small {
+  color: var(--muted);
+}
+
 .employee-row--dragging {
   opacity: 0.45;
   outline: 2px dashed var(--brand);
@@ -1294,6 +1359,10 @@ h2 {
   .amount-explainer {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .hidden-rows-panel > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
@@ -1303,6 +1372,15 @@ h2 {
 
   .topbar {
     align-items: center;
+  }
+
+  .hidden-rows-panel > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hidden-rows-panel > div {
+    grid-template-columns: 1fr;
   }
 
   .topbar-actions {
@@ -1724,8 +1802,14 @@ h2 {
 .section-tabs { display: flex; gap: 8px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 4px; }
 .section-tabs button { min-height: 46px; flex: 0 0 auto; padding: 0 18px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); color: var(--muted); font-weight: 800; cursor: pointer; }
 .section-tabs button.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
-.finance-section { display: grid; gap: 18px; }
+.finance-shell, .finance-section, .finance-metric-group, .finance-report-section { min-width: 0; }
+.finance-section { display: grid; gap: 22px; }
 .filter-panel { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)) auto; gap: 10px; align-items: end; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
+.filter-panel__heading { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
+.filter-panel__heading > div { display: grid; gap: 3px; }
+.filter-panel__heading strong { font-size: 1.04rem; }
+.filter-panel__heading p { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+.filter-panel__heading .export-link { min-height: 42px; padding: 0 14px; }
 .quick-ranges { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
 .quick-ranges button { min-height: 42px; padding: 0 16px; border: 1px solid var(--line); border-radius: 11px; background: #fffaf3; color: var(--ink); font-weight: 800; cursor: pointer; }
 .quick-ranges button:hover { border-color: var(--brand); color: var(--brand); }
@@ -1753,15 +1837,27 @@ h2 {
 .finance-cards .finance-summary-tooltip strong { font-size: 0.95rem; }
 .finance-cards .finance-summary-tooltip span { color: var(--brand); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.05em; }
 .finance-summary-tooltip p { margin: 0 0 5px; color: var(--ink); font-size: 0.82rem; line-height: 1.55; }
+.finance-metric-group { display: grid; gap: 12px; padding: 18px; border: 1px solid var(--line); border-radius: 20px; background: color-mix(in srgb, var(--surface) 88%, #f8eee4); }
+.finance-metric-group > header { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+.finance-metric-group > header h2, .finance-report-heading h2 { margin: 0; font-size: 1.15rem; }
+.finance-metric-group > header p, .finance-report-heading p { margin: 4px 0 0; color: var(--muted); font-size: .82rem; line-height: 1.5; }
+.finance-metric-group--emphasis { border-color: #ddb58c; background: linear-gradient(135deg, #fff8ee 0%, #fffdf9 58%, #f7eee8 100%); }
+.finance-metric-group--emphasis .finance-summary-card { border-color: color-mix(in srgb, var(--brand) 22%, var(--line)); }
 .amount-link { padding: 3px 5px; border: 0; border-bottom: 1px dashed var(--brand); background: transparent; color: var(--brand); font: inherit; font-weight: 800; white-space: nowrap; cursor: pointer; }
 .amount-link:hover { background: var(--brand-soft); }
 .filter-actions { display: grid; gap: 7px; }
 .filter-actions .primary-action, .filter-actions .secondary-action { min-height: 44px; padding: 0 14px; }
 .export-link { display: grid; place-items: center; text-decoration: none; white-space: nowrap; }
-.finance-details { padding: 17px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
-.finance-details .manage-heading { margin-bottom: 13px; }
+.finance-details-backdrop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 22px; background: rgba(42, 30, 22, .42); backdrop-filter: blur(5px); }
+.finance-details { display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(1180px, 100%); max-width: 100%; max-height: min(760px, calc(100dvh - 44px)); min-width: 0; overflow: hidden; padding: 20px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface); box-shadow: 0 28px 90px rgba(42, 30, 22, .28); }
+.finance-details__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding-bottom: 14px; }
+.finance-details__heading h2 { margin: 2px 0 0; font-size: 1.25rem; }
+.finance-details__heading p:not(.eyebrow) { margin: 5px 0 0; color: var(--muted); font-size: .82rem; }
+.finance-details__table { min-width: 0; max-width: 100%; max-height: min(610px, calc(100dvh - 180px)); overflow: auto; box-shadow: none; }
+.finance-report-section { display: grid; gap: 12px; }
+.finance-report-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; padding: 0 2px; }
 .table-title { margin-top: 12px; font-size: 1.2rem; }
-.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); box-shadow: var(--shadow); }
+.table-scroll { max-width: 100%; min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); box-shadow: var(--shadow); }
 .data-table { width: 100%; border-collapse: collapse; white-space: nowrap; }
 .data-table th, .data-table td { padding: 13px 14px; border-bottom: 1px solid var(--line); text-align: right; }
 .data-table th:first-child, .data-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); text-align: left; }
@@ -1882,6 +1978,12 @@ h2 {
   .history-toolbar label, .history-date-form { align-items: stretch; flex-direction: column; }
   .payroll-fields .wide { grid-column: auto; }
   .balance-list article, .closing-status, .date-toolbar { align-items: stretch; flex-direction: column; }
+  .filter-panel__heading, .finance-metric-group > header, .finance-report-heading, .finance-details__heading { align-items: stretch; flex-direction: column; }
+  .filter-panel__heading .export-link { width: 100%; }
+  .finance-metric-group { padding: 14px; border-radius: 17px; }
+  .finance-details-backdrop { align-items: stretch; padding: 0; }
+  .finance-details { width: 100vw; max-height: 100dvh; padding: 16px; border-radius: 0; }
+  .finance-details__table { max-height: calc(100dvh - 150px); }
   .balance-numbers { display: grid; justify-content: start; }
   .cash-grid dl { grid-template-columns: repeat(2, 1fr); }
   .closing-actions { display: grid; }

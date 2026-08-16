@@ -484,7 +484,7 @@ export class BoardsService {
         responseCode: 200,
       },
       async (transaction) => {
-        await this.assertDayOpen(transaction, storeId, businessDate);
+        await lockBusinessDay(transaction, storeId, businessDate);
         const row = await transaction.dailyEmployeeRow.findFirst({
           where: {
             id: rowId,

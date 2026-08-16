@@ -20,6 +20,7 @@ import { AppNav } from "../app-nav";
 import { EmployeeClosingSummary } from "../employee-closing";
 import { FloatingAiAssistant } from "../floating-ai-assistant";
 import {
+  financeSummaryGroups,
   financeSummaryMetrics,
   type FinanceSummaryMetricKey,
 } from "./summary-metrics";
@@ -92,6 +93,33 @@ function FinanceSummaryCard({
   );
 }
 
+function FinanceDetailsDialog({
+  details,
+  title,
+  onClose,
+}: {
+  details: FinanceDetailsResponse;
+  title: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="finance-details-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="finance-details" role="dialog" aria-modal="true" aria-labelledby="finance-details-title">
+        <div className="finance-details__heading">
+          <div>
+            <p className="eyebrow">{details.filters.dateFrom} 至 {details.filters.dateTo}</p>
+            <h2 id="finance-details-title">{title} · 组成明细</h2>
+            <p>{details.records.length} 条记工；表格可左右滑动查看全部金额。</p>
+          </div>
+          <button className="close-button" type="button" onClick={onClose}>关闭</button>
+        </div>
+        <div className="table-scroll finance-details__table"><table className="data-table"><thead><tr><th>营业日</th><th>员工</th><th>项目</th><th>状态</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>现金大费</th><th>刷卡大费</th><th>现金小费</th><th>刷卡小费</th><th>客人总付款</th><th>大费工资</th><th>员工总收入</th></tr></thead><tbody>{details.records.map((record) => <tr key={record.id}><td>{dateOnly(record.businessDate)}</td><td>{record.employee.displayName}</td><td>{record.serviceSnapshot?.shortName ?? "自定义"}</td><td>{record.status === "CONFIRMED" ? "已确认" : "待结账"}</td><td>{money(record.mainServiceAmountCents)}</td><td>{money(record.addonTotalCents)}</td><td>{money(record.grossFeeBaseCents)}</td><td>{money(record.discountTotalCents)}</td><td>{money(record.discountedFeePerformanceCents)}</td><td>{money(record.cashServiceCents)}</td><td>{money(record.cardServiceCents)}</td><td>{money(record.cashTipCents)}</td><td>{money(record.cardTipCents)}</td><td>{money(record.customerTotalPaidCents)}</td><td>{money(record.totalLargeFeeWageCents)}</td><td>{money(record.employeeTotalIncomeCents)}</td></tr>)}</tbody></table></div>
+        {details.records.length === 0 && <p className="empty-state">当前范围没有明细记录。</p>}
+      </section>
+    </div>
+  );
+}
+
 export function FinancePageClient() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [membership, setMembership] = useState<MembershipSummary | null>(null);
@@ -100,6 +128,7 @@ export function FinancePageClient() {
   const [tab, setTab] = useState<FinanceTab>("summary");
   const [summary, setSummary] = useState<FinanceSummaryResponse | null>(null);
   const [details, setDetails] = useState<FinanceDetailsResponse | null>(null);
+  const [detailsTitle, setDetailsTitle] = useState("财务数据");
   const [cashData, setCashData] = useState<CashSettlementResponse | null>(null);
   const [closing, setClosing] = useState<ClosingPreview | null>(null);
   const [myClosing, setMyClosing] = useState<EmployeeClosingPreview | null>(null);
@@ -265,6 +294,20 @@ export function FinancePageClient() {
     void loadClosing().catch((caught) => setError(errorMessage(caught)));
   }, [cashDate, membership, canManage, loadCash, loadClosing]);
 
+  useEffect(() => {
+    if (!details) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDetails(null);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [details]);
+
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -278,7 +321,7 @@ export function FinancePageClient() {
   }
 
   function detailAmount(value: string | number, label: string, override: FinanceRangeOverride) {
-    return <button className="amount-link" type="button" aria-label={`${label}，查看组成明细`} onClick={() => void run(() => loadDetails(override))}>{value}</button>;
+    return <button className="amount-link" type="button" aria-label={`${label}，查看组成明细`} onClick={() => void run(async () => { setDetailsTitle(label); setDetails(null); await loadDetails(override); })}>{value}</button>;
   }
 
   if (loading || !membership || !me || !day) {
@@ -307,16 +350,16 @@ export function FinancePageClient() {
       {tab === "summary" && summary && (
         <section className="finance-section">
           <form className="filter-panel" onSubmit={(event) => { event.preventDefault(); void run(loadSummary); }}>
+            <div className="filter-panel__heading"><div><strong>筛选范围</strong><p>先选日期；需要时再限定员工、付款方式和金额类型。</p></div><a className="secondary-action export-link" href={`${apiBase}/stores/${membership.store.id}/finance/export.csv?${currentFinanceParams()}`} download>导出当前结果</a></div>
             <div className="quick-ranges" aria-label="快捷日期范围"><button type="button" disabled={busy} onClick={() => void run(() => loadSummary({ dateFrom: day.businessDate, dateTo: day.businessDate }))}>今天</button><button type="button" disabled={busy} onClick={() => void run(() => loadSummary({ dateFrom: shiftDate(day.businessDate, -6), dateTo: day.businessDate }))}>最近 7 天</button><button type="button" disabled={busy} onClick={() => void run(() => loadSummary({ dateFrom: `${day.businessDate.slice(0, 8)}01`, dateTo: day.businessDate }))}>本月</button></div>
             <label>开始日期<input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label>
             <label>结束日期<input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label>
             {canManage && <label>员工（可多选）<select multiple value={memberIds} onChange={(event) => setMemberIds([...event.currentTarget.selectedOptions].map((option) => option.value))}>{members.filter((member) => !member.deletedAt).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>}
             <label>付款方式<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="CARD">刷卡</option><option value="CASH">现金</option><option value="ALL">全部</option></select></label>
             <label>金额类型<select value={amountType} onChange={(event) => setAmountType(event.target.value)}><option value="ALL">大费＋小费</option><option value="SERVICE">仅大费</option><option value="TIP">仅小费</option></select></label>
-            <div className="filter-actions"><button className="primary-action" type="submit" disabled={busy}>应用筛选</button><a className="secondary-action export-link" href={`${apiBase}/stores/${membership.store.id}/finance/export.csv?${currentFinanceParams()}`} download>导出 CSV</a></div>
+            <div className="filter-actions"><button className="primary-action" type="submit" disabled={busy}>查看结果</button>{memberIds.length > 0 && <button className="secondary-action" type="button" disabled={busy} onClick={() => setMemberIds([])}>清除员工</button>}</div>
           </form>
-          <div className="finance-cards">
-            {(() => {
+          {(() => {
               const values: Record<FinanceSummaryMetricKey, { value: string; caption: string }> = {
                 recordCount: { value: `${summary.totals.recordCount} 单`, caption: summary.totals.incompleteRecordCount > 0 ? `${summary.totals.incompleteRecordCount} 单待结账` : "全部已确认" },
                 mainServiceAmountCents: { value: money(summary.totals.mainServiceAmountCents), caption: "不含额外项目" },
@@ -335,23 +378,12 @@ export function FinancePageClient() {
                 employeeIncomeCents: { value: money(summary.totals.employeeIncomeCents), caption: "大费工资＋小费" },
                 settledCashAcquiredWithinRangeCents: { value: money(summary.totals.settledCashAcquiredWithinRangeCents), caption: "仅计算已结清的现金工资与现金小费" },
               };
-              return financeSummaryMetrics.map(({ key, ...metric }) => (
-                <FinanceSummaryCard
-                  key={key}
-                  {...metric}
-                  {...values[key]}
-                  onViewDetails={() => void run(loadDetails)}
-                />
-              ));
+              const metricByKey = new Map(financeSummaryMetrics.map((metric) => [metric.key, metric]));
+              return financeSummaryGroups.map((group) => <section className={`finance-metric-group${group.emphasis ? " finance-metric-group--emphasis" : ""}`} key={group.key}><header><div><h2>{group.title}</h2><p>{group.description}</p></div></header><div className="finance-cards">{group.metricKeys.map((key) => { const metric = metricByKey.get(key)!; return <FinanceSummaryCard key={key} label={metric.label} explanation={metric.explanation} calculation={metric.calculation} {...values[key]} onViewDetails={() => void run(async () => { setDetailsTitle(metric.label); setDetails(null); await loadDetails(); })} />; })}</div></section>);
             })()}
-          </div>
-          {details && <section className="finance-details"><div className="manage-heading"><div><p className="eyebrow">{details.filters.dateFrom} 至 {details.filters.dateTo}</p><h2>组成明细</h2></div><button className="close-button" type="button" onClick={() => setDetails(null)}>收起</button></div><div className="table-scroll"><table className="data-table"><thead><tr><th>营业日</th><th>员工</th><th>项目</th><th>状态</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>现金大费</th><th>刷卡大费</th><th>现金小费</th><th>刷卡小费</th><th>客人总付款</th><th>大费工资</th><th>员工总收入</th></tr></thead><tbody>{details.records.map((record) => <tr key={record.id}><td>{dateOnly(record.businessDate)}</td><td>{record.employee.displayName}</td><td>{record.serviceSnapshot?.shortName ?? "自定义"}</td><td>{record.status === "CONFIRMED" ? "已确认" : "待结账"}</td><td>{money(record.mainServiceAmountCents)}</td><td>{money(record.addonTotalCents)}</td><td>{money(record.grossFeeBaseCents)}</td><td>{money(record.discountTotalCents)}</td><td>{money(record.discountedFeePerformanceCents)}</td><td>{money(record.cashServiceCents)}</td><td>{money(record.cardServiceCents)}</td><td>{money(record.cashTipCents)}</td><td>{money(record.cardTipCents)}</td><td>{money(record.customerTotalPaidCents)}</td><td>{money(record.totalLargeFeeWageCents)}</td><td>{money(record.employeeTotalIncomeCents)}</td></tr>)}</tbody></table></div>{details.records.length === 0 && <p className="empty-state">当前范围没有明细记录。</p>}</section>}
-          <h2 className="table-title">员工小计</h2>
-          <div className="table-scroll"><table className="data-table"><thead><tr><th>员工</th><th>单数</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>小费</th><th>大费工资</th><th>总收入</th></tr></thead><tbody>{summary.employees.map((row) => { const scope = { memberIds: [row.membershipId] }; return <tr key={row.membershipId}><td>{row.displayName}</td><td>{detailAmount(row.recordCount, `${row.displayName}项目数量`, scope)}</td><td>{detailAmount(money(row.mainServiceAmountCents), `${row.displayName}主要项目`, scope)}</td><td>{detailAmount(money(row.addonTotalCents), `${row.displayName}额外项目`, scope)}</td><td>{detailAmount(money(row.grossFeeBaseCents), `${row.displayName}大费基数`, scope)}</td><td>{detailAmount(money(row.discountTotalCents), `${row.displayName}折扣`, scope)}</td><td>{detailAmount(money(row.discountedFeePerformanceCents), `${row.displayName}折后大费`, scope)}</td><td>{detailAmount(money(row.totalTipCents), `${row.displayName}小费`, scope)}</td><td>{detailAmount(money(row.totalLargeFeeWageCents), `${row.displayName}大费工资`, scope)}</td><td>{detailAmount(money(row.employeeIncomeCents), `${row.displayName}总收入`, scope)}</td></tr>; })}</tbody></table></div>
-          <h2 className="table-title">每日小计</h2>
-          <div className="table-scroll"><table className="data-table"><thead><tr><th>营业日</th><th>单数</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>实收服务费</th><th>小费</th><th>客人总付款</th><th>员工总收入</th></tr></thead><tbody>{summary.days.map((row) => { const scope = { dateFrom: row.businessDate, dateTo: row.businessDate }; return <tr key={row.businessDate}><td>{row.businessDate}</td><td>{detailAmount(row.recordCount, `${row.businessDate}项目数量`, scope)}</td><td>{detailAmount(money(row.mainServiceAmountCents), `${row.businessDate}主要项目`, scope)}</td><td>{detailAmount(money(row.addonTotalCents), `${row.businessDate}额外项目`, scope)}</td><td>{detailAmount(money(row.grossFeeBaseCents), `${row.businessDate}大费基数`, scope)}</td><td>{detailAmount(money(row.discountTotalCents), `${row.businessDate}折扣`, scope)}</td><td>{detailAmount(money(row.discountedFeePerformanceCents), `${row.businessDate}折后大费`, scope)}</td><td>{detailAmount(money(row.actualServiceCollectedCents), `${row.businessDate}实收服务费`, scope)}</td><td>{detailAmount(money(row.totalTipCents), `${row.businessDate}小费`, scope)}</td><td>{detailAmount(money(row.customerTotalPaidCents), `${row.businessDate}客人总付款`, scope)}</td><td>{detailAmount(money(row.employeeIncomeCents), `${row.businessDate}员工总收入`, scope)}</td></tr>; })}</tbody></table></div>
-          <h2 className="table-title">累计余额</h2>
-          <div className="balance-list">{summary.balances.map((balance) => <article key={balance.membershipId}><div><strong>{balance.displayName}</strong><span>{balance.excludedOwner ? "店主不进入工资结算" : `累计应得 ${money(balance.cumulativeEmployeeIncomeCents)}`}</span></div>{!balance.excludedOwner && <div className="balance-numbers"><span>现金已取得 {money(balance.settledCashAcquiredCents)}</span><span>工资已支付 {money(balance.payrollPaidCents)}</span><strong>尚欠 {money(balance.employerOwesCents)}</strong>{balance.overpaidCents > 0 && <em>超付 {money(balance.overpaidCents)}</em>}</div>}</article>)}</div>
+          <section className="finance-report-section"><div className="finance-report-heading"><div><h2>员工小计</h2><p>横向比较每位员工；点击金额查看该员工的逐笔组成。</p></div></div><div className="table-scroll"><table className="data-table"><thead><tr><th>员工</th><th>单数</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>小费</th><th>大费工资</th><th>总收入</th></tr></thead><tbody>{summary.employees.map((row) => { const scope = { memberIds: [row.membershipId] }; return <tr key={row.membershipId}><td>{row.displayName}</td><td>{detailAmount(row.recordCount, `${row.displayName}项目数量`, scope)}</td><td>{detailAmount(money(row.mainServiceAmountCents), `${row.displayName}主要项目`, scope)}</td><td>{detailAmount(money(row.addonTotalCents), `${row.displayName}额外项目`, scope)}</td><td>{detailAmount(money(row.grossFeeBaseCents), `${row.displayName}大费基数`, scope)}</td><td>{detailAmount(money(row.discountTotalCents), `${row.displayName}折扣`, scope)}</td><td>{detailAmount(money(row.discountedFeePerformanceCents), `${row.displayName}折后大费`, scope)}</td><td>{detailAmount(money(row.totalTipCents), `${row.displayName}小费`, scope)}</td><td>{detailAmount(money(row.totalLargeFeeWageCents), `${row.displayName}大费工资`, scope)}</td><td>{detailAmount(money(row.employeeIncomeCents), `${row.displayName}总收入`, scope)}</td></tr>; })}</tbody></table></div></section>
+          <section className="finance-report-section"><div className="finance-report-heading"><div><h2>每日小计</h2><p>按营业日观察变化；点击金额查看当天的逐笔组成。</p></div></div><div className="table-scroll"><table className="data-table"><thead><tr><th>营业日</th><th>单数</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>实收服务费</th><th>小费</th><th>客人总付款</th><th>员工总收入</th></tr></thead><tbody>{summary.days.map((row) => { const scope = { dateFrom: row.businessDate, dateTo: row.businessDate }; return <tr key={row.businessDate}><td>{row.businessDate}</td><td>{detailAmount(row.recordCount, `${row.businessDate}项目数量`, scope)}</td><td>{detailAmount(money(row.mainServiceAmountCents), `${row.businessDate}主要项目`, scope)}</td><td>{detailAmount(money(row.addonTotalCents), `${row.businessDate}额外项目`, scope)}</td><td>{detailAmount(money(row.grossFeeBaseCents), `${row.businessDate}大费基数`, scope)}</td><td>{detailAmount(money(row.discountTotalCents), `${row.businessDate}折扣`, scope)}</td><td>{detailAmount(money(row.discountedFeePerformanceCents), `${row.businessDate}折后大费`, scope)}</td><td>{detailAmount(money(row.actualServiceCollectedCents), `${row.businessDate}实收服务费`, scope)}</td><td>{detailAmount(money(row.totalTipCents), `${row.businessDate}小费`, scope)}</td><td>{detailAmount(money(row.customerTotalPaidCents), `${row.businessDate}客人总付款`, scope)}</td><td>{detailAmount(money(row.employeeIncomeCents), `${row.businessDate}员工总收入`, scope)}</td></tr>; })}</tbody></table></div></section>
+          <section className="finance-report-section"><div className="finance-report-heading"><div><h2>累计余额</h2><p>汇总员工累计应得、现金已取得和工资已支付，快速确认尚欠金额。</p></div></div><div className="balance-list">{summary.balances.map((balance) => <article key={balance.membershipId}><div><strong>{balance.displayName}</strong><span>{balance.excludedOwner ? "店主不进入工资结算" : `累计应得 ${money(balance.cumulativeEmployeeIncomeCents)}`}</span></div>{!balance.excludedOwner && <div className="balance-numbers"><span>现金已取得 {money(balance.settledCashAcquiredCents)}</span><span>工资已支付 {money(balance.payrollPaidCents)}</span><strong>尚欠 {money(balance.employerOwesCents)}</strong>{balance.overpaidCents > 0 && <em>超付 {money(balance.overpaidCents)}</em>}</div>}</article>)}</div></section>
         </section>
       )}
 
@@ -387,6 +419,7 @@ export function FinancePageClient() {
       )}
 
       <FloatingAiAssistant storeId={membership.store.id} type="finance" />
+      {details && <FinanceDetailsDialog details={details} title={detailsTitle} onClose={() => setDetails(null)} />}
       <AppNav active="finance" storeId={membership.store.id} />
     </main>
   );

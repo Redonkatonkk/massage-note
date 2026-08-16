@@ -98,3 +98,37 @@ export const financeSummaryMetrics = [
 ] as const;
 
 export type FinanceSummaryMetricKey = typeof financeSummaryMetrics[number]["key"];
+
+export const financeSummaryGroups: ReadonlyArray<{
+  key: string;
+  title: string;
+  description: string;
+  metricKeys: readonly FinanceSummaryMetricKey[];
+  emphasis?: boolean;
+}> = [
+  {
+    key: "overview",
+    title: "先看关键结果",
+    description: "先回答今天做了多少、客人付了多少、店里做出多少业绩、员工应得多少。",
+    metricKeys: ["recordCount", "customerTotalPaidCents", "discountedFeePerformanceCents", "employeeIncomeCents"],
+    emphasis: true,
+  },
+  {
+    key: "performance",
+    title: "项目与业绩",
+    description: "从项目原价、加项和折扣，逐步看到实际服务费表现。",
+    metricKeys: ["mainServiceAmountCents", "addonTotalCents", "grossFeeBaseCents", "discountTotalCents", "actualServiceCollectedCents"],
+  },
+  {
+    key: "payments",
+    title: "收款构成",
+    description: "把现金、刷卡、大费和小费分开，便于核对收款渠道。",
+    metricKeys: ["cashServiceCents", "cardServiceCents", "cashTipCents", "cardTipCents", "totalTipCents"],
+  },
+  {
+    key: "wages",
+    title: "工资与现金结算",
+    description: "查看项目提成工资，以及员工已通过现金实际取得的部分。",
+    metricKeys: ["totalLargeFeeWageCents", "settledCashAcquiredWithinRangeCents"],
+  },
+];

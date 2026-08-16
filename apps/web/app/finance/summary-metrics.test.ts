@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { financeSummaryMetrics } from "./summary-metrics";
+import { financeSummaryGroups, financeSummaryMetrics } from "./summary-metrics";
 
 describe("财务汇总指标说明", () => {
   it("只保留 16 个汇总指标并为每项提供解释与计算方法", () => {
@@ -11,5 +11,13 @@ describe("财务汇总指标说明", () => {
       expect(metric.explanation.trim()).not.toBe("");
       expect(metric.calculation.trim()).not.toBe("");
     }
+  });
+
+  it("按用途组织全部指标且不重复", () => {
+    const groupedKeys = financeSummaryGroups.flatMap((group) => group.metricKeys);
+    expect(groupedKeys).toHaveLength(financeSummaryMetrics.length);
+    expect(new Set(groupedKeys).size).toBe(financeSummaryMetrics.length);
+    expect(new Set(groupedKeys)).toEqual(new Set(financeSummaryMetrics.map((metric) => metric.key)));
+    expect(financeSummaryGroups[0]).toMatchObject({ key: "overview", emphasis: true });
   });
 });

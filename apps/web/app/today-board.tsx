@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { apiRequest, errorMessage } from "../lib/api";
+import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { canShowEmployeeClockIn, discountBadgeText } from "../lib/board";
 import { financeClosingHref } from "../lib/navigation";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
@@ -176,6 +176,10 @@ export function TodayBoard({
     () => board.rows.filter((row) => !row.isHidden || !canManage || showHidden),
     [board.rows, canManage, showHidden],
   );
+  const hiddenRows = useMemo(
+    () => canManage ? board.rows.filter((row) => row.isHidden) : [],
+    [board.rows, canManage],
+  );
   const availableMembers = members.filter(
     (member) =>
       member.status === "ACTIVE" &&
@@ -199,6 +203,21 @@ export function TodayBoard({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function setRowHidden(row: BoardResponse["rows"][number], isHidden: boolean) {
+    const path = `/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}`;
+    try {
+      await apiRequest(path, { method: "PATCH", idempotent: true, body: { version: row.version, isHidden } });
+    } catch (caught) {
+      const latest = caught instanceof ApiError && caught.code === "BOARD_ROW_VERSION_CONFLICT"
+        ? caught.latestResource as { version?: unknown } | undefined
+        : undefined;
+      if (typeof latest?.version !== "number") throw caught;
+      await apiRequest(path, { method: "PATCH", idempotent: true, body: { version: latest.version, isHidden } });
+    }
+    setNotice(isHidden ? `已隐藏 ${row.membership.displayName}` : `已恢复 ${row.membership.displayName}`);
+    await onReload();
   }
 
   async function saveQuickRecord() {
@@ -322,12 +341,14 @@ export function TodayBoard({
           })}>{busy ? "正在上班…" : "上班"}</button>}
           {canManage && <a className="primary-action board-closing-action" href={financeClosingHref(membership.store.id, currentDay.businessDate)}>{board.isClosed ? "查看全店日结" : "全店日结"}</a>}
         </div>
-        {canManage && board.rows.some((row) => row.isHidden) && (
-          <label className="inline-check"><input type="checkbox" checked={showHidden} onChange={(event) => setShowHidden(event.target.checked)} /> 显示已隐藏员工</label>
-        )}
       </section>
 
-      {board.isClosed && <p className="closed-banner" role="status">这个营业日已经日结。当前内容只读，如需修改请先由店长或经理取消日结。</p>}
+      {hiddenRows.length > 0 && <section className="hidden-rows-panel" aria-label="已隐藏员工管理">
+        <header><div><strong>已隐藏员工 · {hiddenRows.length}</strong><p>隐藏只影响表格显示，不会删除记工。可在这里直接恢复。</p></div><button className="secondary-action compact" type="button" onClick={() => setShowHidden((value) => !value)}>{showHidden ? "收起隐藏内容" : "查看隐藏内容"}</button></header>
+        <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{row.workRecords.length} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
+      </section>}
+
+      {board.isClosed && <p className="closed-banner" role="status">这个营业日已经日结。记工和结算内容只读；店长或经理仍可调整员工行显示，如需修改其他内容请先取消日结。</p>}
       {notice && <p className="success-banner" role="status">✓ {notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
 
@@ -362,14 +383,9 @@ export function TodayBoard({
                 </button>
                 {(canManage || row.membershipId === membership.id) && (
                   <div className="row-tools">
-                    {canManage && !board.isClosed && <>
-                      <span className="drag-handle" draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDraggingRowId(row.id); }} onDragEnd={() => setDraggingRowId(null)} title="按住并拖动整行排序">拖动排序</span>
-                      <button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button>
-                      <button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button>
-                      <button type="button" disabled={busy} onClick={() => run(async () => {
-                        await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}`, { method: "PATCH", idempotent: true, body: { version: row.version, isHidden: !row.isHidden } });
-                        await onReload();
-                      })}>{row.isHidden ? "重新显示" : "隐藏"}</button>
+                    {canManage && <>
+                      {!board.isClosed && <><span className="drag-handle" draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDraggingRowId(row.id); }} onDragEnd={() => setDraggingRowId(null)} title="按住并拖动整行排序">拖动排序</span><button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button><button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button></>}
+                      <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>
                     </>}
                     {(canManage || row.membershipId === membership.id) && <button className="row-closing-action" type="button" onClick={() => setClosingEmployee({ id: row.membershipId, displayName: row.membership.displayName })}>个人日结</button>}
                   </div>

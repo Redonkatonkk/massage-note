@@ -577,7 +577,7 @@ total_paid = service_wage + cash_tip + card_tip + adjustment
 | POST | `/stores/:storeId/shifts/clock-in` | 上班并确保今日行存在 |
 | POST | `/stores/:storeId/shifts/:shiftId/clock-out` | 下班 |
 | POST | `/stores/:storeId/boards/:date/rows` | Owner/Manager 手动加人 |
-| PATCH | `/stores/:storeId/boards/:date/rows/:rowId` | 隐藏/显示 |
+| PATCH | `/stores/:storeId/boards/:date/rows/:rowId` | 隐藏/显示；允许在日结后执行，且不改变业务金额或日结状态 |
 | POST | `/stores/:storeId/boards/:date/reorder` | 以 board version 原子排序 |
 | POST | `/stores/:storeId/work-records` | 快速创建待结账记录 |
 | GET | `/stores/:storeId/work-records/:recordId` | 详情和审计摘要 |

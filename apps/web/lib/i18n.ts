@@ -307,7 +307,7 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "历史记录只读": "Past records are read-only",
   "待结账": "Payment pending",
   "小费": "Tips",
-  " · 有加项": " · Add-ons",
+  "· 有加项": "· Add-ons",
   "新增记工": "Add record",
   "大费": "Service fees",
   "应得": "Earnings",

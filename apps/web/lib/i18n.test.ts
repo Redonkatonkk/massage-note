@@ -82,6 +82,7 @@ describe("bilingual UI translation", () => {
     expect(translateText("小身体", "en-US")).toBe("Small Body Massage");
     expect(translateText("大费：刷卡 · 小费：刷卡 · 有加项", "en-US"))
       .toBe("Service fees: Card · Tips: Card · Add-ons");
+    expect(translateText(" · 有加项", "en-US")).toBe(" · Add-ons");
   });
 
   it("uses stable API error codes for English errors", () => {

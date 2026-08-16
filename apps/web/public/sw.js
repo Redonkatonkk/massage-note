@@ -1,4 +1,4 @@
-const CACHE_NAME = "massage-note-v0.8.1";
+const CACHE_NAME = "massage-note-v0.8.2";
 const SHELL = ["/offline", "/login", "/manifest.webmanifest", "/app-icon.svg", "/app-icon-192.png", "/app-icon-512.png"];
 
 self.addEventListener("install", (event) => {

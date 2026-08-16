@@ -950,7 +950,7 @@ Object.assign(ENGLISH_TRANSLATIONS, {
 });
 
 const DYNAMIC_TRANSLATIONS: Array<[RegExp, (...groups: string[]) => string]> = [
-  [/^大费：(.+) · 小费：(.+)$/u, (service, tip) => `Service fees: ${translateText(service, "en-US")} · Tips: ${translateText(tip, "en-US")}`],
+  [/^大费：(.+?) · 小费：(.+?)( · 有加项)?$/u, (service, tip, hasAddons) => `Service fees: ${translateText(service, "en-US")} · Tips: ${translateText(tip, "en-US")}${hasAddons ? " · Add-ons" : ""}`],
   [/^已隐藏 (.+)$/u, (name) => `Hidden ${name}`],
   [/^已恢复 (.+)$/u, (name) => `Restored ${name}`],
   [/^已隐藏员工 · (\d+)$/u, (count) => `Hidden employees · ${count}`],
@@ -1016,6 +1016,8 @@ type CatalogNameKind = "service" | "addon" | "discount";
 const CATALOG_NAME_TRANSLATIONS: Record<string, string> = {
   // Main massage services.
   "按摩": "Massage",
+  "大身体": "Large Body Massage",
+  "小身体": "Small Body Massage",
   "全身按摩": "Full Body Massage",
   "身体按摩": "Body Massage",
   "瑞典按摩": "Swedish Massage",

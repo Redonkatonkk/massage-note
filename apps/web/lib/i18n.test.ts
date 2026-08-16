@@ -68,6 +68,22 @@ describe("bilingual UI translation", () => {
     expect(translateText("安心", "en-US")).toBe("安心");
   });
 
+  it("translates the store's existing Chinese service aliases in record summaries", () => {
+    registerCatalogNamesFromPayload({
+      rows: [{
+        workRecords: [
+          { serviceSnapshot: { name: "大身体", shortName: "大身体" } },
+          { serviceSnapshot: { name: "小身体", shortName: "小身体" } },
+        ],
+      }],
+    });
+
+    expect(translateText("大身体", "en-US")).toBe("Large Body Massage");
+    expect(translateText("小身体", "en-US")).toBe("Small Body Massage");
+    expect(translateText("大费：刷卡 · 小费：刷卡 · 有加项", "en-US"))
+      .toBe("Service fees: Card · Tips: Card · Add-ons");
+  });
+
   it("uses stable API error codes for English errors", () => {
     expect(translateApiError("INVALID_SESSION", "登录已过期，请重新登录", "en-US"))
       .toBe("Your session expired. Sign in again.");

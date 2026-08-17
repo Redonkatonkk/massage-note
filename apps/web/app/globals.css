@@ -2130,7 +2130,7 @@ h2 {
 .floating-ai-button { display: flex; align-items: center; gap: 9px; min-height: 58px; padding: 7px 16px 7px 8px; border: 0; border-radius: 999px; background: var(--brand); color: white; box-shadow: 0 12px 34px rgba(71, 32, 23, .3); cursor: pointer; }
 .floating-ai-button > span { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: white; color: var(--brand); font-size: .82rem; font-weight: 900; }
 .floating-ai-button > strong { font-size: .86rem; }
-.floating-ai-dialog { position: fixed; right: 24px; bottom: 158px; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; width: min(520px, calc(100vw - 32px)); height: min(690px, calc(100dvh - 180px)); overflow: hidden; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: 0 24px 80px rgba(45, 28, 18, .28); }
+.floating-ai-dialog { position: fixed; right: 24px; bottom: 158px; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; width: min(520px, calc(100vw - 32px)); height: min(690px, calc(var(--ai-visual-viewport-height, 100dvh) - 180px)); overflow: hidden; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: 0 24px 80px rgba(45, 28, 18, .28); }
 .floating-ai-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 16px; border-bottom: 1px solid var(--line); background: #fffaf3; }
 .floating-ai-heading > div { display: flex; align-items: center; gap: 10px; }
 .floating-ai-heading > div > span { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 12px; background: var(--brand); color: white; font-size: .78rem; font-weight: 900; }
@@ -2147,7 +2147,7 @@ h2 {
 .offline-banner { position: fixed; z-index: 2000; inset: 0 0 auto; padding: 10px 16px; background: #9d2c24; color: white; font-weight: 800; text-align: center; }
 .install-app-button { position: fixed; z-index: 1500; left: 16px; bottom: 92px; min-height: 42px; padding: 0 14px; border: 1px solid var(--brand); border-radius: 999px; background: var(--brand); color: white; box-shadow: var(--shadow); font-weight: 800; cursor: pointer; }
 .offline-refresh { display: grid; place-items: center; margin-top: 18px; text-decoration: none; }
-.language-switcher { position: fixed; z-index: 2400; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); display: flex; gap: 2px; padding: 3px; border: 1px solid rgba(142, 62, 47, .24); border-radius: 999px; background: rgba(255, 250, 243, .94); box-shadow: 0 6px 20px rgba(45, 28, 18, .14); backdrop-filter: blur(12px); }
+.language-switcher { position: fixed; z-index: 20; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); display: flex; gap: 2px; padding: 3px; border: 1px solid rgba(142, 62, 47, .24); border-radius: 999px; background: rgba(255, 250, 243, .94); box-shadow: 0 6px 20px rgba(45, 28, 18, .14); backdrop-filter: blur(12px); }
 .language-switcher button { min-height: 32px; padding: 0 9px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: .72rem; font-weight: 800; cursor: pointer; }
 .language-switcher button.active { background: var(--brand); color: white; }
 .offline-banner { padding-right: 150px; }
@@ -2229,7 +2229,7 @@ h2 {
 
 @media (min-width: 1100px) {
   .floating-ai-root { bottom: 20px; }
-  .floating-ai-dialog { bottom: 90px; height: min(690px, calc(100dvh - 112px)); }
+  .floating-ai-dialog { bottom: 90px; height: min(690px, calc(var(--ai-visual-viewport-height, 100dvh) - 112px)); }
 }
 
 @media (max-width: 700px) {
@@ -2243,5 +2243,5 @@ h2 {
   .floating-ai-root { right: 12px; bottom: 84px; }
   .floating-ai-button { min-height: 54px; padding-right: 13px; }
   .floating-ai-button > span { width: 40px; height: 40px; }
-  .floating-ai-dialog { right: 8px; bottom: 150px; width: calc(100vw - 16px); height: min(650px, calc(100dvh - 162px)); border-radius: 20px; }
+  .floating-ai-dialog { top: calc(var(--ai-visual-viewport-top, 0px) + 8px); right: 8px; bottom: auto; width: calc(100vw - 16px); height: min(650px, calc(var(--ai-visual-viewport-height, 100dvh) - 16px)); border-radius: 20px; }
 }

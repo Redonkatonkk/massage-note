@@ -1,7 +1,7 @@
 # AI 接管指南
 
 > 最后核对：2026-08-16（America/New_York）
-> 当前版本：`0.8.4`
+> 当前版本：`0.9.1`
 > 目标：用最少上下文安全修改 Massage note；历史过程请查 Git 和 `CHANGELOG.md`。
 
 ## 1. 接手顺序
@@ -142,12 +142,12 @@ AI 是可选增强，未配置时手动记工和确定性财务必须正常工�
 - 财务：后端确定性查询负责数字，模型只负责解释；AI 没有任意 SQL、URL、文件或通用写工具。
 - AI 消息契约接受 `locale`（`zh-CN` / `en-US`，默认中文）；财务确定性回答、安全降级提示和语音识别主要语言都必须遵循当前选择。
 - 文本默认 MiniMax 中国站 `https://api.minimaxi.com`、模型 `MiniMax-M3`。
-- 语音使用 Google Cloud Speech-to-Text，音频上限 8 MB/60 秒且不持久化。
+- 语音录制为 6–60 秒的 MP4/AAC，通过 MiniMax `music-cover` 音频预处理接口内置的 ASR 转写，与文本模型共用 `MINIMAX_API_KEY`；上限 8 MB，应用不持久化原始录音。
 - 外部凭据只通过秘密环境变量注入，不能进入镜像层、文档或前端 bundle。
 
-当前外部项目沿用历史不可变 Firebase/Google Cloud project ID `massagebook-fc6ba`；这不是产品命名规范。新建代码、包、容器和数据库继续使用 `Massage note` / `massage-note` / `massage_note`。
+当前外部认证项目沿用历史不可变 Firebase project ID `massagebook-fc6ba`；这不是产品命名规范。新建代码、包、容器和数据库继续使用 `Massage note` / `massage-note` / `massage_note`。
 
-生产上线前仍需人工完成：稳定 HTTPS 域名下“真实 OTP → 服务端会话 → 首页”的完整验收、真实短录音转写验收，以及 Firebase/Google/MiniMax 的预算和用量告警。
+生产上线前仍需人工完成：稳定 HTTPS 域名下“真实 OTP → 服务端会话 → 首页”的完整验收、真实短录音转写验收，以及 Firebase/MiniMax 的预算和用量告警。
 
 ## 7. 数据库与部署
 
@@ -203,12 +203,12 @@ pnpm audit --prod
 `test:integration` 使用独立的 `massage_note_test`，会重建测试 schema，不应指向开发主库、生产库或任何含人工数据的库。
 若本机默认的 PostgreSQL/Redis 端口已被其他项目占用，可用 `POSTGRES_HOST_PORT`、`REDIS_HOST_PORT` 启动本项目 Compose，并把 `MASSAGE_NOTE_TEST_DATABASE_URL` 指向对应 PostgreSQL 端口；不得为测试停止不属于本项目的容器。
 
-最近一次核心质量核对（2026-08-16，版本 0.8.4）：
+最近一次核心质量核对（2026-08-17，版本 0.9.1）：
 
 - `version:check`、typecheck 和生产构建通过；Next 生成 11 个路由。
-- `pnpm audit --prod` 为 0 个已知漏洞；PostCSS 的间接 `nanoid` 依赖通过 workspace override 固定在已修复版本。
-- 单元/非集成测试 126 项通过；数据库/API 集成测试 87 项通过，新增覆盖员工提成优先级、当前营业日重算、今日与个人日结金额一致、历史及已日结快照保护、免费项目收入守恒、员工本人／同事行小结可见范围，以及既有财务、权限与并发回归。
-- 浏览器回归已覆盖登录页和完整帮助页中英文切换、刷新后英语偏好保留、切回中文恢复，以及 390 × 844 手机布局中语言开关不遮挡主要内容；其余历史回归范围延续上一版本记录。
+- 单元/非集成测试 127 项通过；数据库/API 集成测试 88 项通过，包含 MiniMax ASR 请求格式、共用 key、中英文主要语言和无语音降级回归。
+- `pnpm audit --prod` 为 0 个已知漏洞；间接 `nanoid` 与 `deepmerge-ts` 依赖通过 workspace override 固定在已修复版本。
+- 本版本重点回归语言气泡与弹窗层级、390px 手机输入法打开/收起后的 AI 悬浮窗尺寸、MP4/AAC 录音转写、可编辑转写文字及未确认不写入。
 
 测试数字会随用例变化。交接时记录实际命令结果，不要机械复制本节。
 

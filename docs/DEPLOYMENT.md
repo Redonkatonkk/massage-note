@@ -28,8 +28,7 @@ chmod 600 .env.production
 
 可选填写：
 
-- `MINIMAX_API_KEY` 与模型名：复杂自然语言记工和 AI 财务解释。
-- `GOOGLE_CLOUD_PROJECT_ID` 和 `GOOGLE_CLOUD_CREDENTIALS_BASE64`：短录音转写。后者是服务账号 JSON 的整体 base64；服务账号只授予 Speech-to-Text 所需最小权限。
+- `MINIMAX_API_KEY`、`MINIMAX_MODEL` 与 `MINIMAX_TRANSCRIPTION_MODEL`：复杂自然语言记工、AI 财务解释和短录音转写；文字与语音共用同一个 API key，文本模型默认 `MiniMax-M3`，转写模型默认 `music-cover`。
 
 任何生产环境都不得设置 `DEV_AUTH_ENABLED=true` 或把开发登录编译进 Web。
 

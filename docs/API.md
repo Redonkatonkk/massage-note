@@ -61,7 +61,7 @@
 
 Web 页面支持用于排查日结异常的深链接：`/finance?store=<storeId>&tab=closing&date=<businessDate>` 直接打开指定营业日的全店日结；`/?store=<storeId>&date=<businessDate>&record=<recordId>` 自动切换到该营业日并打开对应记工详情。两种链接都只导航和读取，不会自动执行日结或修改记录。
 
-两个 AI 消息端点的请求体均接受 `locale: "zh-CN" | "en-US"`，省略时默认 `zh-CN`。该字段决定模型提示、确定性财务回答和安全降级说明的语言。语音转写使用 `Accept-Language` 选择主要识别语言，并保留另一种语言作为候选。其他业务错误继续返回稳定 `code` 与 `messageZh`；Web 英文界面按稳定错误码显示英语说明，未知错误码使用不泄露内部信息的通用英语提示。
+两个 AI 消息端点的请求体均接受 `locale: "zh-CN" | "en-US"`，省略时默认 `zh-CN`。该字段决定模型提示、确定性财务回答和安全降级说明的语言。语音转写端点接收浏览器生成的 MP4/AAC 原始请求体，限制为 6–60 秒且不超过 8 MB，通过与文本模型相同的 `MINIMAX_API_KEY` 调用 `MINIMAX_TRANSCRIPTION_MODEL`（默认 `music-cover`）内置 ASR；`Accept-Language` 决定主要识别语言，另一种语言仍作为候选。其他业务错误继续返回稳定 `code` 与 `messageZh`；Web 英文界面按稳定错误码显示英语说明，未知错误码使用不泄露内部信息的通用英语提示。
 
 店主或经理创建的待认领员工拥有正常的成员 ID，可立即进入今日表格、记工和配置提成，只是 `userId` 暂时为空。员工注册后用店铺代码加入时，服务端仅以账号注册资料中的 First Name 对本店待认领员工名字做规范化精确匹配；匹配成功返回 `{ "autoMatched": true, "membership": ... }` 并在原成员关系上绑定账号，因此既有记录不会搬迁或丢失。未匹配时仍返回带 `autoMatched: false` 的待审批申请。加入表单中临时填写的显示名不能用于冒领其他员工账号。
 

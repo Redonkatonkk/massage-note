@@ -1,52 +1,76 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
-import { SpeechClient } from "@google-cloud/speech";
+
+type MiniMaxTranscriptionResponse = {
+  formatted_lyrics?: string;
+  audio_duration?: number;
+  base_resp?: { status_code?: number; status_msg?: string };
+  error?: { message?: string };
+};
+
+function transcriptionEndpoint(): string {
+  const configuredBase = process.env.MINIMAX_API_BASE_URL?.trim() || "https://api.minimaxi.com";
+  const base = configuredBase.replace(/\/$/, "").replace(/\/v1$/, "");
+  return `${base}/v1/music_cover_preprocess`;
+}
+
+function cleanTranscript(value: string): string {
+  return value
+    .replace(/^\s*\[[^\]\n]+\]\s*$/gm, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
 
 @Injectable()
-export class GoogleSpeechToTextProvider {
-  private client?: SpeechClient;
+export class MiniMaxSpeechToTextProvider {
+  readonly provider = "minimax";
 
   isConfigured() {
-    return Boolean(
-      process.env.GOOGLE_CLOUD_PROJECT_ID?.trim() ||
-      process.env.GOOGLE_CLOUD_CREDENTIALS_BASE64?.trim() ||
-      process.env.GOOGLE_CLOUD_CREDENTIALS_JSON?.trim(),
-    );
+    return Boolean(process.env.MINIMAX_API_KEY?.trim());
   }
 
   async transcribe(audio: Buffer, locale: "zh-CN" | "en-US" = "zh-CN") {
-    if (!this.isConfigured()) {
-      throw new ServiceUnavailableException({ code: "STT_NOT_CONFIGURED", messageZh: "语音转文字尚未配置，请使用文字输入或手机键盘听写" });
+    const apiKey = process.env.MINIMAX_API_KEY?.trim();
+    if (!apiKey) {
+      throw new ServiceUnavailableException({ code: "STT_NOT_CONFIGURED", messageZh: "MiniMax 语音识别尚未配置，请使用文字输入或手机键盘听写" });
     }
-    if (audio.length === 0) throw new ServiceUnavailableException({ code: "AUDIO_EMPTY", messageZh: "没有收到录音内容" });
+    if (audio.length === 0) {
+      throw new ServiceUnavailableException({ code: "AUDIO_EMPTY", messageZh: "没有收到录音内容" });
+    }
+
+    const model = process.env.MINIMAX_TRANSCRIPTION_MODEL?.trim() || "music-cover";
     try {
-      const encoded = process.env.GOOGLE_CLOUD_CREDENTIALS_BASE64?.trim();
-      const raw = encoded
-        ? Buffer.from(encoded, "base64").toString("utf8")
-        : process.env.GOOGLE_CLOUD_CREDENTIALS_JSON?.trim();
-      const credentials = raw
-        ? JSON.parse(raw) as { project_id?: string; client_email?: string; private_key?: string }
-        : undefined;
-      const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID?.trim() || credentials?.project_id;
-      if (!projectId) throw new Error("Google Cloud 项目 ID 未配置");
-      if (credentials && (!credentials.client_email || !credentials.private_key)) throw new Error("Google Cloud 凭据缺少 client_email 或 private_key");
-      this.client ??= new SpeechClient({
-        projectId,
-        ...(credentials ? { credentials: { client_email: credentials.client_email!, private_key: credentials.private_key! } } : {}),
+      const response = await fetch(transcriptionEndpoint(), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          audio_base64: audio.toString("base64"),
+        }),
+        signal: AbortSignal.timeout(45_000),
       });
-      const [response] = await this.client.recognize({
-        audio: { content: audio.toString("base64") },
-        config: {
-          encoding: "WEBM_OPUS",
-          languageCode: locale,
-          alternativeLanguageCodes: [locale === "zh-CN" ? "en-US" : "zh-CN"],
-          enableAutomaticPunctuation: true,
-        },
-      });
-      const text = response.results?.map((result) => result.alternatives?.[0]?.transcript ?? "").filter(Boolean).join(" ").trim() ?? "";
+      const payload = await response.json() as MiniMaxTranscriptionResponse;
+      if (!response.ok || payload.base_resp?.status_code) {
+        throw new Error(payload.base_resp?.status_msg || payload.error?.message || `HTTP ${response.status}`);
+      }
+      const text = cleanTranscript(payload.formatted_lyrics ?? "");
       if (!text) throw new Error("没有识别出文字");
-      return { text, languageCandidates: ["zh-CN", "en-US"] };
+      return {
+        text,
+        languageCandidates: [locale, locale === "zh-CN" ? "en-US" : "zh-CN"],
+        provider: this.provider,
+        model,
+        ...(payload.audio_duration === undefined ? {} : { durationSeconds: payload.audio_duration }),
+      };
     } catch (error) {
-      throw new ServiceUnavailableException({ code: "STT_PROVIDER_UNAVAILABLE", messageZh: "语音识别暂时不可用，请改用文字输入", detail: error instanceof Error ? error.message : "unknown" });
+      if (error instanceof ServiceUnavailableException) throw error;
+      throw new ServiceUnavailableException({
+        code: "STT_PROVIDER_UNAVAILABLE",
+        messageZh: "MiniMax 语音识别暂时不可用，请改用文字输入",
+        detail: error instanceof Error ? error.message : "unknown",
+      });
     }
   }
 }

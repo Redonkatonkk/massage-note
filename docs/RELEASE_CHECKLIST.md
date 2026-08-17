@@ -18,7 +18,7 @@
 - [ ] Web/API 均为 HTTPS 且同站点，`WEB_ORIGIN` 和公网 API 地址精确无误。
 - [ ] `DEV_AUTH_ENABLED=false`，生产前端未显示本地测试登录。
 - [ ] Firebase Authorized domains、Phone provider、短信配额和预算告警已配置。
-- [ ] PostgreSQL、Redis、Firebase、MiniMax、Google 密钥没有提交到仓库，且权限最小。
+- [ ] PostgreSQL、Redis、Firebase、MiniMax 密钥没有提交到仓库，且权限最小。
 - [ ] 完整 Git 历史和本次暂存改动已经过秘密扫描；GitHub 只接收四项浏览器公开的 `NEXT_PUBLIC_FIREBASE_*` Repository Variables。
 - [ ] PostgreSQL、Redis、3000、4000 未直接暴露公网。
 - [ ] CSP、HSTS、`HttpOnly`/`Secure` 会话 Cookie、严格 Origin 和 429 限流已抽查。

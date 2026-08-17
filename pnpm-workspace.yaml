@@ -4,6 +4,7 @@ packages:
 
 confirmModulesPurge: false
 overrides:
+  deepmerge-ts: 8.0.1
   effect: 3.20.0
   multer: 2.2.0
   nanoid: 3.3.18

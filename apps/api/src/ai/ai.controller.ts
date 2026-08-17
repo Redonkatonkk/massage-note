@@ -24,7 +24,10 @@ export class AiController {
 
   @Post("work/transcribe")
   async transcribe(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Headers("content-type") contentType: string | undefined, @Headers("accept-language") acceptLanguage: string | undefined, @Req() request: Request) {
-    if (!contentType?.toLowerCase().startsWith("audio/webm")) throw new BadRequestException({ code: "AUDIO_TYPE_UNSUPPORTED", messageZh: "录音必须使用浏览器 WebM/Opus 格式" });
+    const mediaType = contentType?.split(";", 1)[0]?.trim().toLowerCase();
+    if (!mediaType || !["audio/mp4", "video/mp4", "audio/m4a", "audio/x-m4a"].includes(mediaType)) {
+      throw new BadRequestException({ code: "AUDIO_TYPE_UNSUPPORTED", messageZh: "录音必须使用浏览器 MP4/AAC 格式" });
+    }
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const chunk of request) {

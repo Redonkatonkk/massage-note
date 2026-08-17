@@ -11,7 +11,7 @@ import { FinanceQueriesService } from "../finance/finance-queries.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
 import { WorkRecordsService } from "../work-records/work-records.service.js";
 import { MiniMaxLanguageModelProvider } from "./language-model.provider.js";
-import { GoogleSpeechToTextProvider } from "./speech-to-text.provider.js";
+import { MiniMaxSpeechToTextProvider } from "./speech-to-text.provider.js";
 
 const money = (value: bigint | number | string | null | undefined) => {
   const cents = BigInt(value ?? 0);
@@ -61,13 +61,17 @@ export class AiService {
     private readonly cash: CashSettlementsService,
     private readonly workRecords: WorkRecordsService,
     private readonly model: MiniMaxLanguageModelProvider,
-    private readonly speech: GoogleSpeechToTextProvider,
+    private readonly speech: MiniMaxSpeechToTextProvider,
   ) {}
 
   async transcribe(actor: User, storeId: string, audio: Buffer, locale: "zh-CN" | "en-US" = "zh-CN") {
     await this.access.requireActiveMembership(actor.id, storeId);
     if (audio.length > 8 * 1024 * 1024) throw new BadRequestException({ code: "AUDIO_TOO_LARGE", messageZh: "录音不能超过 8 MB 或 60 秒" });
-    return this.speech.transcribe(audio, locale);
+    const result = await this.speech.transcribe(audio, locale);
+    if (result.durationSeconds !== undefined && result.durationSeconds > 60.5) {
+      throw new BadRequestException({ code: "AUDIO_TOO_LARGE", messageZh: "录音不能超过 8 MB 或 60 秒" });
+    }
+    return result;
   }
 
   async financeMessage(actor: User, storeId: string, input: AiMessageInput) {

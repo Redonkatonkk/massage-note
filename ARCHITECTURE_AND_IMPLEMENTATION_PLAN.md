@@ -50,8 +50,7 @@ flowchart LR
 
     subgraph External["外部服务"]
         Firebase["Firebase Phone Auth"]
-        MiniMax["MiniMax 文本模型"]
-        STT["Google Cloud Speech-to-Text\n语音转文字"]
+        MiniMax["MiniMax 文本 / 音频模型\n自然语言理解与语音转写"]
     end
 
     Web --> CDN --> WebApp
@@ -65,7 +64,6 @@ flowchart LR
     Domain --> PG
     AI --> PG
     AI --> MiniMax
-    AI --> STT
     Auth --> Firebase
     API --> Redis
     PG --> RT
@@ -85,7 +83,7 @@ flowchart LR
 | 实时 | NestJS SSE + PostgreSQL Outbox | 客户端只需要接收“已变化”通知，SSE 更轻；事件持久化支持断线游标，多实例共同读取同一 PostgreSQL，断线后通过 REST 重新同步 |
 | 登录 | Firebase Phone Auth + 后端安全会话 Cookie | 满足美国手机号验证码、reCAPTCHA、多设备和撤销全部会话 |
 | AI | 自建 `LanguageModelProvider`，第一实现 MiniMax | AI 与业务工具隔离，可替换供应商；MiniMax 当前文本接口支持工具调用 |
-| 语音 | 自建 `SpeechToTextProvider`，第一实现 Google Cloud STT | MiniMax 文本模型负责理解；语音识别独立替换，支持中英文短音频 |
+| 语音 | 自建 `SpeechToTextProvider`，第一实现 MiniMax `music-cover` 内置 ASR | 与文本模型共用 API key，Provider 边界保持可替换，支持中英文短音频 |
 | 测试 | Vitest + Supertest + Playwright | 领域公式、API 权限和端到端操作分层覆盖 |
 | 部署 | 容器化 Web、API + 托管 PostgreSQL/Redis | 不绑定单一云平台，Web 与 API 可独立扩容；首版维护任务由受控计划任务执行 |
 
@@ -750,10 +748,10 @@ flowchart LR
 
 ### 11.5 语音方案
 
-- 浏览器录制最长 60 秒短音频，经 API 发给 `SpeechToTextProvider`。
-- 第一实现使用 Google Cloud Speech-to-Text，语言候选为普通话和美式英语；转写结果先展示为可编辑文字。
+- 浏览器以 MP4/AAC 录制 6–60 秒、最多 8 MB 的短音频，经 API 发给 `SpeechToTextProvider`；应用不持久化原始音频。
+- 第一实现使用 MiniMax `music-cover` 音频预处理接口内置的 ASR，与文字模型共用 `MINIMAX_API_KEY`；语言候选为普通话和美式英语，转写结果先展示为可编辑文字。
 - 用户必须确认/修改转写文字后才交给 MiniMax 理解。
-- MiniMax 作为 `LanguageModelProvider` 负责文本和工具调用，不与语音供应商耦合。
+- `SpeechToTextProvider` 与 `LanguageModelProvider` 仍保持独立边界，允许未来分别替换模型。
 - 若语音服务未配置或失败，保留文字输入和系统键盘听写作为降级路径。
 
 ---
@@ -917,7 +915,7 @@ flowchart LR
 ### 阶段 6：AI 记工和财务助手
 
 - MiniMax Provider、受限工具、结构化预览、确认执行。
-- Google Cloud STT Provider、录音转写与文字确认。
+- MiniMax `music-cover` ASR Provider、MP4/AAC 录音转写与文字确认。
 - AI 权限、提示注入、重复确认和日志测试。
 
 退出标准：AI 无法越权、无法跳过预览、无法自行计算或写财务账本。
@@ -955,4 +953,4 @@ flowchart LR
 - [PostgreSQL Row Security Policies](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)
 - [Prisma Transactions and Optimistic Concurrency](https://www.prisma.io/docs/orm/prisma-client/queries/transactions)
 - [MiniMax Text Generation and Tool Calls](https://platform.minimax.io/docs/api-reference/text-post)
-- [Google Cloud Speech-to-Text](https://cloud.google.com/speech-to-text/docs)
+- [MiniMax Music Cover Preprocess ASR](https://platform.minimax.io/docs/api-reference/music-cover-preprocess)

@@ -6,11 +6,11 @@ import { WorkRecordsModule } from "../work-records/work-records.module.js";
 import { AiController } from "./ai.controller.js";
 import { AiService } from "./ai.service.js";
 import { MiniMaxLanguageModelProvider } from "./language-model.provider.js";
-import { GoogleSpeechToTextProvider } from "./speech-to-text.provider.js";
+import { MiniMaxSpeechToTextProvider } from "./speech-to-text.provider.js";
 
 @Module({
   imports: [AuthModule, StoresModule, FinanceModule, WorkRecordsModule],
   controllers: [AiController],
-  providers: [AiService, MiniMaxLanguageModelProvider, GoogleSpeechToTextProvider],
+  providers: [AiService, MiniMaxLanguageModelProvider, MiniMaxSpeechToTextProvider],
 })
 export class AiModule {}

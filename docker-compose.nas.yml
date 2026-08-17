@@ -33,7 +33,7 @@ services:
     networks: [backend]
 
   migrate:
-    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.8.4}
+    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.9.1}
     command: ["migrate"]
     environment:
       DATABASE_URL: postgresql://massage_note_admin:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/massage_note
@@ -42,7 +42,7 @@ services:
     networks: [backend]
 
   harden:
-    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.8.4}
+    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.9.1}
     command: ["harden"]
     environment:
       ADMIN_DATABASE_URL: postgresql://massage_note_admin:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/massage_note
@@ -52,7 +52,7 @@ services:
     networks: [backend]
 
   app:
-    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.8.4}
+    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-0.9.1}
     command: ["app"]
     restart: unless-stopped
     environment:
@@ -71,8 +71,7 @@ services:
       MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
       MINIMAX_API_BASE_URL: ${MINIMAX_API_BASE_URL:-https://api.minimaxi.com}
       MINIMAX_MODEL: ${MINIMAX_MODEL:-MiniMax-M3}
-      GOOGLE_CLOUD_PROJECT_ID: ${GOOGLE_CLOUD_PROJECT_ID:-}
-      GOOGLE_CLOUD_CREDENTIALS_BASE64: ${GOOGLE_CLOUD_CREDENTIALS_BASE64:-}
+      MINIMAX_TRANSCRIPTION_MODEL: ${MINIMAX_TRANSCRIPTION_MODEL:-music-cover}
     depends_on:
       harden: { condition: service_completed_successfully }
       redis: { condition: service_healthy }

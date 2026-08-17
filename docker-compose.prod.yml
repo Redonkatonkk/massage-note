@@ -79,8 +79,7 @@ services:
       MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
       MINIMAX_API_BASE_URL: ${MINIMAX_API_BASE_URL:-https://api.minimaxi.com}
       MINIMAX_MODEL: ${MINIMAX_MODEL:-MiniMax-M3}
-      GOOGLE_CLOUD_PROJECT_ID: ${GOOGLE_CLOUD_PROJECT_ID:-}
-      GOOGLE_CLOUD_CREDENTIALS_BASE64: ${GOOGLE_CLOUD_CREDENTIALS_BASE64:-}
+      MINIMAX_TRANSCRIPTION_MODEL: ${MINIMAX_TRANSCRIPTION_MODEL:-music-cover}
     depends_on:
       harden: { condition: service_completed_successfully }
       redis: { condition: service_healthy }

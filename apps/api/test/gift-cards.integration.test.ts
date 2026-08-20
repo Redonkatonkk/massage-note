@@ -62,11 +62,20 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
       ],
     });
     await prisma.store.update({ where: { id: storeId }, data: { ownerMembershipId } });
+    await prisma.store.update({
+      where: { id: storeId },
+      data: {
+        giftCardAutoDiscountEnabled: true,
+        giftCardAutoDiscountThresholdCents: 10_000,
+        giftCardAutoDiscountBps: 500,
+      },
+    });
   });
 
   afterAll(async () => {
     if (enabled) {
       await prisma.businessDayClosing.deleteMany({ where: { storeId } });
+      await prisma.workRecord.deleteMany({ where: { storeId } });
       await prisma.giftCardSale.deleteMany({ where: { storeId } });
       await prisma.idempotencyRequest.deleteMany({ where: { storeId } });
       await prisma.auditLog.deleteMany({ where: { storeId } });
@@ -90,9 +99,9 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     businessDate = (await boards.currentBusinessDay(actor(employeeId), storeId)).businessDate;
     const input = {
       businessDate,
-      serialNumber: " gc-2026-0001 ",
+      faceValueCents: 10_000,
       cashCents: 4_000,
-      cardCents: 6_000,
+      cardCents: 5_500,
       operatorMembershipId: employeeMembershipId,
     };
     const [created, replayed] = await Promise.all([
@@ -115,12 +124,16 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     saleVersion = created.version;
     expect(replayed.id).toBe(saleId);
     expect(created).toMatchObject({
-      serialNumber: "gc-2026-0001",
+      serialNumber: "1001",
+      discountRateBps: 500,
       operatorMembershipId: employeeMembershipId,
     });
+    expect(Number(created.faceValueCents)).toBe(10_000);
+    expect(Number(created.discountThresholdCents)).toBe(10_000);
+    expect(Number(created.discountCents)).toBe(500);
     expect(Number(created.cashCents)).toBe(4_000);
-    expect(Number(created.cardCents)).toBe(6_000);
-    expect(Number(created.amountCents)).toBe(10_000);
+    expect(Number(created.cardCents)).toBe(5_500);
+    expect(Number(created.amountCents)).toBe(9_500);
     await expect(prisma.giftCardSale.count({ where: { storeId } })).resolves.toBe(1);
   });
 
@@ -131,8 +144,9 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
         storeId,
         {
           businessDate,
-          serialNumber: "GC-2026-0001",
-          cashCents: 10_000,
+          serialNumber: "1001",
+          faceValueCents: 10_000,
+          cashCents: 9_500,
           cardCents: 0,
           operatorMembershipId: ownerMembershipId,
         },
@@ -149,21 +163,21 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
       actor(employeeId),
       storeId,
       saleId,
-      { version: saleVersion, cashCents: 2_500, cardCents: 8_500 },
+      { version: saleVersion, cashCents: 2_500, cardCents: 7_000 },
       "gift-card-update-key-0001",
       "gift-card-update",
     );
     saleVersion = updated.version;
-    expect(updated).toMatchObject({ cashCents: 2_500n, cardCents: 8_500n, amountCents: 11_000n });
+    expect(updated).toMatchObject({ cashCents: 2_500n, cardCents: 7_000n, amountCents: 9_500n });
 
     const board = await boards.getBoard(actor(ownerId), storeId, businessDate);
     expect(board.giftCardSales).toHaveLength(1);
     expect(board.statistics).toMatchObject({
       giftCardSaleCount: 1,
       giftCardCashCents: 2_500n,
-      giftCardCardCents: 8_500n,
-      giftCardSalesAmountCents: 11_000n,
-      storeIncomeCents: 11_000n,
+      giftCardCardCents: 7_000n,
+      giftCardSalesAmountCents: 9_500n,
+      storeIncomeCents: 9_500n,
     });
   });
 
@@ -207,6 +221,94 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     expect(restored.deletedAt).toBeNull();
     const board = await boards.getBoard(actor(ownerId), storeId, businessDate);
     expect(board.giftCardSales).toHaveLength(1);
-    expect(board.statistics.giftCardSalesAmountCents).toBe(11_000n);
+    expect(board.statistics.giftCardSalesAmountCents).toBe(9_500n);
+  });
+
+  it("并发卖卡会连续分配不同序列号，台账按序列号排序", async () => {
+    const createAutoSale = (idempotencyKey: string, requestId: string) =>
+      giftCards.create(
+        actor(ownerId),
+        storeId,
+        {
+          businessDate,
+          faceValueCents: 10_000,
+          cashCents: 9_500,
+          cardCents: 0,
+          operatorMembershipId: ownerMembershipId,
+        },
+        idempotencyKey,
+        requestId,
+      );
+    const created = await Promise.all([
+      createAutoSale("gift-card-auto-key-0002", "gift-card-auto-2"),
+      createAutoSale("gift-card-auto-key-0003", "gift-card-auto-3"),
+    ]);
+    expect(created.map((sale) => sale.serialNumber).sort()).toEqual(["1002", "1003"]);
+
+    const startAt = new Date(`${businessDate}T15:00:00.000Z`);
+    for (const [index, tipCents] of [200, 300].entries()) {
+      await prisma.workRecord.create({
+        data: {
+          storeId,
+          employeeMembershipId,
+          businessDate: new Date(`${businessDate}T00:00:00.000Z`),
+          storeTimezoneSnapshot: "America/New_York",
+          businessCutoffSnapshot: "22:00",
+          startAt: new Date(startAt.getTime() + index * 3_600_000),
+          endAt: new Date(startAt.getTime() + (index + 1) * 3_600_000),
+          actualDurationMinutes: 60,
+          status: "CONFIRMED",
+          mainServiceAmountCents: 1_000,
+          addonTotalCents: 0,
+          grossFeeBaseCents: 1_000,
+          discountTotalCents: 0,
+          discountedFeePerformanceCents: 1_000,
+          cashServiceCents: 0,
+          cardServiceCents: 0,
+          giftCardSerialNumber: " 1001 ",
+          giftCardServiceCents: 1_000,
+          cashTipCents: 0,
+          cardTipCents: 0,
+          giftCardTipCents: tipCents,
+          totalTipCents: tipCents,
+          actualServiceCollectedCents: 1_000,
+          customerTotalPaidCents: 1_000 + tipCents,
+          paymentDifferenceCents: 0,
+          mainServiceWageCents: 600,
+          addonWageCents: 0,
+          totalLargeFeeWageCents: 600,
+          employeeTotalIncomeCents: 600 + tipCents,
+          cashAllocatedServiceWageCents: 0,
+          cashAcquiredServiceWageCents: 0,
+          cashWageShortfallCents: 0,
+          createdBy: ownerId,
+          updatedBy: ownerId,
+          serviceSnapshot: {
+            create: {
+              isCustom: true,
+              name: "礼物卡使用测试",
+              shortName: "用卡",
+              amountCents: 1_000,
+              durationMinutes: 60,
+              commissionBps: 6_000,
+              commissionSource: "store_global",
+              wageCents: 600,
+            },
+          },
+        },
+      });
+    }
+
+    const ledger = await giftCards.list(actor(ownerId), storeId);
+    expect(ledger.nextSerialNumber).toBe("1004");
+    expect(ledger.sales.map((sale) => sale.serialNumber)).toEqual(["1001", "1002", "1003"]);
+    expect(ledger.sales[0]!.usageRecords).toHaveLength(2);
+    expect(ledger.sales[0]!.usageRecords.map((record) => record.amountCents)).toEqual([
+      1_200n,
+      1_300n,
+    ]);
+    await expect(giftCards.list(actor(employeeId), storeId)).rejects.toMatchObject({
+      response: expect.objectContaining({ code: "GIFT_CARD_LEDGER_FORBIDDEN" }),
+    });
   });
 });

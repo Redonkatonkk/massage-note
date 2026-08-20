@@ -122,6 +122,7 @@ export class FinanceQueriesService {
         membershipIds: context.membershipIds,
         paymentMethod: context.query.paymentMethod,
         amountType: context.query.amountType,
+        highlightFilter: context.query.highlightFilter,
       },
       totals: {
         ...total,
@@ -155,6 +156,7 @@ export class FinanceQueriesService {
         membershipIds: context.membershipIds,
         paymentMethod: context.query.paymentMethod,
         amountType: context.query.amountType,
+        highlightFilter: context.query.highlightFilter,
       },
       records,
     };
@@ -166,7 +168,7 @@ export class FinanceQueriesService {
       "营业日", "员工", "开始时间", "结束时间", "主要项目", "额外项目",
       "大费基数", "折扣", "折后大费业绩", "现金大费", "刷卡大费",
       "礼物卡序列号", "礼物卡大费", "现金小费", "刷卡小费", "礼物卡小费",
-      "大费工资", "员工总收入", "状态", "备注",
+      "大费工资", "员工总收入", "高亮标记", "状态", "备注",
     ];
     const cents = (value: bigint | null) => ((value ?? 0n) / 100n).toString() + "." + ((value ?? 0n) % 100n).toString().padStart(2, "0");
     const cell = (value: unknown) => {
@@ -193,6 +195,7 @@ export class FinanceQueriesService {
       cents(record.giftCardTipCents),
       cents(record.totalLargeFeeWageCents),
       cents(record.employeeTotalIncomeCents),
+      record.isHighlighted ? "高亮" : "普通",
       record.status === "CONFIRMED" ? "已确认" : "待结账",
       record.note,
     ].map(cell).join(","));
@@ -287,6 +290,11 @@ export class FinanceQueriesService {
           gte: dateAtUtc(context.dateFrom),
           lte: dateAtUtc(context.dateTo),
         },
+        ...(context.query.highlightFilter === "ONLY_HIGHLIGHTED"
+          ? { isHighlighted: true }
+          : context.query.highlightFilter === "EXCLUDE_HIGHLIGHTED"
+            ? { isHighlighted: false }
+            : {}),
         deletedAt: null,
       },
       orderBy: [{ businessDate: "desc" }, { startAt: "desc" }],

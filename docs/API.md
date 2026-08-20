@@ -25,7 +25,7 @@
 | GET/PATCH | `/me`、`/me/profile` | 当前账号与姓名资料 |
 | GET/POST | `/stores` | 列出和创建店铺；创建时由店主填写全局唯一 6 位代码 |
 | GET | `/stores/resolve-code/:code` | 加入前解析店铺代码并显示店名供确认 |
-| GET/PATCH/DELETE | `/stores/:storeId` | 店铺详情、设置与软删除 |
+| GET/PATCH/DELETE | `/stores/:storeId` | 店铺详情、设置与软删除；设置包含记工和礼物卡自动折扣 |
 | POST | `/stores/:storeId/owner-transfer` | 原子转移店主身份 |
 | POST/GET | `/stores/:storeId/join-requests` | 提交、查看加入申请；注册 First Name 匹配待认领员工时自动绑定账号 |
 | POST | `/stores/:storeId/join-requests/:id/approve`、`reject` | 审批加入申请 |
@@ -40,11 +40,12 @@
 | GET | `/stores/:storeId/business-days/current` | 当前营业日、时区和截止时间 |
 | GET | `/stores/:storeId/boards/:businessDate` | 今日或历史记工表；包含该日有效礼物卡销售和店铺销售汇总；普通员工查看历史时仅返回本人行、班次、记工和本人统计，不返回全店卖卡记录 |
 | POST/PATCH | `/stores/:storeId/shifts/...`、`boards/...` | 上下班、行显示与排序；店主和经理可在日结后继续调整行的显示状态，其他业务数据仍只读 |
-| POST | `/stores/:storeId/work-records` | 快速创建预设或自定义记工；同一员工允许同时存在多笔待结账记录 |
-| GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改与软删除 |
+| POST | `/stores/:storeId/work-records` | 快速创建预设或自定义记工；可提交 `isHighlighted`；同一员工允许同时存在多笔待结账记录 |
+| GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改高亮及其他字段与软删除 |
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡/礼物卡大费和小费拆分；使用礼物卡时同时提交序列号 |
 | GET/POST | `/stores/:storeId/work-records/deleted`、`.../:id/restore` | 回收站与恢复 |
-| POST | `/stores/:storeId/gift-card-sales` | 记录卖出的礼物卡；提交营业日、序列号、现金、刷卡和操作人，销售金额由服务端相加 |
+| GET | `/stores/:storeId/gift-card-sales` | 店长或经理读取按序列号自然排序的礼物卡台账、下一序列号及同卡多条使用记录 |
+| POST | `/stores/:storeId/gift-card-sales` | 记录卖出的礼物卡；提交营业日、面值、现金、刷卡和操作人，序列号由服务端每店从 1001 原子分配 |
 | PATCH/DELETE | `/stores/:storeId/gift-card-sales/:saleId` | 修改或软删除卖卡记录；使用 `version`、`Idempotency-Key`、营业日锁和审计 |
 | GET/POST | `/stores/:storeId/gift-card-sales/deleted`、`.../:saleId/restore` | 店长查看与恢复已删除卖卡记录 |
 | GET/POST | `/stores/:storeId/closings/:businessDate/...` | 日结预览、日结与取消日结 |
@@ -52,9 +53,9 @@
 | GET/POST | `/stores/:storeId/cash-settlements/:businessDate/...` | 单人/全员现金结清和取消结清；列表仅含当日有记工的员工 |
 | GET/POST/PATCH/DELETE | `/stores/:storeId/payroll-settlements/:id?` | 工资结算账本与软删除 |
 | POST | `/stores/:storeId/payroll-settlements/:id/restore` | 恢复工资结算 |
-| GET | `/stores/:storeId/finance/summary` | 财务汇总、员工/每日小计和累计余额 |
-| GET | `/stores/:storeId/finance/details` | 与汇总筛选一致的组成明细 |
-| GET | `/stores/:storeId/finance/export.csv` | 防公式注入的 UTF-8 CSV 导出 |
+| GET | `/stores/:storeId/finance/summary` | 财务汇总、员工/每日小计和累计余额；`highlightFilter` 支持 `ALL`、`ONLY_HIGHLIGHTED`、`EXCLUDE_HIGHLIGHTED` |
+| GET | `/stores/:storeId/finance/details` | 与汇总筛选一致的组成明细，包括高亮状态 |
+| GET | `/stores/:storeId/finance/export.csv` | 与汇总筛选一致且防公式注入的 UTF-8 CSV 导出，包括高亮标记列 |
 | GET | `/stores/:storeId/audit-logs` | 按时间、对象、动作和操作人查询审计 |
 | GET | `/stores/:storeId/events` | 支持 `Last-Event-ID` 的 SSE 实时事件流 |
 | POST | `/stores/:storeId/ai/work/messages` | 生成记工操作预览，不直接写入 |
@@ -62,7 +63,7 @@
 | POST | `/stores/:storeId/ai/work/transcribe` | 语音转文字 |
 | GET/POST/DELETE | `/stores/:storeId/ai/previews/:previewId/...` | 查看、确认或取消一次性 AI 预览 |
 
-Web 页面支持用于排查日结异常的深链接：`/finance?store=<storeId>&tab=closing&date=<businessDate>` 直接打开指定营业日的全店日结；`/?store=<storeId>&date=<businessDate>&record=<recordId>` 自动切换到该营业日并打开对应记工详情。两种链接都只导航和读取，不会自动执行日结或修改记录。
+Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直接打开指定营业日的全店日结；在日结异常列表点击单据时，财务页原地读取 `GET /work-records/:recordId` 并打开单笔记工弹窗，不离开当前页面。`/?store=<storeId>&date=<businessDate>&record=<recordId>` 深链接仍可用于从外部直接打开今日页的指定记工。读取不会自动执行日结或修改记录。
 
 两个 AI 消息端点的请求体均接受 `locale: "zh-CN" | "en-US"`，省略时默认 `zh-CN`。该字段决定模型提示、确定性财务回答和安全降级说明的语言。语音转写端点接收浏览器生成的 MP4/AAC 原始请求体，限制为 6–60 秒且不超过 8 MB，通过与文本模型相同的 `MINIMAX_API_KEY` 调用 `MINIMAX_TRANSCRIPTION_MODEL`（默认 `music-cover`）内置 ASR；`Accept-Language` 决定主要识别语言，另一种语言仍作为候选。其他业务错误继续返回稳定 `code` 与 `messageZh`；Web 英文界面按稳定错误码显示英语说明，未知错误码使用不泄露内部信息的通用英语提示。
 
@@ -96,6 +97,19 @@ Web 页面支持用于排查日结异常的深链接：`/finance?store=<storeId>
 
 启用时门槛和额度必须为正数，且折扣额度不能高于门槛。系统按记工的营业日判断周一至周四，在“主要项目 + 额外项目”的折前大费达到门槛时生成自动折扣快照；该快照与普通折扣共同计算折后业绩，不进入员工工资公式。修改设置不会批量改写历史记工，新建或再次编辑记工时才按当前规则判断。
 
+同一个店铺设置接口也可保存礼物卡满额百分比自动折扣；三个字段必须一起提交，关闭时门槛和比例均为 0：
+
+```json
+{
+  "version": 4,
+  "giftCardAutoDiscountEnabled": true,
+  "giftCardAutoDiscountThresholdCents": 10000,
+  "giftCardAutoDiscountBps": 500
+}
+```
+
+上例表示礼物卡面值满 `$100.00` 时折扣 `5%`。卖卡时会把当时的门槛和比例写入销售快照，之后修改店铺设置不会改变既有卖卡记录。
+
 记工详情可通过 `PATCH /stores/:storeId/work-records/:recordId` 为单笔记录停用或恢复自动折扣：
 
 ```json
@@ -106,6 +120,8 @@ Web 页面支持用于排查日结异常的深链接：`/finance?store=<storeId>
 ```
 
 设为 `true` 后，服务端删除该笔自动折扣快照并持久保留停用状态，之后再次编辑也不会自动加回；设为 `false` 时按当前营业日、折前大费和店铺设置重新判断。该字段走既有记工权限、营业日锁、版本冲突、幂等、审计与现金结算回退规则。
+
+快速记工和详情修改都可提交布尔字段 `isHighlighted`。它只控制首页黄色卡片提示和财务查询筛选，不进入任何金额公式。财务汇总、明细和 CSV 必须使用相同的 `highlightFilter` 值。
 
 确认付款可在原有现金与刷卡字段之外提交礼物卡拆分：
 
@@ -129,14 +145,14 @@ Web 页面支持用于排查日结异常的深链接：`/finance?store=<storeId>
 ```json
 {
   "businessDate": "2026-08-20",
-  "serialNumber": "GC-2026-0002",
+  "faceValueCents": 15000,
   "cashCents": 5000,
-  "cardCents": 10000,
+  "cardCents": 9250,
   "operatorMembershipId": "00000000-0000-4000-8000-000000000000"
 }
 ```
 
-响应中的 `amountCents` 固定等于 `cashCents + cardCents`。同一店铺有效卖卡记录的规范化序列号唯一；销售额全部加入店铺收入，不进入员工提成、工资或现金结算。
+若店铺规则是“满 `$100.00` 折扣 `5%`”，上述请求的折扣为 `$7.50`，折后应付和实际收款均为 `$142.50`。响应包含自动分配的 `serialNumber`、`faceValueCents`、`discountThresholdCents`、`discountRateBps`、`discountCents` 与 `amountCents`，并满足 `faceValueCents - discountCents = amountCents = cashCents + cardCents`。同一店铺序列号唯一，自动号在事务内递增且软删除后不复用；实际收款全部加入店铺收入，不进入员工提成、工资或现金结算。旧客户端仍可显式提交序列号，但新界面不再手工输入新卡序列号。
 
 项目排序提交完整的未删除项目列表及当前版本，例如 `{ "type": "SERVICE", "items": [{ "id": "...", "version": 2 }] }`。服务端在同一事务中校验列表、项目归属和全部版本，再统一写入顺序；列表不完整或任一版本过期时返回 `CATALOG_ORDER_CONFLICT`，不会留下半套排序。
 

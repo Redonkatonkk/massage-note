@@ -47,6 +47,9 @@ export interface StoreDetails extends StoreSummary {
   mondayThursdayAutoDiscountEnabled: boolean;
   mondayThursdayAutoDiscountThresholdCents: number;
   mondayThursdayAutoDiscountAmountCents: number;
+  giftCardAutoDiscountEnabled: boolean;
+  giftCardAutoDiscountThresholdCents: number;
+  giftCardAutoDiscountBps: number;
   version: number;
   ownerMembershipId: string | null;
   ownerMembership: null | { id: string; displayName: string; userId: string };
@@ -239,6 +242,7 @@ export interface WorkRecord {
   tipSettledManualFlag: boolean;
   largeFeeSettledManualFlag: boolean;
   automaticDiscountSuppressed: boolean;
+  isHighlighted: boolean;
   note: string;
   version: number;
   deletedAt: string | null;
@@ -260,6 +264,10 @@ export interface GiftCardSale {
   id: string;
   businessDate: string;
   serialNumber: string;
+  faceValueCents: number;
+  discountThresholdCents: number;
+  discountRateBps: number;
+  discountCents: number;
   cashCents: number;
   cardCents: number;
   amountCents: number;
@@ -271,6 +279,26 @@ export interface GiftCardSale {
   deleteReason: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface GiftCardUsageRecord {
+  id: string;
+  businessDate: string;
+  startAt: string;
+  serviceShortName: string | null;
+  employee: { id: string; displayName: string };
+  serviceCents: number;
+  tipCents: number;
+  amountCents: number;
+}
+
+export interface GiftCardLedgerSale extends GiftCardSale {
+  usageRecords: GiftCardUsageRecord[];
+}
+
+export interface GiftCardLedgerResponse {
+  nextSerialNumber: string;
+  sales: GiftCardLedgerSale[];
 }
 
 export type DeletedGiftCardSale = GiftCardSale;
@@ -327,6 +355,7 @@ export interface BoardResponse {
   isClosed: boolean;
   rows: BoardRow[];
   giftCardSales: GiftCardSale[];
+  nextGiftCardSerialNumber: string;
   statistics: BoardStatistics;
 }
 
@@ -379,6 +408,7 @@ export interface FinanceSummaryResponse {
     membershipIds: string[];
     paymentMethod: "ALL" | "CASH" | "CARD" | "GIFT_CARD";
     amountType: "ALL" | "SERVICE" | "TIP";
+    highlightFilter: "ALL" | "ONLY_HIGHLIGHTED" | "EXCLUDE_HIGHLIGHTED";
   };
   totals: FinanceTotals & {
     payrollPaidWithinRangeCents: number;

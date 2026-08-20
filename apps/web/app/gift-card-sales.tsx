@@ -2,12 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
-import type { GiftCardSale, StoreMember } from "../lib/types";
+import type { GiftCardSale, StoreDetails, StoreMember } from "../lib/types";
 
 interface GiftCardSalesProps {
   storeId: string;
   businessDate: string;
   sales: GiftCardSale[];
+  nextSerialNumber: string;
+  discountSettings: Pick<
+    StoreDetails,
+    | "giftCardAutoDiscountEnabled"
+    | "giftCardAutoDiscountThresholdCents"
+    | "giftCardAutoDiscountBps"
+  >;
   members: StoreMember[];
   defaultOperatorMembershipId: string;
   canEdit: boolean;
@@ -39,6 +46,8 @@ export function GiftCardSales({
   storeId,
   businessDate,
   sales,
+  nextSerialNumber,
+  discountSettings,
   members,
   defaultOperatorMembershipId,
   canEdit,
@@ -50,6 +59,7 @@ export function GiftCardSales({
   );
   const [editing, setEditing] = useState<GiftCardSale | null | undefined>(undefined);
   const [serialNumber, setSerialNumber] = useState("");
+  const [faceValueAmount, setFaceValueAmount] = useState("");
   const [cashAmount, setCashAmount] = useState("");
   const [cardAmount, setCardAmount] = useState("");
   const [operatorMembershipId, setOperatorMembershipId] = useState(
@@ -72,10 +82,35 @@ export function GiftCardSales({
   const totalCents = cashCents !== null && cardCents !== null
     ? cashCents + cardCents
     : null;
+  const faceValueCents = faceValueAmount.trim() === ""
+    ? null
+    : /^\d+(?:\.\d{0,2})?$/.test(faceValueAmount.trim())
+      ? Math.round(Number(faceValueAmount) * 100)
+      : null;
+  const discountThresholdCents = editing
+    ? editing.discountThresholdCents
+    : discountSettings.giftCardAutoDiscountEnabled
+      ? discountSettings.giftCardAutoDiscountThresholdCents
+      : 0;
+  const discountRateBps = editing
+    ? editing.discountRateBps
+    : discountSettings.giftCardAutoDiscountEnabled
+      ? discountSettings.giftCardAutoDiscountBps
+      : 0;
+  const discountCents = faceValueCents !== null &&
+    faceValueCents >= discountThresholdCents &&
+    discountThresholdCents > 0 &&
+    discountRateBps > 0
+      ? Number(
+          (BigInt(faceValueCents) * BigInt(discountRateBps) + 5_000n) / 10_000n,
+        )
+      : 0;
+  const payableCents = faceValueCents === null ? null : faceValueCents - discountCents;
 
   function openCreate() {
     setEditing(null);
-    setSerialNumber("");
+    setSerialNumber(nextSerialNumber);
+    setFaceValueAmount("");
     setCashAmount("");
     setCardAmount("");
     setOperatorMembershipId(
@@ -89,6 +124,7 @@ export function GiftCardSales({
   function openEdit(sale: GiftCardSale) {
     setEditing(sale);
     setSerialNumber(sale.serialNumber);
+    setFaceValueAmount(dollars(sale.faceValueCents));
     setCashAmount(dollars(sale.cashCents));
     setCardAmount(dollars(sale.cardCents));
     setOperatorMembershipId(sale.operatorMembershipId);
@@ -100,28 +136,32 @@ export function GiftCardSales({
     setError("");
     try {
       const input = {
-        serialNumber: serialNumber.trim(),
+        faceValueCents: cents(faceValueAmount, "礼物卡总金额"),
         cashCents: cashAmount.trim() === "" ? 0 : cents(cashAmount, "现金金额"),
         cardCents: cardAmount.trim() === "" ? 0 : cents(cardAmount, "刷卡金额"),
         operatorMembershipId,
       };
-      if (!input.serialNumber) throw new Error("请填写礼物卡序列号");
       if (!input.operatorMembershipId) throw new Error("请选择操作人");
-      if (input.cashCents + input.cardCents <= 0) throw new Error("付款总额必须大于 0");
+      if (input.faceValueCents <= 0) throw new Error("礼物卡总金额必须大于 0");
+      if (payableCents === null || input.cashCents + input.cardCents !== payableCents) {
+        throw new Error("现金与刷卡合计必须等于折后应付金额");
+      }
       if (editing) {
+        const editedSerialNumber = serialNumber.trim();
+        if (!editedSerialNumber) throw new Error("请填写礼物卡序列号");
         await apiRequest(`/stores/${storeId}/gift-card-sales/${editing.id}`, {
           method: "PATCH",
           idempotent: true,
-          body: { version: editing.version, ...input },
+          body: { version: editing.version, serialNumber: editedSerialNumber, ...input },
         });
         setNotice("礼物卡销售记录已更新");
       } else {
-        await apiRequest(`/stores/${storeId}/gift-card-sales`, {
+        const created = await apiRequest<GiftCardSale>(`/stores/${storeId}/gift-card-sales`, {
           method: "POST",
           idempotent: true,
           body: { businessDate, ...input },
         });
-        setNotice("礼物卡销售已记录，金额全部计入店铺收入");
+        setNotice(`礼物卡 ${created.serialNumber} 已记录，金额全部计入店铺收入`);
       }
       setEditing(undefined);
       await onReload();
@@ -162,10 +202,10 @@ export function GiftCardSales({
         <div>
           <p className="eyebrow">店铺项目</p>
           <h2>礼物卡销售</h2>
-          <p>卖卡金额由现金＋刷卡自动计算，全部计入店铺收入，不参与员工分成。</p>
+          <p>先输入礼物卡面值，系统按售出时的折扣规则计算应付；实际收款计入店铺收入，不参与员工分成。</p>
         </div>
         <div className="gift-card-sales__summary">
-          <span>{sales.length} 张</span>
+          <span>{sales.length} 张 · 实际收入</span>
           <strong>{money(sales.reduce((sum, sale) => sum + sale.amountCents, 0))}</strong>
         </div>
       </header>
@@ -179,7 +219,8 @@ export function GiftCardSales({
             onClick={() => openEdit(sale)}
           >
             <span><small>序列号</small><strong>{sale.serialNumber}</strong></span>
-            <b>{money(sale.amountCents)}</b>
+            <b>面值 {money(sale.faceValueCents)}</b>
+            <span className="gift-card-sale-card__payments">折扣 -{money(sale.discountCents)} · 实收 {money(sale.amountCents)}</span>
             <span className="gift-card-sale-card__payments">现金 {money(sale.cashCents)} · 刷卡 {money(sale.cardCents)}</span>
             <span className="gift-card-sale-card__operator">操作人 · {sale.operator.displayName}</span>
           </button>
@@ -201,11 +242,19 @@ export function GiftCardSales({
               <button className="close-button" type="button" disabled={busy} onClick={() => setEditing(undefined)}>关闭</button>
             </div>
             <div className="gift-card-sale-form">
-              <label className="field-label">礼物卡序列号<input autoFocus autoComplete="off" maxLength={120} value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} /></label>
+              <label className="field-label">礼物卡序列号<input autoFocus={Boolean(editing)} autoComplete="off" maxLength={120} readOnly={!editing} value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} /></label>
+              {!editing && <p className="field-help gift-card-sale-form__serial-help">序列号由系统自动生成；多人同时操作时，以保存后的号码为准。</p>}
+              <label className="field-label gift-card-sale-form__face-value">礼物卡总金额（美元）<input autoFocus={!editing} inputMode="decimal" placeholder="例如 100.00" value={faceValueAmount} onChange={(event) => setFaceValueAmount(event.target.value)} /></label>
+              <div className="gift-card-sale-discount">
+                <span>自动折扣</span>
+                <strong>{discountCents > 0 ? `${(discountRateBps / 100).toFixed(2)}% · -${money(discountCents)}` : "本单无折扣"}</strong>
+                {discountRateBps > 0 && discountCents === 0 && <small>面值满 {money(discountThresholdCents)} 时应用 {(discountRateBps / 100).toFixed(2)}%</small>}
+              </div>
               <label className="field-label">现金付款（美元）<input inputMode="decimal" placeholder="可留空，按 0 计算" value={cashAmount} onChange={(event) => setCashAmount(event.target.value)} /></label>
               <label className="field-label">刷卡付款（美元）<input inputMode="decimal" placeholder="可留空，按 0 计算" value={cardAmount} onChange={(event) => setCardAmount(event.target.value)} /></label>
               <label className="field-label">操作人<select value={operatorMembershipId} onChange={(event) => setOperatorMembershipId(event.target.value)}><option value="">请选择员工</option>{activeMembers.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
-              <div className="gift-card-sale-total"><span>礼物卡金额（自动计算）</span><strong>{totalCents === null ? "请检查付款金额" : money(totalCents)}</strong></div>
+              <div className="gift-card-sale-total"><span>折后应付金额</span><strong>{payableCents === null ? "请先输入礼物卡总金额" : money(payableCents)}</strong></div>
+              <div className={`gift-card-sale-payment-check${totalCents !== null && payableCents !== null && totalCents === payableCents ? " matched" : ""}`}><span>现金＋刷卡</span><strong>{totalCents === null ? "请检查付款金额" : money(totalCents)}</strong></div>
             </div>
             {error && <p className="form-error" role="alert">{error}</p>}
             <footer className="editor-actions gift-card-sale-actions">

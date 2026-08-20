@@ -49,6 +49,9 @@ export const updateStoreSchema = z
     mondayThursdayAutoDiscountEnabled: z.boolean().optional(),
     mondayThursdayAutoDiscountThresholdCents: moneyCentsSchema.optional(),
     mondayThursdayAutoDiscountAmountCents: moneyCentsSchema.optional(),
+    giftCardAutoDiscountEnabled: z.boolean().optional(),
+    giftCardAutoDiscountThresholdCents: moneyCentsSchema.optional(),
+    giftCardAutoDiscountBps: commissionBpsSchema.optional(),
   })
   .superRefine((value, context) => {
     const fields = [
@@ -70,28 +73,76 @@ export const updateStoreSchema = z
       });
       return;
     }
-    if (!value.mondayThursdayAutoDiscountEnabled) return;
-    const threshold = value.mondayThursdayAutoDiscountThresholdCents ?? 0;
-    const amount = value.mondayThursdayAutoDiscountAmountCents ?? 0;
-    if (threshold <= 0) {
-      context.addIssue({
-        code: "custom",
-        message: "自动折扣门槛必须大于 0",
-        path: ["mondayThursdayAutoDiscountThresholdCents"],
-      });
+    if (value.mondayThursdayAutoDiscountEnabled) {
+      const threshold = value.mondayThursdayAutoDiscountThresholdCents ?? 0;
+      const amount = value.mondayThursdayAutoDiscountAmountCents ?? 0;
+      if (threshold <= 0) {
+        context.addIssue({
+          code: "custom",
+          message: "自动折扣门槛必须大于 0",
+          path: ["mondayThursdayAutoDiscountThresholdCents"],
+        });
+      }
+      if (amount <= 0) {
+        context.addIssue({
+          code: "custom",
+          message: "自动折扣额度必须大于 0",
+          path: ["mondayThursdayAutoDiscountAmountCents"],
+        });
+      }
+      if (amount > threshold) {
+        context.addIssue({
+          code: "custom",
+          message: "自动折扣额度不能高于应用门槛",
+          path: ["mondayThursdayAutoDiscountAmountCents"],
+        });
+      }
     }
-    if (amount <= 0) {
+    const giftCardFields = [
+      value.giftCardAutoDiscountEnabled,
+      value.giftCardAutoDiscountThresholdCents,
+      value.giftCardAutoDiscountBps,
+    ];
+    const hasAnyGiftCardDiscountField = giftCardFields.some(
+      (field) => field !== undefined,
+    );
+    const hasAllGiftCardDiscountFields = giftCardFields.every(
+      (field) => field !== undefined,
+    );
+    if (hasAnyGiftCardDiscountField && !hasAllGiftCardDiscountFields) {
       context.addIssue({
         code: "custom",
-        message: "自动折扣额度必须大于 0",
-        path: ["mondayThursdayAutoDiscountAmountCents"],
+        message: "礼物卡折扣开关、门槛和折扣比例必须一起保存",
+        path: ["giftCardAutoDiscountEnabled"],
       });
+      return;
     }
-    if (amount > threshold) {
+    if (value.giftCardAutoDiscountEnabled) {
+      const giftCardThreshold = value.giftCardAutoDiscountThresholdCents ?? 0;
+      const giftCardDiscountBps = value.giftCardAutoDiscountBps ?? 0;
+      if (giftCardThreshold <= 0) {
+        context.addIssue({
+          code: "custom",
+          message: "礼物卡自动折扣门槛必须大于 0",
+          path: ["giftCardAutoDiscountThresholdCents"],
+        });
+      }
+      if (giftCardDiscountBps <= 0 || giftCardDiscountBps >= 10_000) {
+        context.addIssue({
+          code: "custom",
+          message: "礼物卡自动折扣必须大于 0% 且小于 100%",
+          path: ["giftCardAutoDiscountBps"],
+        });
+      }
+    } else if (
+      hasAllGiftCardDiscountFields &&
+      ((value.giftCardAutoDiscountThresholdCents ?? 0) !== 0 ||
+        (value.giftCardAutoDiscountBps ?? 0) !== 0)
+    ) {
       context.addIssue({
         code: "custom",
-        message: "自动折扣额度不能高于应用门槛",
-        path: ["mondayThursdayAutoDiscountAmountCents"],
+        message: "关闭礼物卡自动折扣时，门槛和折扣比例必须为 0",
+        path: ["giftCardAutoDiscountEnabled"],
       });
     }
   })
@@ -101,7 +152,8 @@ export const updateStoreSchema = z
       value.timezone !== undefined ||
       value.businessCutoffLocal !== undefined ||
       value.globalCommissionBps !== undefined ||
-      value.mondayThursdayAutoDiscountEnabled !== undefined,
+      value.mondayThursdayAutoDiscountEnabled !== undefined ||
+      value.giftCardAutoDiscountEnabled !== undefined,
     "至少需要修改一个店铺字段",
   );
 

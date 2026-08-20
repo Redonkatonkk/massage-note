@@ -177,7 +177,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["点击员工行的 +"] --> B["选择项目；时间默认现在"]
+    A["点击员工行的 +"] --> B["选择项目；时间默认现在；可选高亮"]
     B --> C["后端生成项目、价格、时长、提成快照"]
     C --> D["保存浅橙色待结账记录"]
     D --> E["打开记录详情"]
@@ -342,12 +342,12 @@ Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同�
 
 | 表 | 关键字段 | 约束与说明 |
 |---|---|---|
-| `work_records` | `store_id`, `employee_membership_id`, `business_date`, `start_at`, `end_at`, `actual_duration_minutes`, `status`, `note`, 各汇总金额、`version` | `status = pending_payment / confirmed`；软删除；汇总只由服务器写 |
+| `work_records` | `store_id`, `employee_membership_id`, `business_date`, `start_at`, `end_at`, `actual_duration_minutes`, `status`, `is_highlighted`, `note`, 各汇总金额、`version` | `status = pending_payment / confirmed`；高亮只改变展示与查询筛选；软删除；汇总只由服务器写 |
 | `work_record_service_snapshots` | `work_record_id`, `source_service_item_id`, `is_custom`, `name`, `short_name`, `amount_cents`, `duration_minutes`, `commission_bps`, `wage_cents` | 一单一个；改项目时更新当前快照，同时在审计中保留旧值 |
 | `work_record_addon_snapshots` | `work_record_id`, `source_addon_item_id`, `is_custom`, `name`, `short_name`, `amount_cents`, `duration_minutes`, `commission_bps`, `wage_cents`, `position` | 一单多个 |
 | `work_record_discount_snapshots` | `work_record_id`, `source_discount_item_id`, `is_custom`, `name`, `amount_cents`, `position` | 一单多个；总额不得超过大费基数 |
 | `payment_breakdowns` | `work_record_id`, `cash_service_cents`, `card_service_cents`, `gift_card_serial_number`, `gift_card_service_cents`, `cash_tip_cents`, `card_tip_cents`, `gift_card_tip_cents`, `confirmed_at`, `confirmed_by`, `version` | 待结账时可空；确认后六项金额均非空、非负；使用礼物卡时序列号非空 |
-| `gift_card_sales` | `store_id`, `business_date`, `serial_number`, `serial_number_normalized`, `cash_cents`, `card_cents`, `amount_cents`, `operator_membership_id`, `version` | 销售额等于现金加刷卡且大于 0；同店有效序列号唯一；软删除并审计 |
+| `gift_card_sales` | `store_id`, `business_date`, `serial_number`, `serial_number_normalized`, `face_value_cents`, `discount_threshold_cents`, `discount_rate_bps`, `discount_cents`, `cash_cents`, `card_cents`, `amount_cents`, `operator_membership_id`, `version` | 面值减折扣等于现金加刷卡且大于 0；每店序列号从 1001 事务分配且不复用；软删除并审计 |
 
 `work_records` 的服务器汇总字段：
 
@@ -384,7 +384,7 @@ Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同�
 | `daily_cash_settlements` | `store_id`, `business_date`, `membership_id`, 各现金快照金额、`status`, `note`, `settled_by`, `settled_at`, `version` | 每人每天一条当前记录；结清时保存计算快照；修改历史后回到未结清 |
 | `payroll_settlements` | `store_id`, `membership_id`, `settlement_date`, `period_start`, `period_end`, `service_wage_cents`, `cash_tip_cents`, `card_tip_cents`, `adjustment_cents`, `total_paid_cents`, `payment_method`, `note`, `version` | Owner 不能作为被支付对象；总额由服务器计算；软删除 |
 
-日期范围是账本说明和筛选维度，不锁定或“占用”某批记工；允许日期范围重叠。老板尚欠始终按累计应得、已通过结清现金取得和有效工资账本重新计算，因此部分支付、超额支付和历史修正不会产生双重归属逻辑。
+日期范围和高亮状态是账本说明与筛选维度，不锁定或“占用”某批记工；允许日期范围重叠。高亮筛选必须同时作用于财务汇总、组成明细和 CSV 导出。老板尚欠始终按累计应得、已通过结清现金取得和有效工资账本重新计算，因此部分支付、超额支付和历史修正不会产生双重归属逻辑。
 
 ### 6.7 审计、可靠性和 AI
 
@@ -589,7 +589,8 @@ total_paid = service_wage + cash_tip + card_tip + adjustment
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 补 0、重算并确认付款 |
 | DELETE | `/stores/:storeId/work-records/:recordId` | 软删除 |
 | POST | `/stores/:storeId/work-records/:recordId/restore` | Owner/Manager 恢复 |
-| POST | `/stores/:storeId/gift-card-sales` | 记录当天卖出的礼物卡，金额由现金与刷卡自动求和 |
+| GET | `/stores/:storeId/gift-card-sales` | Owner/Manager 查看按序列号排序并带多条使用记录的礼物卡台账 |
+| POST | `/stores/:storeId/gift-card-sales` | 记录当天卖出的礼物卡，自动分配序列号并按面值与折扣快照校验实际收款 |
 | PATCH/DELETE | `/stores/:storeId/gift-card-sales/:saleId` | 修改或软删除卖卡记录；使用乐观锁与审计 |
 | GET/POST | `/stores/:storeId/gift-card-sales/deleted`、`.../:saleId/restore` | Owner/Manager 查看和恢复卖卡记录 |
 

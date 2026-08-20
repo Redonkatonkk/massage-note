@@ -30,6 +30,14 @@ import { GiftCardsService } from "./gift-cards.service.js";
 export class GiftCardsController {
   constructor(private readonly giftCards: GiftCardsService) {}
 
+  @Get()
+  list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("storeId") storeId: string,
+  ) {
+    return this.giftCards.list(user, parseRequest(uuidSchema, storeId));
+  }
+
   @Get("deleted")
   listDeleted(
     @CurrentUser() user: AuthenticatedUser,

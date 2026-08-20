@@ -65,6 +65,7 @@ export const createWorkRecordSchema = z.object({
       durationMinutes: z.number().int().min(1).max(720),
     })
     .optional(),
+  isHighlighted: z.boolean().optional(),
 }).refine((value) => Boolean(value.serviceItemId) !== Boolean(value.customService), {
   message: "预设项目和自定义项目必须且只能选择一种",
   path: ["serviceItemId"],
@@ -92,6 +93,7 @@ export const updateWorkRecordSchema = z.object({
   addons: z.array(addonInputSchema).max(30).optional(),
   discounts: z.array(discountInputSchema).max(30).optional(),
   automaticDiscountSuppressed: z.boolean().optional(),
+  isHighlighted: z.boolean().optional(),
   tipSettledManualFlag: z.boolean().optional(),
   largeFeeSettledManualFlag: z.boolean().optional(),
   note: z.string().max(2_000).optional(),

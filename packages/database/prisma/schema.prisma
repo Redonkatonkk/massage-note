@@ -104,6 +104,10 @@ model Store {
   mondayThursdayAutoDiscountEnabled        Boolean     @default(false) @map("monday_thursday_auto_discount_enabled")
   mondayThursdayAutoDiscountThresholdCents BigInt      @default(0) @map("monday_thursday_auto_discount_threshold_cents")
   mondayThursdayAutoDiscountAmountCents    BigInt      @default(0) @map("monday_thursday_auto_discount_amount_cents")
+  giftCardAutoDiscountEnabled               Boolean     @default(false) @map("gift_card_auto_discount_enabled")
+  giftCardAutoDiscountThresholdCents        BigInt      @default(0) @map("gift_card_auto_discount_threshold_cents")
+  giftCardAutoDiscountBps                   Int         @default(0) @map("gift_card_auto_discount_bps")
+  nextGiftCardSerialNumber                 Int         @default(1001) @map("gift_card_next_serial_number")
   ownerMembershipId                        String?     @unique @map("owner_membership_id") @db.Uuid
   status                                   StoreStatus @default(SETUP)
   version                                  Int         @default(1)
@@ -406,6 +410,7 @@ model WorkRecord {
   tipSettledManualFlag            Boolean          @default(false) @map("tip_settled_manual_flag")
   largeFeeSettledManualFlag       Boolean          @default(false) @map("large_fee_settled_manual_flag")
   automaticDiscountSuppressed     Boolean          @default(false) @map("automatic_discount_suppressed")
+  isHighlighted                   Boolean          @default(false) @map("is_highlighted")
   manualPriceFlag                 Boolean          @default(false) @map("manual_price_flag")
   note                            String           @default("")
   version                         Int              @default(1)
@@ -426,6 +431,7 @@ model WorkRecord {
 
   @@index([storeId, businessDate, startAt])
   @@index([storeId, employeeMembershipId, businessDate])
+  @@index([storeId, isHighlighted, businessDate])
   @@index([storeId, status])
   @@map("work_records")
 }
@@ -511,6 +517,10 @@ model GiftCardSale {
   businessDate           DateTime  @map("business_date") @db.Date
   serialNumber           String    @map("serial_number")
   serialNumberNormalized String    @map("serial_number_normalized")
+  faceValueCents         BigInt    @map("face_value_cents")
+  discountThresholdCents BigInt    @default(0) @map("discount_threshold_cents")
+  discountRateBps        Int       @default(0) @map("discount_rate_bps")
+  discountCents          BigInt    @default(0) @map("discount_cents")
   cashCents              BigInt    @default(0) @map("cash_cents")
   cardCents              BigInt    @default(0) @map("card_cents")
   amountCents            BigInt    @map("amount_cents")

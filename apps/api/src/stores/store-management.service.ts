@@ -22,6 +22,9 @@ function storeSnapshot(store: {
   mondayThursdayAutoDiscountEnabled: boolean;
   mondayThursdayAutoDiscountThresholdCents: bigint;
   mondayThursdayAutoDiscountAmountCents: bigint;
+  giftCardAutoDiscountEnabled: boolean;
+  giftCardAutoDiscountThresholdCents: bigint;
+  giftCardAutoDiscountBps: number;
   ownerMembershipId: string | null;
   status: string;
   version: number;
@@ -38,6 +41,10 @@ function storeSnapshot(store: {
       store.mondayThursdayAutoDiscountThresholdCents.toString(),
     mondayThursdayAutoDiscountAmountCents:
       store.mondayThursdayAutoDiscountAmountCents.toString(),
+    giftCardAutoDiscountEnabled: store.giftCardAutoDiscountEnabled,
+    giftCardAutoDiscountThresholdCents:
+      store.giftCardAutoDiscountThresholdCents.toString(),
+    giftCardAutoDiscountBps: store.giftCardAutoDiscountBps,
     ownerMembershipId: store.ownerMembershipId,
     status: store.status,
     version: store.version,
@@ -119,6 +126,14 @@ export class StoreManagementService {
                     input.mondayThursdayAutoDiscountThresholdCents!,
                   mondayThursdayAutoDiscountAmountCents:
                     input.mondayThursdayAutoDiscountAmountCents!,
+                }),
+            ...(input.giftCardAutoDiscountEnabled === undefined
+              ? {}
+              : {
+                  giftCardAutoDiscountEnabled: input.giftCardAutoDiscountEnabled,
+                  giftCardAutoDiscountThresholdCents:
+                    input.giftCardAutoDiscountThresholdCents!,
+                  giftCardAutoDiscountBps: input.giftCardAutoDiscountBps!,
                 }),
             version: { increment: 1 },
           },

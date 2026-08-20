@@ -160,6 +160,9 @@ export const financeQuerySchema = z
     membershipIds: membershipIdsQuerySchema,
     paymentMethod: z.enum(["ALL", "CASH", "CARD", "GIFT_CARD"]).default("CARD"),
     amountType: z.enum(["ALL", "SERVICE", "TIP"]).default("ALL"),
+    highlightFilter: z
+      .enum(["ALL", "ONLY_HIGHLIGHTED", "EXCLUDE_HIGHLIGHTED"])
+      .default("ALL"),
   })
   .superRefine((value, context) => {
     if (value.dateFrom && value.dateTo && value.dateTo < value.dateFrom) {

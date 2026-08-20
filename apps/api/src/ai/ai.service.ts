@@ -93,7 +93,13 @@ export class AiService {
     const paymentMethod: FinanceQuery["paymentMethod"] = mentionsCash && !mentionsCard ? "CASH" : mentionsCard && !mentionsCash ? "CARD" : "ALL";
     const amountType: FinanceQuery["amountType"] = mentionsTips && !mentionsServiceFees ? "TIP" : mentionsServiceFees && !mentionsTips ? "SERVICE" : "ALL";
     const dates = await this.financeDates(storeId, input.text);
-    const query: FinanceQuery = { ...dates, membershipIds, paymentMethod, amountType };
+    const query: FinanceQuery = {
+      ...dates,
+      membershipIds,
+      paymentMethod,
+      amountType,
+      highlightFilter: "ALL",
+    };
     try {
       const summary = await this.finance.summary(actor, storeId, query);
       let cashContext: unknown = null;

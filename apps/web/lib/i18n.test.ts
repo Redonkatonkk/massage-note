@@ -37,6 +37,14 @@ describe("bilingual UI translation", () => {
     expect(translateText("2 张", "en-US")).toBe("2 cards");
     expect(translateText("礼物卡销售", "en-US")).toBe("Gift card sales");
     expect(translateText("使用礼物卡付款", "en-US")).toBe("Pay with a gift card");
+    expect(translateText("3 张 · 实际收入", "en-US")).toBe("3 cards · Actual income");
+    expect(translateText("折扣 -US$5.00 · 实收 US$95.00", "en-US"))
+      .toBe("Discount -$5.00 · Collected $95.00");
+    expect(translateText("2 条 · 共 US$40.00", "en-US"))
+      .toBe("2 entries · $40.00 total");
+    expect(translateText("仅查看高亮记工", "en-US"))
+      .toBe("Highlighted records only");
+    expect(translateText("高亮标记", "en-US")).toBe("Highlight");
   });
 
   it("translates appended status lines while retaining arbitrary messages", () => {

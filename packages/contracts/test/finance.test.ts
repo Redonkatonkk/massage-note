@@ -44,10 +44,23 @@ describe("日结与财务契约", () => {
     ).toMatchObject({
       paymentMethod: "CARD",
       amountType: "ALL",
+      highlightFilter: "ALL",
       membershipIds: [
         "56d4a93a-5a73-49df-93c2-704ae844faa4",
         "115e9be0-c76e-4d8d-bcec-55618c74450e",
       ],
     });
+  });
+
+  it("财务查询接受三种高亮筛选", () => {
+    for (const highlightFilter of [
+      "ALL",
+      "ONLY_HIGHLIGHTED",
+      "EXCLUDE_HIGHLIGHTED",
+    ] as const) {
+      expect(financeQuerySchema.parse({ highlightFilter }).highlightFilter).toBe(
+        highlightFilter,
+      );
+    }
   });
 });

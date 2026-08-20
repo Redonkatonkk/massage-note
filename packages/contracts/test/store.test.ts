@@ -111,6 +111,32 @@ describe("门店输入契约", () => {
     ).toBe(true);
   });
 
+  it("礼物卡自动折扣必须完整配置门槛和有效百分比", () => {
+    expect(updateStoreSchema.safeParse({
+      version: 1,
+      giftCardAutoDiscountEnabled: true,
+      giftCardAutoDiscountThresholdCents: 10_000,
+      giftCardAutoDiscountBps: 500,
+    }).success).toBe(true);
+    expect(updateStoreSchema.safeParse({
+      version: 1,
+      giftCardAutoDiscountEnabled: true,
+      giftCardAutoDiscountThresholdCents: 10_000,
+    }).success).toBe(false);
+    expect(updateStoreSchema.safeParse({
+      version: 1,
+      giftCardAutoDiscountEnabled: true,
+      giftCardAutoDiscountThresholdCents: 10_000,
+      giftCardAutoDiscountBps: 10_000,
+    }).success).toBe(false);
+    expect(updateStoreSchema.safeParse({
+      version: 1,
+      giftCardAutoDiscountEnabled: false,
+      giftCardAutoDiscountThresholdCents: 0,
+      giftCardAutoDiscountBps: 0,
+    }).success).toBe(true);
+  });
+
   it("Owner 转移必须指定有效成员编号", () => {
     expect(
       transferOwnerSchema.safeParse({

@@ -16,6 +16,7 @@ import {
   businessDateFor,
   canWriteWorkRecord,
   hasStoreCapability,
+  multiplyByBps,
 } from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
@@ -38,6 +39,78 @@ export class GiftCardsService {
     private readonly access: StoreAccessService,
     private readonly idempotency: IdempotencyService,
   ) {}
+
+  async list(actor: User, storeId: string) {
+    const membership = await this.access.requireActiveMembership(actor.id, storeId);
+    if (!hasStoreCapability(membership.role, "FINANCE_READ_STORE")) {
+      throw new ForbiddenException({
+        code: "GIFT_CARD_LEDGER_FORBIDDEN",
+        messageZh: "只有店长或经理可以查看全店礼物卡台账",
+      });
+    }
+    const [store, sales, records] = await Promise.all([
+      this.prisma.store.findFirst({
+        where: { id: storeId, status: "ACTIVE", deletedAt: null },
+        select: { nextGiftCardSerialNumber: true },
+      }),
+      this.prisma.giftCardSale.findMany({
+        where: { storeId, deletedAt: null },
+        include: saleInclude,
+      }),
+      this.prisma.workRecord.findMany({
+        where: {
+          storeId,
+          deletedAt: null,
+          status: "CONFIRMED",
+          giftCardSerialNumber: { not: null },
+        },
+        select: {
+          id: true,
+          businessDate: true,
+          startAt: true,
+          giftCardSerialNumber: true,
+          giftCardServiceCents: true,
+          giftCardTipCents: true,
+          employee: { select: { id: true, displayName: true } },
+          serviceSnapshot: { select: { shortName: true } },
+        },
+        orderBy: [{ businessDate: "asc" }, { startAt: "asc" }],
+      }),
+    ]);
+    if (!store) {
+      throw new NotFoundException({
+        code: "STORE_NOT_FOUND",
+        messageZh: "店铺不存在或已停用",
+      });
+    }
+    const usageBySerial = new Map<string, typeof records>();
+    for (const record of records) {
+      const serial = record.giftCardSerialNumber;
+      if (!serial) continue;
+      const key = this.normalizeSerial(serial);
+      const matches = usageBySerial.get(key) ?? [];
+      matches.push(record);
+      usageBySerial.set(key, matches);
+    }
+    sales.sort((left, right) => this.compareSerialNumbers(left.serialNumber, right.serialNumber));
+    return {
+      nextSerialNumber: String(store.nextGiftCardSerialNumber),
+      sales: sales.map((sale) => ({
+        ...sale,
+        usageRecords: (usageBySerial.get(sale.serialNumberNormalized) ?? []).map((record) => ({
+          id: record.id,
+          businessDate: record.businessDate,
+          startAt: record.startAt,
+          serviceShortName: record.serviceSnapshot?.shortName ?? null,
+          employee: record.employee,
+          serviceCents: record.giftCardServiceCents ?? 0n,
+          tipCents: record.giftCardTipCents ?? 0n,
+          amountCents:
+            (record.giftCardServiceCents ?? 0n) + (record.giftCardTipCents ?? 0n),
+        })),
+      })),
+    };
+  }
 
   async listDeleted(actor: User, storeId: string) {
     const membership = await this.access.requireActiveMembership(actor.id, storeId);
@@ -71,24 +144,42 @@ export class GiftCardsService {
         async (transaction) => {
           await this.assertCanWrite(transaction, actorMembership, storeId, input.businessDate);
           await this.requireOperator(transaction, storeId, input.operatorMembershipId);
-          const serialNumber = input.serialNumber.trim();
+          const allocation = await this.allocateSerialNumber(
+            transaction,
+            storeId,
+            input.serialNumber,
+          );
+          const serialNumber = allocation.serialNumber;
           const serialNumberNormalized = this.normalizeSerial(serialNumber);
-          const amountCents = BigInt(input.cashCents) + BigInt(input.cardCents);
-          if (amountCents <= 0n) {
-            throw new BadRequestException({
-              code: "GIFT_CARD_SALE_AMOUNT_REQUIRED",
-              messageZh: "礼物卡付款总额必须大于 0",
-            });
-          }
+          const cashCents = BigInt(input.cashCents);
+          const cardCents = BigInt(input.cardCents);
+          const usesLegacyPricing = input.faceValueCents === undefined;
+          const faceValueCents = usesLegacyPricing
+            ? cashCents + cardCents
+            : BigInt(input.faceValueCents!);
+          const discountThresholdCents = usesLegacyPricing
+            ? 0n
+            : allocation.discountThresholdCents;
+          const discountRateBps = usesLegacyPricing ? 0 : allocation.discountRateBps;
+          const pricing = this.calculatePricing(
+            faceValueCents,
+            discountThresholdCents,
+            discountRateBps,
+          );
+          this.assertPaymentMatches(pricing.amountCents, cashCents, cardCents);
           const sale = await transaction.giftCardSale.create({
             data: {
               storeId,
               businessDate: dateAtUtc(input.businessDate),
               serialNumber,
               serialNumberNormalized,
-              cashCents: BigInt(input.cashCents),
-              cardCents: BigInt(input.cardCents),
-              amountCents,
+              faceValueCents,
+              discountThresholdCents,
+              discountRateBps,
+              discountCents: pricing.discountCents,
+              cashCents,
+              cardCents,
+              amountCents: pricing.amountCents,
               operatorMembershipId: input.operatorMembershipId,
               createdBy: actor.id,
               updatedBy: actor.id,
@@ -148,23 +239,25 @@ export class GiftCardsService {
             input.operatorMembershipId ?? current.operatorMembershipId;
           await this.requireOperator(transaction, storeId, operatorMembershipId);
           const serialNumber = input.serialNumber?.trim() ?? current.serialNumber;
+          const faceValueCents = BigInt(input.faceValueCents ?? current.faceValueCents);
           const cashCents = BigInt(input.cashCents ?? current.cashCents);
           const cardCents = BigInt(input.cardCents ?? current.cardCents);
-          const amountCents = cashCents + cardCents;
-          if (amountCents <= 0n) {
-            throw new BadRequestException({
-              code: "GIFT_CARD_SALE_AMOUNT_REQUIRED",
-              messageZh: "礼物卡付款总额必须大于 0",
-            });
-          }
+          const pricing = this.calculatePricing(
+            faceValueCents,
+            current.discountThresholdCents,
+            current.discountRateBps,
+          );
+          this.assertPaymentMatches(pricing.amountCents, cashCents, cardCents);
           const changed = await transaction.giftCardSale.updateMany({
             where: { id: saleId, storeId, deletedAt: null, version: input.version },
             data: {
               serialNumber,
               serialNumberNormalized: this.normalizeSerial(serialNumber),
+              faceValueCents,
+              discountCents: pricing.discountCents,
               cashCents,
               cardCents,
-              amountCents,
+              amountCents: pricing.amountCents,
               operatorMembershipId,
               updatedBy: actor.id,
               version: { increment: 1 },
@@ -421,8 +514,141 @@ export class GiftCardsService {
     return value.normalize("NFKC").trim().replace(/\s+/g, " ").toUpperCase();
   }
 
+  private async allocateSerialNumber(
+    transaction: Prisma.TransactionClient,
+    storeId: string,
+    requestedSerialNumber?: string,
+  ): Promise<{
+    serialNumber: string;
+    discountThresholdCents: bigint;
+    discountRateBps: number;
+  }> {
+    await transaction.$queryRaw`
+      WITH acquired_lock AS (
+        SELECT pg_advisory_xact_lock(
+          hashtextextended(${`gift-card-serial:${storeId}`}, 0)
+        )
+      )
+      SELECT 1::int AS locked FROM acquired_lock
+    `;
+    const store = await transaction.store.findUnique({
+      where: { id: storeId },
+      select: {
+        nextGiftCardSerialNumber: true,
+        giftCardAutoDiscountEnabled: true,
+        giftCardAutoDiscountThresholdCents: true,
+        giftCardAutoDiscountBps: true,
+      },
+    });
+    if (!store) {
+      throw new NotFoundException({
+        code: "STORE_NOT_FOUND",
+        messageZh: "店铺不存在或已停用",
+      });
+    }
+
+    if (requestedSerialNumber !== undefined) {
+      const serialNumber = requestedSerialNumber.trim();
+      if (/^\d+$/.test(serialNumber)) {
+        const numericValue = Number(serialNumber);
+        if (
+          Number.isSafeInteger(numericValue) &&
+          numericValue >= store.nextGiftCardSerialNumber &&
+          numericValue < 2_147_483_647
+        ) {
+          await transaction.store.update({
+            where: { id: storeId },
+            data: { nextGiftCardSerialNumber: numericValue + 1 },
+          });
+        }
+      }
+      return {
+        serialNumber,
+        discountThresholdCents: store.giftCardAutoDiscountEnabled
+          ? store.giftCardAutoDiscountThresholdCents
+          : 0n,
+        discountRateBps: store.giftCardAutoDiscountEnabled
+          ? store.giftCardAutoDiscountBps
+          : 0,
+      };
+    }
+
+    let nextSerialNumber = store.nextGiftCardSerialNumber;
+    while (
+      await transaction.giftCardSale.findFirst({
+        where: {
+          storeId,
+          serialNumberNormalized: String(nextSerialNumber),
+        },
+        select: { id: true },
+      })
+    ) {
+      nextSerialNumber += 1;
+    }
+    if (nextSerialNumber >= 2_147_483_647) {
+      throw new ConflictException({
+        code: "GIFT_CARD_SERIAL_EXHAUSTED",
+        messageZh: "礼物卡自动序列号已经用完，请联系系统管理员",
+      });
+    }
+    await transaction.store.update({
+      where: { id: storeId },
+      data: { nextGiftCardSerialNumber: nextSerialNumber + 1 },
+    });
+    return {
+      serialNumber: String(nextSerialNumber),
+      discountThresholdCents: store.giftCardAutoDiscountEnabled
+        ? store.giftCardAutoDiscountThresholdCents
+        : 0n,
+      discountRateBps: store.giftCardAutoDiscountEnabled
+        ? store.giftCardAutoDiscountBps
+        : 0,
+    };
+  }
+
+  private calculatePricing(
+    faceValueCents: bigint,
+    discountThresholdCents: bigint,
+    discountRateBps: number,
+  ) {
+    if (faceValueCents <= 0n) {
+      throw new BadRequestException({
+        code: "GIFT_CARD_FACE_VALUE_REQUIRED",
+        messageZh: "礼物卡总金额必须大于 0",
+      });
+    }
+    const discountCents =
+      discountRateBps > 0 &&
+      discountThresholdCents > 0n &&
+      faceValueCents >= discountThresholdCents
+        ? multiplyByBps(faceValueCents, discountRateBps)
+        : 0n;
+    return { discountCents, amountCents: faceValueCents - discountCents };
+  }
+
+  private assertPaymentMatches(
+    expectedAmountCents: bigint,
+    cashCents: bigint,
+    cardCents: bigint,
+  ) {
+    if (cashCents + cardCents !== expectedAmountCents) {
+      throw new BadRequestException({
+        code: "GIFT_CARD_PAYMENT_MISMATCH",
+        messageZh: "现金与刷卡合计必须等于礼物卡折后应付金额",
+      });
+    }
+  }
+
+  private compareSerialNumbers(left: string, right: string): number {
+    return left.localeCompare(right, "zh-CN", { numeric: true, sensitivity: "base" });
+  }
+
   private auditSnapshot(sale: {
     serialNumber: string;
+    faceValueCents: bigint;
+    discountThresholdCents: bigint;
+    discountRateBps: number;
+    discountCents: bigint;
     cashCents: bigint;
     cardCents: bigint;
     amountCents: bigint;
@@ -431,6 +657,10 @@ export class GiftCardsService {
   }) {
     return {
       serialNumber: sale.serialNumber,
+      faceValueCents: sale.faceValueCents.toString(),
+      discountThresholdCents: sale.discountThresholdCents.toString(),
+      discountRateBps: sale.discountRateBps,
+      discountCents: sale.discountCents.toString(),
       cashCents: sale.cashCents.toString(),
       cardCents: sale.cardCents.toString(),
       amountCents: sale.amountCents.toString(),

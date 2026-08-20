@@ -224,6 +224,9 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
   const [autoDiscountEnabled, setAutoDiscountEnabled] = useState(store.mondayThursdayAutoDiscountEnabled);
   const [autoDiscountThreshold, setAutoDiscountThreshold] = useState((store.mondayThursdayAutoDiscountThresholdCents / 100).toFixed(2));
   const [autoDiscountAmount, setAutoDiscountAmount] = useState((store.mondayThursdayAutoDiscountAmountCents / 100).toFixed(2));
+  const [giftCardDiscountEnabled, setGiftCardDiscountEnabled] = useState(store.giftCardAutoDiscountEnabled);
+  const [giftCardDiscountThreshold, setGiftCardDiscountThreshold] = useState((store.giftCardAutoDiscountThresholdCents / 100).toFixed(2));
+  const [giftCardDiscountPercent, setGiftCardDiscountPercent] = useState((store.giftCardAutoDiscountBps / 100).toString());
   const [nextOwner, setNextOwner] = useState("");
   const [saved, setSaved] = useState(false);
   const canManage = membership.role !== "EMPLOYEE";
@@ -236,12 +239,14 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
 
   useEffect(() => {
     setSaved(false);
-  }, [name, timezone, cutoff, commission, autoDiscountEnabled, autoDiscountThreshold, autoDiscountAmount]);
+  }, [name, timezone, cutoff, commission, autoDiscountEnabled, autoDiscountThreshold, autoDiscountAmount, giftCardDiscountEnabled, giftCardDiscountThreshold, giftCardDiscountPercent]);
 
   return <section className="manage-section">
     <form className="manage-card" onSubmit={(event) => { event.preventDefault(); setSaved(false); void run(async () => {
       const thresholdCents = autoDiscountThreshold.trim() ? parseMoney(autoDiscountThreshold, "自动折扣应用门槛") : 0;
       const amountCents = autoDiscountAmount.trim() ? parseMoney(autoDiscountAmount, "自动折扣额度") : 0;
+      const giftCardThresholdCents = giftCardDiscountEnabled ? parseMoney(giftCardDiscountThreshold, "礼物卡自动折扣门槛") : 0;
+      const giftCardDiscountBps = giftCardDiscountEnabled ? parsePercent(giftCardDiscountPercent, "礼物卡自动折扣") : 0;
       await apiRequest(`/stores/${store.id}`, { method: "PATCH", idempotent: true, body: {
         version: store.version,
         name,
@@ -251,6 +256,9 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
         mondayThursdayAutoDiscountEnabled: autoDiscountEnabled,
         mondayThursdayAutoDiscountThresholdCents: thresholdCents,
         mondayThursdayAutoDiscountAmountCents: amountCents,
+        giftCardAutoDiscountEnabled: giftCardDiscountEnabled,
+        giftCardAutoDiscountThresholdCents: giftCardThresholdCents,
+        giftCardAutoDiscountBps: giftCardDiscountBps,
       } });
       await reload();
       setSaved(true);
@@ -262,6 +270,11 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
         <div className="auto-discount-heading"><div><strong>周一至周四自动折扣</strong><p>按记工所属营业日判断；达到折前大费门槛后自动添加。</p></div><label className="inline-check"><input type="checkbox" disabled={!canManage} checked={autoDiscountEnabled} onChange={(event) => setAutoDiscountEnabled(event.target.checked)} />开启</label></div>
         <div className="manage-form-grid auto-discount-fields"><label>大费满多少（美元）<input disabled={!canManage || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 100.00" value={autoDiscountThreshold} onChange={(event) => setAutoDiscountThreshold(event.target.value)} /></label><label>自动折扣额度（美元）<input disabled={!canManage || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 10.00" value={autoDiscountAmount} onChange={(event) => setAutoDiscountAmount(event.target.value)} /></label></div>
         <p className="field-help">自动折扣和普通折扣一起计入折扣总额，由店铺承担；员工大费工资仍按折扣前的项目和加项金额计算。</p>
+      </section>
+      <section className={`auto-discount-settings${giftCardDiscountEnabled ? " enabled" : ""}`}>
+        <div className="auto-discount-heading"><div><strong>礼物卡自动折扣</strong><p>卖卡达到面值门槛后，自动按比例计算折扣和客人应付金额。</p></div><label className="inline-check"><input type="checkbox" disabled={!canManage} checked={giftCardDiscountEnabled} onChange={(event) => setGiftCardDiscountEnabled(event.target.checked)} />开启</label></div>
+        <div className="manage-form-grid auto-discount-fields"><label>礼物卡满多少（美元）<input disabled={!canManage || !giftCardDiscountEnabled} required={giftCardDiscountEnabled} inputMode="decimal" placeholder="例如 100.00" value={giftCardDiscountThreshold} onChange={(event) => setGiftCardDiscountThreshold(event.target.value)} /></label><label>自动折扣（%）<input disabled={!canManage || !giftCardDiscountEnabled} required={giftCardDiscountEnabled} inputMode="decimal" placeholder="例如 5" value={giftCardDiscountPercent} onChange={(event) => setGiftCardDiscountPercent(event.target.value)} /></label></div>
+        <p className="field-help">例如设置“满 $100、折扣 5%”，录入 $100 面值礼物卡时，系统会要求现金和刷卡合计为 $95。历史记录保留售出时的折扣规则快照。</p>
       </section>
       {saved && <p className="success-banner manage-save-success" role="status">✓ 店铺设置已保存</p>}
       {canManage && <button className="primary-action" disabled={busy} type="submit">{busy ? "正在保存…" : "保存店铺设置"}</button>}

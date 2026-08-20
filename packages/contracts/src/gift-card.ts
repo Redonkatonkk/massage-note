@@ -11,20 +11,34 @@ export const giftCardSerialNumberSchema = z.string().trim().min(1).max(120);
 export const createGiftCardSaleSchema = z
   .object({
     businessDate: businessDateSchema,
-    serialNumber: giftCardSerialNumberSchema,
+    serialNumber: giftCardSerialNumberSchema.optional(),
+    faceValueCents: moneyCentsSchema.optional(),
     cashCents: moneyCentsSchema.default(0),
     cardCents: moneyCentsSchema.default(0),
     operatorMembershipId: uuidSchema,
   })
-  .refine((value) => value.cashCents + value.cardCents > 0, {
-    message: "礼物卡付款总额必须大于 0",
-    path: ["cashCents"],
+  .superRefine((value, context) => {
+    if (value.faceValueCents !== undefined && value.faceValueCents <= 0) {
+      context.addIssue({
+        code: "custom",
+        message: "礼物卡总金额必须大于 0",
+        path: ["faceValueCents"],
+      });
+    }
+    if (value.cashCents + value.cardCents <= 0) {
+      context.addIssue({
+        code: "custom",
+        message: "礼物卡付款总额必须大于 0",
+        path: ["cashCents"],
+      });
+    }
   });
 
 export const updateGiftCardSaleSchema = z
   .object({
     version: versionSchema,
     serialNumber: giftCardSerialNumberSchema.optional(),
+    faceValueCents: moneyCentsSchema.optional(),
     cashCents: moneyCentsSchema.optional(),
     cardCents: moneyCentsSchema.optional(),
     operatorMembershipId: uuidSchema.optional(),

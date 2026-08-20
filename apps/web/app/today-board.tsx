@@ -86,6 +86,7 @@ export function TodayBoard({
     initialService?.priceOptions[0]?.durationMinutes.toString() ?? "",
   );
   const [quickMode, setQuickMode] = useState<"PRESET" | "CUSTOM">("PRESET");
+  const [quickHighlighted, setQuickHighlighted] = useState(false);
   const [customServiceName, setCustomServiceName] = useState("");
   const [customServiceShortName, setCustomServiceShortName] = useState("");
   const [customServiceAmount, setCustomServiceAmount] = useState("");
@@ -283,11 +284,13 @@ export function TodayBoard({
           currentDay.timezone,
           currentDay.businessCutoffLocal,
         ),
+        isHighlighted: quickHighlighted,
         ...serviceSelection,
       },
     });
     setQuickEmployeeId(null);
     setQuickMode("PRESET");
+    setQuickHighlighted(false);
     setCustomServiceName("");
     setCustomServiceShortName("");
     setCustomServiceAmount("");
@@ -409,7 +412,7 @@ export function TodayBoard({
                   <div className="record-track">
                     {row.workRecords.map((record) => (
                       <button
-                        className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}`}
+                        className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}${record.isHighlighted ? " record-card--highlighted" : ""}`}
                         key={record.id}
                         type="button"
                         disabled={!isCurrentBusinessDay && !canManage}
@@ -419,6 +422,7 @@ export function TodayBoard({
                         <span className="record-card__topline">
                           <strong>{record.serviceSnapshot?.shortName ?? "项目"}</strong>
                           <span className="record-card__badges">
+                            {record.isHighlighted && <span className="record-highlight-badge" aria-label="高亮记工" title="高亮记工">★</span>}
                             {record.discountSnapshots.length > 0 && (
                               <span
                                 className="record-discount-badge"
@@ -437,7 +441,7 @@ export function TodayBoard({
                       </button>
                     ))}
                     {!board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage) && (
-                      <button className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setQuickMode("PRESET"); setQuickEmployeeId(row.membershipId); }}>
+                      <button className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickEmployeeId(row.membershipId); }}>
                         <span aria-hidden="true">＋</span>新增记工
                       </button>
                     )}
@@ -458,6 +462,8 @@ export function TodayBoard({
         storeId={membership.store.id}
         businessDate={currentDay.businessDate}
         sales={board.giftCardSales}
+        nextSerialNumber={board.nextGiftCardSerialNumber}
+        discountSettings={store}
         members={members}
         defaultOperatorMembershipId={membership.id}
         canEdit={!board.isClosed && (isCurrentBusinessDay || canManage)}
@@ -486,7 +492,10 @@ export function TodayBoard({
           <section className="quick-modal" role="dialog" aria-modal="true" aria-labelledby="quick-modal-title">
             <div className="modal-heading">
               <div><p className="eyebrow">快速记工</p><h2 id="quick-modal-title">{members.find((item) => item.id === quickEmployeeId)?.displayName}</h2></div>
-              <button className="close-button" type="button" onClick={() => setQuickEmployeeId(null)}>关闭</button>
+              <div className="modal-heading__actions">
+                <button className={`highlight-toggle${quickHighlighted ? " active" : ""}`} type="button" aria-pressed={quickHighlighted} onClick={() => setQuickHighlighted((current) => !current)}><span aria-hidden="true">★</span>{quickHighlighted ? "已高亮" : "高亮标记"}</button>
+                <button className="close-button" type="button" onClick={() => setQuickEmployeeId(null)}>关闭</button>
+              </div>
             </div>
             <label className="field-label" htmlFor="start-time">开始时间</label>
             <input className="time-input" id="start-time" type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} />

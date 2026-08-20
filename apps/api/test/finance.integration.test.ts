@@ -141,10 +141,12 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
         employeeMembershipId,
         startAt: new Date().toISOString(),
         serviceItemId,
+        isHighlighted: true,
       },
       "finance-create-record-0001",
       "finance-create-record",
     );
+    expect(created.isHighlighted).toBe(true);
     const confirmed = await workRecords.confirmPayment(
       actor(employeeId),
       storeId,
@@ -528,6 +530,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       membershipIds: [employeeMembershipId],
       paymentMethod: "ALL",
       amountType: "ALL",
+      highlightFilter: "ALL",
     });
     expect(summary.totals).toMatchObject({
       recordCount: 1,
@@ -551,10 +554,31 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       membershipIds: [employeeMembershipId],
       paymentMethod: "ALL",
       amountType: "ALL",
+      highlightFilter: "ALL",
     });
     expect(csv.startsWith("\uFEFF\"营业日\"")).toBe(true);
     expect(csv).toContain("\"财务员工\"");
     expect(csv).toContain("\"100.00\"");
+    expect(csv).toContain("\"高亮标记\"");
+    expect(csv).toContain("\"高亮\"");
+    const highlighted = await finance.summary(actor(managerId), storeId, {
+      dateFrom: businessDate,
+      dateTo: businessDate,
+      membershipIds: [employeeMembershipId],
+      paymentMethod: "ALL",
+      amountType: "ALL",
+      highlightFilter: "ONLY_HIGHLIGHTED",
+    });
+    expect(highlighted.totals.recordCount).toBe(1);
+    const withoutHighlighted = await finance.summary(actor(managerId), storeId, {
+      dateFrom: businessDate,
+      dateTo: businessDate,
+      membershipIds: [employeeMembershipId],
+      paymentMethod: "ALL",
+      amountType: "ALL",
+      highlightFilter: "EXCLUDE_HIGHLIGHTED",
+    });
+    expect(withoutHighlighted.totals.recordCount).toBe(0);
     await expect(
       finance.summary(actor(employeeId), storeId, {
         dateFrom: businessDate,
@@ -562,6 +586,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
         membershipIds: [managerMembershipId],
         paymentMethod: "ALL",
         amountType: "ALL",
+        highlightFilter: "ALL",
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });

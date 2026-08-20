@@ -139,6 +139,7 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
       FROM pg_constraint
       WHERE conname IN (
         'stores_commission_range',
+        'stores_gift_card_auto_discount_valid',
         'gift_card_sales_valid_amounts',
         'service_item_price_options_valid_values',
         'work_records_non_negative_money',
@@ -151,6 +152,7 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
       "gift_card_sales_valid_amounts",
       "service_item_price_options_valid_values",
       "stores_commission_range",
+      "stores_gift_card_auto_discount_valid",
       "work_records_confirmed_finance_complete",
       "work_records_non_negative_money",
     ]);

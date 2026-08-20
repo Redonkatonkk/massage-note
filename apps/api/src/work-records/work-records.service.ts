@@ -261,6 +261,7 @@ export class WorkRecordsService {
           endAt,
           actualDurationMinutes: durationMinutes,
           status: "PENDING_PAYMENT",
+          isHighlighted: input.isHighlighted ?? false,
           mainServiceAmountCents: amountCents,
           addonTotalCents: 0n,
           grossFeeBaseCents: amountCents,
@@ -323,6 +324,7 @@ export class WorkRecordsService {
             amountCents: amountCents.toString(),
             commissionBps,
             commissionSource,
+            isHighlighted: record.isHighlighted,
             status: record.status,
             version: record.version,
           },
@@ -658,6 +660,9 @@ export class WorkRecordsService {
                   }
                 : {}),
               ...(input.note === undefined ? {} : { note: input.note }),
+              ...(input.isHighlighted === undefined
+                ? {}
+                : { isHighlighted: input.isHighlighted }),
               ...(input.tipSettledManualFlag === undefined
                 ? {}
                 : { tipSettledManualFlag: input.tipSettledManualFlag }),
@@ -731,6 +736,7 @@ export class WorkRecordsService {
                 discountTotalCents: record.discountTotalCents.toString(),
                 automaticDiscountSuppressed:
                   record.automaticDiscountSuppressed,
+                isHighlighted: record.isHighlighted,
                 version: record.version,
               },
               afterJson: {
@@ -741,6 +747,7 @@ export class WorkRecordsService {
                 discountTotalCents: updated.discountTotalCents.toString(),
                 automaticDiscountSuppressed:
                   updated.automaticDiscountSuppressed,
+                isHighlighted: updated.isHighlighted,
                 version: updated.version,
               },
               requestId,

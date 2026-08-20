@@ -12,6 +12,8 @@
   --success: #176b45;
   --pending: #fff0d8;
   --pending-line: #d98b2b;
+  --highlight: #fff4a8;
+  --highlight-line: #d6a800;
   --shadow: 0 12px 30px rgba(83, 54, 31, 0.08);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
@@ -363,6 +365,18 @@ h2 {
   background: var(--pending);
 }
 
+.record-card--highlighted,
+.record-card--highlighted:disabled,
+.record-card--highlighted:disabled:hover {
+  border-color: var(--highlight-line);
+  background: linear-gradient(145deg, #fffbe3 0%, var(--highlight) 100%);
+  box-shadow: 0 10px 24px rgba(176, 128, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.record-card--highlighted:hover {
+  border-color: #b88d00;
+}
+
 .record-card__topline {
   display: flex;
   align-items: center;
@@ -390,6 +404,21 @@ h2 {
   font-size: 0.7rem;
   font-style: normal;
   font-weight: 800;
+}
+
+.record-highlight-badge {
+  display: inline-flex;
+  width: 25px;
+  height: 25px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(126, 91, 0, 0.16);
+  border-radius: 999px;
+  background: #f5c927;
+  color: #644800;
+  font-size: 0.78rem;
+  line-height: 1;
+  box-shadow: 0 3px 8px rgba(126, 91, 0, 0.2);
 }
 
 .record-discount-badge {
@@ -1146,9 +1175,31 @@ h2 {
 }
 
 .gift-card-sale-form > label:first-child,
+.gift-card-sale-form__serial-help,
+.gift-card-sale-form__face-value,
+.gift-card-sale-discount,
+.gift-card-sale-payment-check,
 .gift-card-sale-total {
   grid-column: 1 / -1;
 }
+
+.gift-card-sale-form__serial-help { margin: -7px 0 0; }
+
+.gift-card-sale-discount,
+.gift-card-sale-payment-check {
+  display: grid;
+  gap: 4px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fffaf3;
+}
+
+.gift-card-sale-discount span,
+.gift-card-sale-discount small,
+.gift-card-sale-payment-check span { color: var(--muted); font-size: .76rem; }
+
+.gift-card-sale-payment-check.matched { border-color: #a9d1bb; background: #f5fcf8; }
 
 .gift-card-sale-total {
   display: flex;
@@ -1357,6 +1408,56 @@ h2 {
   margin-bottom: 20px;
 }
 
+.modal-heading__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.highlight-toggle {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 15px;
+  border: 1px solid #d7c16a;
+  border-radius: 14px;
+  background: #fffbea;
+  color: #6a5200;
+  font-weight: 850;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(126, 91, 0, 0.08);
+}
+
+.highlight-toggle span {
+  color: #d1a300;
+  font-size: 1.12rem;
+}
+
+.highlight-toggle:hover {
+  border-color: #b98d00;
+  background: #fff5bc;
+}
+
+.highlight-toggle.active {
+  border-color: #bd9200;
+  background: linear-gradient(145deg, #ffe86d, #f5c927);
+  color: #4f3b00;
+  box-shadow: 0 7px 18px rgba(160, 112, 0, 0.22);
+}
+
+.highlight-toggle.active span {
+  color: #725400;
+}
+
+.highlight-toggle:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .field-label,
 .service-picker legend {
   display: block;
@@ -1557,6 +1658,14 @@ h2 {
 @media (max-width: 640px) {
   html {
     font-size: 16px;
+  }
+
+  .modal-heading {
+    flex-wrap: wrap;
+  }
+
+  .modal-heading__actions {
+    width: 100%;
   }
 
   .topbar {
@@ -2068,6 +2177,8 @@ h2 {
 .finance-details__heading h2 { margin: 2px 0 0; font-size: 1.25rem; }
 .finance-details__heading p:not(.eyebrow) { margin: 5px 0 0; color: var(--muted); font-size: .82rem; }
 .finance-details__table { min-width: 0; max-width: 100%; max-height: min(610px, calc(100dvh - 180px)); overflow: auto; box-shadow: none; }
+.finance-record--highlighted td { background: #fff9d5; }
+.finance-highlight-label { display: inline-flex; align-items: center; gap: 4px; color: #755700; font-weight: 850; white-space: nowrap; }
 .finance-report-section { display: grid; gap: 12px; }
 .finance-report-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; padding: 0 2px; }
 .table-title { margin-top: 12px; font-size: 1.2rem; }
@@ -2168,6 +2279,20 @@ h2 {
 .warning-list__heading { display: flex; justify-content: space-between; gap: 10px; }
 .warning-record-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .warning-record-links .secondary-action { min-height: 38px; padding: 0 12px; background: #fff; }
+.gift-card-ledger__summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.gift-card-ledger__summary article { display: grid; gap: 7px; min-height: 112px; align-content: center; padding: 17px; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); box-shadow: var(--shadow); }
+.gift-card-ledger__summary article.balance-card { border-color: #d5b283; background: #fff8e9; }
+.gift-card-ledger__summary span { color: var(--muted); font-size: .78rem; }
+.gift-card-ledger__summary strong { font-size: 1.3rem; }
+.gift-card-ledger__table td { vertical-align: top; }
+.gift-card-ledger__serial { color: var(--brand); font-variant-numeric: tabular-nums; }
+.gift-card-ledger__usage-cell { min-width: min(520px, 70vw); text-align: left !important; white-space: normal; }
+.gift-card-ledger__usage-cell details > summary { color: var(--brand); font-weight: 800; cursor: pointer; }
+.gift-card-ledger__usage-list { display: grid; gap: 7px; margin-top: 10px; }
+.gift-card-ledger__usage-list article { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: #fffaf3; }
+.gift-card-ledger__usage-list article > div { display: grid; gap: 3px; }
+.gift-card-ledger__usage-list article > div:last-child { grid-auto-flow: column; gap: 12px; text-align: right; }
+.gift-card-ledger__usage-list span, .gift-card-ledger__unused { color: var(--muted); font-size: .76rem; }
 .payroll-form { padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
 .payroll-form h2 { margin-bottom: 16px; font-size: 1.2rem; }
 .payroll-fields { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 10px; }
@@ -2184,10 +2309,14 @@ h2 {
   .filter-panel, .payroll-fields { grid-template-columns: repeat(3, minmax(130px, 1fr)); }
   .finance-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cash-grid { grid-template-columns: 1fr; }
+  .gift-card-ledger__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 640px) {
   .filter-panel, .payroll-fields, .finance-cards, .warning-list { grid-template-columns: 1fr; }
+  .gift-card-ledger__summary { grid-template-columns: 1fr 1fr; }
+  .gift-card-ledger__usage-list article { align-items: flex-start; flex-direction: column; }
+  .gift-card-ledger__usage-list article > div:last-child { grid-auto-flow: row; text-align: left; }
   .history-toolbar { align-items: stretch; flex-direction: column; }
   .history-toolbar label, .history-date-form { align-items: stretch; flex-direction: column; }
   .payroll-fields .wide { grid-column: auto; }

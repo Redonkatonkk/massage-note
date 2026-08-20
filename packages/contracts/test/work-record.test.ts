@@ -106,6 +106,20 @@ describe("记工项目来源契约", () => {
     ).toBe(true);
   });
 
+  it("快速记工和详情修改都接受高亮标记", () => {
+    expect(
+      createWorkRecordSchema.parse({
+        employeeMembershipId: membershipId,
+        startAt: "2026-08-04T14:00:00-04:00",
+        serviceItemId: itemId,
+        isHighlighted: true,
+      }).isHighlighted,
+    ).toBe(true);
+    expect(
+      updateWorkRecordSchema.parse({ version: 2, isHighlighted: false }),
+    ).toEqual({ version: 2, isHighlighted: false });
+  });
+
   it("修改主要项目时不能同时选择预设和自定义项目", () => {
     expect(
       updateWorkRecordSchema.safeParse({

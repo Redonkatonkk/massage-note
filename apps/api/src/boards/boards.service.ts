@@ -188,7 +188,13 @@ export class BoardsService {
       isClosed: Boolean(closing),
       closing: personalHistoryMembershipId ? null : closing,
       rows,
-      giftCardSales,
+      giftCardSales: giftCardSales.sort((left, right) =>
+        left.serialNumber.localeCompare(right.serialNumber, "zh-CN", {
+          numeric: true,
+          sensitivity: "base",
+        }),
+      ),
+      nextGiftCardSerialNumber: String(store.nextGiftCardSerialNumber),
       statistics,
     };
   }
@@ -772,6 +778,7 @@ export class BoardsService {
         id: true,
         timezone: true,
         businessCutoffLocal: true,
+        nextGiftCardSerialNumber: true,
       },
     });
     if (!store) {

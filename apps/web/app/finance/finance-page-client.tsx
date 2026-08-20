@@ -4,28 +4,33 @@ import { useCallback, useEffect, useState } from "react";
 import { apiBase, apiRequest, errorMessage } from "../../lib/api";
 import type {
   CashSettlementResponse,
+  CatalogResponse,
   ClosingPreview,
   CurrentBusinessDay,
   EmployeeClosingPreview,
   FinanceSummaryResponse,
   FinanceDetailsResponse,
+  GiftCardLedgerResponse,
   MeResponse,
   MembershipSummary,
   PayrollSettlement,
   StoreMember,
+  StoreDetails,
+  WorkRecord,
 } from "../../lib/types";
 import { useStoreRealtime } from "../../lib/realtime";
-import { workRecordHref } from "../../lib/navigation";
 import { AppNav } from "../app-nav";
 import { EmployeeClosingSummary } from "../employee-closing";
 import { FloatingAiAssistant } from "../floating-ai-assistant";
+import { RecordEditor } from "../record-editor";
+import { GiftCardLedger } from "./gift-card-ledger";
 import {
   financeSummaryGroups,
   financeSummaryMetrics,
   type FinanceSummaryMetricKey,
 } from "./summary-metrics";
 
-type FinanceTab = "summary" | "cash" | "closing" | "payroll";
+type FinanceTab = "summary" | "cash" | "closing" | "giftCards" | "payroll";
 type FinanceRangeOverride = { dateFrom?: string; dateTo?: string; memberIds?: string[] };
 
 function money(cents: number | null | undefined): string {
@@ -113,7 +118,7 @@ function FinanceDetailsDialog({
           </div>
           <button className="close-button" type="button" onClick={onClose}>关闭</button>
         </div>
-        <div className="table-scroll finance-details__table"><table className="data-table"><thead><tr><th>营业日</th><th>员工</th><th>项目</th><th>状态</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>现金大费</th><th>刷卡大费</th><th>礼物卡序列号</th><th>礼物卡大费</th><th>现金小费</th><th>刷卡小费</th><th>礼物卡小费</th><th>客人总付款</th><th>大费工资</th><th>员工总收入</th></tr></thead><tbody>{details.records.map((record) => <tr key={record.id}><td>{dateOnly(record.businessDate)}</td><td>{record.employee.displayName}</td><td>{record.serviceSnapshot?.shortName ?? "自定义"}</td><td>{record.status === "CONFIRMED" ? "已确认" : "待结账"}</td><td>{money(record.mainServiceAmountCents)}</td><td>{money(record.addonTotalCents)}</td><td>{money(record.grossFeeBaseCents)}</td><td>{money(record.discountTotalCents)}</td><td>{money(record.discountedFeePerformanceCents)}</td><td>{money(record.cashServiceCents)}</td><td>{money(record.cardServiceCents)}</td><td>{record.giftCardSerialNumber ?? "—"}</td><td>{money(record.giftCardServiceCents)}</td><td>{money(record.cashTipCents)}</td><td>{money(record.cardTipCents)}</td><td>{money(record.giftCardTipCents)}</td><td>{money(record.customerTotalPaidCents)}</td><td>{money(record.totalLargeFeeWageCents)}</td><td>{money(record.employeeTotalIncomeCents)}</td></tr>)}</tbody></table></div>
+        <div className="table-scroll finance-details__table"><table className="data-table"><thead><tr><th>营业日</th><th>员工</th><th>项目</th><th>标记</th><th>状态</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>现金大费</th><th>刷卡大费</th><th>礼物卡序列号</th><th>礼物卡大费</th><th>现金小费</th><th>刷卡小费</th><th>礼物卡小费</th><th>客人总付款</th><th>大费工资</th><th>员工总收入</th></tr></thead><tbody>{details.records.map((record) => <tr className={record.isHighlighted ? "finance-record--highlighted" : undefined} key={record.id}><td>{dateOnly(record.businessDate)}</td><td>{record.employee.displayName}</td><td>{record.serviceSnapshot?.shortName ?? "自定义"}</td><td>{record.isHighlighted ? <span className="finance-highlight-label">★ 高亮</span> : "—"}</td><td>{record.status === "CONFIRMED" ? "已确认" : "待结账"}</td><td>{money(record.mainServiceAmountCents)}</td><td>{money(record.addonTotalCents)}</td><td>{money(record.grossFeeBaseCents)}</td><td>{money(record.discountTotalCents)}</td><td>{money(record.discountedFeePerformanceCents)}</td><td>{money(record.cashServiceCents)}</td><td>{money(record.cardServiceCents)}</td><td>{record.giftCardSerialNumber ?? "—"}</td><td>{money(record.giftCardServiceCents)}</td><td>{money(record.cashTipCents)}</td><td>{money(record.cardTipCents)}</td><td>{money(record.giftCardTipCents)}</td><td>{money(record.customerTotalPaidCents)}</td><td>{money(record.totalLargeFeeWageCents)}</td><td>{money(record.employeeTotalIncomeCents)}</td></tr>)}</tbody></table></div>
         {details.records.length === 0 && <p className="empty-state">当前范围没有明细记录。</p>}
       </section>
     </div>
@@ -124,6 +129,8 @@ export function FinancePageClient() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [membership, setMembership] = useState<MembershipSummary | null>(null);
   const [members, setMembers] = useState<StoreMember[]>([]);
+  const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
+  const [storeDetails, setStoreDetails] = useState<StoreDetails | null>(null);
   const [day, setDay] = useState<CurrentBusinessDay | null>(null);
   const [tab, setTab] = useState<FinanceTab>("summary");
   const [summary, setSummary] = useState<FinanceSummaryResponse | null>(null);
@@ -133,12 +140,15 @@ export function FinancePageClient() {
   const [closing, setClosing] = useState<ClosingPreview | null>(null);
   const [myClosing, setMyClosing] = useState<EmployeeClosingPreview | null>(null);
   const [payroll, setPayroll] = useState<PayrollSettlement[]>([]);
+  const [giftCards, setGiftCards] = useState<GiftCardLedgerResponse | null>(null);
+  const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cashDate, setCashDate] = useState("");
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [paymentMethod, setPaymentMethod] = useState("CARD");
   const [amountType, setAmountType] = useState("ALL");
+  const [highlightFilter, setHighlightFilter] = useState<FinanceSummaryResponse["filters"]["highlightFilter"]>("ALL");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -146,7 +156,7 @@ export function FinancePageClient() {
   const canManage = membership ? membership.role !== "EMPLOYEE" : false;
 
   const financeParams = useCallback((override: FinanceRangeOverride = {}) => {
-    const params = new URLSearchParams({ paymentMethod, amountType });
+    const params = new URLSearchParams({ paymentMethod, amountType, highlightFilter });
     const from = override.dateFrom ?? dateFrom;
     const to = override.dateTo ?? dateTo;
     const selectedMembers = override.memberIds ?? memberIds;
@@ -154,7 +164,7 @@ export function FinancePageClient() {
     if (to) params.set("dateTo", to);
     if (selectedMembers.length > 0) params.set("membershipIds", selectedMembers.join(","));
     return params;
-  }, [paymentMethod, amountType, dateFrom, dateTo, memberIds]);
+  }, [paymentMethod, amountType, highlightFilter, dateFrom, dateTo, memberIds]);
 
   const loadSummary = useCallback(async (override: FinanceRangeOverride = {}) => {
     if (!membership) return;
@@ -217,8 +227,17 @@ export function FinancePageClient() {
     );
   }, [membership, canManage]);
 
+  const loadGiftCards = useCallback(async () => {
+    if (!membership || !canManage) return;
+    setGiftCards(
+      await apiRequest<GiftCardLedgerResponse>(
+        `/stores/${membership.store.id}/gift-card-sales`,
+      ),
+    );
+  }, [membership, canManage]);
+
   const realtimeState = useStoreRealtime(membership?.store.id, async () => {
-    await Promise.all([loadSummary(), loadCash(), loadPayroll(), loadClosing()]);
+    await Promise.all([loadSummary(), loadCash(), loadPayroll(), loadClosing(), loadGiftCards()]);
   });
 
   useEffect(() => {
@@ -243,7 +262,7 @@ export function FinancePageClient() {
         );
         setDay(current);
         const requestedTab = new URL(window.location.href).searchParams.get("tab");
-        if (["summary", "cash", "closing", "payroll"].includes(requestedTab ?? "")) {
+        if (["summary", "cash", "closing", "payroll"].includes(requestedTab ?? "") || (requestedTab === "giftCards" && selected.role !== "EMPLOYEE")) {
           setTab(requestedTab as FinanceTab);
         }
         const requestedDate = new URL(window.location.href).searchParams.get("date");
@@ -253,9 +272,14 @@ export function FinancePageClient() {
             : current.businessDate,
         );
         if (selected.role !== "EMPLOYEE") {
-          setMembers(
-            await apiRequest<StoreMember[]>(`/stores/${selected.store.id}/members`),
-          );
+          const [nextMembers, nextCatalog, nextStoreDetails] = await Promise.all([
+            apiRequest<StoreMember[]>(`/stores/${selected.store.id}/members`),
+            apiRequest<CatalogResponse>(`/stores/${selected.store.id}/catalog`),
+            apiRequest<StoreDetails>(`/stores/${selected.store.id}`),
+          ]);
+          setMembers(nextMembers);
+          setCatalog(nextCatalog);
+          setStoreDetails(nextStoreDetails);
         } else {
           setMembers([
             {
@@ -286,6 +310,7 @@ export function FinancePageClient() {
     if (!membership) return;
     void loadSummary().catch((caught) => setError(errorMessage(caught)));
     void loadPayroll().catch((caught) => setError(errorMessage(caught)));
+    void loadGiftCards().catch((caught) => setError(errorMessage(caught)));
   }, [membership]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -295,10 +320,13 @@ export function FinancePageClient() {
   }, [cashDate, membership, canManage, loadCash, loadClosing]);
 
   useEffect(() => {
-    if (!details) return;
+    if (!details && !editingRecord) return;
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDetails(null);
+      if (event.key === "Escape") {
+        setDetails(null);
+        setEditingRecord(null);
+      }
     };
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", closeOnEscape);
@@ -306,7 +334,7 @@ export function FinancePageClient() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [details]);
+  }, [details, editingRecord]);
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -324,9 +352,27 @@ export function FinancePageClient() {
     return <button className="amount-link" type="button" aria-label={`${label}，查看组成明细`} onClick={() => void run(async () => { setDetailsTitle(label); setDetails(null); await loadDetails(override); })}>{value}</button>;
   }
 
+  function openWarningRecord(recordId: string) {
+    void run(async () => {
+      setEditingRecord(
+        await apiRequest<WorkRecord>(
+          `/stores/${membership!.store.id}/work-records/${recordId}`,
+        ),
+      );
+    });
+  }
+
   if (loading || !membership || !me || !day) {
     return <main className="center-page"><div className="loading-card"><span className="spinner" /><strong>{error || "正在加载财务数据…"}</strong></div></main>;
   }
+
+  const financeTabs: Array<[FinanceTab, string]> = [
+    ["summary", "财务汇总"],
+    ["cash", "现金结算"],
+    ["closing", canManage ? "日结" : "我的日结"],
+  ];
+  if (canManage) financeTabs.push(["giftCards", "礼物卡"]);
+  financeTabs.push(["payroll", canManage ? "工资结算" : "工资结算明细"]);
 
   return (
     <main className="app-shell finance-shell">
@@ -336,12 +382,7 @@ export function FinancePageClient() {
       </header>
 
       <nav className="section-tabs" aria-label="财务页面">
-        {([
-          ["summary", "财务汇总"],
-          ["cash", "现金结算"],
-          ["closing", canManage ? "日结" : "我的日结"],
-          ["payroll", canManage ? "工资结算" : "工资结算明细"],
-        ] as const).map(([value, label]) => (
+        {financeTabs.map(([value, label]) => (
           <button key={value} className={tab === value ? "active" : ""} type="button" onClick={() => setTab(value)}>{label}</button>
         ))}
       </nav>
@@ -350,13 +391,14 @@ export function FinancePageClient() {
       {tab === "summary" && summary && (
         <section className="finance-section">
           <form className="filter-panel" onSubmit={(event) => { event.preventDefault(); void run(loadSummary); }}>
-            <div className="filter-panel__heading"><div><strong>筛选范围</strong><p>先选日期；需要时再限定员工、付款方式和金额类型。</p></div><a className="secondary-action export-link" href={`${apiBase}/stores/${membership.store.id}/finance/export.csv?${currentFinanceParams()}`} download>导出当前结果</a></div>
+            <div className="filter-panel__heading"><div><strong>筛选范围</strong><p>先选日期；需要时再限定员工、付款方式、金额类型和高亮状态。</p></div><a className="secondary-action export-link" href={`${apiBase}/stores/${membership.store.id}/finance/export.csv?${currentFinanceParams()}`} download>导出当前结果</a></div>
             <div className="quick-ranges" aria-label="快捷日期范围"><button type="button" disabled={busy} onClick={() => void run(() => loadSummary({ dateFrom: day.businessDate, dateTo: day.businessDate }))}>今天</button><button type="button" disabled={busy} onClick={() => void run(() => loadSummary({ dateFrom: shiftDate(day.businessDate, -6), dateTo: day.businessDate }))}>最近 7 天</button><button type="button" disabled={busy} onClick={() => void run(() => loadSummary({ dateFrom: `${day.businessDate.slice(0, 8)}01`, dateTo: day.businessDate }))}>本月</button></div>
             <label>开始日期<input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label>
             <label>结束日期<input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label>
             {canManage && <label>员工（可多选）<select multiple value={memberIds} onChange={(event) => setMemberIds([...event.currentTarget.selectedOptions].map((option) => option.value))}>{members.filter((member) => !member.deletedAt).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>}
             <label>付款方式<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="CARD">刷卡</option><option value="CASH">现金</option><option value="GIFT_CARD">礼物卡</option><option value="ALL">全部</option></select></label>
             <label>金额类型<select value={amountType} onChange={(event) => setAmountType(event.target.value)}><option value="ALL">大费＋小费</option><option value="SERVICE">仅大费</option><option value="TIP">仅小费</option></select></label>
+            <label>高亮记工<select value={highlightFilter} onChange={(event) => setHighlightFilter(event.target.value as FinanceSummaryResponse["filters"]["highlightFilter"])}><option value="ALL">查看所有记工</option><option value="ONLY_HIGHLIGHTED">仅查看高亮记工</option><option value="EXCLUDE_HIGHLIGHTED">排除高亮记工</option></select></label>
             <div className="filter-actions"><button className="primary-action" type="submit" disabled={busy}>查看结果</button>{memberIds.length > 0 && <button className="secondary-action" type="button" disabled={busy} onClick={() => setMemberIds([])}>清除员工</button>}</div>
           </form>
           {(() => {
@@ -402,7 +444,7 @@ export function FinancePageClient() {
         <section className="finance-section">
           <div className="date-toolbar"><label>营业日<input type="date" value={cashDate} max={day.businessDate} onChange={(event) => setCashDate(event.target.value)} /></label><button className="secondary-action" type="button" disabled={busy} onClick={() => run(loadClosing)}>重新检查</button></div>
           <div className={`closing-status ${closing.hasWarnings ? "warning" : "ready"}`}><div><span>{closing.isClosed ? "已日结" : closing.hasWarnings ? "发现日结异常" : "可以正常日结"}</span><strong>{closing.isClosed ? `第 ${closing.activeClosing?.cycleNo ?? 0} 次日结` : closing.hasWarnings ? `${closing.warningCount} 项提示` : "检查通过"}</strong></div>{closing.isClosed ? <button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { const reason = window.prompt("请填写取消日结原因"); if (!reason?.trim() || !closing.activeClosing) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}/cancel`, { method: "POST", idempotent: true, body: { version: closing.activeClosing.version, reason: reason.trim() } }); await loadClosing(); await loadCash(); })}>取消日结</button> : <div className="closing-actions"><button className="primary-action" type="button" disabled={busy || closing.hasWarnings} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: false } }); await loadClosing(); })}>确认日结</button>{closing.hasWarnings && <button className="danger-button" type="button" disabled={busy} onClick={() => run(async () => { const reason = window.prompt("强制日结会保留全部异常快照，请填写原因"); if (!reason?.trim()) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: true, forceReason: reason.trim() } }); await loadClosing(); })}>强制日结</button>}</div>}</div>
-          {closing.warnings.length > 0 && <div className="warning-list">{closing.warnings.map((warning) => <article key={warning.code}><div className="warning-list__heading"><strong>{warning.labelZh}</strong><span>{warning.count} 条记录</span></div><div className="warning-record-links">{warning.recordIds.map((recordId, index) => <a className="secondary-action compact" key={recordId} href={workRecordHref(membership.store.id, closing.businessDate, recordId)} aria-label={`查看${warning.labelZh}第 ${index + 1} 单`}>查看第 {index + 1} 单</a>)}</div></article>)}</div>}
+          {closing.warnings.length > 0 && <div className="warning-list">{closing.warnings.map((warning) => <article key={warning.code}><div className="warning-list__heading"><strong>{warning.labelZh}</strong><span>{warning.count} 条记录</span></div><div className="warning-record-links">{warning.recordIds.map((recordId, index) => <button className="secondary-action compact" key={recordId} type="button" disabled={busy} onClick={() => openWarningRecord(recordId)} aria-label={`查看${warning.labelZh}第 ${index + 1} 单`}>查看第 {index + 1} 单</button>)}</div></article>)}</div>}
           <h2 className="table-title">全店日结合计</h2><div className="finance-cards closing-totals"><article><span>全店大费基数</span><strong>{money(closing.storeTotals.grossFeeBaseCents)}</strong></article><article><span>全店折扣总额</span><strong>{money(closing.storeTotals.discountTotalCents)}</strong></article><article className="balance-card"><span>全店折后大费业绩</span><strong>{money(closing.storeTotals.discountedFeePerformanceCents)}</strong></article><article><span>全店小费总额</span><strong>{money(closing.storeTotals.totalTipCents)}</strong></article><article><span>全店客人总付款</span><strong>{money(closing.storeTotals.customerTotalPaidCents)}</strong></article><article><span>礼物卡销售</span><strong>{money(closing.storeTotals.giftCardSalesAmountCents)}</strong><small>{closing.storeTotals.giftCardSaleCount} 张 · 现金 {money(closing.storeTotals.giftCardSaleCashCents)} · 刷卡 {money(closing.storeTotals.giftCardSaleCardCents)}</small></article><article className="balance-card"><span>店铺收入</span><strong>{money(closing.storeTotals.storeIncomeCents)}</strong><small>含礼物卡销售，不参与员工分成</small></article></div>
           <h2 className="table-title">每位员工日结检查</h2><div className="table-scroll"><table className="data-table"><thead><tr><th>员工</th><th>单数</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>小费</th><th>应得工资</th><th>待结账</th></tr></thead><tbody>{closing.employees.map((row) => <tr key={row.membershipId}><td>{row.displayName}</td><td>{row.recordCount}</td><td>{money(row.grossFeeBaseCents)}</td><td>{money(row.discountTotalCents)}</td><td>{money(row.discountedFeePerformanceCents)}</td><td>{money(row.totalTipCents)}</td><td>{money(row.employeeIncomeCents)}</td><td>{row.incompleteRecordCount}</td></tr>)}</tbody></table></div>
         </section>
@@ -416,12 +458,33 @@ export function FinancePageClient() {
         </section>
       )}
 
+      {tab === "giftCards" && canManage && giftCards && (
+        <GiftCardLedger ledger={giftCards} />
+      )}
+
       {tab === "payroll" && (
         <PayrollPanel storeId={membership.store.id} businessDate={day.businessDate} canManage={canManage} members={members} settlements={payroll} busy={busy} run={run} reload={async () => { await loadPayroll(); await loadSummary(); }} />
       )}
 
       <FloatingAiAssistant storeId={membership.store.id} type="finance" />
       {details && <FinanceDetailsDialog details={details} title={detailsTitle} onClose={() => setDetails(null)} />}
+      {editingRecord && catalog && storeDetails && (
+        <RecordEditor
+          storeId={membership.store.id}
+          timezone={editingRecord.storeTimezoneSnapshot}
+          businessDate={dateOnly(editingRecord.businessDate)}
+          autoDiscountSettings={storeDetails}
+          record={editingRecord}
+          catalog={catalog}
+          members={members}
+          canManage={canManage}
+          onClose={() => setEditingRecord(null)}
+          onSaved={() => undefined}
+          onChanged={async () => {
+            await Promise.all([loadSummary(), loadCash(), loadClosing(), loadGiftCards()]);
+          }}
+        />
+      )}
       <AppNav active="finance" storeId={membership.store.id} />
     </main>
   );

@@ -11,8 +11,10 @@ describe("FinanceCalculatorService", () => {
       discountAmountsCents: [1_000n],
       cashServiceCents: 9_000n,
       cardServiceCents: 0n,
+      giftCardServiceCents: 0n,
       cashTipCents: 2_000n,
       cardTipCents: 0n,
+      giftCardTipCents: 0n,
     });
 
     expect(result.discountedFeePerformanceCents).toBe(9_000n);
@@ -20,4 +22,3 @@ describe("FinanceCalculatorService", () => {
     expect(result.cashToSubmitToStoreCents).toBe(3_000n);
   });
 });
-

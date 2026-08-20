@@ -7,6 +7,7 @@ import {
   uuidSchema,
   versionSchema,
 } from "./common.js";
+import { giftCardSerialNumberSchema } from "./gift-card.js";
 
 const namedAmountFields = {
   name: z.string().trim().min(1).max(120),
@@ -119,15 +120,38 @@ export const confirmPaymentSchema = z
     version: versionSchema,
     cashServiceCents: moneyCentsSchema.optional(),
     cardServiceCents: moneyCentsSchema.optional(),
+    giftCardSerialNumber: giftCardSerialNumberSchema.optional(),
+    giftCardServiceCents: moneyCentsSchema.optional(),
     cashTipCents: moneyCentsSchema.optional(),
     cardTipCents: moneyCentsSchema.optional(),
+    giftCardTipCents: moneyCentsSchema.optional(),
   })
   .superRefine((value, context) => {
-    if (value.cashServiceCents === undefined && value.cardServiceCents === undefined) {
+    if (
+      value.cashServiceCents === undefined &&
+      value.cardServiceCents === undefined &&
+      value.giftCardServiceCents === undefined
+    ) {
       context.addIssue({
         code: "custom",
         path: ["cashServiceCents"],
-        message: "现金大费和刷卡大费至少填写一项；免费服务请明确填写 0",
+        message: "现金、刷卡和礼物卡大费至少填写一项；免费服务请明确填写 0",
+      });
+    }
+    const giftCardTotal =
+      (value.giftCardServiceCents ?? 0) + (value.giftCardTipCents ?? 0);
+    if (giftCardTotal > 0 && !value.giftCardSerialNumber) {
+      context.addIssue({
+        code: "custom",
+        path: ["giftCardSerialNumber"],
+        message: "使用礼物卡时必须填写序列号",
+      });
+    }
+    if (value.giftCardSerialNumber && giftCardTotal === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["giftCardServiceCents"],
+        message: "使用礼物卡时，大费或小费金额必须大于 0",
       });
     }
   })
@@ -135,8 +159,11 @@ export const confirmPaymentSchema = z
     version: value.version,
     cashServiceCents: value.cashServiceCents ?? 0,
     cardServiceCents: value.cardServiceCents ?? 0,
+    giftCardSerialNumber: value.giftCardSerialNumber ?? null,
+    giftCardServiceCents: value.giftCardServiceCents ?? 0,
     cashTipCents: value.cashTipCents ?? 0,
     cardTipCents: value.cardTipCents ?? 0,
+    giftCardTipCents: value.giftCardTipCents ?? 0,
   }));
 
 export type CreateWorkRecordInput = z.input<typeof createWorkRecordSchema>;

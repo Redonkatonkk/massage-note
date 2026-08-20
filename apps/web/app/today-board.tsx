@@ -16,6 +16,7 @@ import type {
   WorkRecord,
 } from "../lib/types";
 import { EmployeeClosingModal } from "./employee-closing";
+import { GiftCardSales } from "./gift-card-sales";
 import { RecordEditor } from "./record-editor";
 
 interface TodayBoardProps {
@@ -43,17 +44,22 @@ function money(cents: number | null): string {
 
 function paymentLabel(record: WorkRecord): string {
   if (record.status === "PENDING_PAYMENT") return "待填写";
-  const method = (cash: number, card: number) => {
-    if (cash > 0 && card > 0) return "现金＋刷卡";
-    if (cash > 0) return "现金";
-    if (card > 0) return "刷卡";
+  const method = (cash: number, card: number, giftCard: number) => {
+    const methods = [
+      cash > 0 ? "现金" : null,
+      card > 0 ? "刷卡" : null,
+      giftCard > 0 ? "礼物卡" : null,
+    ].filter(Boolean);
+    if (methods.length > 0) return methods.join("＋");
     return "金额为 0";
   };
   const cashService = record.cashServiceCents ?? 0;
   const cardService = record.cardServiceCents ?? 0;
+  const giftCardService = record.giftCardServiceCents ?? 0;
   const cashTip = record.cashTipCents ?? 0;
   const cardTip = record.cardTipCents ?? 0;
-  return `大费：${method(cashService, cardService)} · 小费：${method(cashTip, cardTip)}`;
+  const giftCardTip = record.giftCardTipCents ?? 0;
+  return `大费：${method(cashService, cardService, giftCardService)} · 小费：${method(cashTip, cardTip, giftCardTip)}`;
 }
 
 export function TodayBoard({
@@ -328,7 +334,8 @@ export function TodayBoard({
         <div><span>大费总额（折扣前）</span><strong>{money(board.statistics.grossFeeBaseCents)}</strong></div>
         <div><span>小费总额</span><strong>{money(board.statistics.totalTipCents)}</strong></div>
         <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
-        <div title="大费总额－折扣总额＋小费总额－员工应得"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
+        <div><span>礼物卡销售</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>
+        <div title="大费总额－折扣总额＋小费总额－员工应得＋礼物卡销售"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
       </section>}
 
       <section className="board-toolbar" aria-label="今日操作">
@@ -446,6 +453,16 @@ export function TodayBoard({
           );
         })}
       </section>
+
+      {(canManage || isCurrentBusinessDay) && <GiftCardSales
+        storeId={membership.store.id}
+        businessDate={currentDay.businessDate}
+        sales={board.giftCardSales}
+        members={members}
+        defaultOperatorMembershipId={membership.id}
+        canEdit={!board.isClosed && (isCurrentBusinessDay || canManage)}
+        onReload={onReload}
+      />}
 
       {canManage && availableMembers.length > 0 && !board.isClosed && (
         <section className="add-employee-panel">

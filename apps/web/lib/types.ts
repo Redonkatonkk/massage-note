@@ -223,8 +223,11 @@ export interface WorkRecord {
   discountedFeePerformanceCents: number;
   cashServiceCents: number | null;
   cardServiceCents: number | null;
+  giftCardSerialNumber: string | null;
+  giftCardServiceCents: number | null;
   cashTipCents: number | null;
   cardTipCents: number | null;
+  giftCardTipCents: number | null;
   totalTipCents: number | null;
   actualServiceCollectedCents: number | null;
   customerTotalPaidCents: number | null;
@@ -245,10 +248,32 @@ export interface WorkRecord {
   payment: {
     cashServiceCents: number;
     cardServiceCents: number;
+    giftCardSerialNumber: string | null;
+    giftCardServiceCents: number;
     cashTipCents: number;
     cardTipCents: number;
+    giftCardTipCents: number;
   } | null;
 }
+
+export interface GiftCardSale {
+  id: string;
+  businessDate: string;
+  serialNumber: string;
+  cashCents: number;
+  cardCents: number;
+  amountCents: number;
+  operatorMembershipId: string;
+  operator: Pick<StoreMember, "id" | "displayName" | "role" | "status">;
+  version: number;
+  deletedAt: string | null;
+  deletedBy: string | null;
+  deleteReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DeletedGiftCardSale = GiftCardSale;
 
 export interface DeletedWorkRecord extends WorkRecord {
   employee: { id: string; displayName: string; role: StoreRole; isServiceProvider: boolean };
@@ -264,6 +289,10 @@ export interface BoardStatistics {
   totalTipCents: number;
   totalLargeFeeWageCents: number;
   employeeIncomeCents: number;
+  giftCardSaleCount: number;
+  giftCardCashCents: number;
+  giftCardCardCents: number;
+  giftCardSalesAmountCents: number;
   storeIncomeCents: number;
 }
 
@@ -297,6 +326,7 @@ export interface BoardResponse {
   version: number;
   isClosed: boolean;
   rows: BoardRow[];
+  giftCardSales: GiftCardSale[];
   statistics: BoardStatistics;
 }
 
@@ -318,8 +348,10 @@ export interface FinanceTotals {
   actualServiceCollectedCents: number;
   cashServiceCents: number;
   cardServiceCents: number;
+  giftCardServiceCents: number;
   cashTipCents: number;
   cardTipCents: number;
+  giftCardTipCents: number;
   totalTipCents: number;
   customerTotalPaidCents: number;
   totalLargeFeeWageCents: number;
@@ -345,7 +377,7 @@ export interface FinanceSummaryResponse {
     dateFrom: string;
     dateTo: string;
     membershipIds: string[];
-    paymentMethod: "ALL" | "CASH" | "CARD";
+    paymentMethod: "ALL" | "CASH" | "CARD" | "GIFT_CARD";
     amountType: "ALL" | "SERVICE" | "TIP";
   };
   totals: FinanceTotals & {
@@ -416,9 +448,20 @@ export interface ClosingTotals {
   totalLargeFeeWageCents: number;
   employeeIncomeCents: number;
   incompleteRecordCount: number;
+  giftCardSaleCount: number;
+  giftCardSaleCashCents: number;
+  giftCardSaleCardCents: number;
+  giftCardSalesAmountCents: number;
+  storeIncomeCents: number;
 }
 
-export interface ClosingEmployeeTotals extends ClosingTotals {
+export interface ClosingEmployeeTotals extends Omit<ClosingTotals,
+  | "giftCardSaleCount"
+  | "giftCardSaleCashCents"
+  | "giftCardSaleCardCents"
+  | "giftCardSalesAmountCents"
+  | "storeIncomeCents"
+> {
   membershipId: string;
   displayName: string;
   role: StoreRole;

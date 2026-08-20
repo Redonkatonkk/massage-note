@@ -38,12 +38,15 @@
 | POST | `/stores/:storeId/catalog/items/:itemId/restore` | 恢复软删除项目 |
 | GET/PUT | `/stores/:storeId/members/:membershipId/commissions/...` | 员工默认与员工项目专属提成；保存后重算该员工未日结的当前营业日记工，历史与已日结快照不变 |
 | GET | `/stores/:storeId/business-days/current` | 当前营业日、时区和截止时间 |
-| GET | `/stores/:storeId/boards/:businessDate` | 今日或历史记工表；普通员工查看历史时仅返回本人行、班次、记工和本人统计 |
+| GET | `/stores/:storeId/boards/:businessDate` | 今日或历史记工表；包含该日有效礼物卡销售和店铺销售汇总；普通员工查看历史时仅返回本人行、班次、记工和本人统计，不返回全店卖卡记录 |
 | POST/PATCH | `/stores/:storeId/shifts/...`、`boards/...` | 上下班、行显示与排序；店主和经理可在日结后继续调整行的显示状态，其他业务数据仍只读 |
 | POST | `/stores/:storeId/work-records` | 快速创建预设或自定义记工；同一员工允许同时存在多笔待结账记录 |
 | GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改与软删除 |
-| POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡大费和小费拆分 |
+| POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡/礼物卡大费和小费拆分；使用礼物卡时同时提交序列号 |
 | GET/POST | `/stores/:storeId/work-records/deleted`、`.../:id/restore` | 回收站与恢复 |
+| POST | `/stores/:storeId/gift-card-sales` | 记录卖出的礼物卡；提交营业日、序列号、现金、刷卡和操作人，销售金额由服务端相加 |
+| PATCH/DELETE | `/stores/:storeId/gift-card-sales/:saleId` | 修改或软删除卖卡记录；使用 `version`、`Idempotency-Key`、营业日锁和审计 |
+| GET/POST | `/stores/:storeId/gift-card-sales/deleted`、`.../:saleId/restore` | 店长查看与恢复已删除卖卡记录 |
 | GET/POST | `/stores/:storeId/closings/:businessDate/...` | 日结预览、日结与取消日结 |
 | GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人；应提交现金按含现金大费的已确认项目折前基数合计 × 40% 计算；另按付款比例返回已确认记工的现金／刷卡大费分红，并分别汇总现金／刷卡小费分红；不含全店或他人数据 |
 | GET/POST | `/stores/:storeId/cash-settlements/:businessDate/...` | 单人/全员现金结清和取消结清；列表仅含当日有记工的员工 |
@@ -104,6 +107,37 @@ Web 页面支持用于排查日结异常的深链接：`/finance?store=<storeId>
 
 设为 `true` 后，服务端删除该笔自动折扣快照并持久保留停用状态，之后再次编辑也不会自动加回；设为 `false` 时按当前营业日、折前大费和店铺设置重新判断。该字段走既有记工权限、营业日锁、版本冲突、幂等、审计与现金结算回退规则。
 
+确认付款可在原有现金与刷卡字段之外提交礼物卡拆分：
+
+```json
+{
+  "version": 4,
+  "cashServiceCents": 2000,
+  "cardServiceCents": 0,
+  "giftCardSerialNumber": "GC-2026-0001",
+  "giftCardServiceCents": 8000,
+  "cashTipCents": 0,
+  "cardTipCents": 0,
+  "giftCardTipCents": 2000
+}
+```
+
+礼物卡大费与小费之和大于 0 时序列号必填；未使用礼物卡时序列号为 `null`，两项礼物卡金额均为 0。礼物卡大费进入本单实收服务费与付款比例，礼物卡小费进入员工收入；两者都是非现金付款，不增加员工现金结算金额。
+
+卖卡请求示例：
+
+```json
+{
+  "businessDate": "2026-08-20",
+  "serialNumber": "GC-2026-0002",
+  "cashCents": 5000,
+  "cardCents": 10000,
+  "operatorMembershipId": "00000000-0000-4000-8000-000000000000"
+}
+```
+
+响应中的 `amountCents` 固定等于 `cashCents + cardCents`。同一店铺有效卖卡记录的规范化序列号唯一；销售额全部加入店铺收入，不进入员工提成、工资或现金结算。
+
 项目排序提交完整的未删除项目列表及当前版本，例如 `{ "type": "SERVICE", "items": [{ "id": "...", "version": 2 }] }`。服务端在同一事务中校验列表、项目归属和全部版本，再统一写入顺序；列表不完整或任一版本过期时返回 `CATALOG_ORDER_CONFLICT`，不会留下半套排序。
 
 今日记工页面只调用 `POST /stores/:storeId/shifts/clock-in` 支持普通员工把本人加入当前营业日表格，不调用下班接口。新营业日上班若发现本人仍有旧营业日未结束班次，会先原子结束旧班次并记录 `shift.stale_auto_closed` 审计，再创建当前班次和本人表格行；同一营业日重复上班返回 `SHIFT_ALREADY_OPEN`。`clock-out` 继续保留给旧客户端和历史审计兼容，员工页面不提供对应按钮；员工工作状态仍完全由记工时间段计算。
@@ -114,7 +148,7 @@ Web 页面支持用于排查日结异常的深链接：`/finance?store=<storeId>
 
 - `dateFrom`、`dateTo`：营业日范围，均包含端点。
 - `membershipIds`：逗号分隔的成员 ID；普通员工即使传入其他人也只会得到本人数据。
-- `paymentMethod`：`CASH`、`CARD` 或 `ALL`。
+- `paymentMethod`：`CASH`、`CARD`、`GIFT_CARD` 或 `ALL`。
 - `amountType`：`SERVICE`、`TIP` 或 `ALL`。
 
 工资结算列表支持日期、成员和 `includeDeleted=true`。审计列表支持 `dateFrom`、`dateTo`、`entityType`、`action`、`actorUserId` 与游标分页。

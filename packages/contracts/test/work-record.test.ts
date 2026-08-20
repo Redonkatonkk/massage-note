@@ -18,8 +18,11 @@ describe("付款确认契约", () => {
       version: 1,
       cashServiceCents: 10_000,
       cardServiceCents: 0,
+      giftCardSerialNumber: null,
+      giftCardServiceCents: 0,
       cashTipCents: 0,
       cardTipCents: 2_000,
+      giftCardTipCents: 0,
     });
   });
 
@@ -41,8 +44,11 @@ describe("付款确认契约", () => {
       version: 1,
       cashServiceCents: 0,
       cardServiceCents: 10_000,
+      giftCardSerialNumber: null,
+      giftCardServiceCents: 0,
       cashTipCents: 0,
       cardTipCents: 0,
+      giftCardTipCents: 0,
     });
 
     const result = confirmPaymentSchema.safeParse({ version: 1 });
@@ -51,6 +57,33 @@ describe("付款确认契约", () => {
       expect(result.error.issues).toHaveLength(1);
       expect(result.error.issues[0]?.path).toEqual(["cashServiceCents"]);
     }
+  });
+
+  it("礼物卡付款必须同时提供序列号和大费或小费金额", () => {
+    expect(confirmPaymentSchema.parse({
+      version: 1,
+      giftCardSerialNumber: "GC-2026-001",
+      giftCardServiceCents: 8_000,
+      giftCardTipCents: 2_000,
+    })).toEqual({
+      version: 1,
+      cashServiceCents: 0,
+      cardServiceCents: 0,
+      giftCardSerialNumber: "GC-2026-001",
+      giftCardServiceCents: 8_000,
+      cashTipCents: 0,
+      cardTipCents: 0,
+      giftCardTipCents: 2_000,
+    });
+    expect(confirmPaymentSchema.safeParse({
+      version: 1,
+      giftCardServiceCents: 8_000,
+    }).success).toBe(false);
+    expect(confirmPaymentSchema.safeParse({
+      version: 1,
+      giftCardSerialNumber: "GC-EMPTY",
+      giftCardServiceCents: 0,
+    }).success).toBe(false);
   });
 });
 

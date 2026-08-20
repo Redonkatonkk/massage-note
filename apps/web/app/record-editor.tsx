@@ -163,8 +163,20 @@ export function RecordEditor({
   );
   const [cashService, setCashService] = useState(dollars(record.cashServiceCents));
   const [cardService, setCardService] = useState(dollars(record.cardServiceCents));
+  const [usesGiftCard, setUsesGiftCard] = useState(
+    Boolean(record.giftCardSerialNumber) ||
+      (record.giftCardServiceCents ?? 0) > 0 ||
+      (record.giftCardTipCents ?? 0) > 0,
+  );
+  const [giftCardSerialNumber, setGiftCardSerialNumber] = useState(
+    record.giftCardSerialNumber ?? "",
+  );
+  const [giftCardService, setGiftCardService] = useState(
+    dollars(record.giftCardServiceCents),
+  );
   const [cashTip, setCashTip] = useState(dollars(record.cashTipCents));
   const [cardTip, setCardTip] = useState(dollars(record.cardTipCents));
+  const [giftCardTip, setGiftCardTip] = useState(dollars(record.giftCardTipCents));
   const [tipSettled, setTipSettled] = useState(record.tipSettledManualFlag);
   const [largeFeeSettled, setLargeFeeSettled] = useState(
     record.largeFeeSettledManualFlag,
@@ -199,8 +211,12 @@ export function RecordEditor({
           }
           if (typeof draft.cashService === "string") setCashService(draft.cashService);
           if (typeof draft.cardService === "string") setCardService(draft.cardService);
+          if (typeof draft.usesGiftCard === "boolean") setUsesGiftCard(draft.usesGiftCard);
+          if (typeof draft.giftCardSerialNumber === "string") setGiftCardSerialNumber(draft.giftCardSerialNumber);
+          if (typeof draft.giftCardService === "string") setGiftCardService(draft.giftCardService);
           if (typeof draft.cashTip === "string") setCashTip(draft.cashTip);
           if (typeof draft.cardTip === "string") setCardTip(draft.cardTip);
+          if (typeof draft.giftCardTip === "string") setGiftCardTip(draft.giftCardTip);
           if (typeof draft.tipSettled === "boolean") setTipSettled(draft.tipSettled);
           if (typeof draft.largeFeeSettled === "boolean") setLargeFeeSettled(draft.largeFeeSettled);
           if (typeof draft.note === "string") setNote(draft.note);
@@ -218,8 +234,8 @@ export function RecordEditor({
 
   useEffect(() => {
     if (!draftLoaded || !draftDirty) return;
-    window.localStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, cashService, cardService, cashTip, cardTip, tipSettled, largeFeeSettled, note }));
-  }, [draftLoaded, draftDirty, draftKey, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, cashService, cardService, cashTip, cardTip, tipSettled, largeFeeSettled, note]);
+    window.localStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note }));
+  }, [draftLoaded, draftDirty, draftKey, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note]);
 
   const initialAddonSignature = JSON.stringify(
     initialAddons.map(({ key: _key, ...item }) => item),
@@ -445,18 +461,34 @@ export function RecordEditor({
     const servicePayments: Record<string, number> = {};
     if (cashService !== "") servicePayments.cashServiceCents = cents(cashService, "现金大费");
     if (cardService !== "") servicePayments.cardServiceCents = cents(cardService, "刷卡大费");
+    let giftCardPayment: Record<string, string | number | null> = {
+      giftCardSerialNumber: null,
+      giftCardServiceCents: 0,
+      giftCardTipCents: 0,
+    };
+    if (usesGiftCard) {
+      const serialNumber = giftCardSerialNumber.trim();
+      if (!serialNumber) throw new Error("使用礼物卡时必须填写序列号");
+      const giftCardServiceCents = giftCardService === "" ? 0 : cents(giftCardService, "礼物卡大费");
+      const giftCardTipCents = giftCardTip === "" ? 0 : cents(giftCardTip, "礼物卡小费");
+      if (giftCardServiceCents + giftCardTipCents <= 0) {
+        throw new Error("使用礼物卡时，大费或小费金额必须大于 0");
+      }
+      servicePayments.giftCardServiceCents = giftCardServiceCents;
+      giftCardPayment = { giftCardSerialNumber: serialNumber, giftCardServiceCents, giftCardTipCents };
+    }
     const tipPayments = {
       cashTipCents: cashTip === "" ? 0 : cents(cashTip, "现金小费"),
       cardTipCents: cardTip === "" ? 0 : cents(cardTip, "刷卡小费"),
     };
     if (Object.keys(servicePayments).length === 0) {
-      throw new Error("现金大费和刷卡大费至少填写一项；免费服务请填写 0");
+      throw new Error("现金、刷卡和礼物卡大费至少填写一项；免费服务请填写 0");
     }
     const updated = await saveDetails();
     await apiRequest(`/stores/${storeId}/work-records/${record.id}/confirm-payment`, {
       method: "POST",
       idempotent: true,
-      body: { version: updated.version, ...servicePayments, ...tipPayments },
+      body: { version: updated.version, ...servicePayments, ...tipPayments, ...giftCardPayment },
     });
     await finish();
   }
@@ -482,8 +514,9 @@ export function RecordEditor({
   const draftDiscounted = draftGross !== null && draftDiscountTotal !== null ? draftGross - draftDiscountTotal : null;
   const draftCashService = draftCents(cashService || "0");
   const draftCardService = draftCents(cardService || "0");
-  const draftServicePaid = cashService !== "" || cardService !== ""
-    ? draftCashService !== null && draftCardService !== null ? draftCashService + draftCardService : null
+  const draftGiftCardService = draftCents(usesGiftCard ? giftCardService || "0" : "0");
+  const draftServicePaid = cashService !== "" || cardService !== "" || usesGiftCard
+    ? draftCashService !== null && draftCardService !== null && draftGiftCardService !== null ? draftCashService + draftCardService + draftGiftCardService : null
     : null;
   const draftDifference = draftServicePaid !== null && draftDiscounted !== null ? draftServicePaid - draftDiscounted : null;
   const selectedCatalogService = catalog.serviceItems.find(
@@ -604,13 +637,19 @@ export function RecordEditor({
 
         <section className="editor-section">
           <h3>客人付款</h3>
-          <p className="field-help">现金大费与刷卡大费至少填一项。现金小费和刷卡小费都可以留空，系统会按 0 处理并允许结算。</p>
+          <p className="field-help">现金、刷卡和礼物卡大费至少填一项。各类小费可以留空，系统会按 0 处理。</p>
           <div className="editor-grid editor-grid--money">
             <label className="field-label">现金大费（美元）<input inputMode="decimal" placeholder="可留空" value={cashService} onChange={(event) => setCashService(event.target.value)} /></label>
             <label className="field-label">刷卡大费（美元）<input inputMode="decimal" placeholder="可留空" value={cardService} onChange={(event) => setCardService(event.target.value)} /></label>
             <label className="field-label">现金小费（美元）<input inputMode="decimal" placeholder="可留空，按 0 计算" value={cashTip} onChange={(event) => setCashTip(event.target.value)} /></label>
             <label className="field-label">刷卡小费（美元）<input inputMode="decimal" placeholder="可留空，按 0 计算" value={cardTip} onChange={(event) => setCardTip(event.target.value)} /></label>
           </div>
+          <label className="gift-card-toggle"><input type="checkbox" checked={usesGiftCard} onChange={(event) => setUsesGiftCard(event.target.checked)} /> 使用礼物卡付款</label>
+          {usesGiftCard && <div className="editor-grid editor-grid--gift-card">
+            <label className="field-label">礼物卡序列号<input maxLength={120} autoComplete="off" value={giftCardSerialNumber} onChange={(event) => setGiftCardSerialNumber(event.target.value)} /></label>
+            <label className="field-label">礼物卡大费（美元）<input inputMode="decimal" placeholder="可填 0" value={giftCardService} onChange={(event) => setGiftCardService(event.target.value)} /></label>
+            <label className="field-label">礼物卡小费（美元）<input inputMode="decimal" placeholder="可填 0" value={giftCardTip} onChange={(event) => setGiftCardTip(event.target.value)} /></label>
+          </div>}
         </section>
 
         <section className="editor-section">

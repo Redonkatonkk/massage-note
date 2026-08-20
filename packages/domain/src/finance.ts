@@ -22,8 +22,10 @@ export interface WorkRecordFinanceInput {
   discountAmountsCents: readonly Cents[];
   cashServiceCents: Cents;
   cardServiceCents: Cents;
+  giftCardServiceCents: Cents;
   cashTipCents: Cents;
   cardTipCents: Cents;
+  giftCardTipCents: Cents;
 }
 
 export interface WorkRecordFinance {
@@ -34,10 +36,12 @@ export interface WorkRecordFinance {
   discountedFeePerformanceCents: Cents;
   cashServiceCents: Cents;
   cardServiceCents: Cents;
+  giftCardServiceCents: Cents;
   actualServiceCollectedCents: Cents;
   paymentDifferenceCents: bigint;
   cashTipCents: Cents;
   cardTipCents: Cents;
+  giftCardTipCents: Cents;
   totalTipCents: Cents;
   customerTotalPaidCents: Cents;
   mainServiceWageCents: Cents;
@@ -66,8 +70,10 @@ export function calculateWorkRecordFinance(
   const discounts = input.discountAmountsCents.map(cents);
   const cashServiceCents = cents(input.cashServiceCents);
   const cardServiceCents = cents(input.cardServiceCents);
+  const giftCardServiceCents = cents(input.giftCardServiceCents);
   const cashTipCents = cents(input.cashTipCents);
   const cardTipCents = cents(input.cardTipCents);
+  const giftCardTipCents = cents(input.giftCardTipCents);
 
   const addonTotalCents = sumCents(addons.map((addon) => addon.amountCents));
   const grossFeeBaseCents = mainServiceAmountCents + addonTotalCents;
@@ -80,8 +86,9 @@ export function calculateWorkRecordFinance(
   }
 
   const discountedFeePerformanceCents = grossFeeBaseCents - discountTotalCents;
-  const actualServiceCollectedCents = cashServiceCents + cardServiceCents;
-  const totalTipCents = cashTipCents + cardTipCents;
+  const actualServiceCollectedCents =
+    cashServiceCents + cardServiceCents + giftCardServiceCents;
+  const totalTipCents = cashTipCents + cardTipCents + giftCardTipCents;
   const customerTotalPaidCents = actualServiceCollectedCents + totalTipCents;
   const mainServiceWageCents = multiplyByBps(
     mainServiceAmountCents,
@@ -123,10 +130,12 @@ export function calculateWorkRecordFinance(
     discountedFeePerformanceCents,
     cashServiceCents,
     cardServiceCents,
+    giftCardServiceCents,
     actualServiceCollectedCents,
     paymentDifferenceCents,
     cashTipCents,
     cardTipCents,
+    giftCardTipCents,
     totalTipCents,
     customerTotalPaidCents,
     mainServiceWageCents,
@@ -221,6 +230,7 @@ export interface PersonalClosingPaymentRecord {
   cardServiceCents: Cents;
   cashTipCents: Cents;
   cardTipCents: Cents;
+  giftCardTipCents?: Cents;
 }
 
 export interface PersonalClosingPaymentDividends {
@@ -266,7 +276,9 @@ export function calculatePersonalClosingPaymentDividends(
       wageDividends.map((record) => record.cardLargeFeeDividendCents),
     ),
     cardTipDividendCents: sumCents(
-      records.map((record) => cents(record.cardTipCents)),
+      records.map(
+        (record) => cents(record.cardTipCents) + cents(record.giftCardTipCents ?? 0n),
+      ),
     ),
   };
 }

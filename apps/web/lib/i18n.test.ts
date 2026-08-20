@@ -34,6 +34,9 @@ describe("bilingual UI translation", () => {
       .toBe("Body 60-minute price must be non-negative with at most two decimal places");
     expect(translateText("Body第 2 个价格", "en-US")).toBe("Body price #2");
     expect(translateText("12 单", "en-US")).toBe("12 records");
+    expect(translateText("2 张", "en-US")).toBe("2 cards");
+    expect(translateText("礼物卡销售", "en-US")).toBe("Gift card sales");
+    expect(translateText("使用礼物卡付款", "en-US")).toBe("Pay with a gift card");
   });
 
   it("translates appended status lines while retaining arbitrary messages", () => {
@@ -96,6 +99,8 @@ describe("bilingual UI translation", () => {
   it("uses stable API error codes for English errors", () => {
     expect(translateApiError("INVALID_SESSION", "登录已过期，请重新登录", "en-US"))
       .toBe("Your session expired. Sign in again.");
+    expect(translateApiError("GIFT_CARD_SERIAL_DUPLICATE", "重复", "en-US"))
+      .toContain("already been recorded");
     expect(translateApiError("FUTURE_CODE", "未来错误", "en-US"))
       .toBe("Request failed (FUTURE_CODE).");
   });

@@ -76,6 +76,17 @@ interface DesiredDiscountSnapshot {
   position: number;
 }
 
+type CompatibleConfirmedPayment = Omit<
+  ConfirmedPayment,
+  "giftCardSerialNumber" | "giftCardServiceCents" | "giftCardTipCents"
+> &
+  Partial<
+    Pick<
+      ConfirmedPayment,
+      "giftCardSerialNumber" | "giftCardServiceCents" | "giftCardTipCents"
+    >
+  >;
+
 const MONDAY_THURSDAY_AUTO_DISCOUNT_NAME = "周一至周四自动折扣";
 
 const recordInclude = {
@@ -579,8 +590,10 @@ export class WorkRecordsService {
             if (
               record.cashServiceCents === null ||
               record.cardServiceCents === null ||
+              record.giftCardServiceCents === null ||
               record.cashTipCents === null ||
-              record.cardTipCents === null
+              record.cardTipCents === null ||
+              record.giftCardTipCents === null
             ) {
               throw new ConflictException({
                 code: "CONFIRMED_PAYMENT_MISSING",
@@ -600,8 +613,10 @@ export class WorkRecordsService {
             ),
             cashServiceCents: record.cashServiceCents ?? 0n,
             cardServiceCents: record.cardServiceCents ?? 0n,
+            giftCardServiceCents: record.giftCardServiceCents ?? 0n,
             cashTipCents: record.cashTipCents ?? 0n,
             cardTipCents: record.cardTipCents ?? 0n,
+            giftCardTipCents: record.giftCardTipCents ?? 0n,
           });
           this.assertJsonSafeMoney(finance);
 
@@ -953,7 +968,7 @@ export class WorkRecordsService {
     actor: User,
     storeId: string,
     recordId: string,
-    input: ConfirmedPayment,
+    input: CompatibleConfirmedPayment,
     idempotencyKey: string,
     requestId: string,
   ) {
@@ -1010,8 +1025,10 @@ export class WorkRecordsService {
           ),
           cashServiceCents: BigInt(input.cashServiceCents),
           cardServiceCents: BigInt(input.cardServiceCents),
+          giftCardServiceCents: BigInt(input.giftCardServiceCents ?? 0),
           cashTipCents: BigInt(input.cashTipCents),
           cardTipCents: BigInt(input.cardTipCents),
+          giftCardTipCents: BigInt(input.giftCardTipCents ?? 0),
         });
         this.assertJsonSafeMoney(finance);
 
@@ -1032,8 +1049,11 @@ export class WorkRecordsService {
               finance.discountedFeePerformanceCents,
             cashServiceCents: finance.cashServiceCents,
             cardServiceCents: finance.cardServiceCents,
+            giftCardSerialNumber: input.giftCardSerialNumber ?? null,
+            giftCardServiceCents: finance.giftCardServiceCents,
             cashTipCents: finance.cashTipCents,
             cardTipCents: finance.cardTipCents,
+            giftCardTipCents: finance.giftCardTipCents,
             totalTipCents: finance.totalTipCents,
             actualServiceCollectedCents: finance.actualServiceCollectedCents,
             customerTotalPaidCents: finance.customerTotalPaidCents,
@@ -1061,16 +1081,22 @@ export class WorkRecordsService {
             workRecordId: recordId,
             cashServiceCents: finance.cashServiceCents,
             cardServiceCents: finance.cardServiceCents,
+            giftCardSerialNumber: input.giftCardSerialNumber ?? null,
+            giftCardServiceCents: finance.giftCardServiceCents,
             cashTipCents: finance.cashTipCents,
             cardTipCents: finance.cardTipCents,
+            giftCardTipCents: finance.giftCardTipCents,
             confirmedAt: new Date(),
             confirmedBy: actor.id,
           },
           update: {
             cashServiceCents: finance.cashServiceCents,
             cardServiceCents: finance.cardServiceCents,
+            giftCardSerialNumber: input.giftCardSerialNumber ?? null,
+            giftCardServiceCents: finance.giftCardServiceCents,
             cashTipCents: finance.cashTipCents,
             cardTipCents: finance.cardTipCents,
+            giftCardTipCents: finance.giftCardTipCents,
             confirmedAt: new Date(),
             confirmedBy: actor.id,
             version: { increment: 1 },
@@ -1108,8 +1134,11 @@ export class WorkRecordsService {
               version: updated.version,
               cashServiceCents: finance.cashServiceCents.toString(),
               cardServiceCents: finance.cardServiceCents.toString(),
+              giftCardSerialNumber: input.giftCardSerialNumber ?? null,
+              giftCardServiceCents: finance.giftCardServiceCents.toString(),
               cashTipCents: finance.cashTipCents.toString(),
               cardTipCents: finance.cardTipCents.toString(),
+              giftCardTipCents: finance.giftCardTipCents.toString(),
               actualServiceCollectedCents:
                 finance.actualServiceCollectedCents.toString(),
               totalTipCents: finance.totalTipCents.toString(),

@@ -360,7 +360,7 @@ export class ClosingsService {
         messageZh: "不能对未来营业日进行日结",
       });
     }
-    const [records, activeClosing] = await Promise.all([
+    const [records, giftCardSales, activeClosing] = await Promise.all([
       client.workRecord.findMany({
         where: {
           storeId,
@@ -373,6 +373,16 @@ export class ClosingsService {
           employee: { select: { id: true, displayName: true, role: true } },
         },
       }),
+      membershipId
+        ? Promise.resolve([])
+        : client.giftCardSale.findMany({
+            where: {
+              storeId,
+              businessDate: dateAtUtc(businessDate),
+              deletedAt: null,
+            },
+            select: { cashCents: true, cardCents: true, amountCents: true },
+          }),
       client.businessDayClosing.findFirst({
         where: {
           storeId,
@@ -446,6 +456,7 @@ export class ClosingsService {
           cardServiceCents: bigint;
           cashTipCents: bigint;
           cardTipCents: bigint;
+          giftCardTipCents: bigint;
         }>;
         incompleteRecordCount: number;
       }
@@ -490,6 +501,7 @@ export class ClosingsService {
           cardServiceCents: record.cardServiceCents ?? 0n,
           cashTipCents: record.cashTipCents ?? 0n,
           cardTipCents: record.cardTipCents ?? 0n,
+          giftCardTipCents: record.giftCardTipCents ?? 0n,
         });
       }
       if (record.status === "PENDING_PAYMENT") current.incompleteRecordCount += 1;
@@ -510,7 +522,7 @@ export class ClosingsService {
         });
       },
     );
-    const storeTotals = employees.reduce(
+    const workRecordTotals = employees.reduce(
       (total, item) => ({
         recordCount: total.recordCount + item.recordCount,
         grossFeeBaseCents: total.grossFeeBaseCents + item.grossFeeBaseCents,
@@ -539,6 +551,31 @@ export class ClosingsService {
         incompleteRecordCount: 0,
       },
     );
+    const giftCardSaleTotals = giftCardSales.reduce(
+      (total, sale) => ({
+        giftCardSaleCount: total.giftCardSaleCount + 1,
+        giftCardSaleCashCents: total.giftCardSaleCashCents + sale.cashCents,
+        giftCardSaleCardCents: total.giftCardSaleCardCents + sale.cardCents,
+        giftCardSalesAmountCents:
+          total.giftCardSalesAmountCents + sale.amountCents,
+      }),
+      {
+        giftCardSaleCount: 0,
+        giftCardSaleCashCents: 0n,
+        giftCardSaleCardCents: 0n,
+        giftCardSalesAmountCents: 0n,
+      },
+    );
+    const safeGiftCardSaleTotals = this.safeTotals(giftCardSaleTotals);
+    const storeTotals = {
+      ...workRecordTotals,
+      ...safeGiftCardSaleTotals,
+      storeIncomeCents:
+        workRecordTotals.discountedFeePerformanceCents +
+        workRecordTotals.totalTipCents -
+        workRecordTotals.employeeIncomeCents +
+        safeGiftCardSaleTotals.giftCardSalesAmountCents,
+    };
     return {
       storeId,
       businessDate,

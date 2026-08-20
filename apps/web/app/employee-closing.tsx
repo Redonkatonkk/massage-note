@@ -158,8 +158,8 @@ async function generateClosingImage(
   const dividendMetrics: Array<[string, string, string]> = [
     [tr("现金大费分红"), money(preview.employee.cashLargeFeeDividendCents, locale), "#fff2dc"],
     [tr("现金小费分红"), money(preview.employee.cashTipDividendCents, locale), "#fff2dc"],
-    [tr("刷卡大费分红"), money(preview.employee.cardLargeFeeDividendCents, locale), "#edf8f1"],
-    [tr("刷卡小费分红"), money(preview.employee.cardTipDividendCents, locale), "#edf8f1"],
+    [tr("刷卡／礼物卡大费分红"), money(preview.employee.cardLargeFeeDividendCents, locale), "#edf8f1"],
+    [tr("刷卡／礼物卡小费分红"), money(preview.employee.cardTipDividendCents, locale), "#edf8f1"],
   ];
   const overviewGap = 12 * scale;
   const dividendGap = 8 * scale;
@@ -204,7 +204,7 @@ async function generateClosingImage(
   );
   context.fillStyle = "#6b635a";
   context.font = `800 ${Math.round(11 * scale)}px ${imageFont}`;
-  context.fillText(tr("已确认收入分配 · 按现金／刷卡拆分"), dividendPanelX + 14 * scale, dividendPanelY + 23 * scale, dividendPanelWidth - 28 * scale);
+  context.fillText(tr("已确认收入分配 · 按现金／非现金拆分"), dividendPanelX + 14 * scale, dividendPanelY + 23 * scale, dividendPanelWidth - 28 * scale);
   const dividendCardWidth =
     (dividendPanelWidth - 28 * scale - dividendGap * (dividendColumns - 1)) /
     dividendColumns;
@@ -370,13 +370,13 @@ export function EmployeeClosingSummary({ preview }: EmployeeClosingSummaryProps)
           <section className="employee-closing-dividends" aria-labelledby="employee-closing-dividends-title">
             <div className="employee-closing-dividends-heading">
               <h3 id="employee-closing-dividends-title">已确认收入分配</h3>
-              <small>按现金／刷卡拆分，待结账记录暂不计入</small>
+              <small>按现金／非现金拆分，待结账记录暂不计入</small>
             </div>
             <div className="employee-closing-dividend-grid">
               <article className="cash"><span>现金大费分红</span><strong>{money(employee.cashLargeFeeDividendCents)}</strong><small>现金付款对应的大费工资</small></article>
               <article className="cash"><span>现金小费分红</span><strong>{money(employee.cashTipDividendCents)}</strong><small>已确认现金小费</small></article>
-              <article className="card"><span>刷卡大费分红</span><strong>{money(employee.cardLargeFeeDividendCents)}</strong><small>刷卡付款对应的大费工资</small></article>
-              <article className="card"><span>刷卡小费分红</span><strong>{money(employee.cardTipDividendCents)}</strong><small>已确认刷卡小费</small></article>
+              <article className="card"><span>刷卡／礼物卡大费分红</span><strong>{money(employee.cardLargeFeeDividendCents)}</strong><small>非现金付款对应的大费工资</small></article>
+              <article className="card"><span>刷卡／礼物卡小费分红</span><strong>{money(employee.cardTipDividendCents)}</strong><small>已确认非现金小费</small></article>
             </div>
           </section>
         </div>
@@ -388,7 +388,7 @@ export function EmployeeClosingSummary({ preview }: EmployeeClosingSummaryProps)
           <div className="employee-closing-metrics">
             <article><span>大费基数</span><strong>{money(employee.grossFeeBaseCents)}</strong><small>主要项目＋加项</small></article>
             <article className="income"><span>大费工资</span><strong>{money(employee.totalLargeFeeWageCents)}</strong><small>全部项目提成合计</small></article>
-            <article><span>小费</span><strong>{money(employee.totalTipCents)}</strong><small>现金＋刷卡小费</small></article>
+            <article><span>小费</span><strong>{money(employee.totalTipCents)}</strong><small>现金＋刷卡＋礼物卡小费</small></article>
           </div>
         </section>
         <section className="employee-closing-handoff" aria-labelledby="employee-closing-settlement-title">

@@ -139,6 +139,7 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
       FROM pg_constraint
       WHERE conname IN (
         'stores_commission_range',
+        'gift_card_sales_valid_amounts',
         'service_item_price_options_valid_values',
         'work_records_non_negative_money',
         'work_records_confirmed_finance_complete'
@@ -147,6 +148,7 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
     `;
 
     expect(rows.map((row) => row.conname)).toEqual([
+      "gift_card_sales_valid_amounts",
       "service_item_price_options_valid_values",
       "stores_commission_range",
       "work_records_confirmed_finance_complete",

@@ -13,7 +13,7 @@
 5. 现金不足时，只把员工实际拿到的现金算作“已通过现金取得”，不足部分仍由老板支付。
 6. 日结后员工不能修改；拥有者或经理必须先取消日结。相关现金结算自动回到未结清。
 7. 自定义项目使用员工默认提成，其次使用店铺全局提成；员工不能自行修改本单提成。
-8. 付款确认时，大费拆分和小费拆分各至少明确填写一项，另一项留空自动转为 0。
+8. 付款确认支持现金、刷卡和礼物卡；礼物卡付款必须携带序列号，全部空白金额自动转为 0，但大费至少明确填写一种付款方式。
 9. 所有金额使用整数美分；所有服务项分别计算工资并四舍五入到美分。
 10. 第一版不允许离线写入。断网时保留未提交表单并明确提示，恢复网络后由用户重新提交。
 
@@ -181,8 +181,8 @@ flowchart TD
     B --> C["后端生成项目、价格、时长、提成快照"]
     C --> D["保存浅橙色待结账记录"]
     D --> E["打开记录详情"]
-    E --> F["填写折扣、额外项目、现金/刷卡大费和小费"]
-    F --> G{"每组是否至少明确填写一项"}
+    E --> F["填写折扣、额外项目、现金/刷卡/礼物卡大费和小费"]
+    F --> G{"大费是否至少明确填写一项；礼物卡是否有序列号"}
     G -- 否 --> H["保持待结账并提示"]
     G -- 是 --> I["后端补齐空白为 0 并重算"]
     I --> J{"实收大费是否等于折后大费"}
@@ -346,7 +346,8 @@ Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同�
 | `work_record_service_snapshots` | `work_record_id`, `source_service_item_id`, `is_custom`, `name`, `short_name`, `amount_cents`, `duration_minutes`, `commission_bps`, `wage_cents` | 一单一个；改项目时更新当前快照，同时在审计中保留旧值 |
 | `work_record_addon_snapshots` | `work_record_id`, `source_addon_item_id`, `is_custom`, `name`, `short_name`, `amount_cents`, `duration_minutes`, `commission_bps`, `wage_cents`, `position` | 一单多个 |
 | `work_record_discount_snapshots` | `work_record_id`, `source_discount_item_id`, `is_custom`, `name`, `amount_cents`, `position` | 一单多个；总额不得超过大费基数 |
-| `payment_breakdowns` | `work_record_id`, `cash_service_cents`, `card_service_cents`, `cash_tip_cents`, `card_tip_cents`, `confirmed_at`, `confirmed_by`, `version` | 待结账时可空；确认后四项均非空、非负 |
+| `payment_breakdowns` | `work_record_id`, `cash_service_cents`, `card_service_cents`, `gift_card_serial_number`, `gift_card_service_cents`, `cash_tip_cents`, `card_tip_cents`, `gift_card_tip_cents`, `confirmed_at`, `confirmed_by`, `version` | 待结账时可空；确认后六项金额均非空、非负；使用礼物卡时序列号非空 |
+| `gift_card_sales` | `store_id`, `business_date`, `serial_number`, `serial_number_normalized`, `cash_cents`, `card_cents`, `amount_cents`, `operator_membership_id`, `version` | 销售额等于现金加刷卡且大于 0；同店有效序列号唯一；软删除并审计 |
 
 `work_records` 的服务器汇总字段：
 
@@ -357,8 +358,11 @@ Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同�
 - `discounted_fee_performance_cents`
 - `cash_service_cents`
 - `card_service_cents`
+- `gift_card_serial_number`（未使用礼物卡时为空）
+- `gift_card_service_cents`
 - `cash_tip_cents`（待结账可空）
 - `card_tip_cents`（待结账可空）
+- `gift_card_tip_cents`（待结账可空）
 - `total_tip_cents`（待结账可空）
 - `actual_service_collected_cents`
 - `customer_total_paid_cents`（待结账可空）
@@ -401,7 +405,7 @@ Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同�
 - 所有快照金额非负；折扣总额通过领域事务校验不超过大费基数。
 - 提成 `0..10000 bps`。
 - `end_at >= start_at`；允许跨营业日截止，但业务日期不改变。
-- 已确认付款四个拆分字段均非空。
+- 已确认付款六个拆分金额均非空；礼物卡金额大于 0 时序列号必须非空，金额为 0 时序列号必须为空。
 - 所有 store-scoped 外键尽量采用 `(store_id, id)` 组合约束，防止错误跨店关联。
 
 ---
@@ -417,16 +421,18 @@ Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同�
 - `D`：折扣总额
 - `CS`：现金大费
 - `CC`：刷卡大费
+- `GCS`：礼物卡大费
 - `CT`：现金小费
 - `CCT`：刷卡小费
+- `GCT`：礼物卡小费
 
 ```text
 大费基数 = P + E
 折后大费业绩 = P + E - D
-实收服务费 = CS + CC
+实收服务费 = CS + CC + GCS
 收款差额 = 实收服务费 - 折后大费业绩
-小费总额 = CT + CCT
-客人总付款 = CS + CC + CT + CCT
+小费总额 = CT + CCT + GCT
+客人总付款 = CS + CC + GCS + CT + CCT + GCT
 ```
 
 界面建议标签：`大费总额（折扣前）`、`折后大费`、`实际收到大费`、`收款差额`，避免把“实收服务费”误解为软件服务费。
@@ -438,7 +444,7 @@ Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同�
 单项额外项目工资_i = round_half_up(Ei × addon_rate_i_bps / 10000)
 额外项目工资 = Σ单项额外项目工资_i
 大费工资 W = 主要项目工资 + 额外项目工资
-员工应得总收入 = W + CT + CCT
+员工应得总收入 = W + CT + CCT + GCT
 ```
 
 必须逐项舍入后再相加，不能先把项目合并再乘一个比例。折扣不进入工资公式。
@@ -448,8 +454,8 @@ Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同�
 每条记录独立计算：
 
 ```text
-若 CS + CC > 0：
-  现金对应大费工资 A = round_half_up(W × CS / (CS + CC))
+若 CS + CC + GCS > 0：
+  现金对应大费工资 A = round_half_up(W × CS / (CS + CC + GCS))
 否则：
   A = 0，并产生“实收服务费为 0”异常
 
@@ -457,7 +463,7 @@ Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同�
 现金工资不足 S = A - AC
 ```
 
-为了保证分摊后精确相加，刷卡侧对应工资使用 `W - A`，不单独再次除法舍入。
+为了保证分摊后精确相加，非现金侧（刷卡与礼物卡）对应工资使用 `W - A`，不单独再次除法舍入。
 
 每位员工每日：
 
@@ -583,6 +589,9 @@ total_paid = service_wage + cash_tip + card_tip + adjustment
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 补 0、重算并确认付款 |
 | DELETE | `/stores/:storeId/work-records/:recordId` | 软删除 |
 | POST | `/stores/:storeId/work-records/:recordId/restore` | Owner/Manager 恢复 |
+| POST | `/stores/:storeId/gift-card-sales` | 记录当天卖出的礼物卡，金额由现金与刷卡自动求和 |
+| PATCH/DELETE | `/stores/:storeId/gift-card-sales/:saleId` | 修改或软删除卖卡记录；使用乐观锁与审计 |
+| GET/POST | `/stores/:storeId/gift-card-sales/deleted`、`.../:saleId/restore` | Owner/Manager 查看和恢复卖卡记录 |
 
 ### 8.5 财务、日结和结算
 

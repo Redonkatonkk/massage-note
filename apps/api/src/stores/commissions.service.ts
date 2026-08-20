@@ -417,8 +417,10 @@ export class CommissionsService {
         ),
         cashServiceCents: record.cashServiceCents ?? 0n,
         cardServiceCents: record.cardServiceCents ?? 0n,
+        giftCardServiceCents: record.giftCardServiceCents ?? 0n,
         cashTipCents: record.cashTipCents ?? 0n,
         cardTipCents: record.cardTipCents ?? 0n,
+        giftCardTipCents: record.giftCardTipCents ?? 0n,
       });
       const snapshotsChanged =
         record.serviceSnapshot.commissionBps !== serviceCommission.bps ||

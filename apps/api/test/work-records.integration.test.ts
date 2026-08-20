@@ -828,9 +828,12 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     const paymentInput = {
       version: recordVersion,
       cashServiceCents: 1_000,
-      cardServiceCents: 9_000,
+      cardServiceCents: 1_000,
+      giftCardSerialNumber: "GC-WORK-0001",
+      giftCardServiceCents: 8_000,
       cashTipCents: 0,
-      cardTipCents: 2_000,
+      cardTipCents: 1_000,
+      giftCardTipCents: 1_000,
     };
     const [confirmed, replayed] = await Promise.all([
       workRecords.confirmPayment(
@@ -866,13 +869,18 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     expect(confirmed.payment).toMatchObject({
       cashServiceCents: expect.anything(),
       cardServiceCents: expect.anything(),
+      giftCardSerialNumber: "GC-WORK-0001",
+      giftCardServiceCents: expect.anything(),
       cashTipCents: expect.anything(),
       cardTipCents: expect.anything(),
+      giftCardTipCents: expect.anything(),
     });
     expect(Number(confirmed.payment?.cashServiceCents)).toBe(1_000);
-    expect(Number(confirmed.payment?.cardServiceCents)).toBe(9_000);
+    expect(Number(confirmed.payment?.cardServiceCents)).toBe(1_000);
+    expect(Number(confirmed.payment?.giftCardServiceCents)).toBe(8_000);
     expect(Number(confirmed.payment?.cashTipCents)).toBe(0);
-    expect(Number(confirmed.payment?.cardTipCents)).toBe(2_000);
+    expect(Number(confirmed.payment?.cardTipCents)).toBe(1_000);
+    expect(Number(confirmed.payment?.giftCardTipCents)).toBe(1_000);
   });
 
   it("旧版本不能覆盖已确认付款", async () => {

@@ -158,7 +158,7 @@ export const financeQuerySchema = z
     dateFrom: businessDateSchema.optional(),
     dateTo: businessDateSchema.optional(),
     membershipIds: membershipIdsQuerySchema,
-    paymentMethod: z.enum(["ALL", "CASH", "CARD"]).default("CARD"),
+    paymentMethod: z.enum(["ALL", "CASH", "CARD", "GIFT_CARD"]).default("CARD"),
     amountType: z.enum(["ALL", "SERVICE", "TIP"]).default("ALL"),
   })
   .superRefine((value, context) => {

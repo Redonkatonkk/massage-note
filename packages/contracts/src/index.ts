@@ -5,6 +5,7 @@ export * from "./catalog.js";
 export * from "./board.js";
 export * from "./commission-config.js";
 export * from "./finance.js";
+export * from "./gift-card.js";
 export * from "./store.js";
 export * from "./user.js";
 export * from "./work-record.js";

@@ -39,7 +39,7 @@ export const financeSummaryMetrics = [
     key: "actualServiceCollectedCents",
     label: "实收服务费",
     explanation: "客人实际支付的大费，不包含任何小费；它可以与折后大费业绩不同。",
-    calculation: "实收服务费 = 现金大费 + 刷卡大费。",
+    calculation: "实收服务费 = 现金大费 + 刷卡大费 + 礼物卡大费。",
   },
   {
     key: "cashServiceCents",
@@ -54,6 +54,12 @@ export const financeSummaryMetrics = [
     calculation: "刷卡大费 = Σ 每笔记工已填写的刷卡大费。",
   },
   {
+    key: "giftCardServiceCents",
+    label: "礼物卡大费",
+    explanation: "客人使用礼物卡实际支付的服务大费合计。",
+    calculation: "礼物卡大费 = Σ 每笔记工已填写的礼物卡大费。",
+  },
+  {
     key: "cashTipCents",
     label: "现金小费",
     explanation: "客人以现金方式支付给员工的小费合计。",
@@ -66,10 +72,16 @@ export const financeSummaryMetrics = [
     calculation: "刷卡小费 = Σ 每笔记工已填写的刷卡小费。",
   },
   {
+    key: "giftCardTipCents",
+    label: "礼物卡小费",
+    explanation: "客人使用礼物卡支付给员工的小费合计。",
+    calculation: "礼物卡小费 = Σ 每笔记工已填写的礼物卡小费。",
+  },
+  {
     key: "totalTipCents",
     label: "小费总额",
     explanation: "当前范围内客人支付的全部小费。",
-    calculation: "小费总额 = 现金小费 + 刷卡小费。",
+    calculation: "小费总额 = 现金小费 + 刷卡小费 + 礼物卡小费。",
   },
   {
     key: "customerTotalPaidCents",
@@ -87,7 +99,7 @@ export const financeSummaryMetrics = [
     key: "employeeIncomeCents",
     label: "员工总收入",
     explanation: "员工在当前范围内应得的大费工资和小费合计。",
-    calculation: "员工总收入 = 大费工资 + 现金小费 + 刷卡小费。",
+    calculation: "员工总收入 = 大费工资 + 现金小费 + 刷卡小费 + 礼物卡小费。",
   },
   {
     key: "settledCashAcquiredWithinRangeCents",
@@ -122,8 +134,8 @@ export const financeSummaryGroups: ReadonlyArray<{
   {
     key: "payments",
     title: "收款构成",
-    description: "把现金、刷卡、大费和小费分开，便于核对收款渠道。",
-    metricKeys: ["cashServiceCents", "cardServiceCents", "cashTipCents", "cardTipCents", "totalTipCents"],
+    description: "把现金、刷卡、礼物卡、大费和小费分开，便于核对收款渠道。",
+    metricKeys: ["cashServiceCents", "cardServiceCents", "giftCardServiceCents", "cashTipCents", "cardTipCents", "giftCardTipCents", "totalTipCents"],
   },
   {
     key: "wages",

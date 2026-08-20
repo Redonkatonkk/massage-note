@@ -14,6 +14,7 @@ import { AuditModule } from "./audit/audit.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { AiModule } from "./ai/ai.module.js";
 import { RateLimitService } from "./common/rate-limit.service.js";
+import { GiftCardsModule } from "./gift-cards/gift-cards.module.js";
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { RateLimitService } from "./common/rate-limit.service.js";
     UsersModule,
     StoresModule,
     WorkRecordsModule,
+    GiftCardsModule,
     BoardsModule,
     FinanceModule,
     AuditModule,

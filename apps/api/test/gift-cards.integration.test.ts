@@ -1,0 +1,212 @@
+import { randomInt, randomUUID } from "node:crypto";
+import { ConflictException } from "@nestjs/common";
+import type { User } from "@massage-note/database";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { BoardsService } from "../src/boards/boards.service.js";
+import { IdempotencyService } from "../src/common/idempotency.service.js";
+import { PrismaService } from "../src/database/prisma.service.js";
+import { GiftCardsService } from "../src/gift-cards/gift-cards.service.js";
+import { StoreAccessService } from "../src/stores/store-access.service.js";
+
+const enabled = process.env.DATABASE_INTEGRATION_TESTS === "1";
+const prisma = new PrismaService();
+const access = new StoreAccessService(prisma);
+const idempotency = new IdempotencyService(prisma);
+const giftCards = new GiftCardsService(prisma, access, idempotency);
+const boards = new BoardsService(prisma, access, idempotency);
+const storeId = randomUUID();
+const ownerId = randomUUID();
+const employeeId = randomUUID();
+const ownerMembershipId = randomUUID();
+const employeeMembershipId = randomUUID();
+const actor = (id: string) => ({ id }) as User;
+
+describe.skipIf(!enabled).sequential("礼物卡销售", () => {
+  beforeAll(async () => {
+    await prisma.user.createMany({
+      data: [ownerId, employeeId].map((id, index) => ({
+        id,
+        firebaseUid: `gift-card-test-${id}`,
+        phoneE164: `+1646${(randomInt(10_000_000, 99_000_000) + index).toString()}`,
+      })),
+    });
+    await prisma.store.create({
+      data: {
+        id: storeId,
+        storeCode: randomInt(0, 1_000_000).toString().padStart(6, "0"),
+        name: "礼物卡集成测试店",
+        timezone: "America/New_York",
+        businessCutoffLocal: "22:00",
+        globalCommissionBps: 6_000,
+        status: "ACTIVE",
+      },
+    });
+    await prisma.storeMembership.createMany({
+      data: [
+        {
+          id: ownerMembershipId,
+          storeId,
+          userId: ownerId,
+          role: "OWNER",
+          displayName: "礼物卡店主",
+          displayNameNormalized: "礼物卡店主",
+        },
+        {
+          id: employeeMembershipId,
+          storeId,
+          userId: employeeId,
+          role: "EMPLOYEE",
+          displayName: "卖卡员工",
+          displayNameNormalized: "卖卡员工",
+        },
+      ],
+    });
+    await prisma.store.update({ where: { id: storeId }, data: { ownerMembershipId } });
+  });
+
+  afterAll(async () => {
+    if (enabled) {
+      await prisma.businessDayClosing.deleteMany({ where: { storeId } });
+      await prisma.giftCardSale.deleteMany({ where: { storeId } });
+      await prisma.idempotencyRequest.deleteMany({ where: { storeId } });
+      await prisma.auditLog.deleteMany({ where: { storeId } });
+      await prisma.domainOutbox.deleteMany({ where: { storeId } });
+      await prisma.store.updateMany({
+        where: { id: storeId },
+        data: { ownerMembershipId: null },
+      });
+      await prisma.storeMembership.deleteMany({ where: { storeId } });
+      await prisma.store.deleteMany({ where: { id: storeId } });
+      await prisma.user.deleteMany({ where: { id: { in: [ownerId, employeeId] } } });
+    }
+    await prisma.$disconnect();
+  });
+
+  let businessDate = "";
+  let saleId = "";
+  let saleVersion = 0;
+
+  it("员工可记录当前营业日卖卡，总额由现金和刷卡相加且幂等", async () => {
+    businessDate = (await boards.currentBusinessDay(actor(employeeId), storeId)).businessDate;
+    const input = {
+      businessDate,
+      serialNumber: " gc-2026-0001 ",
+      cashCents: 4_000,
+      cardCents: 6_000,
+      operatorMembershipId: employeeMembershipId,
+    };
+    const [created, replayed] = await Promise.all([
+      giftCards.create(
+        actor(employeeId),
+        storeId,
+        input,
+        "gift-card-create-key-0001",
+        "gift-card-create-1",
+      ),
+      giftCards.create(
+        actor(employeeId),
+        storeId,
+        input,
+        "gift-card-create-key-0001",
+        "gift-card-create-2",
+      ),
+    ]);
+    saleId = created.id;
+    saleVersion = created.version;
+    expect(replayed.id).toBe(saleId);
+    expect(created).toMatchObject({
+      serialNumber: "gc-2026-0001",
+      operatorMembershipId: employeeMembershipId,
+    });
+    expect(Number(created.cashCents)).toBe(4_000);
+    expect(Number(created.cardCents)).toBe(6_000);
+    expect(Number(created.amountCents)).toBe(10_000);
+    await expect(prisma.giftCardSale.count({ where: { storeId } })).resolves.toBe(1);
+  });
+
+  it("同店礼物卡序列号忽略大小写防止重复售卖", async () => {
+    await expect(
+      giftCards.create(
+        actor(ownerId),
+        storeId,
+        {
+          businessDate,
+          serialNumber: "GC-2026-0001",
+          cashCents: 10_000,
+          cardCents: 0,
+          operatorMembershipId: ownerMembershipId,
+        },
+        "gift-card-duplicate-key-0001",
+        "gift-card-duplicate",
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: "GIFT_CARD_SERIAL_DUPLICATE" }),
+    });
+  });
+
+  it("修改付款拆分后自动重算总额，并进入今日店铺收入", async () => {
+    const updated = await giftCards.update(
+      actor(employeeId),
+      storeId,
+      saleId,
+      { version: saleVersion, cashCents: 2_500, cardCents: 8_500 },
+      "gift-card-update-key-0001",
+      "gift-card-update",
+    );
+    saleVersion = updated.version;
+    expect(updated).toMatchObject({ cashCents: 2_500n, cardCents: 8_500n, amountCents: 11_000n });
+
+    const board = await boards.getBoard(actor(ownerId), storeId, businessDate);
+    expect(board.giftCardSales).toHaveLength(1);
+    expect(board.statistics).toMatchObject({
+      giftCardSaleCount: 1,
+      giftCardCashCents: 2_500n,
+      giftCardCardCents: 8_500n,
+      giftCardSalesAmountCents: 11_000n,
+      storeIncomeCents: 11_000n,
+    });
+  });
+
+  it("删除使用乐观锁和软删除，删除后不再进入当日收入", async () => {
+    await expect(
+      giftCards.remove(
+        actor(ownerId),
+        storeId,
+        saleId,
+        { version: saleVersion - 1 },
+        "gift-card-delete-stale-key-0001",
+        "gift-card-delete-stale",
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    const deleted = await giftCards.remove(
+      actor(ownerId),
+      storeId,
+      saleId,
+      { version: saleVersion, reason: "录入测试" },
+      "gift-card-delete-key-0001",
+      "gift-card-delete",
+    );
+    expect(deleted.deletedAt).not.toBeNull();
+    const board = await boards.getBoard(actor(ownerId), storeId, businessDate);
+    expect(board.giftCardSales).toHaveLength(0);
+    expect(board.statistics.giftCardSalesAmountCents).toBe(0n);
+  });
+
+  it("店长可从回收站恢复卖卡记录并重新计入收入", async () => {
+    const deleted = await giftCards.listDeleted(actor(ownerId), storeId);
+    expect(deleted).toHaveLength(1);
+    const restored = await giftCards.restore(
+      actor(ownerId),
+      storeId,
+      saleId,
+      { version: deleted[0]!.version },
+      "gift-card-restore-key-0001",
+      "gift-card-restore",
+    );
+    expect(restored.deletedAt).toBeNull();
+    const board = await boards.getBoard(actor(ownerId), storeId, businessDate);
+    expect(board.giftCardSales).toHaveLength(1);
+    expect(board.statistics.giftCardSalesAmountCents).toBe(11_000n);
+  });
+});

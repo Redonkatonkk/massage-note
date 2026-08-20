@@ -20,8 +20,10 @@ function record(
     discountAmountsCents: [],
     cashServiceCents: 10_000n,
     cardServiceCents: 0n,
+    giftCardServiceCents: 0n,
     cashTipCents: 2_000n,
     cardTipCents: 0n,
+    giftCardTipCents: 0n,
     ...overrides,
   };
 }
@@ -70,6 +72,24 @@ describe("单条记工财务", () => {
     expect(result.cashAllocatedServiceWageCents).toBe(1_800n);
     expect(result.cashAcquiredServiceWageCents).toBe(1_800n);
     expect(result.cashToSubmitToStoreCents).toBe(1_200n);
+  });
+
+  it("礼物卡大费和小费计入本单付款，但不计入员工收到的现金", () => {
+    const result = calculateWorkRecordFinance(
+      record({
+        cashServiceCents: 0n,
+        cardServiceCents: 2_000n,
+        giftCardServiceCents: 8_000n,
+        cashTipCents: 0n,
+        giftCardTipCents: 2_000n,
+      }),
+    );
+    expect(result.actualServiceCollectedCents).toBe(10_000n);
+    expect(result.totalTipCents).toBe(2_000n);
+    expect(result.customerTotalPaidCents).toBe(12_000n);
+    expect(result.employeeTotalIncomeCents).toBe(8_000n);
+    expect(result.employeeCashReceivedCents).toBe(0n);
+    expect(result.cashAcquiredServiceWageCents).toBe(0n);
   });
 
   it("多个额外项目分别按各自比例计算工资", () => {

@@ -122,6 +122,7 @@ model Store {
   addonItems           AddonItem[]
   discountItems        DiscountItem[]
   workRecords          WorkRecord[]
+  giftCardSales        GiftCardSale[]
   closings             BusinessDayClosing[]
   cashSettlements      DailyCashSettlement[]
   payrollSettlements   PayrollSettlement[]
@@ -163,6 +164,7 @@ model StoreMembership {
   employeeDefaultCommissions EmployeeDefaultCommission[]
   employeeItemCommissions EmployeeItemCommission[]
   workRecords           WorkRecord[]
+  operatedGiftCardSales GiftCardSale[]
   cashSettlements       DailyCashSettlement[]
   payrollSettlements    PayrollSettlement[]
 
@@ -385,8 +387,11 @@ model WorkRecord {
   discountedFeePerformanceCents  BigInt           @map("discounted_fee_performance_cents")
   cashServiceCents                BigInt?          @map("cash_service_cents")
   cardServiceCents                BigInt?          @map("card_service_cents")
+  giftCardSerialNumber            String?          @map("gift_card_serial_number")
+  giftCardServiceCents            BigInt?          @map("gift_card_service_cents")
   cashTipCents                    BigInt?          @map("cash_tip_cents")
   cardTipCents                    BigInt?          @map("card_tip_cents")
+  giftCardTipCents                BigInt?          @map("gift_card_tip_cents")
   totalTipCents                   BigInt?          @map("total_tip_cents")
   actualServiceCollectedCents     BigInt?          @map("actual_service_collected_cents")
   customerTotalPaidCents          BigInt?          @map("customer_total_paid_cents")
@@ -484,8 +489,11 @@ model PaymentBreakdown {
   workRecordId       String    @unique @map("work_record_id") @db.Uuid
   cashServiceCents   BigInt?   @map("cash_service_cents")
   cardServiceCents   BigInt?   @map("card_service_cents")
+  giftCardSerialNumber String? @map("gift_card_serial_number")
+  giftCardServiceCents BigInt? @map("gift_card_service_cents")
   cashTipCents       BigInt?   @map("cash_tip_cents")
   cardTipCents       BigInt?   @map("card_tip_cents")
+  giftCardTipCents   BigInt?   @map("gift_card_tip_cents")
   confirmedAt        DateTime? @map("confirmed_at") @db.Timestamptz(3)
   confirmedBy        String?   @map("confirmed_by") @db.Uuid
   version            Int       @default(1)
@@ -495,6 +503,34 @@ model PaymentBreakdown {
   workRecord WorkRecord @relation(fields: [workRecordId], references: [id], onDelete: Cascade)
 
   @@map("payment_breakdowns")
+}
+
+model GiftCardSale {
+  id                     String    @id @default(uuid()) @db.Uuid
+  storeId                String    @map("store_id") @db.Uuid
+  businessDate           DateTime  @map("business_date") @db.Date
+  serialNumber           String    @map("serial_number")
+  serialNumberNormalized String    @map("serial_number_normalized")
+  cashCents              BigInt    @default(0) @map("cash_cents")
+  cardCents              BigInt    @default(0) @map("card_cents")
+  amountCents            BigInt    @map("amount_cents")
+  operatorMembershipId   String    @map("operator_membership_id") @db.Uuid
+  version                Int       @default(1)
+  deletedAt              DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedBy              String?   @map("deleted_by") @db.Uuid
+  deleteReason           String?   @map("delete_reason")
+  createdBy              String    @map("created_by") @db.Uuid
+  updatedBy              String    @map("updated_by") @db.Uuid
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store    Store           @relation(fields: [storeId], references: [id])
+  operator StoreMembership @relation(fields: [operatorMembershipId], references: [id])
+
+  @@index([storeId, businessDate, createdAt])
+  @@index([storeId, serialNumberNormalized])
+  @@index([operatorMembershipId, businessDate])
+  @@map("gift_card_sales")
 }
 
 model BusinessDayClosing {

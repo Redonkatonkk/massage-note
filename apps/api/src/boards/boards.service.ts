@@ -28,6 +28,10 @@ interface BoardStatistics {
   totalTipCents: bigint;
   totalLargeFeeWageCents: bigint;
   employeeIncomeCents: bigint;
+  giftCardSaleCount: number;
+  giftCardCashCents: bigint;
+  giftCardCardCents: bigint;
+  giftCardSalesAmountCents: bigint;
   storeIncomeCents: bigint;
 }
 
@@ -94,7 +98,7 @@ export class BoardsService {
         },
       },
     });
-    const [records, shifts, closing] = await Promise.all([
+    const [records, shifts, giftCardSales, closing] = await Promise.all([
       this.prisma.workRecord.findMany({
         where: {
           storeId,
@@ -122,6 +126,21 @@ export class BoardsService {
         },
         orderBy: { clockInAt: "asc" },
       }),
+      personalHistoryMembershipId
+        ? Promise.resolve([])
+        : this.prisma.giftCardSale.findMany({
+            where: {
+              storeId,
+              businessDate: dateAtUtc(businessDate),
+              deletedAt: null,
+            },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            include: {
+              operator: {
+                select: { id: true, displayName: true, role: true, status: true },
+              },
+            },
+          }),
       this.prisma.businessDayClosing.findFirst({
         where: {
           storeId,
@@ -153,6 +172,14 @@ export class BoardsService {
         statistics: this.calculateRowStatistics(employeeRecords),
       };
     });
+    const statistics = this.calculateRowStatistics(records);
+    for (const sale of giftCardSales) {
+      statistics.giftCardSaleCount += 1;
+      statistics.giftCardCashCents += sale.cashCents;
+      statistics.giftCardCardCents += sale.cardCents;
+      statistics.giftCardSalesAmountCents += sale.amountCents;
+      statistics.storeIncomeCents += sale.amountCents;
+    }
     return {
       id: board?.id ?? null,
       storeId,
@@ -161,7 +188,8 @@ export class BoardsService {
       isClosed: Boolean(closing),
       closing: personalHistoryMembershipId ? null : closing,
       rows,
-      statistics: this.calculateRowStatistics(records),
+      giftCardSales,
+      statistics,
     };
   }
 
@@ -705,6 +733,10 @@ export class BoardsService {
             total.totalLargeFeeWageCents + record.totalLargeFeeWageCents,
           employeeIncomeCents:
             total.employeeIncomeCents + employeeIncomeCents,
+          giftCardSaleCount: total.giftCardSaleCount,
+          giftCardCashCents: total.giftCardCashCents,
+          giftCardCardCents: total.giftCardCardCents,
+          giftCardSalesAmountCents: total.giftCardSalesAmountCents,
           storeIncomeCents:
             total.storeIncomeCents +
             record.grossFeeBaseCents -
@@ -721,6 +753,10 @@ export class BoardsService {
         totalTipCents: 0n,
         totalLargeFeeWageCents: 0n,
         employeeIncomeCents: 0n,
+        giftCardSaleCount: 0,
+        giftCardCashCents: 0n,
+        giftCardCardCents: 0n,
+        giftCardSalesAmountCents: 0n,
         storeIncomeCents: 0n,
       },
     );

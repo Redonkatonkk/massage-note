@@ -9,6 +9,7 @@ import type {
   CatalogResponse,
   CommissionHistoryResponse,
   DiscountItem,
+  DeletedGiftCardSale,
   DeletedWorkRecord,
   JoinRequest,
   MeResponse,
@@ -62,6 +63,10 @@ const actionText: Record<string, string> = {
   "work_record.payment_confirmed": "确认付款",
   "work_record.deleted": "删除记工",
   "work_record.restored": "恢复记工",
+  "gift_card.sale_created": "新增礼物卡销售",
+  "gift_card.sale_updated": "修改礼物卡销售",
+  "gift_card.sale_deleted": "删除礼物卡销售",
+  "gift_card.sale_restored": "恢复礼物卡销售",
   "cash_settlement.settled": "结清现金",
   "cash_settlement.settled_via_all": "一键结清现金",
   "cash_settlement.reopened": "取消现金结清",
@@ -88,6 +93,7 @@ const entityText: Record<string, string> = {
   daily_board: "营业日表格",
   daily_employee_row: "员工表格行",
   work_record: "记工记录",
+  gift_card_sale: "礼物卡销售",
   daily_cash_settlement: "现金结算",
   business_day_closing: "日结记录",
   payroll_settlement: "工资结算",
@@ -123,6 +129,7 @@ export function ManagePageClient() {
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [deletedRecords, setDeletedRecords] = useState<DeletedWorkRecord[]>([]);
+  const [deletedGiftCardSales, setDeletedGiftCardSales] = useState<DeletedGiftCardSale[]>([]);
   const [tab, setTab] = useState<ManageTab>("store");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -149,14 +156,16 @@ export function ManagePageClient() {
     setStore(storeResult);
     setCatalog(catalogResult);
     if (selected.role !== "EMPLOYEE") {
-      const [memberResult, requestResult, deletedResult] = await Promise.all([
+      const [memberResult, requestResult, deletedResult, deletedGiftCardResult] = await Promise.all([
         apiRequest<StoreMember[]>(`/stores/${selected.store.id}/members`),
         apiRequest<JoinRequest[]>(`/stores/${selected.store.id}/join-requests`),
         apiRequest<DeletedWorkRecord[]>(`/stores/${selected.store.id}/work-records/deleted`),
+        apiRequest<DeletedGiftCardSale[]>(`/stores/${selected.store.id}/gift-card-sales/deleted`),
       ]);
       setMembers(memberResult);
       setRequests(requestResult);
       setDeletedRecords(deletedResult);
+      setDeletedGiftCardSales(deletedGiftCardResult);
     }
   }, []);
 
@@ -179,7 +188,7 @@ export function ManagePageClient() {
   }
 
   const tabs: Array<[ManageTab, string]> = canManage
-    ? [["store", "店铺设置"], ["members", "成员管理"], ["catalog", "项目与提成"], ["recovery", "记工回收站"], ["audit", "审计记录"]]
+    ? [["store", "店铺设置"], ["members", "成员管理"], ["catalog", "项目与提成"], ["recovery", "业务回收站"], ["audit", "审计记录"]]
     : [["store", "店铺信息"], ["catalog", "项目说明"]];
 
   return (
@@ -193,15 +202,18 @@ export function ManagePageClient() {
       {tab === "store" && <StorePanel store={store} membership={membership} members={members} busy={busy} run={run} reload={loadAll} />}
       {tab === "members" && canManage && <MembersPanel storeId={store.id} currentRole={membership.role} members={members} requests={requests} catalog={catalog} busy={busy} run={run} reload={loadAll} />}
       {tab === "catalog" && <CatalogPanel storeId={store.id} canManage={canManage} catalog={catalog} busy={busy} run={run} reload={loadAll} />}
-      {tab === "recovery" && canManage && <RecoveryPanel storeId={store.id} records={deletedRecords} busy={busy} run={run} reload={loadAll} />}
+      {tab === "recovery" && canManage && <RecoveryPanel storeId={store.id} records={deletedRecords} giftCardSales={deletedGiftCardSales} busy={busy} run={run} reload={loadAll} />}
       {tab === "audit" && canManage && <AuditPanel storeId={store.id} members={members} />}
       <AppNav active="manage" storeId={store.id} />
     </main>
   );
 }
 
-function RecoveryPanel({ storeId, records, busy, run, reload }: { storeId: string; records: DeletedWorkRecord[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
-  return <section className="manage-section"><section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">软删除记录</p><h2>记工回收站</h2></div><span className="status-chip">{records.length} 条</span></div><p className="field-help">恢复后会重新计入主表和财务；若该营业日已日结，请先到财务页面取消日结。</p>{records.length === 0 ? <p className="empty-state">目前没有已删除的记工记录。</p> : <div className="table-scroll"><table className="data-table"><thead><tr><th>营业日</th><th>员工</th><th>项目</th><th>开始时间</th><th>大费基数</th><th>删除时间</th><th>删除原因</th><th>操作</th></tr></thead><tbody>{records.map((record) => <tr key={record.id}><td>{record.businessDate.slice(0, 10)}</td><td>{record.employee.displayName}</td><td>{record.serviceSnapshot?.shortName ?? "自定义项目"}</td><td>{formatTime(record.startAt)}</td><td>{money(record.grossFeeBaseCents)}</td><td>{record.deletedAt ? formatTime(record.deletedAt) : "—"}</td><td>{record.deleteReason || "未填写"}</td><td><button className="primary-action compact" disabled={busy} type="button" onClick={() => { if (!window.confirm(`确认恢复 ${record.employee.displayName} 的这条记工吗？恢复后会重新计入财务。`)) return; void run(async () => { await apiRequest(`/stores/${storeId}/work-records/${record.id}/restore`, { method: "POST", idempotent: true, body: { version: record.version } }); await reload(); }); }}>恢复记工</button></td></tr>)}</tbody></table></div>}</section></section>;
+function RecoveryPanel({ storeId, records, giftCardSales, busy, run, reload }: { storeId: string; records: DeletedWorkRecord[]; giftCardSales: DeletedGiftCardSale[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
+  return <section className="manage-section">
+    <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">软删除记录</p><h2>记工回收站</h2></div><span className="status-chip">{records.length} 条</span></div><p className="field-help">恢复后会重新计入主表和财务；若该营业日已日结，请先到财务页面取消日结。</p>{records.length === 0 ? <p className="empty-state">目前没有已删除的记工记录。</p> : <div className="table-scroll"><table className="data-table"><thead><tr><th>营业日</th><th>员工</th><th>项目</th><th>开始时间</th><th>大费基数</th><th>删除时间</th><th>删除原因</th><th>操作</th></tr></thead><tbody>{records.map((record) => <tr key={record.id}><td>{record.businessDate.slice(0, 10)}</td><td>{record.employee.displayName}</td><td>{record.serviceSnapshot?.shortName ?? "自定义项目"}</td><td>{formatTime(record.startAt)}</td><td>{money(record.grossFeeBaseCents)}</td><td>{record.deletedAt ? formatTime(record.deletedAt) : "—"}</td><td>{record.deleteReason || "未填写"}</td><td><button className="primary-action compact" disabled={busy} type="button" onClick={() => { if (!window.confirm(`确认恢复 ${record.employee.displayName} 的这条记工吗？恢复后会重新计入财务。`)) return; void run(async () => { await apiRequest(`/stores/${storeId}/work-records/${record.id}/restore`, { method: "POST", idempotent: true, body: { version: record.version } }); await reload(); }); }}>恢复记工</button></td></tr>)}</tbody></table></div>}</section>
+    <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">软删除记录</p><h2>礼物卡销售回收站</h2></div><span className="status-chip">{giftCardSales.length} 条</span></div><p className="field-help">恢复后会重新计入对应营业日的店铺收入；若该营业日已日结，请先到财务页面取消日结。</p>{giftCardSales.length === 0 ? <p className="empty-state">目前没有已删除的礼物卡销售记录。</p> : <div className="table-scroll"><table className="data-table"><thead><tr><th>营业日</th><th>序列号</th><th>金额</th><th>操作人</th><th>删除时间</th><th>删除原因</th><th>操作</th></tr></thead><tbody>{giftCardSales.map((sale) => <tr key={sale.id}><td>{sale.businessDate.slice(0, 10)}</td><td>{sale.serialNumber}</td><td>{money(sale.amountCents)}</td><td>{sale.operator.displayName}</td><td>{sale.deletedAt ? formatTime(sale.deletedAt) : "—"}</td><td>{sale.deleteReason || "未填写"}</td><td><button className="primary-action compact" disabled={busy} type="button" onClick={() => { if (!window.confirm(`确认恢复礼物卡 ${sale.serialNumber} 的销售记录吗？恢复后会重新计入店铺收入。`)) return; void run(async () => { await apiRequest(`/stores/${storeId}/gift-card-sales/${sale.id}/restore`, { method: "POST", idempotent: true, body: { version: sale.version } }); await reload(); }); }}>恢复卖卡记录</button></td></tr>)}</tbody></table></div>}</section>
+  </section>;
 }
 
 function StorePanel({ store, membership, members, busy, run, reload }: { store: StoreDetails; membership: MembershipSummary; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {

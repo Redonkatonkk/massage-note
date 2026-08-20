@@ -28,8 +28,10 @@ interface FinanceTotals {
   actualServiceCollectedCents: bigint;
   cashServiceCents: bigint;
   cardServiceCents: bigint;
+  giftCardServiceCents: bigint;
   cashTipCents: bigint;
   cardTipCents: bigint;
+  giftCardTipCents: bigint;
   totalTipCents: bigint;
   customerTotalPaidCents: bigint;
   totalLargeFeeWageCents: bigint;
@@ -103,7 +105,8 @@ export class FinanceQueriesService {
         _sum: { cashAcquiredServiceWageCents: true, cashTipCents: true },
       }),
     ]);
-    const includeSettledCash = context.query.paymentMethod !== "CARD";
+    const includeSettledCash =
+      context.query.paymentMethod === "ALL" || context.query.paymentMethod === "CASH";
     const settledCashAcquiredWithinRangeCents = includeSettledCash
       ? (context.query.amountType !== "TIP"
           ? settledCashWithinRange._sum.cashAcquiredServiceWageCents ?? 0n
@@ -162,7 +165,8 @@ export class FinanceQueriesService {
     const headers = [
       "营业日", "员工", "开始时间", "结束时间", "主要项目", "额外项目",
       "大费基数", "折扣", "折后大费业绩", "现金大费", "刷卡大费",
-      "现金小费", "刷卡小费", "大费工资", "员工总收入", "状态", "备注",
+      "礼物卡序列号", "礼物卡大费", "现金小费", "刷卡小费", "礼物卡小费",
+      "大费工资", "员工总收入", "状态", "备注",
     ];
     const cents = (value: bigint | null) => ((value ?? 0n) / 100n).toString() + "." + ((value ?? 0n) % 100n).toString().padStart(2, "0");
     const cell = (value: unknown) => {
@@ -182,8 +186,11 @@ export class FinanceQueriesService {
       cents(record.discountedFeePerformanceCents),
       cents(record.cashServiceCents),
       cents(record.cardServiceCents),
+      record.giftCardSerialNumber ?? "",
+      cents(record.giftCardServiceCents),
       cents(record.cashTipCents),
       cents(record.cardTipCents),
+      cents(record.giftCardTipCents),
       cents(record.totalLargeFeeWageCents),
       cents(record.employeeTotalIncomeCents),
       record.status === "CONFIRMED" ? "已确认" : "待结账",
@@ -298,20 +305,24 @@ export class FinanceQueriesService {
     record: {
       cashServiceCents: bigint | null;
       cardServiceCents: bigint | null;
+      giftCardServiceCents: bigint | null;
       cashTipCents: bigint | null;
       cardTipCents: bigint | null;
+      giftCardTipCents: bigint | null;
     },
     query: FinanceQuery,
   ) {
     if (query.paymentMethod === "ALL") return true;
-    const service =
-      query.paymentMethod === "CASH"
-        ? record.cashServiceCents ?? 0n
-        : record.cardServiceCents ?? 0n;
-    const tip =
-      query.paymentMethod === "CASH"
-        ? record.cashTipCents ?? 0n
-        : record.cardTipCents ?? 0n;
+    const service = query.paymentMethod === "CASH"
+      ? record.cashServiceCents ?? 0n
+      : query.paymentMethod === "CARD"
+        ? record.cardServiceCents ?? 0n
+        : record.giftCardServiceCents ?? 0n;
+    const tip = query.paymentMethod === "CASH"
+      ? record.cashTipCents ?? 0n
+      : query.paymentMethod === "CARD"
+        ? record.cardTipCents ?? 0n
+        : record.giftCardTipCents ?? 0n;
     if (query.amountType === "SERVICE") return service > 0n;
     if (query.amountType === "TIP") return tip > 0n;
     return service > 0n || tip > 0n;
@@ -329,8 +340,10 @@ export class FinanceQueriesService {
       actualServiceCollectedCents: bigint | null;
       cashServiceCents: bigint | null;
       cardServiceCents: bigint | null;
+      giftCardServiceCents: bigint | null;
       cashTipCents: bigint | null;
       cardTipCents: bigint | null;
+      giftCardTipCents: bigint | null;
       totalTipCents: bigint | null;
       customerTotalPaidCents: bigint | null;
       totalLargeFeeWageCents: bigint;
@@ -341,8 +354,10 @@ export class FinanceQueriesService {
   ) {
     const includeService = query.amountType !== "TIP";
     const includeTip = query.amountType !== "SERVICE";
-    const includeCash = query.paymentMethod !== "CARD";
-    const includeCard = query.paymentMethod !== "CASH";
+    const includeCash = query.paymentMethod === "ALL" || query.paymentMethod === "CASH";
+    const includeCard = query.paymentMethod === "ALL" || query.paymentMethod === "CARD";
+    const includeGiftCard =
+      query.paymentMethod === "ALL" || query.paymentMethod === "GIFT_CARD";
     totals.recordCount += 1;
     if (record.status === "PENDING_PAYMENT") totals.incompleteRecordCount += 1;
     if (includeService) {
@@ -354,9 +369,13 @@ export class FinanceQueriesService {
         record.discountedFeePerformanceCents;
       totals.actualServiceCollectedCents +=
         (includeCash ? record.cashServiceCents ?? 0n : 0n) +
-        (includeCard ? record.cardServiceCents ?? 0n : 0n);
+        (includeCard ? record.cardServiceCents ?? 0n : 0n) +
+        (includeGiftCard ? record.giftCardServiceCents ?? 0n : 0n);
       totals.cashServiceCents += includeCash ? record.cashServiceCents ?? 0n : 0n;
       totals.cardServiceCents += includeCard ? record.cardServiceCents ?? 0n : 0n;
+      totals.giftCardServiceCents += includeGiftCard
+        ? record.giftCardServiceCents ?? 0n
+        : 0n;
       totals.totalLargeFeeWageCents += record.totalLargeFeeWageCents;
       totals.cashAcquiredServiceWageCents +=
         includeCash ? record.cashAcquiredServiceWageCents ?? 0n : 0n;
@@ -364,9 +383,11 @@ export class FinanceQueriesService {
     if (includeTip) {
       const cashTip = includeCash ? record.cashTipCents ?? 0n : 0n;
       const cardTip = includeCard ? record.cardTipCents ?? 0n : 0n;
+      const giftCardTip = includeGiftCard ? record.giftCardTipCents ?? 0n : 0n;
       totals.cashTipCents += cashTip;
       totals.cardTipCents += cardTip;
-      totals.totalTipCents += cashTip + cardTip;
+      totals.giftCardTipCents += giftCardTip;
+      totals.totalTipCents += cashTip + cardTip + giftCardTip;
     }
     totals.customerTotalPaidCents =
       totals.actualServiceCollectedCents + totals.totalTipCents;
@@ -375,6 +396,7 @@ export class FinanceQueriesService {
       (includeTip
         ? (includeCash ? record.cashTipCents ?? 0n : 0n) +
           (includeCard ? record.cardTipCents ?? 0n : 0n)
+          + (includeGiftCard ? record.giftCardTipCents ?? 0n : 0n)
         : 0n);
   }
 
@@ -472,8 +494,10 @@ export class FinanceQueriesService {
       actualServiceCollectedCents: 0n,
       cashServiceCents: 0n,
       cardServiceCents: 0n,
+      giftCardServiceCents: 0n,
       cashTipCents: 0n,
       cardTipCents: 0n,
+      giftCardTipCents: 0n,
       totalTipCents: 0n,
       customerTotalPaidCents: 0n,
       totalLargeFeeWageCents: 0n,

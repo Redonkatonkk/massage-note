@@ -122,7 +122,7 @@ export const confirmPaymentSchema = z
     version: versionSchema,
     cashServiceCents: moneyCentsSchema.optional(),
     cardServiceCents: moneyCentsSchema.optional(),
-    giftCardSerialNumber: giftCardSerialNumberSchema.optional(),
+    giftCardSerialNumber: giftCardSerialNumberSchema.nullable().optional(),
     giftCardServiceCents: moneyCentsSchema.optional(),
     cashTipCents: moneyCentsSchema.optional(),
     cardTipCents: moneyCentsSchema.optional(),

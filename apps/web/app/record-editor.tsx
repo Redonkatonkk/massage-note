@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiRequest, errorMessage } from "../lib/api";
+import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import {
   endLocalDateTimeForDuration,
   localDateTimeValue,
@@ -110,6 +110,7 @@ export function RecordEditor({
   onChanged,
 }: RecordEditorProps) {
   const actionInFlight = useRef(false);
+  const [recordVersion, setRecordVersion] = useState(record.version);
   const service = record.serviceSnapshot;
   const initialStart = localDateTimeValue(record.startAt, timezone);
   const initialEnd = record.endAt ? localDateTimeValue(record.endAt, timezone) : "";
@@ -439,11 +440,21 @@ export function RecordEditor({
   }
 
   async function saveDetails(): Promise<WorkRecord> {
-    return apiRequest<WorkRecord>(`/stores/${storeId}/work-records/${record.id}`, {
-      method: "PATCH",
-      idempotent: true,
-      body: buildUpdate(record.version),
-    });
+    try {
+      const updated = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/${record.id}`, {
+        method: "PATCH",
+        idempotent: true,
+        body: buildUpdate(recordVersion),
+      });
+      setRecordVersion(updated.version);
+      return updated;
+    } catch (caught) {
+      const latest = caught instanceof ApiError && caught.code === "WORK_RECORD_VERSION_CONFLICT"
+        ? caught.latestResource as { version?: unknown } | undefined
+        : undefined;
+      if (typeof latest?.version === "number") setRecordVersion(latest.version);
+      throw caught;
+    }
   }
 
   async function run(action: () => Promise<void>) {
@@ -473,7 +484,6 @@ export function RecordEditor({
     if (cashService !== "") servicePayments.cashServiceCents = cents(cashService, "现金大费");
     if (cardService !== "") servicePayments.cardServiceCents = cents(cardService, "刷卡大费");
     let giftCardPayment: Record<string, string | number | null> = {
-      giftCardSerialNumber: null,
       giftCardServiceCents: 0,
       giftCardTipCents: 0,
     };

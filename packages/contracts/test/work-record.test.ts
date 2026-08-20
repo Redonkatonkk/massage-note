@@ -36,6 +36,27 @@ describe("付款确认契约", () => {
     ).toBe(true);
   });
 
+  it("普通现金或刷卡付款接受客户端显式传入空礼物卡序列号", () => {
+    expect(
+      confirmPaymentSchema.parse({
+        version: 2,
+        cashServiceCents: 8_000,
+        giftCardSerialNumber: null,
+        giftCardServiceCents: 0,
+        giftCardTipCents: 0,
+      }),
+    ).toEqual({
+      version: 2,
+      cashServiceCents: 8_000,
+      cardServiceCents: 0,
+      giftCardSerialNumber: null,
+      giftCardServiceCents: 0,
+      cashTipCents: 0,
+      cardTipCents: 0,
+      giftCardTipCents: 0,
+    });
+  });
+
   it("小费可以全部留空并按 0 处理，但大费不能全部留空", () => {
     expect(confirmPaymentSchema.parse({
       version: 1,

@@ -1,7 +1,7 @@
 # AI 接管指南
 
 > 最后核对：2026-08-20（America/New_York）
-> 当前版本：`0.12.0`
+> 当前版本：`0.12.1`
 > 目标：用最少上下文安全修改 Massage note；历史过程请查 Git 和 `CHANGELOG.md`。
 
 ## 1. 接手顺序
@@ -121,7 +121,7 @@ Controller 只做 HTTP 适配；权限、状态和对象归属在 Service 或 do
 }
 ```
 
-API 业务错误继续提供稳定 `code` 与简体中文 `messageZh`；Web 默认显示中文，英语模式在 `apps/web/lib/i18n.ts` 按稳定错误码显示英语说明，未知错误码必须安全降级为通用英语提示。页面固定文案、动态状态、无障碍标签和个人日结图片也必须随语言切换。BigInt 响应由 `JsonSafeInterceptor` 安全转换，超过 JavaScript 安全整数范围时应拒绝而非丢精度。
+API 业务错误继续提供稳定 `code` 与简体中文 `messageZh`；Web 默认显示中文，英语模式在 `apps/web/lib/i18n.ts` 按稳定错误码显示英语说明，未知错误码必须安全降级为通用英语提示。页面固定文案、动态状态、无障碍标签和个人日结图片也必须随语言切换。BigInt 响应由 `JsonSafeInterceptor` 安全转换，超过 JavaScript 安全整数范围时应拒绝而非丢精度。异常过滤器附加的 `latestResource` 同样必须调用 `toJsonSafe`；过滤器本身绝不能因不可序列化字段把 409 冲突响应变成 500。
 
 ## 5. 认证与安全
 
@@ -207,10 +207,10 @@ pnpm audit --prod
 `test:integration` 使用独立的 `massage_note_test`，会重建测试 schema，不应指向开发主库、生产库或任何含人工数据的库。
 若本机默认的 PostgreSQL/Redis 端口已被其他项目占用，可用 `POSTGRES_HOST_PORT`、`REDIS_HOST_PORT` 启动本项目 Compose，并把 `MASSAGE_NOTE_TEST_DATABASE_URL` 指向对应 PostgreSQL 端口；不得为测试停止不属于本项目的容器。
 
-最近一次核心质量核对（2026-08-20，版本 0.12.0）：
+最近一次核心质量核对（2026-08-20，版本 0.12.1）：
 
 - `version:check`、typecheck 和生产构建通过；Next 生成 11 个路由。
-- 单元/非集成测试 136 项通过；数据库约束测试 4 项、API 集成测试 90 项通过。
+- 单元/非集成测试 137 项通过；数据库约束测试 4 项、API 全量测试 91 项通过。
 - 礼物卡与记工高亮迁移已在独立 `massage_note_test` 测试库部署；除礼物卡完整流程外，还覆盖高亮字段创建、三种财务筛选和 CSV 标记。
 - `pnpm audit --prod` 为 0 个已知漏洞；间接 `nanoid` 与 `deepmerge-ts` 依赖继续通过 workspace override 固定在已修复版本。
 

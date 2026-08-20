@@ -8,6 +8,7 @@ import {
   type ExceptionFilter,
 } from "@nestjs/common";
 import type { Response } from "express";
+import { toJsonSafe } from "./json-safe.interceptor.js";
 
 interface ErrorPayload {
   code: string;
@@ -68,7 +69,11 @@ export function apiErrorFromException(
     payload.fieldErrors = details.fieldErrors as Record<string, string[]>;
   }
   if (details && "latestResource" in details) {
-    payload.latestResource = details.latestResource;
+    try {
+      payload.latestResource = toJsonSafe(details.latestResource);
+    } catch {
+      // 冲突响应本身必须始终可序列化；极端超限资源由客户端重新读取。
+    }
   }
 
   return { status, payload };

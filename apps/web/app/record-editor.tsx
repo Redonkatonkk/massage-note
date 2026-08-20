@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
 import {
   endLocalDateTimeForDuration,
@@ -109,6 +109,7 @@ export function RecordEditor({
   onSaved,
   onChanged,
 }: RecordEditorProps) {
+  const actionInFlight = useRef(false);
   const service = record.serviceSnapshot;
   const initialStart = localDateTimeValue(record.startAt, timezone);
   const initialEnd = record.endAt ? localDateTimeValue(record.endAt, timezone) : "";
@@ -446,6 +447,8 @@ export function RecordEditor({
   }
 
   async function run(action: () => Promise<void>) {
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
     setBusy(true);
     setError("");
     try {
@@ -453,6 +456,7 @@ export function RecordEditor({
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
+      actionInFlight.current = false;
       setBusy(false);
     }
   }

@@ -464,6 +464,92 @@ h2 {
   margin-top: auto;
 }
 
+.record-payment-summary {
+  display: grid;
+  gap: 5px;
+  margin-top: auto;
+  padding-top: 7px;
+  border-top: 1px solid rgba(80, 61, 47, 0.12);
+}
+
+.record-payment-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.record-payment-row > span:first-child {
+  flex: 0 0 2.4em;
+}
+
+.record-payment-breakdown {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+.record-payment-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.record-payment-plus {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.record-payment-amount {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 4px;
+  white-space: nowrap;
+}
+
+.record-payment-amount--card {
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.record-payment-amount--cash {
+  padding-right: 1px;
+  padding-left: 1px;
+}
+
+.record-payment-amount--gift-card {
+  gap: 3px;
+  border-radius: 4px;
+  background: #eee8ff;
+  color: #57458a;
+}
+
+.record-payment-amount--gift-card small {
+  font-size: 0.58rem;
+  font-weight: 850;
+}
+
+.record-payment-empty {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.record-payment-summary + .record-meta {
+  margin-top: 0;
+}
+
 .add-record {
   display: grid;
   place-items: center;
@@ -766,6 +852,41 @@ h2 {
   border-radius: 13px;
   background: #fff8e9;
   font-weight: 800;
+}
+
+.payment-method-rows {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--line);
+}
+
+.payment-method-row {
+  display: grid;
+  grid-template-columns: 72px repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 14px;
+  padding: 14px 16px 16px;
+  background: #fffdfb;
+}
+
+.payment-method-row > * {
+  min-width: 0;
+}
+
+.payment-method-row > strong {
+  align-self: center;
+  color: var(--brand-strong);
+  font-size: 0.92rem;
+  white-space: nowrap;
+}
+
+.payment-method-row .field-label > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
 }
 
 .editor-grid--gift-card {
@@ -1830,6 +1951,16 @@ h2 {
   .setup-line,
   .choice-grid {
     grid-template-columns: 1fr;
+  }
+
+  .payment-method-row {
+    grid-template-columns: 52px repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 12px 10px 14px;
+  }
+
+  .payment-method-row > strong {
+    font-size: 0.84rem;
   }
 
   .editor-actions {

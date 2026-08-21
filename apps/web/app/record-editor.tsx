@@ -342,7 +342,6 @@ export function RecordEditor({
   }
 
   function removeAutomaticDiscount() {
-    if (!window.confirm("确认只为这笔记工移除自动折扣吗？员工收入不会改变。")) return;
     setDraftDirty(true);
     setAutomaticDiscountSuppressed(true);
   }
@@ -661,12 +660,18 @@ export function RecordEditor({
 
         <section className="editor-section">
           <h3>客人付款</h3>
-          <p className="field-help">现金、刷卡和礼物卡大费至少填一项。各类小费可以留空，系统会按 0 处理。</p>
-          <div className="editor-grid editor-grid--money">
-            <label className="field-label">现金大费（美元）<input inputMode="decimal" placeholder="可留空" value={cashService} onChange={(event) => setCashService(event.target.value)} /></label>
-            <label className="field-label">刷卡大费（美元）<input inputMode="decimal" placeholder="可留空" value={cardService} onChange={(event) => setCardService(event.target.value)} /></label>
-            <label className="field-label">现金小费（美元）<input inputMode="decimal" placeholder="可留空，按 0 计算" value={cashTip} onChange={(event) => setCashTip(event.target.value)} /></label>
-            <label className="field-label">刷卡小费（美元）<input inputMode="decimal" placeholder="可留空，按 0 计算" value={cardTip} onChange={(event) => setCardTip(event.target.value)} /></label>
+          <p className="field-help">刷卡、现金和礼物卡大费至少填一项。各类小费可以留空，系统会按 0 处理。</p>
+          <div className="payment-method-rows">
+            <div className="payment-method-row" role="group" aria-label="刷卡">
+              <strong><span>刷卡</span><span aria-hidden="true">：</span></strong>
+              <label className="field-label"><span>大费</span><input aria-label="刷卡大费（美元）" inputMode="decimal" placeholder="可留空" value={cardService} onChange={(event) => setCardService(event.target.value)} /></label>
+              <label className="field-label"><span>小费</span><input aria-label="刷卡小费（美元）" inputMode="decimal" placeholder="空白按 0" value={cardTip} onChange={(event) => setCardTip(event.target.value)} /></label>
+            </div>
+            <div className="payment-method-row" role="group" aria-label="现金">
+              <strong><span>现金</span><span aria-hidden="true">：</span></strong>
+              <label className="field-label"><span>大费</span><input aria-label="现金大费（美元）" inputMode="decimal" placeholder="可留空" value={cashService} onChange={(event) => setCashService(event.target.value)} /></label>
+              <label className="field-label"><span>小费</span><input aria-label="现金小费（美元）" inputMode="decimal" placeholder="空白按 0" value={cashTip} onChange={(event) => setCashTip(event.target.value)} /></label>
+            </div>
           </div>
           <label className="gift-card-toggle"><input type="checkbox" checked={usesGiftCard} onChange={(event) => setUsesGiftCard(event.target.checked)} /> 使用礼物卡付款</label>
           {usesGiftCard && <div className="editor-grid editor-grid--gift-card">

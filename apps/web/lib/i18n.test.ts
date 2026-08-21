@@ -16,6 +16,9 @@ describe("bilingual UI translation", () => {
   it("translates fixed labels and preserves surrounding whitespace", () => {
     expect(translateText("  店铺设置 ", "en-US")).toBe("  Store settings ");
     expect(translateText("现金大费", "en-US")).toBe("Cash service fees");
+    expect(translateText("空白按 0", "en-US")).toBe("Blank = 0");
+    expect(translateText("刷卡、现金和礼物卡大费至少填一项。各类小费可以留空，系统会按 0 处理。", "en-US"))
+      .toContain("card, cash, or gift-card");
     expect(translateText("✓ 成员资料与默认提成已保存", "en-US"))
       .toBe("✓ Member details and default commission saved");
     expect(translateText("✓ 成员资料与默认提成已保存，今日记工小结已同步", "en-US"))
@@ -45,6 +48,11 @@ describe("bilingual UI translation", () => {
     expect(translateText("仅查看高亮记工", "en-US"))
       .toBe("Highlighted records only");
     expect(translateText("高亮标记", "en-US")).toBe("Highlight");
+    expect(translateText("礼卡", "en-US")).toBe("Gift card");
+    expect(translateText("刷卡 30 美元", "en-US")).toBe("Card 30 dollars");
+    expect(translateText("现金 50 美元", "en-US")).toBe("Cash 50 dollars");
+    expect(translateText("记工卡片的付款金额中，细线框内是刷卡，未加框是现金；混合付款按“框内刷卡金额 + 无框现金金额”显示，例如刷卡 $30、现金 $50 会显示为 `[30]+50`。礼物卡付款会直接标出“礼卡”。", "en-US"))
+      .toContain("outlined amount is a card payment");
   });
 
   it("translates appended status lines while retaining arbitrary messages", () => {

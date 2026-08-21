@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
-import { canShowEmployeeClockIn, canViewEmployeeTotals, discountBadgeText } from "../lib/board";
+import {
+  canShowEmployeeClockIn,
+  canViewEmployeeTotals,
+  compactPaymentAmount,
+  discountBadgeText,
+  recordPaymentDisplay,
+} from "../lib/board";
 import { financeClosingHref } from "../lib/navigation";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
 import { activeWorkRecord } from "../lib/work-status";
@@ -42,24 +48,38 @@ function money(cents: number | null): string {
       }).format(cents / 100);
 }
 
-function paymentLabel(record: WorkRecord): string {
-  if (record.status === "PENDING_PAYMENT") return "待填写";
-  const method = (cash: number, card: number, giftCard: number) => {
-    const methods = [
-      cash > 0 ? "现金" : null,
-      card > 0 ? "刷卡" : null,
-      giftCard > 0 ? "礼物卡" : null,
-    ].filter(Boolean);
-    if (methods.length > 0) return methods.join("＋");
-    return "金额为 0";
-  };
-  const cashService = record.cashServiceCents ?? 0;
-  const cardService = record.cardServiceCents ?? 0;
-  const giftCardService = record.giftCardServiceCents ?? 0;
-  const cashTip = record.cashTipCents ?? 0;
-  const cardTip = record.cardTipCents ?? 0;
-  const giftCardTip = record.giftCardTipCents ?? 0;
-  return `大费：${method(cashService, cardService, giftCardService)} · 小费：${method(cashTip, cardTip, giftCardTip)}`;
+function PaymentBreakdown({
+  status,
+  cashCents,
+  cardCents,
+  giftCardCents,
+}: {
+  status: WorkRecord["status"];
+  cashCents: number | null;
+  cardCents: number | null;
+  giftCardCents: number | null;
+}) {
+  const display = recordPaymentDisplay({ status, cashCents, cardCents, giftCardCents });
+  if (display.kind === "PENDING") return <span className="record-payment-empty">待填写</span>;
+  if (display.kind === "ZERO") return <span className="record-payment-empty">金额为 0</span>;
+
+  return <span className="record-payment-breakdown">
+    {display.parts.map((part, index) => {
+      const amount = compactPaymentAmount(part.cents);
+      const methodLabel = part.method === "CARD" ? "刷卡" : part.method === "CASH" ? "现金" : "礼物卡";
+      return <span className="record-payment-group" key={part.method}>
+        {index > 0 && <span className="record-payment-plus" aria-hidden="true">+</span>}
+        <span
+          className={`record-payment-amount record-payment-amount--${part.method.toLowerCase().replace("_", "-")}`}
+          aria-label={`${methodLabel} ${amount} 美元`}
+          title={methodLabel}
+        >
+          {part.method === "GIFT_CARD" && <small>礼卡</small>}
+          {amount}
+        </span>
+      </span>;
+    })}
+  </span>;
 }
 
 export function TodayBoard({
@@ -437,7 +457,11 @@ export function TodayBoard({
                         </span>
                         <span className="record-time">{displayTime(record.startAt, currentDay.timezone)}–{displayTime(record.endAt, currentDay.timezone)}</span>
                         <span className="record-money"><b>{money(record.grossFeeBaseCents)}</b><small>小费 {money(record.totalTipCents)}</small></span>
-                        <span className="record-meta">{paymentLabel(record)}{record.addonSnapshots.length > 0 && " · 有加项"}</span>
+                        <span className="record-payment-summary">
+                          <span className="record-payment-row"><span>实收</span><PaymentBreakdown status={record.status} cashCents={record.cashServiceCents} cardCents={record.cardServiceCents} giftCardCents={record.giftCardServiceCents} /></span>
+                          <span className="record-payment-row"><span>小费</span><PaymentBreakdown status={record.status} cashCents={record.cashTipCents} cardCents={record.cardTipCents} giftCardCents={record.giftCardTipCents} /></span>
+                        </span>
+                        {record.addonSnapshots.length > 0 && <span className="record-meta">有加项</span>}
                       </button>
                     ))}
                     {!board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage) && (

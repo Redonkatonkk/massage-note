@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
+import { formatUsd } from "../../lib/money";
 import { useStoreRealtime } from "../../lib/realtime";
 import type { AiMessageResponse, AiPreview, MeResponse, MembershipSummary } from "../../lib/types";
 import { useLanguage } from "../language-provider";
@@ -43,8 +44,8 @@ function previewPayment(value: unknown): string {
   ] as const;
   for (const [index, group] of groups.entries()) {
     const nonzero = group.filter(([key]) => cents(key) !== 0);
-    if (nonzero.length === 0) result.push(`${index === 0 ? "大费" : "小费"} $0.00`);
-    else for (const [key, label] of nonzero) result.push(`${label} $${(cents(key) / 100).toFixed(2)}`);
+    if (nonzero.length === 0) result.push(`${index === 0 ? "大费" : "小费"} ${formatUsd(0, "en-US")}`);
+    else for (const [key, label] of nonzero) result.push(`${label} ${formatUsd(cents(key), "en-US")}`);
   }
   return result.join("、");
 }
@@ -55,7 +56,7 @@ function previewItems(value: unknown): string {
   return value.map((entry) => {
     if (!entry || typeof entry !== "object") return previewValue(entry);
     const item = entry as Record<string, unknown>;
-    const amount = typeof item.amountCents === "number" ? ` $${(item.amountCents / 100).toFixed(2)}` : "";
+    const amount = typeof item.amountCents === "number" ? ` ${formatUsd(item.amountCents, "en-US")}` : "";
     return `${String(item.name ?? item.shortName ?? "项目")}${amount}`;
   }).join("、");
 }
@@ -132,7 +133,7 @@ function PreviewCard({ preview, busy, confirm, cancel }: { preview: AiPreview; b
     ["项目", after.service ?? (preview.target.serviceSnapshot as { name?: string } | undefined)?.name],
     ["开始时间", previewTime(after.startAt ?? preview.target.startAt)],
     ["结束时间", previewTime(after.endAt ?? preview.target.endAt)],
-    ["项目金额", typeof after.amountCents === "number" ? `$${(after.amountCents / 100).toFixed(2)}` : undefined],
+    ["项目金额", typeof after.amountCents === "number" ? formatUsd(after.amountCents, "en-US") : undefined],
     ["额外项目", after.addons === undefined ? undefined : previewItems(after.addons)],
     ["折扣", after.discounts === undefined ? undefined : previewItems(after.discounts)],
     ["付款", after.payment === undefined ? undefined : previewPayment(after.payment)],

@@ -33,8 +33,9 @@ describe("金额基础规则", () => {
     expect(multiplyByBps(99n, 5_000)).toBe(50n);
   });
 
-  it("格式化美元", () => {
-    expect(formatUsd(0n)).toBe("$0.00");
-    expect(formatUsd(12_345n)).toBe("$123.45");
+  it("把美元格式化为不带小数位的页面金额", () => {
+    expect(formatUsd(0n)).toBe("$0");
+    expect(formatUsd(12_345n)).toBe("$123");
+    expect(formatUsd(12_350n)).toBe("$124");
   });
 });

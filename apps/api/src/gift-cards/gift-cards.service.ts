@@ -549,6 +549,17 @@ export class GiftCardsService {
 
     if (requestedSerialNumber !== undefined) {
       const serialNumber = requestedSerialNumber.trim();
+      const serialNumberNormalized = this.normalizeSerial(serialNumber);
+      const existingSale = await transaction.giftCardSale.findFirst({
+        where: { storeId, serialNumberNormalized },
+        select: { id: true },
+      });
+      if (existingSale) {
+        throw new ConflictException({
+          code: "GIFT_CARD_SERIAL_DUPLICATE",
+          messageZh: "这张礼物卡序列号已经登记过，请核对后再试",
+        });
+      }
       if (/^\d+$/.test(serialNumber)) {
         const numericValue = Number(serialNumber);
         if (

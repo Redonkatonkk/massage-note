@@ -26,6 +26,7 @@ const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 interface PreviewWarning {
   code: string;
   labelZh: string;
+  blocking: boolean;
   count: number;
   recordIds: string[];
 }
@@ -173,7 +174,10 @@ export class ClosingsService {
           storeId,
           businessDate,
         );
-        if (preview.hasWarnings && !input.force) {
+        const hasBlockingWarnings = preview.warnings.some(
+          (warning) => warning.blocking,
+        );
+        if (hasBlockingWarnings && !input.force) {
           throw new ConflictException({
             code: "CLOSING_WARNINGS_REQUIRE_FORCE",
             messageZh: "日结检查发现异常，请处理后重试，或填写原因后强制日结",
@@ -395,39 +399,51 @@ export class ClosingsService {
     const warningDefinitions: Array<{
       code: string;
       labelZh: string;
+      blocking: boolean;
       matches: (record: (typeof records)[number]) => boolean;
     }> = [
       {
         code: "PENDING_PAYMENT",
         labelZh: "待结账记录",
+        blocking: true,
         matches: (record) => record.status === "PENDING_PAYMENT",
       },
       {
         code: "TIP_MISSING",
         labelZh: "小费尚未确认",
+        blocking: true,
         matches: (record) => record.totalTipCents === null,
       },
       {
         code: "PAYMENT_MISMATCH",
         labelZh: "实收大费与折后大费不一致",
+        blocking: true,
         matches: (record) =>
           record.status === "CONFIRMED" && record.paymentDifferenceCents !== 0n,
       },
       {
         code: "MANUAL_PRICE",
-        labelZh: "手动改价记录",
+        labelZh: "手动改价提醒",
+        blocking: false,
         matches: (record) => record.manualPriceFlag,
       },
       {
         code: "END_TIME_MISSING",
         labelZh: "未填写结束时间",
+        blocking: true,
         matches: (record) => record.endAt === null,
       },
     ];
     const warnings: PreviewWarning[] = warningDefinitions
       .map((warning) => {
         const recordIds = records.filter(warning.matches).map((record) => record.id);
-        return { code: warning.code, labelZh: warning.labelZh, count: recordIds.length, recordIds };
+        return {
+          code: warning.code,
+          labelZh: warning.labelZh,
+          blocking: warning.blocking,
+          count: recordIds.length,
+          recordIds,
+        };
       })
       .filter((warning) => warning.count > 0);
 

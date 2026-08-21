@@ -1,11 +1,8 @@
 import type { GiftCardLedgerResponse } from "../../lib/types";
+import { formatUsd } from "../../lib/money";
 
 function money(cents: number): string {
-  return new Intl.NumberFormat("zh-CN", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
+  return formatUsd(cents);
 }
 
 function dateOnly(value: string): string {

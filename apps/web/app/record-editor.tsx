@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
+import { formatMoneyInput, formatUsd } from "../lib/money";
 import {
   endLocalDateTimeForDuration,
   localDateTimeValue,
@@ -52,7 +53,7 @@ interface DiscountDraft {
 }
 
 function dollars(cents: number | null): string {
-  return cents === null ? "" : (cents / 100).toFixed(2);
+  return formatMoneyInput(cents);
 }
 
 function cents(value: string, label: string): number {
@@ -297,7 +298,7 @@ export function RecordEditor({
         sourceItemId: value,
         name: "自定义额外项目",
         shortName: "自定义",
-        amount: "0.00",
+        amount: "0",
         durationMinutes: "",
         commissionPercent: "",
       });
@@ -327,7 +328,7 @@ export function RecordEditor({
       updateDiscount(key, {
         sourceItemId: value,
         name: "自定义折扣",
-        amount: "0.00",
+        amount: "0",
       });
       return;
     }
@@ -607,7 +608,7 @@ export function RecordEditor({
         </div>
 
         <section className="editor-section">
-          <div className="section-heading"><h3>额外项目</h3><button type="button" onClick={() => { setDraftDirty(true); setAddons((current) => [...current, catalog.addonItems[0] ? addonFromItem(catalog.addonItems[0]) : { key: crypto.randomUUID(), sourceItemId: "__custom__", name: "自定义额外项目", shortName: "自定义", amount: "0.00", durationMinutes: "", commissionPercent: "" }]); }}>＋ 添加</button></div>
+          <div className="section-heading"><h3>额外项目</h3><button type="button" onClick={() => { setDraftDirty(true); setAddons((current) => [...current, catalog.addonItems[0] ? addonFromItem(catalog.addonItems[0]) : { key: crypto.randomUUID(), sourceItemId: "__custom__", name: "自定义额外项目", shortName: "自定义", amount: "0", durationMinutes: "", commissionPercent: "" }]); }}>＋ 添加</button></div>
           {addons.length === 0 && <p className="empty-note">本单没有额外项目</p>}
           {addons.map((item) => (
             <div className="line-item" key={item.key}>
@@ -624,7 +625,7 @@ export function RecordEditor({
         </section>
 
         <section className="editor-section">
-          <div className="section-heading"><h3>折扣</h3><button type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => [...current, catalog.discountItems[0] ? discountFromItem(catalog.discountItems[0]) : { key: crypto.randomUUID(), sourceItemId: "__custom__", name: "自定义折扣", amount: "0.00" }]); }}>＋ 添加</button></div>
+          <div className="section-heading"><h3>折扣</h3><button type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => [...current, catalog.discountItems[0] ? discountFromItem(catalog.discountItems[0]) : { key: crypto.randomUUID(), sourceItemId: "__custom__", name: "自定义折扣", amount: "0" }]); }}>＋ 添加</button></div>
           {automaticDiscountSuppressed ? (
             <div className="automatic-discount-line automatic-discount-line--removed">
               <div><strong>本单已手动移除自动折扣</strong><small>只影响这笔记工，不会关闭店铺的周一至周四自动折扣规则</small></div>
@@ -690,12 +691,12 @@ export function RecordEditor({
         </section>
 
         <section className="amount-explainer" aria-label="本单金额摘要">
-          <div><span>大费总额（按当前填写）</span><strong>{draftGross === null ? "请检查金额" : `$${(draftGross / 100).toFixed(2)}`}</strong></div>
-          <div><span>折后大费业绩（按当前填写）</span><strong>{draftDiscounted === null ? "请检查金额" : `$${(draftDiscounted / 100).toFixed(2)}`}</strong></div>
-          <div><span>实收服务费（按当前填写）</span><strong>{draftServicePaid === null ? "未填写" : `$${(draftServicePaid / 100).toFixed(2)}`}</strong></div>
-          <div><span>当前已保存员工大费工资</span><strong>${(record.totalLargeFeeWageCents / 100).toFixed(2)}</strong></div>
+          <div><span>大费总额（按当前填写）</span><strong>{draftGross === null ? "请检查金额" : formatUsd(draftGross)}</strong></div>
+          <div><span>折后大费业绩（按当前填写）</span><strong>{draftDiscounted === null ? "请检查金额" : formatUsd(draftDiscounted)}</strong></div>
+          <div><span>实收服务费（按当前填写）</span><strong>{draftServicePaid === null ? "未填写" : formatUsd(draftServicePaid)}</strong></div>
+          <div><span>当前已保存员工大费工资</span><strong>{formatUsd(record.totalLargeFeeWageCents)}</strong></div>
         </section>
-        {draftDifference !== null && draftDifference !== 0 && <p className="mismatch-warning" role="status">实收服务费与折后大费业绩不一致，相差 ${Math.abs(draftDifference / 100).toFixed(2)}（{draftDifference > 0 ? "多收" : "少收"}）。系统允许确认，但会保留这条异常。</p>}
+        {draftDifference !== null && draftDifference !== 0 && <p className="mismatch-warning" role="status">实收服务费与折后大费业绩不一致，相差 {formatUsd(Math.abs(draftDifference))}（{draftDifference > 0 ? "多收" : "少收"}）。系统允许确认，但会保留这条异常。</p>}
 
         {error && <p className="form-error" role="alert">{error}</p>}
         <footer className="editor-actions">

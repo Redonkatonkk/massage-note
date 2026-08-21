@@ -11,12 +11,10 @@ import { FinanceQueriesService } from "../finance/finance-queries.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
 import { WorkRecordsService } from "../work-records/work-records.service.js";
 import { MiniMaxLanguageModelProvider } from "./language-model.provider.js";
+import { formatWholeUsd, normalizeWholeUsdText } from "./money-display.js";
 import { MiniMaxSpeechToTextProvider } from "./speech-to-text.provider.js";
 
-const money = (value: bigint | number | string | null | undefined) => {
-  const cents = BigInt(value ?? 0);
-  return `$${(cents / 100n).toString()}.${(cents % 100n).toString().padStart(2, "0")}`;
-};
+const money = formatWholeUsd;
 
 const namedAmountToolSchema = {
   type: "object",
@@ -113,11 +111,11 @@ export class AiService {
       if (this.model.isConfigured()) {
         const result = await this.model.complete({
           system: locale === "en-US"
-            ? "You are a massage-store finance explanation assistant. Use only the supplied deterministic statistics. Do not calculate independently, guess, request, or expose data from other stores. Answer in English and state the date range, employee scope, and payment scope. Use U.S. dollars."
-            : "你是按摩店财务解释助手。只能依据提供的确定性统计上下文回答，不自行计算、不猜测、不得要求或暴露其他店铺数据。回答必须用中文，注明日期范围、员工范围和付款口径。金额使用美元。",
+            ? "You are a massage-store finance explanation assistant. Use only the supplied deterministic statistics. Do not calculate independently, guess, request, or expose data from other stores. Answer in English and state the date range, employee scope, and payment scope. Use U.S. dollars and display every amount as a whole dollar without a decimal point."
+            : "你是按摩店财务解释助手。只能依据提供的确定性统计上下文回答，不自行计算、不猜测、不得要求或暴露其他店铺数据。回答必须用中文，注明日期范围、员工范围和付款口径。金额使用美元，并统一显示为不带小数点的整美元。",
           user: `用户问题：${input.text}\n\n后端确定性统计上下文：${JSON.stringify(safeContext)}`,
         });
-        answer = result.content;
+        answer = normalizeWholeUsdText(result.content);
         provider = result.provider;
         model = result.model;
       } else {

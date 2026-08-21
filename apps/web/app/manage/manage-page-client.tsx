@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
+import { formatMoneyInput, formatUsd } from "../../lib/money";
 import type {
   AddonItem,
   AuditLogItem,
@@ -101,7 +102,7 @@ const entityText: Record<string, string> = {
 };
 
 function money(cents: number) {
-  return new Intl.NumberFormat("zh-CN", { style: "currency", currency: "USD" }).format(cents / 100);
+  return formatUsd(cents);
 }
 
 function parseMoney(value: string, label: string) {
@@ -222,10 +223,10 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
   const [cutoff, setCutoff] = useState(store.businessCutoffLocal);
   const [commission, setCommission] = useState((store.globalCommissionBps / 100).toString());
   const [autoDiscountEnabled, setAutoDiscountEnabled] = useState(store.mondayThursdayAutoDiscountEnabled);
-  const [autoDiscountThreshold, setAutoDiscountThreshold] = useState((store.mondayThursdayAutoDiscountThresholdCents / 100).toFixed(2));
-  const [autoDiscountAmount, setAutoDiscountAmount] = useState((store.mondayThursdayAutoDiscountAmountCents / 100).toFixed(2));
+  const [autoDiscountThreshold, setAutoDiscountThreshold] = useState(formatMoneyInput(store.mondayThursdayAutoDiscountThresholdCents));
+  const [autoDiscountAmount, setAutoDiscountAmount] = useState(formatMoneyInput(store.mondayThursdayAutoDiscountAmountCents));
   const [giftCardDiscountEnabled, setGiftCardDiscountEnabled] = useState(store.giftCardAutoDiscountEnabled);
-  const [giftCardDiscountThreshold, setGiftCardDiscountThreshold] = useState((store.giftCardAutoDiscountThresholdCents / 100).toFixed(2));
+  const [giftCardDiscountThreshold, setGiftCardDiscountThreshold] = useState(formatMoneyInput(store.giftCardAutoDiscountThresholdCents));
   const [giftCardDiscountPercent, setGiftCardDiscountPercent] = useState((store.giftCardAutoDiscountBps / 100).toString());
   const [nextOwner, setNextOwner] = useState("");
   const [saved, setSaved] = useState(false);
@@ -268,12 +269,12 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
       <p className="field-help">提成优先顺序：员工项目专属比例 → 员工默认比例 → 项目默认比例 → 全店默认比例。保存员工提成后会重算未日结的当前营业日；已日结和历史记工继续使用原快照。</p>
       <section className={`auto-discount-settings${autoDiscountEnabled ? " enabled" : ""}`}>
         <div className="auto-discount-heading"><div><strong>周一至周四自动折扣</strong><p>按记工所属营业日判断；达到折前大费门槛后自动添加。</p></div><label className="inline-check"><input type="checkbox" disabled={!canManage} checked={autoDiscountEnabled} onChange={(event) => setAutoDiscountEnabled(event.target.checked)} />开启</label></div>
-        <div className="manage-form-grid auto-discount-fields"><label>大费满多少（美元）<input disabled={!canManage || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 100.00" value={autoDiscountThreshold} onChange={(event) => setAutoDiscountThreshold(event.target.value)} /></label><label>自动折扣额度（美元）<input disabled={!canManage || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 10.00" value={autoDiscountAmount} onChange={(event) => setAutoDiscountAmount(event.target.value)} /></label></div>
+        <div className="manage-form-grid auto-discount-fields"><label>大费满多少（美元）<input disabled={!canManage || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 100" value={autoDiscountThreshold} onChange={(event) => setAutoDiscountThreshold(event.target.value)} /></label><label>自动折扣额度（美元）<input disabled={!canManage || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 10" value={autoDiscountAmount} onChange={(event) => setAutoDiscountAmount(event.target.value)} /></label></div>
         <p className="field-help">自动折扣和普通折扣一起计入折扣总额，由店铺承担；员工大费工资仍按折扣前的项目和加项金额计算。</p>
       </section>
       <section className={`auto-discount-settings${giftCardDiscountEnabled ? " enabled" : ""}`}>
         <div className="auto-discount-heading"><div><strong>礼物卡自动折扣</strong><p>卖卡达到面值门槛后，自动按比例计算折扣和客人应付金额。</p></div><label className="inline-check"><input type="checkbox" disabled={!canManage} checked={giftCardDiscountEnabled} onChange={(event) => setGiftCardDiscountEnabled(event.target.checked)} />开启</label></div>
-        <div className="manage-form-grid auto-discount-fields"><label>礼物卡满多少（美元）<input disabled={!canManage || !giftCardDiscountEnabled} required={giftCardDiscountEnabled} inputMode="decimal" placeholder="例如 100.00" value={giftCardDiscountThreshold} onChange={(event) => setGiftCardDiscountThreshold(event.target.value)} /></label><label>自动折扣（%）<input disabled={!canManage || !giftCardDiscountEnabled} required={giftCardDiscountEnabled} inputMode="decimal" placeholder="例如 5" value={giftCardDiscountPercent} onChange={(event) => setGiftCardDiscountPercent(event.target.value)} /></label></div>
+        <div className="manage-form-grid auto-discount-fields"><label>礼物卡满多少（美元）<input disabled={!canManage || !giftCardDiscountEnabled} required={giftCardDiscountEnabled} inputMode="decimal" placeholder="例如 100" value={giftCardDiscountThreshold} onChange={(event) => setGiftCardDiscountThreshold(event.target.value)} /></label><label>自动折扣（%）<input disabled={!canManage || !giftCardDiscountEnabled} required={giftCardDiscountEnabled} inputMode="decimal" placeholder="例如 5" value={giftCardDiscountPercent} onChange={(event) => setGiftCardDiscountPercent(event.target.value)} /></label></div>
         <p className="field-help">例如设置“满 $100、折扣 5%”，录入 $100 面值礼物卡时，系统会要求现金和刷卡合计为 $95。历史记录保留售出时的折扣规则快照。</p>
       </section>
       {saved && <p className="success-banner manage-save-success" role="status">✓ 店铺设置已保存</p>}
@@ -444,10 +445,10 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, 
   const discount = type === "DISCOUNT" ? item as DiscountItem : null;
   const [name, setName] = useState(service?.fullName ?? addon?.name ?? discount?.name ?? "");
   const [shortName, setShortName] = useState(item.shortName);
-  const [amount, setAmount] = useState(((addon?.amountCents ?? discount?.amountCents ?? 0) / 100).toFixed(2));
+  const [amount, setAmount] = useState(formatMoneyInput(addon?.amountCents ?? discount?.amountCents ?? 0));
   const [duration, setDuration] = useState((addon?.durationMinutes ?? "").toString());
   const [priceOptions, setPriceOptions] = useState<PriceOptionDraft[]>(
-    service?.priceOptions.map((option) => newPriceOption(option.durationMinutes.toString(), (option.priceCents / 100).toFixed(2))) ?? [],
+    service?.priceOptions.map((option) => newPriceOption(option.durationMinutes.toString(), formatMoneyInput(option.priceCents))) ?? [],
   );
   const [commission, setCommission] = useState(service?.defaultCommissionBps === null || addon?.defaultCommissionBps === null ? "" : ((service?.defaultCommissionBps ?? addon?.defaultCommissionBps ?? 0) / 100).toString());
   const deleted = Boolean(item.deletedAt);

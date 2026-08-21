@@ -9,12 +9,15 @@ import {
   discountBadgeText,
   recordPaymentDisplay,
 } from "../lib/board";
+import { homeClosingAction } from "../lib/closing";
 import { financeClosingHref } from "../lib/navigation";
+import { formatUsd } from "../lib/money";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
 import { activeWorkRecord } from "../lib/work-status";
 import type {
   BoardResponse,
   CatalogResponse,
+  ClosingPreview,
   CurrentBusinessDay,
   MembershipSummary,
   StoreDetails,
@@ -39,13 +42,7 @@ interface TodayBoardProps {
 }
 
 function money(cents: number | null): string {
-  return cents === null
-    ? "未填写"
-    : new Intl.NumberFormat("zh-CN", {
-        style: "currency",
-        currency: "USD",
-        minimumFractionDigits: 2,
-      }).format(cents / 100);
+  return cents === null ? "未填写" : formatUsd(cents);
 }
 
 function PaymentBreakdown({
@@ -232,6 +229,61 @@ export function TodayBoard({
     }
   }
 
+  function openFinanceClosing() {
+    window.location.assign(
+      financeClosingHref(membership.store.id, currentDay.businessDate),
+    );
+  }
+
+  async function closeBusinessDay() {
+    const path = `/stores/${membership.store.id}/closings/${currentDay.businessDate}`;
+    const preview = await apiRequest<ClosingPreview>(`${path}/preview`);
+    const action = homeClosingAction(preview);
+    if (action === "CANCEL") {
+      setNotice("这个营业日已经日结");
+      await onReload();
+      return;
+    }
+    if (action === "REVIEW") {
+      openFinanceClosing();
+      return;
+    }
+    try {
+      await apiRequest(path, {
+        method: "POST",
+        idempotent: true,
+        body: { force: false },
+      });
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.code === "CLOSING_WARNINGS_REQUIRE_FORCE") {
+        openFinanceClosing();
+        return;
+      }
+      throw caught;
+    }
+    setNotice("日结完成");
+    await onReload();
+  }
+
+  async function cancelBusinessDayClosing() {
+    const path = `/stores/${membership.store.id}/closings/${currentDay.businessDate}`;
+    const preview = await apiRequest<ClosingPreview>(`${path}/preview`);
+    if (homeClosingAction(preview) !== "CANCEL" || !preview.activeClosing) {
+      setNotice("这个营业日当前没有有效日结");
+      await onReload();
+      return;
+    }
+    const reason = window.prompt("请填写取消日结原因");
+    if (!reason?.trim()) return;
+    await apiRequest(`${path}/cancel`, {
+      method: "POST",
+      idempotent: true,
+      body: { version: preview.activeClosing.version, reason: reason.trim() },
+    });
+    setNotice("已取消日结，可以继续修改记工");
+    await onReload();
+  }
+
   async function setRowHidden(row: BoardResponse["rows"][number], isHidden: boolean) {
     const path = `/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}`;
     try {
@@ -369,7 +421,9 @@ export function TodayBoard({
             setNotice("已上班，并加入今日表格");
             await onReload();
           })}>{busy ? "正在上班…" : "上班"}</button>}
-          {canManage && <a className="primary-action board-closing-action" href={financeClosingHref(membership.store.id, currentDay.businessDate)}>{board.isClosed ? "查看全店日结" : "全店日结"}</a>}
+          {canManage && (board.isClosed
+            ? <button className="secondary-action board-closing-action" type="button" disabled={busy} onClick={() => run(cancelBusinessDayClosing)}>取消日结</button>
+            : <button className="primary-action board-closing-action" type="button" disabled={busy} onClick={() => run(closeBusinessDay)}>日结</button>)}
         </div>
       </section>
 
@@ -442,7 +496,7 @@ export function TodayBoard({
                         <span className="record-card__topline">
                           <strong>{record.serviceSnapshot?.shortName ?? "项目"}</strong>
                           <span className="record-card__badges">
-                            {record.isHighlighted && <span className="record-highlight-badge" aria-label="高亮记工" title="高亮记工">★</span>}
+                            {record.addonSnapshots.length > 0 && <span className="record-addon-badge" aria-label="有加项" title="有加项">＋</span>}
                             {record.discountSnapshots.length > 0 && (
                               <span
                                 className="record-discount-badge"
@@ -461,7 +515,6 @@ export function TodayBoard({
                           <span className="record-payment-row"><span>实收</span><PaymentBreakdown status={record.status} cashCents={record.cashServiceCents} cardCents={record.cardServiceCents} giftCardCents={record.giftCardServiceCents} /></span>
                           <span className="record-payment-row"><span>小费</span><PaymentBreakdown status={record.status} cashCents={record.cashTipCents} cardCents={record.cardTipCents} giftCardCents={record.giftCardTipCents} /></span>
                         </span>
-                        {record.addonSnapshots.length > 0 && <span className="record-meta">有加项</span>}
                       </button>
                     ))}
                     {!board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage) && (
@@ -549,7 +602,7 @@ export function TodayBoard({
               <div className="quick-custom-grid">
                 <label className="field-label">项目名称<input autoFocus maxLength={120} value={customServiceName} onChange={(event) => setCustomServiceName(event.target.value)} /></label>
                 <label className="field-label">项目简称<input maxLength={30} value={customServiceShortName} onChange={(event) => setCustomServiceShortName(event.target.value)} /></label>
-                <label className="field-label">金额（美元）<input inputMode="decimal" placeholder="例如 80.00" value={customServiceAmount} onChange={(event) => setCustomServiceAmount(event.target.value)} /></label>
+                <label className="field-label">金额（美元）<input inputMode="decimal" placeholder="例如 80" value={customServiceAmount} onChange={(event) => setCustomServiceAmount(event.target.value)} /></label>
                 <label className="field-label">时长（分钟）<input type="number" min="1" max="720" inputMode="numeric" placeholder="例如 60" value={customServiceDuration} onChange={(event) => setCustomServiceDuration(event.target.value)} /></label>
                 <p className="field-help">自定义项目无需审批，提成按该员工默认比例；未设置时使用全店默认比例。系统会保留审计记录。</p>
               </div>

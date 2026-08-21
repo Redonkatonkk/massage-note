@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
 import { type AppLocale, translateText } from "../lib/i18n";
+import { formatUsd } from "../lib/money";
 import type { EmployeeClosingPreview } from "../lib/types";
 import { useLanguage } from "./language-provider";
 
@@ -29,11 +30,7 @@ interface GeneratedClosingImage {
 const imageFont = '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
 function money(cents: number, locale: AppLocale = "zh-CN"): string {
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
+  return formatUsd(cents, locale);
 }
 
 function localizedDate(value: string, locale: AppLocale = "zh-CN"): string {

@@ -591,6 +591,67 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it("手动改价只保留提醒，并允许正常日结", async () => {
+    const repriced = await workRecords.update(
+      actor(employeeId),
+      storeId,
+      recordId,
+      { version: recordVersion, mainServiceAmountCents: 11_000 },
+      "manual-price-closing-update-0001",
+      "manual-price-closing-update",
+    );
+    const reconfirmed = await workRecords.confirmPayment(
+      actor(employeeId),
+      storeId,
+      recordId,
+      {
+        version: repriced.version,
+        cashServiceCents: 4_000,
+        cardServiceCents: 7_000,
+        cashTipCents: 1_000,
+        cardTipCents: 2_000,
+      },
+      "manual-price-closing-payment-0001",
+      "manual-price-closing-payment",
+    );
+    recordVersion = reconfirmed.version;
+
+    const preview = await closings.preview(actor(managerId), storeId, businessDate);
+    expect(preview.warnings).toEqual([
+      expect.objectContaining({
+        code: "MANUAL_PRICE",
+        labelZh: "手动改价提醒",
+        blocking: false,
+        count: 1,
+        recordIds: [recordId],
+      }),
+    ]);
+
+    const closed = await closings.close(
+      actor(managerId),
+      storeId,
+      businessDate,
+      { force: false },
+      "manual-price-closing-normal-0001",
+      "manual-price-closing-normal",
+    );
+    expect(closed.closing).toMatchObject({
+      status: "CLOSED",
+      isForced: false,
+      cycleNo: 2,
+    });
+    expect(closed.preview.warnings).toEqual(preview.warnings);
+
+    await closings.cancel(
+      actor(managerId),
+      storeId,
+      businessDate,
+      { version: closed.closing.version, reason: "继续验证阻塞异常" },
+      "manual-price-closing-cancel-0001",
+      "manual-price-closing-cancel",
+    );
+  });
+
   it("待结账异常阻止普通日结，但可填写原因强制日结", async () => {
     const currentCash = await cash.list(actor(managerId), storeId, businessDate);
     for (const row of currentCash.rows.filter((item) => item.status === "SETTLED")) {
@@ -640,7 +701,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     expect(forced.closing).toMatchObject({
       status: "CLOSED",
       isForced: true,
-      cycleNo: 2,
+      cycleNo: 3,
     });
     expect(pending.status).toBe("PENDING_PAYMENT");
   });

@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
+import { giftCardSerialNumberForCreate } from "../lib/gift-card";
+import { formatMoneyInput, formatUsd } from "../lib/money";
 import type { GiftCardSale, StoreDetails, StoreMember } from "../lib/types";
 
 interface GiftCardSalesProps {
@@ -22,15 +24,11 @@ interface GiftCardSalesProps {
 }
 
 function money(cents: number): string {
-  return new Intl.NumberFormat("zh-CN", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
+  return formatUsd(cents);
 }
 
 function dollars(cents: number): string {
-  return (cents / 100).toFixed(2);
+  return formatMoneyInput(cents);
 }
 
 function cents(value: string, label: string): number {
@@ -59,6 +57,7 @@ export function GiftCardSales({
   );
   const [editing, setEditing] = useState<GiftCardSale | null | undefined>(undefined);
   const [serialNumber, setSerialNumber] = useState("");
+  const [serialNumberWasEdited, setSerialNumberWasEdited] = useState(false);
   const [faceValueAmount, setFaceValueAmount] = useState("");
   const [cashAmount, setCashAmount] = useState("");
   const [cardAmount, setCardAmount] = useState("");
@@ -110,6 +109,7 @@ export function GiftCardSales({
   function openCreate() {
     setEditing(null);
     setSerialNumber(nextSerialNumber);
+    setSerialNumberWasEdited(false);
     setFaceValueAmount("");
     setCashAmount("");
     setCardAmount("");
@@ -156,10 +156,18 @@ export function GiftCardSales({
         });
         setNotice("礼物卡销售记录已更新");
       } else {
+        const customSerialNumber = giftCardSerialNumberForCreate(
+          serialNumber,
+          serialNumberWasEdited,
+        );
         const created = await apiRequest<GiftCardSale>(`/stores/${storeId}/gift-card-sales`, {
           method: "POST",
           idempotent: true,
-          body: { businessDate, ...input },
+          body: {
+            businessDate,
+            ...(customSerialNumber ? { serialNumber: customSerialNumber } : {}),
+            ...input,
+          },
         });
         setNotice(`礼物卡 ${created.serialNumber} 已记录，金额全部计入店铺收入`);
       }
@@ -242,9 +250,9 @@ export function GiftCardSales({
               <button className="close-button" type="button" disabled={busy} onClick={() => setEditing(undefined)}>关闭</button>
             </div>
             <div className="gift-card-sale-form">
-              <label className="field-label">礼物卡序列号<input autoFocus={Boolean(editing)} autoComplete="off" maxLength={120} readOnly={!editing} value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} /></label>
-              {!editing && <p className="field-help gift-card-sale-form__serial-help">序列号由系统自动生成；多人同时操作时，以保存后的号码为准。</p>}
-              <label className="field-label gift-card-sale-form__face-value">礼物卡总金额（美元）<input autoFocus={!editing} inputMode="decimal" placeholder="例如 100.00" value={faceValueAmount} onChange={(event) => setFaceValueAmount(event.target.value)} /></label>
+              <label className="field-label">礼物卡序列号<input autoFocus={Boolean(editing)} autoComplete="off" maxLength={120} value={serialNumber} onChange={(event) => { setSerialNumber(event.target.value); if (!editing) setSerialNumberWasEdited(true); }} /></label>
+              {!editing && <p className="field-help gift-card-sale-form__serial-help">默认使用系统建议号码；也可以直接修改为自定义号码，保存时会检查同店重复。多人同时使用默认号码时，以保存后的号码为准。</p>}
+              <label className="field-label gift-card-sale-form__face-value">礼物卡总金额（美元）<input autoFocus={!editing} inputMode="decimal" placeholder="例如 100" value={faceValueAmount} onChange={(event) => setFaceValueAmount(event.target.value)} /></label>
               <div className="gift-card-sale-discount">
                 <span>自动折扣</span>
                 <strong>{discountCents > 0 ? `${(discountRateBps / 100).toFixed(2)}% · -${money(discountCents)}` : "本单无折扣"}</strong>

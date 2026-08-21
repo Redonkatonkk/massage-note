@@ -33,6 +33,13 @@ describe("bilingual UI translation", () => {
     expect(translateText("已隐藏 Amy", "en-US")).toBe("Hidden Amy");
     expect(translateText("Amy的个人日结", "en-US")).toBe("Amy's employee closing");
     expect(translateText("3 项需要核对", "en-US")).toBe("3 items to review");
+    expect(translateText("1 项提醒", "en-US")).toBe("1 reminder");
+    expect(translateText("手动改价提醒", "en-US")).toBe("Manual price reminders");
+    expect(translateText("仅提醒，不影响正常日结", "en-US"))
+      .toBe("For awareness only; normal closing is available");
+    expect(translateText("日结完成", "en-US")).toBe("Daily closing completed");
+    expect(translateText("已取消日结，可以继续修改记工", "en-US"))
+      .toContain("records can now be edited");
     expect(translateText("主要项目“Body”60 分钟价格必须是非负金额，最多两位小数", "en-US"))
       .toBe("Body 60-minute price must be non-negative with at most two decimal places");
     expect(translateText("Body第 2 个价格", "en-US")).toBe("Body price #2");
@@ -41,10 +48,10 @@ describe("bilingual UI translation", () => {
     expect(translateText("礼物卡销售", "en-US")).toBe("Gift card sales");
     expect(translateText("使用礼物卡付款", "en-US")).toBe("Pay with a gift card");
     expect(translateText("3 张 · 实际收入", "en-US")).toBe("3 cards · Actual income");
-    expect(translateText("折扣 -US$5.00 · 实收 US$95.00", "en-US"))
-      .toBe("Discount -$5.00 · Collected $95.00");
-    expect(translateText("2 条 · 共 US$40.00", "en-US"))
-      .toBe("2 entries · $40.00 total");
+    expect(translateText("折扣 -US$5 · 实收 US$95", "en-US"))
+      .toBe("Discount -$5 · Collected $95");
+    expect(translateText("2 条 · 共 US$40", "en-US"))
+      .toBe("2 entries · $40 total");
     expect(translateText("仅查看高亮记工", "en-US"))
       .toBe("Highlighted records only");
     expect(translateText("高亮标记", "en-US")).toBe("Highlight");
@@ -72,7 +79,7 @@ describe("bilingual UI translation", () => {
 
     expect(translateText("60分钟深层组织按摩", "en-US"))
       .toBe("60-minute Deep Tissue Massage");
-    expect(translateText("瑞典 · US$80.00", "en-US")).toBe("Swedish · US$80.00");
+    expect(translateText("瑞典 · US$80", "en-US")).toBe("Swedish · US$80");
     expect(translateText("热石加项", "en-US")).toBe("Hot Stone Add-on");
     expect(translateText("会员优惠", "en-US")).toBe("Member Discount");
   });
@@ -109,6 +116,7 @@ describe("bilingual UI translation", () => {
     expect(translateText("小身体", "en-US")).toBe("Small Body Massage");
     expect(translateText("大费：刷卡 · 小费：刷卡 · 有加项", "en-US"))
       .toBe("Service fees: Card · Tips: Card · Add-ons");
+    expect(translateText("有加项", "en-US")).toBe("Add-ons");
     expect(translateText(" · 有加项", "en-US")).toBe(" · Add-ons");
   });
 
@@ -119,5 +127,15 @@ describe("bilingual UI translation", () => {
       .toContain("already been recorded");
     expect(translateApiError("FUTURE_CODE", "未来错误", "en-US"))
       .toBe("Request failed (FUTURE_CODE).");
+  });
+
+  it("explains that highlighted cards use only the yellow card background", () => {
+    expect(translateText("需要重点跟进时，点击弹窗顶部的“高亮标记”；保存后首页整张记工卡会显示黄色背景，不另显示右上角星标。详情页也可随时添加或取消高亮。", "en-US"))
+      .toContain("without a separate star badge at the upper right");
+  });
+
+  it("explains custom gift card serial numbers and duplicate checks", () => {
+    expect(translateText("默认使用系统建议号码；也可以直接修改为自定义号码，保存时会检查同店重复。多人同时使用默认号码时，以保存后的号码为准。", "en-US"))
+      .toContain("edit it to a custom number");
   });
 });

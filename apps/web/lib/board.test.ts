@@ -23,8 +23,8 @@ describe("今日表格行整理", () => {
   it("把今日卡片折扣金额压缩为不带货币符号的 off 标签", () => {
     expect(discountBadgeText(500)).toBe("off5");
     expect(discountBadgeText(1_000)).toBe("off10");
-    expect(discountBadgeText(550)).toBe("off5.5");
-    expect(discountBadgeText(505)).toBe("off5.05");
+    expect(discountBadgeText(550)).toBe("off6");
+    expect(discountBadgeText(505)).toBe("off5");
   });
 
   it("把刷卡金额排在现金金额前，供卡片显示为框线金额加普通金额", () => {
@@ -55,10 +55,10 @@ describe("今日表格行整理", () => {
       .toEqual({ kind: "PENDING", parts: [] });
   });
 
-  it("付款金额整数不显示小数，非整数保留精确的两位美分", () => {
+  it("付款金额一律显示为四舍五入后的整美元", () => {
     expect(compactPaymentAmount(3_000)).toBe("30");
-    expect(compactPaymentAmount(3_050)).toBe("30.50");
-    expect(compactPaymentAmount(3_005)).toBe("30.05");
+    expect(compactPaymentAmount(3_050)).toBe("31");
+    expect(compactPaymentAmount(3_005)).toBe("30");
   });
 
   it("只让尚未加入当天表格的记工员工看到上班入口", () => {

@@ -58,7 +58,6 @@ export function multiplyByBps(
 
 export function formatUsd(amount: Cents): string {
   const validated = cents(amount);
-  const dollars = validated / 100n;
-  const remainder = (validated % 100n).toString().padStart(2, "0");
-  return `$${dollars.toString()}.${remainder}`;
+  const roundedDollars = (validated + 50n) / 100n;
+  return `$${roundedDollars.toString()}`;
 }

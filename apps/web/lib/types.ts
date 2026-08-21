@@ -464,6 +464,7 @@ export interface CashSettlementResponse {
 export interface ClosingWarning {
   code: string;
   labelZh: string;
+  blocking?: boolean;
   count: number;
   recordIds: string[];
 }

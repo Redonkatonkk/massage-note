@@ -207,6 +207,27 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     expect(board.statistics.giftCardSalesAmountCents).toBe(0n);
   });
 
+  it("自定义序列号也检查已软删除的历史号码，避免重新卖出同号礼物卡", async () => {
+    await expect(
+      giftCards.create(
+        actor(ownerId),
+        storeId,
+        {
+          businessDate,
+          serialNumber: " 1001 ",
+          faceValueCents: 10_000,
+          cashCents: 9_500,
+          cardCents: 0,
+          operatorMembershipId: ownerMembershipId,
+        },
+        "gift-card-deleted-duplicate-key-0001",
+        "gift-card-deleted-duplicate",
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: "GIFT_CARD_SERIAL_DUPLICATE" }),
+    });
+  });
+
   it("店长可从回收站恢复卖卡记录并重新计入收入", async () => {
     const deleted = await giftCards.listDeleted(actor(ownerId), storeId);
     expect(deleted).toHaveLength(1);
@@ -309,6 +330,43 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     ]);
     await expect(giftCards.list(actor(employeeId), storeId)).rejects.toMatchObject({
       response: expect.objectContaining({ code: "GIFT_CARD_LEDGER_FORBIDDEN" }),
+    });
+  });
+
+  it("允许卖卡时使用自定义序列号，并忽略大小写与首尾空白检测重复", async () => {
+    const created = await giftCards.create(
+      actor(ownerId),
+      storeId,
+      {
+        businessDate,
+        serialNumber: "VIP-SUMMER-01",
+        faceValueCents: 10_000,
+        cashCents: 9_500,
+        cardCents: 0,
+        operatorMembershipId: ownerMembershipId,
+      },
+      "gift-card-custom-key-0001",
+      "gift-card-custom",
+    );
+    expect(created.serialNumber).toBe("VIP-SUMMER-01");
+
+    await expect(
+      giftCards.create(
+        actor(ownerId),
+        storeId,
+        {
+          businessDate,
+          serialNumber: " vip-summer-01 ",
+          faceValueCents: 10_000,
+          cashCents: 9_500,
+          cardCents: 0,
+          operatorMembershipId: ownerMembershipId,
+        },
+        "gift-card-custom-duplicate-key-0001",
+        "gift-card-custom-duplicate",
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: "GIFT_CARD_SERIAL_DUPLICATE" }),
     });
   });
 });

@@ -212,8 +212,8 @@ describe.skipIf(!enabled).sequential("AI 预览、确认和确定性财务工具
 
   it("财务助手始终使用后端统计结果并记录查询日志", async () => {
     const response = await ai.financeMessage(actor, storeId, { text: "查一下今天全部大费和小费" });
-    expect(response.answer).toContain("实际收到大费 $270.00");
-    expect(response.answer).toContain("小费 $35.00");
+    expect(response.answer).toContain("实际收到大费 $270");
+    expect(response.answer).toContain("小费 $35");
     expect(response.answer).toContain("确定性财务引擎");
     expect(await prisma.aiQueryLog.count({ where: { storeId } })).toBeGreaterThanOrEqual(2);
   });
@@ -239,8 +239,8 @@ describe.skipIf(!enabled).sequential("AI 预览、确认和确定性财务工具
       text: "Show service fees and tips for today",
       locale: "en-US",
     });
-    expect(response.answer).toContain("service fees collected $270.00");
-    expect(response.answer).toContain("tips $35.00");
+    expect(response.answer).toContain("service fees collected $270");
+    expect(response.answer).toContain("tips $35");
     expect(response.answer).toContain("deterministic server-side finance engine");
   });
 });

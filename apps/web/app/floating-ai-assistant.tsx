@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
+import { formatUsd } from "../lib/money";
 import type { AiMessageResponse, AiPreview } from "../lib/types";
 import { useLanguage } from "./language-provider";
 import { useAiVoiceInput } from "./use-ai-voice-input";
@@ -65,7 +66,7 @@ function PreviewCard({
     ["项目", after.service ?? (preview.target.serviceSnapshot as { name?: string } | undefined)?.name],
     ["开始时间", previewTime(after.startAt ?? preview.target.startAt)],
     ["结束时间", previewTime(after.endAt ?? preview.target.endAt)],
-    ["项目金额", typeof after.amountCents === "number" ? `$${(after.amountCents / 100).toFixed(2)}` : undefined],
+    ["项目金额", typeof after.amountCents === "number" ? formatUsd(after.amountCents, "en-US") : undefined],
     ["额外项目", after.addons],
     ["折扣", after.discounts],
     ["付款", after.payment],

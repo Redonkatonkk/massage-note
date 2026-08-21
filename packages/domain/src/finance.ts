@@ -58,6 +58,36 @@ export interface WorkRecordFinance {
   hasZeroServiceCollected: boolean;
 }
 
+export interface StoreIncomeInput {
+  discountedFeePerformanceCents: Cents;
+  totalTipCents: Cents;
+  employeeIncomeCents: Cents;
+  giftCardSalesAmountCents: Cents;
+  giftCardRedemptionCents: Cents;
+}
+
+/**
+ * 店铺经营收入把卖卡实收记为收入，把客人用礼物卡付款的金额记为支出。
+ * 结果允许为负数，因此返回 bigint 而不是只允许非负数的 Cents。
+ */
+export function calculateStoreIncome(input: StoreIncomeInput): bigint {
+  const discountedFeePerformanceCents = cents(
+    input.discountedFeePerformanceCents,
+  );
+  const totalTipCents = cents(input.totalTipCents);
+  const employeeIncomeCents = cents(input.employeeIncomeCents);
+  const giftCardSalesAmountCents = cents(input.giftCardSalesAmountCents);
+  const giftCardRedemptionCents = cents(input.giftCardRedemptionCents);
+
+  return (
+    discountedFeePerformanceCents +
+    totalTipCents -
+    employeeIncomeCents +
+    giftCardSalesAmountCents -
+    giftCardRedemptionCents
+  );
+}
+
 export function calculateWorkRecordFinance(
   input: WorkRecordFinanceInput,
 ): WorkRecordFinance {

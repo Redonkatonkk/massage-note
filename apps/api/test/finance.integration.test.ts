@@ -556,7 +556,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       amountType: "ALL",
       highlightFilter: "ALL",
     });
-    expect(csv.startsWith("\uFEFF\"营业日\"")).toBe(true);
+    expect(csv.startsWith("\uFEFF\"记录类型\",\"营业日\"")).toBe(true);
     expect(csv).toContain("\"财务员工\"");
     expect(csv).toContain("\"100.00\"");
     expect(csv).toContain("\"高亮标记\"");

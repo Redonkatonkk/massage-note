@@ -14,6 +14,7 @@ import {
   businessDateFor,
   calculatePersonalClosingCashToSubmit,
   calculatePersonalClosingPaymentDividends,
+  calculateStoreIncome,
   canReadEmployeeFinance,
 } from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
@@ -583,14 +584,37 @@ export class ClosingsService {
       },
     );
     const safeGiftCardSaleTotals = this.safeTotals(giftCardSaleTotals);
+    const giftCardRedemptionCents = this.safeNumber(
+      records.reduce(
+        (total, record) =>
+          total +
+          (record.giftCardServiceCents ?? 0n) +
+          (record.giftCardTipCents ?? 0n),
+        0n,
+      ),
+    );
     const storeTotals = {
       ...workRecordTotals,
       ...safeGiftCardSaleTotals,
-      storeIncomeCents:
-        workRecordTotals.discountedFeePerformanceCents +
-        workRecordTotals.totalTipCents -
-        workRecordTotals.employeeIncomeCents +
+      itemCount:
+        workRecordTotals.recordCount + safeGiftCardSaleTotals.giftCardSaleCount,
+      customerTotalPaidCents:
+        workRecordTotals.customerTotalPaidCents +
         safeGiftCardSaleTotals.giftCardSalesAmountCents,
+      giftCardRedemptionCents,
+      storeIncomeCents: this.safeNumber(
+        calculateStoreIncome({
+          discountedFeePerformanceCents: BigInt(
+            workRecordTotals.discountedFeePerformanceCents,
+          ),
+          totalTipCents: BigInt(workRecordTotals.totalTipCents),
+          employeeIncomeCents: BigInt(workRecordTotals.employeeIncomeCents),
+          giftCardSalesAmountCents: BigInt(
+            safeGiftCardSaleTotals.giftCardSalesAmountCents,
+          ),
+          giftCardRedemptionCents: BigInt(giftCardRedemptionCents),
+        }),
+      ),
     };
     return {
       storeId,

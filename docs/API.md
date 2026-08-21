@@ -82,7 +82,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 }
 ```
 
-快速创建或把记工切换到预设项目时提交 `serviceItemId` 和 `serviceDurationMinutes`。若项目只有一个档位，服务端为旧客户端兼容可补选该档位；项目有多个档位时缺少时长会返回 `SERVICE_PRICE_OPTION_REQUIRED`。更新记工时，如果主要项目时长发生变化且请求没有明确提交 `endAt`，服务端按 `startAt + 新时长` 自动重算结束时间；明确提交的 `endAt` 仍优先。记工保存的仍是名称、时长、价格和提成快照，后续修改或删除价格档位不会改变历史记录。
+快速创建或把记工切换到预设项目时提交 `serviceItemId` 和 `serviceDurationMinutes`。若项目只有一个档位，服务端为旧客户端兼容可补选该档位；项目有多个档位时缺少时长会返回 `SERVICE_PRICE_OPTION_REQUIRED`。更新记工且没有明确提交 `endAt` 时，服务端会在修改 `startAt` 后保留当前实际工作时长，并按主要项目及额外项目新旧配置分钟数的总差值调整结束时间；明确提交的 `endAt` 仍优先。记工保存的仍是名称、时长、价格和提成快照，后续修改或删除价格档位不会改变历史记录。
 
 店铺设置可通过同一次 `PATCH /stores/:storeId` 写入周一至周四自动折扣；三个字段必须一起提交：
 
@@ -152,7 +152,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 }
 ```
 
-若店铺规则是“满 `$100.00` 折扣 `5%`”，上述请求的折扣为 `$7.50`，折后应付和实际收款均为 `$142.50`。响应包含自动分配的 `serialNumber`、`faceValueCents`、`discountThresholdCents`、`discountRateBps`、`discountCents` 与 `amountCents`，并满足 `faceValueCents - discountCents = amountCents = cashCents + cardCents`。同一店铺序列号唯一，自动号在事务内递增且软删除后不复用；实际收款全部加入店铺收入，不进入员工提成、工资或现金结算。旧客户端仍可显式提交序列号，但新界面不再手工输入新卡序列号。
+若店铺规则是“满 `$100.00` 折扣 `5%`”，上述请求的折扣为 `$7.50`，折后应付和实际收款均为 `$142.50`。响应包含自动分配的 `serialNumber`、`faceValueCents`、`discountThresholdCents`、`discountRateBps`、`discountCents` 与 `amountCents`，并满足 `faceValueCents - discountCents = amountCents = cashCents + cardCents`。同一店铺序列号唯一，自动号在事务内递增且软删除后不复用；界面默认显示系统建议号码，也允许改成自定义号码，服务端按规范化结果检查当前和软删除历史记录防重。实际收款全部加入店铺收入，不进入员工提成、工资或现金结算；客人后续使用礼物卡支付的大费和小费全部计入礼物卡核销支出。
 
 项目排序提交完整的未删除项目列表及当前版本，例如 `{ "type": "SERVICE", "items": [{ "id": "...", "version": 2 }] }`。服务端在同一事务中校验列表、项目归属和全部版本，再统一写入顺序；列表不完整或任一版本过期时返回 `CATALOG_ORDER_CONFLICT`，不会留下半套排序。
 
@@ -164,8 +164,11 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 - `dateFrom`、`dateTo`：营业日范围，均包含端点。
 - `membershipIds`：逗号分隔的成员 ID；普通员工即使传入其他人也只会得到本人数据。
-- `paymentMethod`：`CASH`、`CARD`、`GIFT_CARD` 或 `ALL`。
+- `paymentMethod`：`CASH`、`CARD`、`GIFT_CARD` 或 `ALL`，省略时默认 `ALL`。
 - `amountType`：`SERVICE`、`TIP` 或 `ALL`。
+- `highlightFilter`：`ALL`、`ONLY_HIGHLIGHTED` 或 `EXCLUDE_HIGHLIGHTED`。
+
+店主或经理未限定员工且选择全部金额时，汇总、明细和 CSV 会纳入店铺级礼物卡销售：`itemCount = recordCount + giftCardSaleCount`，`customerTotalPaidCents = actualServiceCollectedCents + totalTipCents + giftCardSalesAmountCents`。员工小计、明确员工筛选、仅大费、仅小费或仅高亮记工不分摊卖卡记录。`giftCardRedemptionCents = giftCardServiceCents + giftCardTipCents`，`storeIncomeCents = discountedFeePerformanceCents + totalTipCents - employeeIncomeCents + giftCardSalesAmountCents - giftCardRedemptionCents`。
 
 工资结算列表支持日期、成员和 `includeDeleted=true`。审计列表支持 `dateFrom`、`dateTo`、`entityType`、`action`、`actorUserId` 与游标分页。
 

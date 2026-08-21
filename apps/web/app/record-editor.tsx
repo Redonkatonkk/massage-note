@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
 import {
-  endLocalDateTimeForDuration,
+  adjustedEndLocalDateTime,
   localDateTimeValue,
   zonedLocalToIso,
 } from "../lib/time";
@@ -65,6 +65,23 @@ function cents(value: string, label: string): number {
 
 function draftCents(value: string): number | null {
   return /^\d+(?:\.\d{0,2})?$/.test(value.trim()) ? Math.round(Number(value) * 100) : null;
+}
+
+function serviceDurationValue(value: string): number | null {
+  const duration = Number(value);
+  return value.trim() && Number.isInteger(duration) && duration >= 1 && duration <= 720
+    ? duration
+    : null;
+}
+
+function addonDurationValue(item: AddonDraft): number {
+  const duration = Number(item.durationMinutes);
+  return item.durationMinutes.trim() &&
+    Number.isInteger(duration) &&
+    duration >= 0 &&
+    duration <= 720
+    ? duration
+    : 0;
 }
 
 function percentToBps(value: string, label: string): number {
@@ -144,6 +161,7 @@ export function RecordEditor({
   );
   const [employeeId, setEmployeeId] = useState(record.employeeMembershipId);
   const [startAt, setStartAt] = useState(initialStart);
+  const lastValidStartAt = useRef(initialStart);
   const [endAt, setEndAt] = useState(initialEnd);
   const [serviceChoice, setServiceChoice] = useState(
     service?.sourceServiceItemId ?? "__custom__",
@@ -153,6 +171,7 @@ export function RecordEditor({
   const [serviceDuration, setServiceDuration] = useState(
     service?.durationMinutes.toString() ?? "60",
   );
+  const lastValidServiceDuration = useRef(service?.durationMinutes ?? 60);
   const [serviceAmount, setServiceAmount] = useState(
     dollars(service?.amountCents ?? record.mainServiceAmountCents),
   );
@@ -200,12 +219,21 @@ export function RecordEditor({
         const savedAt = typeof draft.savedAt === "number" ? draft.savedAt : 0;
         if (draft.recordVersion === record.version && Date.now() - savedAt <= 7 * 24 * 60 * 60_000) {
           if (typeof draft.employeeId === "string") setEmployeeId(draft.employeeId);
-          if (typeof draft.startAt === "string") setStartAt(draft.startAt);
+          if (typeof draft.startAt === "string") {
+            setStartAt(draft.startAt);
+            if (draft.startAt) lastValidStartAt.current = draft.startAt;
+          }
           if (typeof draft.endAt === "string") setEndAt(draft.endAt);
           if (typeof draft.serviceChoice === "string") setServiceChoice(draft.serviceChoice);
           if (typeof draft.serviceName === "string") setServiceName(draft.serviceName);
           if (typeof draft.serviceShortName === "string") setServiceShortName(draft.serviceShortName);
-          if (typeof draft.serviceDuration === "string") setServiceDuration(draft.serviceDuration);
+          if (typeof draft.serviceDuration === "string") {
+            setServiceDuration(draft.serviceDuration);
+            const restoredDuration = serviceDurationValue(draft.serviceDuration);
+            if (restoredDuration !== null) {
+              lastValidServiceDuration.current = restoredDuration;
+            }
+          }
           if (typeof draft.serviceAmount === "string") setServiceAmount(draft.serviceAmount);
           if (typeof draft.serviceCommission === "string") setServiceCommission(draft.serviceCommission);
           if (Array.isArray(draft.addons)) setAddons(draft.addons as AddonDraft[]);
@@ -251,6 +279,44 @@ export function RecordEditor({
     initialDiscounts.map(({ key: _key, ...item }) => item),
   );
 
+  function adjustEndForDurationDelta(durationDeltaMinutes: number) {
+    if (durationDeltaMinutes === 0 || !startAt) return;
+    setEndAt((currentEnd) =>
+      adjustedEndLocalDateTime(
+        startAt,
+        currentEnd,
+        startAt,
+        durationDeltaMinutes,
+        timezone,
+      ),
+    );
+  }
+
+  function changeStartAt(value: string) {
+    if (value) {
+      setEndAt((currentEnd) =>
+        adjustedEndLocalDateTime(
+          lastValidStartAt.current,
+          currentEnd,
+          value,
+          0,
+          timezone,
+        ),
+      );
+      lastValidStartAt.current = value;
+    }
+    setStartAt(value);
+  }
+
+  function changeServiceDuration(value: string) {
+    setServiceDuration(value);
+    const nextDuration = serviceDurationValue(value);
+    if (nextDuration === null) return;
+    const durationDelta = nextDuration - lastValidServiceDuration.current;
+    lastValidServiceDuration.current = nextDuration;
+    adjustEndForDurationDelta(durationDelta);
+  }
+
   function chooseService(value: string) {
     setServiceChoice(value);
     if (value === "__custom__") return;
@@ -260,29 +326,23 @@ export function RecordEditor({
     if (!option) return;
     setServiceName(item.fullName);
     setServiceShortName(item.shortName);
-    setServiceDuration(option.durationMinutes.toString());
+    changeServiceDuration(option.durationMinutes.toString());
     setServiceAmount(dollars(option.priceCents));
-    setEndAt(endLocalDateTimeForDuration(startAt, option.durationMinutes, timezone));
   }
 
   function chooseServiceDuration(value: string) {
-    setServiceDuration(value);
+    changeServiceDuration(value);
     const item = catalog.serviceItems.find((candidate) => candidate.id === serviceChoice);
     const option = item?.priceOptions.find(
       (candidate) => candidate.durationMinutes.toString() === value,
     );
     if (option) {
       setServiceAmount(dollars(option.priceCents));
-      setEndAt(endLocalDateTimeForDuration(startAt, option.durationMinutes, timezone));
     }
   }
 
   function changeCustomServiceDuration(value: string) {
-    setServiceDuration(value);
-    const durationMinutes = Number(value);
-    if (Number.isInteger(durationMinutes) && durationMinutes >= 1 && durationMinutes <= 720) {
-      setEndAt(endLocalDateTimeForDuration(startAt, durationMinutes, timezone));
-    }
+    changeServiceDuration(value);
   }
 
   function updateAddon(key: string, changes: Partial<AddonDraft>) {
@@ -293,27 +353,59 @@ export function RecordEditor({
   }
 
   function selectAddon(key: string, value: string) {
+    const currentAddon = addons.find((item) => item.key === key);
+    const currentDuration = currentAddon ? addonDurationValue(currentAddon) : 0;
     if (value === "__custom__") {
-      updateAddon(key, {
+      const nextAddon = {
         sourceItemId: value,
         name: "自定义额外项目",
         shortName: "自定义",
         amount: "0",
         durationMinutes: "",
         commissionPercent: "",
-      });
+      };
+      updateAddon(key, nextAddon);
+      adjustEndForDurationDelta(-currentDuration);
       return;
     }
     const item = catalog.addonItems.find((candidate) => candidate.id === value);
     if (!item) return;
-    updateAddon(key, {
+    const nextAddon = {
       sourceItemId: item.id,
       name: item.name,
       shortName: item.shortName,
       amount: dollars(item.amountCents),
       durationMinutes: item.durationMinutes?.toString() ?? "",
       commissionPercent: "",
-    });
+    };
+    updateAddon(key, nextAddon);
+    adjustEndForDurationDelta(addonDurationValue({ key, ...nextAddon }) - currentDuration);
+  }
+
+  function addAddon() {
+    const firstAddon = catalog.addonItems.find(
+      (item) => item.isEnabled && !item.deletedAt,
+    );
+    const nextAddon = firstAddon
+      ? addonFromItem(firstAddon)
+      : {
+          key: crypto.randomUUID(),
+          sourceItemId: "__custom__",
+          name: "自定义额外项目",
+          shortName: "自定义",
+          amount: "0",
+          durationMinutes: "",
+          commissionPercent: "",
+        };
+    setDraftDirty(true);
+    setAddons((current) => [...current, nextAddon]);
+    adjustEndForDurationDelta(addonDurationValue(nextAddon));
+  }
+
+  function removeAddon(item: AddonDraft) {
+    setDraftDirty(true);
+    setAddons((current) => current.filter((candidate) => candidate.key !== item.key));
+    adjustEndForDurationDelta(-addonDurationValue(item));
   }
 
   function updateDiscount(key: string, changes: Partial<DiscountDraft>) {
@@ -570,7 +662,7 @@ export function RecordEditor({
             </select>
           </label>
           <label className="field-label">开始时间
-            <input type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} />
+            <input type="datetime-local" value={startAt} onChange={(event) => changeStartAt(event.target.value)} />
           </label>
           <label className="field-label">结束时间
             <input type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} />
@@ -608,7 +700,7 @@ export function RecordEditor({
         </div>
 
         <section className="editor-section">
-          <div className="section-heading"><h3>额外项目</h3><button type="button" onClick={() => { setDraftDirty(true); setAddons((current) => [...current, catalog.addonItems[0] ? addonFromItem(catalog.addonItems[0]) : { key: crypto.randomUUID(), sourceItemId: "__custom__", name: "自定义额外项目", shortName: "自定义", amount: "0", durationMinutes: "", commissionPercent: "" }]); }}>＋ 添加</button></div>
+          <div className="section-heading"><h3>额外项目</h3><button type="button" onClick={addAddon}>＋ 添加</button></div>
           {addons.length === 0 && <p className="empty-note">本单没有额外项目</p>}
           {addons.map((item) => (
             <div className="line-item" key={item.key}>
@@ -619,7 +711,7 @@ export function RecordEditor({
               {item.sourceItemId === "__custom__" && <input aria-label="额外项目名称" value={item.name} onChange={(event) => updateAddon(item.key, { name: event.target.value, shortName: event.target.value.slice(0, 30) })} />}
               <input aria-label="额外项目金额" inputMode="decimal" value={item.amount} onChange={(event) => updateAddon(item.key, { amount: event.target.value })} />
               {canManage && <input aria-label="额外项目提成百分比" inputMode="decimal" placeholder="提成 %（留空按规则）" value={item.commissionPercent} onChange={(event) => updateAddon(item.key, { commissionPercent: event.target.value })} />}
-              <button className="danger-link" type="button" onClick={() => { setDraftDirty(true); setAddons((current) => current.filter((candidate) => candidate.key !== item.key)); }}>移除</button>
+              <button className="danger-link" type="button" onClick={() => removeAddon(item)}>移除</button>
             </div>
           ))}
         </section>

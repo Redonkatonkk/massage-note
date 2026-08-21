@@ -1,9 +1,9 @@
 export const financeSummaryMetrics = [
   {
-    key: "recordCount",
-    label: "项目数量",
-    explanation: "当前筛选范围内的有效记工单数，包含已确认和待结账记录。",
-    calculation: "逐笔统计符合日期、员工、付款方式和金额类型筛选的未删除记工。",
+    key: "itemCount",
+    label: "全部项目数量",
+    explanation: "当前筛选范围内的有效记工和礼物卡销售总数量。",
+    calculation: "全部项目数量 = 记工数量 + 礼物卡销售张数。限定员工、仅大费、仅小费或仅高亮记工时，不计店铺级礼物卡销售。",
   },
   {
     key: "mainServiceAmountCents",
@@ -86,8 +86,38 @@ export const financeSummaryMetrics = [
   {
     key: "customerTotalPaidCents",
     label: "客人总付款",
-    explanation: "客人实际支付的服务费与小费总和。",
-    calculation: "客人总付款 = 实收服务费 + 小费总额。",
+    explanation: "客人实际支付的服务费、小费与购买礼物卡的实际付款总和。",
+    calculation: "客人总付款 = 实收服务费 + 小费总额 + 礼物卡销售实际收款。",
+  },
+  {
+    key: "giftCardSaleCashCents",
+    label: "卖卡现金收款",
+    explanation: "客人购买礼物卡时以现金支付的金额，不进入任何员工现金结算。",
+    calculation: "卖卡现金收款 = Σ 礼物卡销售记录中的现金付款。",
+  },
+  {
+    key: "giftCardSaleCardCents",
+    label: "卖卡刷卡收款",
+    explanation: "客人购买礼物卡时以刷卡支付的金额。",
+    calculation: "卖卡刷卡收款 = Σ 礼物卡销售记录中的刷卡付款。",
+  },
+  {
+    key: "giftCardSalesAmountCents",
+    label: "礼物卡销售收入",
+    explanation: "卖出礼物卡实际收到的全部款项，全部算作店铺收入，不参与员工分成。",
+    calculation: "礼物卡销售收入 = 卖卡现金收款 + 卖卡刷卡收款。",
+  },
+  {
+    key: "giftCardRedemptionCents",
+    label: "礼物卡核销支出",
+    explanation: "客人使用礼物卡支付的大费和小费，按店铺支出处理。",
+    calculation: "礼物卡核销支出 = 礼物卡大费 + 礼物卡小费。",
+  },
+  {
+    key: "storeIncomeCents",
+    label: "店铺收入",
+    explanation: "店铺在当前范围内的经营收入；卖卡记收入，用卡核销记支出。",
+    calculation: "店铺收入 = 折后大费业绩 + 小费总额 − 员工总收入 + 礼物卡销售收入 − 礼物卡核销支出。",
   },
   {
     key: "totalLargeFeeWageCents",
@@ -122,7 +152,7 @@ export const financeSummaryGroups: ReadonlyArray<{
     key: "overview",
     title: "先看关键结果",
     description: "先回答今天做了多少、客人付了多少、店里做出多少业绩、员工应得多少。",
-    metricKeys: ["recordCount", "customerTotalPaidCents", "discountedFeePerformanceCents", "employeeIncomeCents"],
+    metricKeys: ["itemCount", "customerTotalPaidCents", "storeIncomeCents", "discountedFeePerformanceCents", "employeeIncomeCents"],
     emphasis: true,
   },
   {
@@ -136,6 +166,12 @@ export const financeSummaryGroups: ReadonlyArray<{
     title: "收款构成",
     description: "把现金、刷卡、礼物卡、大费和小费分开，便于核对收款渠道。",
     metricKeys: ["cashServiceCents", "cardServiceCents", "giftCardServiceCents", "cashTipCents", "cardTipCents", "giftCardTipCents", "totalTipCents"],
+  },
+  {
+    key: "gift-cards",
+    title: "礼物卡与店铺收入",
+    description: "卖卡全部计入店铺收入；客人使用礼物卡付款时，核销金额计为店铺支出。",
+    metricKeys: ["giftCardSaleCashCents", "giftCardSaleCardCents", "giftCardSalesAmountCents", "giftCardRedemptionCents"],
   },
   {
     key: "wages",

@@ -9,6 +9,7 @@ import type { FinanceQuery } from "@massage-note/contracts";
 import {
   businessDateFor,
   calculatePayrollBalance,
+  calculateStoreIncome,
   hasStoreCapability,
 } from "@massage-note/domain";
 import { PrismaService } from "../database/prisma.service.js";
@@ -18,8 +19,10 @@ const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
 
 interface FinanceTotals {
+  itemCount: number;
   recordCount: number;
   incompleteRecordCount: number;
+  giftCardSaleCount: number;
   mainServiceAmountCents: bigint;
   addonTotalCents: bigint;
   grossFeeBaseCents: bigint;
@@ -34,6 +37,11 @@ interface FinanceTotals {
   giftCardTipCents: bigint;
   totalTipCents: bigint;
   customerTotalPaidCents: bigint;
+  giftCardSaleCashCents: bigint;
+  giftCardSaleCardCents: bigint;
+  giftCardSalesAmountCents: bigint;
+  giftCardRedemptionCents: bigint;
+  storeIncomeCents: bigint;
   totalLargeFeeWageCents: bigint;
   employeeIncomeCents: bigint;
   cashAcquiredServiceWageCents: bigint;
@@ -48,7 +56,10 @@ export class FinanceQueriesService {
 
   async summary(actor: User, storeId: string, query: FinanceQuery) {
     const context = await this.resolveQueryContext(actor, storeId, query);
-    const records = await this.findRecords(storeId, context);
+    const [records, giftCardSales] = await Promise.all([
+      this.findRecords(storeId, context),
+      this.findGiftCardSales(storeId, context),
+    ]);
     const total = this.emptyTotals();
     const employees = new Map<
       string,
@@ -71,6 +82,16 @@ export class FinanceQueriesService {
         ...this.emptyTotals(),
       };
       this.addRecord(day, record, context.query);
+      days.set(businessDate, day);
+    }
+    for (const sale of giftCardSales) {
+      this.addGiftCardSale(total, sale, context.query);
+      const businessDate = dateOnly(sale.businessDate);
+      const day = days.get(businessDate) ?? {
+        businessDate,
+        ...this.emptyTotals(),
+      };
+      this.addGiftCardSale(day, sale, context.query);
       days.set(businessDate, day);
     }
     const balances = await Promise.all(
@@ -148,7 +169,10 @@ export class FinanceQueriesService {
 
   async details(actor: User, storeId: string, query: FinanceQuery) {
     const context = await this.resolveQueryContext(actor, storeId, query);
-    const records = await this.findRecords(storeId, context);
+    const [records, giftCardSales] = await Promise.all([
+      this.findRecords(storeId, context),
+      this.findGiftCardSales(storeId, context),
+    ]);
     return {
       filters: {
         dateFrom: context.dateFrom,
@@ -159,16 +183,18 @@ export class FinanceQueriesService {
         highlightFilter: context.query.highlightFilter,
       },
       records,
+      giftCardSales,
     };
   }
 
   async exportCsv(actor: User, storeId: string, query: FinanceQuery) {
     const result = await this.details(actor, storeId, query);
     const headers = [
-      "营业日", "员工", "开始时间", "结束时间", "主要项目", "额外项目",
+      "记录类型", "营业日", "员工／操作人", "开始时间", "结束时间", "主要项目", "额外项目",
       "大费基数", "折扣", "折后大费业绩", "现金大费", "刷卡大费",
       "礼物卡序列号", "礼物卡大费", "现金小费", "刷卡小费", "礼物卡小费",
       "大费工资", "员工总收入", "高亮标记", "状态", "备注",
+      "卖卡现金收款", "卖卡刷卡收款", "卖卡实际收款",
     ];
     const cents = (value: bigint | null) => ((value ?? 0n) / 100n).toString() + "." + ((value ?? 0n) % 100n).toString().padStart(2, "0");
     const cell = (value: unknown) => {
@@ -176,7 +202,8 @@ export class FinanceQueriesService {
       if (/^[=+\-@]/.test(text)) text = `'${text}`;
       return `"${text.replaceAll('"', '""')}"`;
     };
-    const rows = result.records.map((record) => [
+    const workRows = result.records.map((record) => [
+      "记工",
       dateOnly(record.businessDate),
       record.employee.displayName,
       record.startAt.toISOString(),
@@ -198,7 +225,38 @@ export class FinanceQueriesService {
       record.isHighlighted ? "高亮" : "普通",
       record.status === "CONFIRMED" ? "已确认" : "待结账",
       record.note,
+      "",
+      "",
+      "",
     ].map(cell).join(","));
+    const giftCardSaleRows = result.giftCardSales.map((sale) => [
+      "礼物卡销售",
+      dateOnly(sale.businessDate),
+      sale.operator.displayName,
+      "",
+      "",
+      `礼物卡 ${sale.serialNumber}`,
+      "",
+      "",
+      cents(sale.discountCents),
+      "",
+      "",
+      "",
+      sale.serialNumber,
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "已确认",
+      "",
+      cents(sale.cashCents),
+      cents(sale.cardCents),
+      cents(sale.amountCents),
+    ].map(cell).join(","));
+    const rows = [...workRows, ...giftCardSaleRows];
     return `\uFEFF${headers.map(cell).join(",")}\r\n${rows.join("\r\n")}\r\n`;
   }
 
@@ -270,7 +328,14 @@ export class FinanceQueriesService {
         messageZh: "筛选条件包含不属于该店的员工",
       });
     }
-    return { query, dateFrom, dateTo, membershipIds };
+    return {
+      query,
+      dateFrom,
+      dateTo,
+      membershipIds,
+      includeStoreLevelGiftCardSales:
+        mayReadAll && query.membershipIds.length === 0,
+    };
   }
 
   private async findRecords(
@@ -307,6 +372,44 @@ export class FinanceQueriesService {
       },
     });
     return records.filter((record) => this.matchesPaymentFilter(record, context.query));
+  }
+
+  private async findGiftCardSales(
+    storeId: string,
+    context: {
+      dateFrom: string;
+      dateTo: string;
+      query: FinanceQuery;
+      includeStoreLevelGiftCardSales: boolean;
+    },
+  ) {
+    if (
+      !context.includeStoreLevelGiftCardSales ||
+      context.query.amountType !== "ALL" ||
+      context.query.highlightFilter === "ONLY_HIGHLIGHTED" ||
+      context.query.paymentMethod === "GIFT_CARD"
+    ) {
+      return [];
+    }
+    return this.prisma.giftCardSale.findMany({
+      where: {
+        storeId,
+        businessDate: {
+          gte: dateAtUtc(context.dateFrom),
+          lte: dateAtUtc(context.dateTo),
+        },
+        ...(context.query.paymentMethod === "CASH"
+          ? { cashCents: { gt: 0 } }
+          : context.query.paymentMethod === "CARD"
+            ? { cardCents: { gt: 0 } }
+            : {}),
+        deletedAt: null,
+      },
+      include: {
+        operator: { select: { id: true, displayName: true, role: true } },
+      },
+      orderBy: [{ businessDate: "desc" }, { createdAt: "desc" }],
+    });
   }
 
   private matchesPaymentFilter(
@@ -367,6 +470,7 @@ export class FinanceQueriesService {
     const includeGiftCard =
       query.paymentMethod === "ALL" || query.paymentMethod === "GIFT_CARD";
     totals.recordCount += 1;
+    totals.itemCount += 1;
     if (record.status === "PENDING_PAYMENT") totals.incompleteRecordCount += 1;
     if (includeService) {
       totals.mainServiceAmountCents += record.mainServiceAmountCents;
@@ -397,8 +501,6 @@ export class FinanceQueriesService {
       totals.giftCardTipCents += giftCardTip;
       totals.totalTipCents += cashTip + cardTip + giftCardTip;
     }
-    totals.customerTotalPaidCents =
-      totals.actualServiceCollectedCents + totals.totalTipCents;
     totals.employeeIncomeCents +=
       (includeService ? record.totalLargeFeeWageCents : 0n) +
       (includeTip
@@ -406,6 +508,38 @@ export class FinanceQueriesService {
           (includeCard ? record.cardTipCents ?? 0n : 0n)
           + (includeGiftCard ? record.giftCardTipCents ?? 0n : 0n)
         : 0n);
+    this.recalculateDerivedTotals(totals);
+  }
+
+  private addGiftCardSale(
+    totals: FinanceTotals,
+    sale: { cashCents: bigint; cardCents: bigint },
+    query: FinanceQuery,
+  ) {
+    const cashCents =
+      query.paymentMethod === "ALL" || query.paymentMethod === "CASH"
+        ? sale.cashCents
+        : 0n;
+    const cardCents =
+      query.paymentMethod === "ALL" || query.paymentMethod === "CARD"
+        ? sale.cardCents
+        : 0n;
+    totals.itemCount += 1;
+    totals.giftCardSaleCount += 1;
+    totals.giftCardSaleCashCents += cashCents;
+    totals.giftCardSaleCardCents += cardCents;
+    totals.giftCardSalesAmountCents += cashCents + cardCents;
+    this.recalculateDerivedTotals(totals);
+  }
+
+  private recalculateDerivedTotals(totals: FinanceTotals) {
+    totals.giftCardRedemptionCents =
+      totals.giftCardServiceCents + totals.giftCardTipCents;
+    totals.customerTotalPaidCents =
+      totals.actualServiceCollectedCents +
+      totals.totalTipCents +
+      totals.giftCardSalesAmountCents;
+    totals.storeIncomeCents = calculateStoreIncome(totals);
   }
 
   private async calculateMembershipBalance(
@@ -492,8 +626,10 @@ export class FinanceQueriesService {
 
   private emptyTotals(): FinanceTotals {
     return {
+      itemCount: 0,
       recordCount: 0,
       incompleteRecordCount: 0,
+      giftCardSaleCount: 0,
       mainServiceAmountCents: 0n,
       addonTotalCents: 0n,
       grossFeeBaseCents: 0n,
@@ -508,6 +644,11 @@ export class FinanceQueriesService {
       giftCardTipCents: 0n,
       totalTipCents: 0n,
       customerTotalPaidCents: 0n,
+      giftCardSaleCashCents: 0n,
+      giftCardSaleCardCents: 0n,
+      giftCardSalesAmountCents: 0n,
+      giftCardRedemptionCents: 0n,
+      storeIncomeCents: 0n,
       totalLargeFeeWageCents: 0n,
       employeeIncomeCents: 0n,
       cashAcquiredServiceWageCents: 0n,

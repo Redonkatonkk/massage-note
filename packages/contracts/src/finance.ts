@@ -158,7 +158,7 @@ export const financeQuerySchema = z
     dateFrom: businessDateSchema.optional(),
     dateTo: businessDateSchema.optional(),
     membershipIds: membershipIdsQuerySchema,
-    paymentMethod: z.enum(["ALL", "CASH", "CARD", "GIFT_CARD"]).default("CARD"),
+    paymentMethod: z.enum(["ALL", "CASH", "CARD", "GIFT_CARD"]).default("ALL"),
     amountType: z.enum(["ALL", "SERVICE", "TIP"]).default("ALL"),
     highlightFilter: z
       .enum(["ALL", "ONLY_HIGHLIGHTED", "EXCLUDE_HIGHLIGHTED"])

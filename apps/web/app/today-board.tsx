@@ -410,7 +410,8 @@ export function TodayBoard({
         <div><span>小费总额</span><strong>{money(board.statistics.totalTipCents)}</strong></div>
         <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
         <div><span>礼物卡销售</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>
-        <div title="大费总额－折扣总额＋小费总额－员工应得＋礼物卡销售"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
+        <div><span>礼物卡核销支出</span><strong>{money(board.statistics.giftCardRedemptionCents)}</strong></div>
+        <div title="折后大费业绩＋小费总额－员工应得＋礼物卡销售－礼物卡核销支出"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
       </section>}
 
       <section className="board-toolbar" aria-label="今日操作">

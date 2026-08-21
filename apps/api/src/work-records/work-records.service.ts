@@ -521,23 +521,6 @@ export class WorkRecordsService {
           );
           const serviceDurationChanged =
             service.durationMinutes !== record.serviceSnapshot.durationMinutes;
-          const endAt =
-            input.endAt === undefined
-              ? serviceDurationChanged
-                ? new Date(startAt.getTime() + service.durationMinutes * 60_000)
-                : record.endAt
-              : input.endAt === null
-                ? null
-                : new Date(input.endAt);
-          if (endAt && endAt < startAt) {
-            throw new BadRequestException({
-              code: "END_BEFORE_START",
-              messageZh: "结束时间不能早于开始时间",
-            });
-          }
-          const actualDurationMinutes = endAt
-            ? Math.round((endAt.getTime() - startAt.getTime()) / 60_000)
-            : null;
           const addons = await this.buildDesiredAddons(
             transaction,
             storeId,
@@ -550,6 +533,46 @@ export class WorkRecordsService {
             employeeOrTimeChanged,
             mayOverrideCommission,
           );
+          const previousAddonDurationMinutes = record.addonSnapshots.reduce(
+            (total, addon) => total + (addon.durationMinutes ?? 0),
+            0,
+          );
+          const nextAddonDurationMinutes = addons.reduce(
+            (total, addon) => total + (addon.durationMinutes ?? 0),
+            0,
+          );
+          const configuredDurationDeltaMinutes =
+            service.durationMinutes - record.serviceSnapshot.durationMinutes +
+            nextAddonDurationMinutes - previousAddonDurationMinutes;
+          const endAt =
+            input.endAt === undefined
+              ? record.endAt
+                ? new Date(
+                    startAt.getTime() +
+                      Math.max(
+                        0,
+                        record.endAt.getTime() - record.startAt.getTime() +
+                          configuredDurationDeltaMinutes * 60_000,
+                      ),
+                  )
+                : serviceDurationChanged || configuredDurationDeltaMinutes !== 0
+                  ? new Date(
+                      startAt.getTime() +
+                        (service.durationMinutes + nextAddonDurationMinutes) * 60_000,
+                    )
+                  : null
+              : input.endAt === null
+                ? null
+                : new Date(input.endAt);
+          if (endAt && endAt < startAt) {
+            throw new BadRequestException({
+              code: "END_BEFORE_START",
+              messageZh: "结束时间不能早于开始时间",
+            });
+          }
+          const actualDurationMinutes = endAt
+            ? Math.round((endAt.getTime() - startAt.getTime()) / 60_000)
+            : null;
           const manualDiscounts = await this.buildDesiredDiscounts(
             transaction,
             storeId,

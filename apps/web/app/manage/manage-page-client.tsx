@@ -455,14 +455,14 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, 
   const amountCents = addon?.amountCents ?? discount?.amountCents ?? 0;
   const updatePriceOption = (key: string, changes: Partial<PriceOptionDraft>) => setPriceOptions((current) => current.map((option) => option.key === key ? { ...option, ...changes } : option));
 
-  return <article className={`catalog-item ${deleted ? "deleted" : ""}`}>
+  return <article className={`catalog-item catalog-item--${type.toLowerCase()} ${deleted ? "deleted" : ""}`}>
     <div className="catalog-summary">
       <strong>{shortName}</strong><span>{name}</span>
       {service ? <div className="catalog-price-summary">{service.priceOptions.map((option) => <em key={option.id}>{option.durationMinutes} 分钟 · {money(option.priceCents)}</em>)}</div> : <em>{type === "DISCOUNT" ? `-${money(amountCents)}` : money(amountCents)}</em>}
       <small>{type !== "DISCOUNT" ? (commission ? `默认提成 ${commission}%` : "无项目默认提成") : "折扣项目"}</small>
       <small>{deleted ? "已删除，可恢复" : item.isEnabled ? "启用中" : "已停用"}</small>
     </div>
-    {canManage && !deleted && <div className="catalog-edit-fields">
+    {canManage && !deleted && <div className={`catalog-edit-fields catalog-edit-fields--${type.toLowerCase()}`}>
       <div className="catalog-order-actions" aria-label={`${item.shortName}排序`}><button className="secondary-action compact" disabled={busy || !canMoveUp} type="button" onClick={() => void onMove(-1)}>↑ 上移</button><button className="secondary-action compact" disabled={busy || !canMoveDown} type="button" onClick={() => void onMove(1)}>↓ 下移</button></div>
       <input aria-label={`${item.shortName}名称`} value={name} onChange={(event) => setName(event.target.value)} />
       <input aria-label={`${item.shortName}简称`} value={shortName} onChange={(event) => setShortName(event.target.value)} />

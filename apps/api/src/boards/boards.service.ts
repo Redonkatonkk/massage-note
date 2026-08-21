@@ -12,7 +12,11 @@ import type {
   ReorderBoardInput,
   UpdateBoardRowInput,
 } from "@massage-note/contracts";
-import { businessDateFor, hasStoreCapability } from "@massage-note/domain";
+import {
+  businessDateFor,
+  calculateStoreIncome,
+  hasStoreCapability,
+} from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
@@ -32,6 +36,7 @@ interface BoardStatistics {
   giftCardCashCents: bigint;
   giftCardCardCents: bigint;
   giftCardSalesAmountCents: bigint;
+  giftCardRedemptionCents: bigint;
   storeIncomeCents: bigint;
 }
 
@@ -178,8 +183,8 @@ export class BoardsService {
       statistics.giftCardCashCents += sale.cashCents;
       statistics.giftCardCardCents += sale.cardCents;
       statistics.giftCardSalesAmountCents += sale.amountCents;
-      statistics.storeIncomeCents += sale.amountCents;
     }
+    statistics.storeIncomeCents = calculateStoreIncome(statistics);
     return {
       id: board?.id ?? null,
       storeId,
@@ -718,9 +723,11 @@ export class BoardsService {
       discountedFeePerformanceCents: bigint;
       totalTipCents: bigint | null;
       totalLargeFeeWageCents: bigint;
+      giftCardServiceCents: bigint | null;
+      giftCardTipCents: bigint | null;
     }>,
   ) {
-    return records.reduce<BoardStatistics>(
+    const statistics = records.reduce<BoardStatistics>(
       (total, record) => {
         const totalTipCents = record.totalTipCents ?? 0n;
         const employeeIncomeCents =
@@ -743,12 +750,11 @@ export class BoardsService {
           giftCardCashCents: total.giftCardCashCents,
           giftCardCardCents: total.giftCardCardCents,
           giftCardSalesAmountCents: total.giftCardSalesAmountCents,
-          storeIncomeCents:
-            total.storeIncomeCents +
-            record.grossFeeBaseCents -
-            record.discountTotalCents +
-            totalTipCents -
-            employeeIncomeCents,
+          giftCardRedemptionCents:
+            total.giftCardRedemptionCents +
+            (record.giftCardServiceCents ?? 0n) +
+            (record.giftCardTipCents ?? 0n),
+          storeIncomeCents: total.storeIncomeCents,
         };
       },
       {
@@ -763,9 +769,12 @@ export class BoardsService {
         giftCardCashCents: 0n,
         giftCardCardCents: 0n,
         giftCardSalesAmountCents: 0n,
+        giftCardRedemptionCents: 0n,
         storeIncomeCents: 0n,
       },
     );
+    statistics.storeIncomeCents = calculateStoreIncome(statistics);
+    return statistics;
   }
 
   private async findStore(

@@ -6,9 +6,36 @@ import {
   calculatePersonalClosingPaymentDividends,
   calculatePayrollBalance,
   calculatePayrollPaymentTotal,
+  calculateStoreIncome,
   calculateWorkRecordFinance,
   type WorkRecordFinanceInput,
 } from "../src/index.js";
+
+describe("店铺收入", () => {
+  it("卖卡计入收入，礼物卡核销计入支出", () => {
+    expect(
+      calculateStoreIncome({
+        discountedFeePerformanceCents: 20_000n,
+        totalTipCents: 5_000n,
+        employeeIncomeCents: 17_000n,
+        giftCardSalesAmountCents: 9_500n,
+        giftCardRedemptionCents: 2_500n,
+      }),
+    ).toBe(15_000n);
+  });
+
+  it("允许礼物卡核销使当期店铺收入为负数", () => {
+    expect(
+      calculateStoreIncome({
+        discountedFeePerformanceCents: 1_000n,
+        totalTipCents: 0n,
+        employeeIncomeCents: 600n,
+        giftCardSalesAmountCents: 0n,
+        giftCardRedemptionCents: 1_000n,
+      }),
+    ).toBe(-600n);
+  });
+});
 
 function record(
   overrides: Partial<WorkRecordFinanceInput> = {},

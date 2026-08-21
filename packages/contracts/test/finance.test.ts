@@ -35,14 +35,14 @@ describe("日结与财务契约", () => {
     ).toBe(true);
   });
 
-  it("财务查询默认刷卡和全部金额，并解析员工列表", () => {
+  it("财务查询默认全部付款方式和全部金额，并解析员工列表", () => {
     expect(
       financeQuerySchema.parse({
         membershipIds:
           "56d4a93a-5a73-49df-93c2-704ae844faa4,115e9be0-c76e-4d8d-bcec-55618c74450e",
       }),
     ).toMatchObject({
-      paymentMethod: "CARD",
+      paymentMethod: "ALL",
       amountType: "ALL",
       highlightFilter: "ALL",
       membershipIds: [

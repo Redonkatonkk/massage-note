@@ -321,6 +321,7 @@ export interface BoardStatistics {
   giftCardCashCents: number;
   giftCardCardCents: number;
   giftCardSalesAmountCents: number;
+  giftCardRedemptionCents: number;
   storeIncomeCents: number;
 }
 
@@ -367,8 +368,10 @@ export interface CurrentBusinessDay {
 }
 
 export interface FinanceTotals {
+  itemCount: number;
   recordCount: number;
   incompleteRecordCount: number;
+  giftCardSaleCount: number;
   mainServiceAmountCents: number;
   addonTotalCents: number;
   grossFeeBaseCents: number;
@@ -383,6 +386,11 @@ export interface FinanceTotals {
   giftCardTipCents: number;
   totalTipCents: number;
   customerTotalPaidCents: number;
+  giftCardSaleCashCents: number;
+  giftCardSaleCardCents: number;
+  giftCardSalesAmountCents: number;
+  giftCardRedemptionCents: number;
+  storeIncomeCents: number;
   totalLargeFeeWageCents: number;
   employeeIncomeCents: number;
   cashAcquiredServiceWageCents: number;
@@ -432,6 +440,17 @@ export interface FinanceDetailsResponse {
   records: Array<WorkRecord & {
     employee: { id: string; displayName: string; role: StoreRole };
   }>;
+  giftCardSales: Array<{
+    id: string;
+    businessDate: string;
+    serialNumber: string;
+    faceValueCents: number;
+    discountCents: number;
+    cashCents: number;
+    cardCents: number;
+    amountCents: number;
+    operator: { id: string; displayName: string; role: StoreRole };
+  }>;
 }
 
 export interface CashSettlementRow {
@@ -470,6 +489,7 @@ export interface ClosingWarning {
 }
 
 export interface ClosingTotals {
+  itemCount: number;
   recordCount: number;
   grossFeeBaseCents: number;
   discountTotalCents: number;
@@ -483,14 +503,17 @@ export interface ClosingTotals {
   giftCardSaleCashCents: number;
   giftCardSaleCardCents: number;
   giftCardSalesAmountCents: number;
+  giftCardRedemptionCents: number;
   storeIncomeCents: number;
 }
 
 export interface ClosingEmployeeTotals extends Omit<ClosingTotals,
+  | "itemCount"
   | "giftCardSaleCount"
   | "giftCardSaleCashCents"
   | "giftCardSaleCardCents"
   | "giftCardSalesAmountCents"
+  | "giftCardRedemptionCents"
   | "storeIncomeCents"
 > {
   membershipId: string;

@@ -480,6 +480,75 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     expect(updated.actualDurationMinutes).toBe(90);
   });
 
+  it("增减额外项目会调整结束时间，修改开始时间会保留工作时长", async () => {
+    const startAt = new Date();
+    startAt.setUTCSeconds(0, 0);
+    const durationRecord = await workRecords.create(
+      actor(employeeId),
+      storeId,
+      {
+        employeeMembershipId,
+        startAt: startAt.toISOString(),
+        serviceItemId,
+        serviceDurationMinutes: 60,
+      },
+      "addon-duration-create-key-0001",
+      "addon-duration-create",
+    );
+
+    const withAddon = await workRecords.update(
+      actor(employeeId),
+      storeId,
+      durationRecord.id,
+      {
+        version: durationRecord.version,
+        addons: [
+          {
+            sourceItemId: addonItemId,
+            isCustom: false,
+            name: "热石",
+            shortName: "热石",
+            amountCents: 2_500,
+          },
+        ],
+      },
+      "addon-duration-add-key-0001",
+      "addon-duration-add",
+    );
+    expect(withAddon.endAt).toEqual(new Date(startAt.getTime() + 75 * 60_000));
+    expect(withAddon.actualDurationMinutes).toBe(75);
+
+    const shiftedStart = new Date(startAt.getTime() + 30 * 60_000);
+    const shifted = await workRecords.update(
+      actor(employeeId),
+      storeId,
+      durationRecord.id,
+      {
+        version: withAddon.version,
+        startAt: shiftedStart.toISOString(),
+      },
+      "addon-duration-shift-key-0001",
+      "addon-duration-shift",
+    );
+    expect(shifted.endAt).toEqual(
+      new Date(shiftedStart.getTime() + 75 * 60_000),
+    );
+    expect(shifted.actualDurationMinutes).toBe(75);
+
+    const withoutAddon = await workRecords.update(
+      actor(employeeId),
+      storeId,
+      durationRecord.id,
+      { version: shifted.version, addons: [] },
+      "addon-duration-remove-key-0001",
+      "addon-duration-remove",
+    );
+    expect(withoutAddon.endAt).toEqual(
+      new Date(shiftedStart.getTime() + 60 * 60_000),
+    );
+    expect(withoutAddon.actualDurationMinutes).toBe(60);
+  });
+
   it("周一至周四达到大费门槛会自动折扣且不减少员工收入", async () => {
     await prisma.store.update({
       where: { id: storeId },

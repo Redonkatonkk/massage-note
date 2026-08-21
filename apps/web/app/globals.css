@@ -2535,6 +2535,7 @@ h2 {
 .catalog-create { display: grid; grid-template-columns: 1.3fr .7fr minmax(240px, 1.6fr) .8fr auto; gap: 8px; padding: 13px; border: 1px dashed #d9c5b3; border-radius: 15px; background: #fff; }
 .catalog-create h4 { grid-column: 1 / -1; margin: 0 0 3px; color: var(--brand); font-size: .94rem; }
 .catalog-item { display: grid; grid-template-columns: minmax(190px, .8fr) minmax(0, 2fr); align-items: center; gap: 15px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; }
+.catalog-item--addon { grid-template-columns: minmax(190px, 320px) minmax(0, 1fr); }
 .catalog-item.deleted { background: #f8f6f3; border-style: dashed; }
 .catalog-summary { display: grid; grid-template-columns: auto 1fr; gap: 3px 9px; align-items: baseline; }
 .catalog-summary strong { color: var(--brand); }
@@ -2544,6 +2545,7 @@ h2 {
 .catalog-price-summary { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
 .catalog-price-summary em { padding: 4px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-size: .8rem; }
 .catalog-edit-fields { display: grid; grid-template-columns: auto 1.2fr .7fr minmax(260px, 1.6fr) .8fr auto auto; gap: 7px; align-items: center; }
+.catalog-edit-fields--addon { grid-template-columns: auto minmax(180px, 280px) minmax(100px, 150px) minmax(110px, 150px) minmax(100px, 140px) minmax(150px, 200px) auto auto; justify-content: start; }
 .catalog-order-actions { display: flex; gap: 5px; }
 .catalog-order-actions .secondary-action { min-height: 40px; white-space: nowrap; }
 .catalog-price-options-edit { min-width: 0; }
@@ -2560,6 +2562,12 @@ h2 {
 .audit-detail > div { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .audit-detail section { min-width: 0; }
 .audit-detail pre { max-height: 260px; overflow: auto; margin: 7px 0 0; padding: 11px; border-radius: 10px; background: #28231f; color: #f5eee7; font: 12px/1.45 ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; }
+
+@media (max-width: 1500px) {
+  .catalog-item--addon { grid-template-columns: 1fr; }
+  .catalog-edit-fields--addon { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .catalog-edit-fields--addon .catalog-order-actions { grid-column: 1 / -1; }
+}
 
 @media (max-width: 900px) {
   .manage-form-grid { grid-template-columns: 1fr 1fr; }

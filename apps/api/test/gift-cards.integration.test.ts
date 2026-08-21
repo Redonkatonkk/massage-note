@@ -1,10 +1,13 @@
 import { randomInt, randomUUID } from "node:crypto";
 import { ConflictException } from "@nestjs/common";
+import { financeQuerySchema } from "@massage-note/contracts";
 import type { User } from "@massage-note/database";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BoardsService } from "../src/boards/boards.service.js";
 import { IdempotencyService } from "../src/common/idempotency.service.js";
 import { PrismaService } from "../src/database/prisma.service.js";
+import { ClosingsService } from "../src/finance/closings.service.js";
+import { FinanceQueriesService } from "../src/finance/finance-queries.service.js";
 import { GiftCardsService } from "../src/gift-cards/gift-cards.service.js";
 import { StoreAccessService } from "../src/stores/store-access.service.js";
 
@@ -14,6 +17,8 @@ const access = new StoreAccessService(prisma);
 const idempotency = new IdempotencyService(prisma);
 const giftCards = new GiftCardsService(prisma, access, idempotency);
 const boards = new BoardsService(prisma, access, idempotency);
+const closings = new ClosingsService(prisma, access, idempotency);
+const finance = new FinanceQueriesService(prisma, access);
 const storeId = randomUUID();
 const ownerId = randomUUID();
 const employeeId = randomUUID();
@@ -330,6 +335,73 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     ]);
     await expect(giftCards.list(actor(employeeId), storeId)).rejects.toMatchObject({
       response: expect.objectContaining({ code: "GIFT_CARD_LEDGER_FORBIDDEN" }),
+    });
+  });
+
+  it("财务汇总和日结把卖卡记为收入、用卡核销记为支出", async () => {
+    const query = financeQuerySchema.parse({
+      dateFrom: businessDate,
+      dateTo: businessDate,
+    });
+    const [board, summary, details, closing] = await Promise.all([
+      boards.getBoard(actor(ownerId), storeId, businessDate),
+      finance.summary(actor(ownerId), storeId, query),
+      finance.details(actor(ownerId), storeId, query),
+      closings.preview(actor(ownerId), storeId, businessDate),
+    ]);
+
+    expect(board.statistics).toMatchObject({
+      recordCount: 2,
+      giftCardSaleCount: 3,
+      giftCardSalesAmountCents: 28_500n,
+      giftCardRedemptionCents: 2_500n,
+      storeIncomeCents: 26_800n,
+    });
+    expect(summary.filters.paymentMethod).toBe("ALL");
+    expect(summary.totals).toMatchObject({
+      itemCount: 5,
+      recordCount: 2,
+      giftCardSaleCount: 3,
+      customerTotalPaidCents: 31_000n,
+      giftCardSaleCashCents: 21_500n,
+      giftCardSaleCardCents: 7_000n,
+      giftCardSalesAmountCents: 28_500n,
+      giftCardRedemptionCents: 2_500n,
+      storeIncomeCents: 26_800n,
+    });
+    expect(summary.days).toEqual([
+      expect.objectContaining({
+        businessDate,
+        itemCount: 5,
+        customerTotalPaidCents: 31_000n,
+      }),
+    ]);
+    expect(details.records).toHaveLength(2);
+    expect(details.giftCardSales).toHaveLength(3);
+    expect(closing.storeTotals).toMatchObject({
+      itemCount: 5,
+      customerTotalPaidCents: 31_000,
+      giftCardSalesAmountCents: 28_500,
+      giftCardRedemptionCents: 2_500,
+      storeIncomeCents: 26_800,
+    });
+
+    const employeeOnly = await finance.summary(
+      actor(ownerId),
+      storeId,
+      financeQuerySchema.parse({
+        dateFrom: businessDate,
+        dateTo: businessDate,
+        membershipIds: employeeMembershipId,
+      }),
+    );
+    expect(employeeOnly.totals).toMatchObject({
+      itemCount: 2,
+      recordCount: 2,
+      giftCardSaleCount: 0,
+      customerTotalPaidCents: 2_500n,
+      giftCardRedemptionCents: 2_500n,
+      storeIncomeCents: -1_700n,
     });
   });
 

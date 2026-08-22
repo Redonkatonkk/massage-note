@@ -151,4 +151,13 @@ describe("bilingual UI translation", () => {
       "2026-08-22 Daily turnover",
     );
   });
+
+  it("explains that today's summary has no separate tips card", () => {
+    expect(
+      translateText(
+        "今日总结显示大费总额、折扣总额、礼物卡销售、礼物卡核销支出和店铺收入，不单独显示小费总额；店铺收入仍按“折后大费业绩＋小费－员工总收入＋礼物卡销售实际收款－礼物卡核销支出”计算。",
+        "en-US",
+      ),
+    ).toContain("without a separate total-tips card");
+  });
 });

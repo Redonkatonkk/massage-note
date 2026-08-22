@@ -407,7 +407,6 @@ export function TodayBoard({
     <>
       {canManage && <section className="summary-strip" aria-label="今日全店汇总">
         <div><span>大费总额（折扣前）</span><strong>{money(board.statistics.grossFeeBaseCents)}</strong></div>
-        <div><span>小费总额</span><strong>{money(board.statistics.totalTipCents)}</strong></div>
         <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
         <div><span>礼物卡销售</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>
         <div><span>礼物卡核销支出</span><strong>{money(board.statistics.giftCardRedemptionCents)}</strong></div>

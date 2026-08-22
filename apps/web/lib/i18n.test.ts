@@ -138,4 +138,17 @@ describe("bilingual UI translation", () => {
     expect(translateText("默认使用系统建议号码；也可以直接修改为自定义号码，保存时会检查同店重复。多人同时使用默认号码时，以保存后的号码为准。", "en-US"))
       .toContain("edit it to a custom number");
   });
+
+  it("translates daily turnover in the daily subtotal table", () => {
+    expect(translateText("今日流水", "en-US")).toBe("Daily turnover");
+    expect(
+      translateText(
+        "按营业日观察变化；今日流水为折后大费加礼物卡销售、减礼物卡核销支出，点击金额可查看当天组成。",
+        "en-US",
+      ),
+    ).toContain("Daily turnover is performance after discounts");
+    expect(translateText("2026-08-22今日流水", "en-US")).toBe(
+      "2026-08-22 Daily turnover",
+    );
+  });
 });

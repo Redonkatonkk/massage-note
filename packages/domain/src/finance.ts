@@ -66,6 +66,24 @@ export interface StoreIncomeInput {
   giftCardRedemptionCents: Cents;
 }
 
+export interface DailyTurnoverInput {
+  discountedFeePerformanceCents: Cents;
+  giftCardSalesAmountCents: Cents;
+  giftCardRedemptionCents: Cents;
+}
+
+/**
+ * 每日流水只看折后项目业绩与礼物卡净流入，不计小费、员工收入或实际服务付款拆分。
+ * 核销可能高于当天业绩与卖卡收入，因此结果允许为负数。
+ */
+export function calculateDailyTurnover(input: DailyTurnoverInput): bigint {
+  return (
+    cents(input.discountedFeePerformanceCents) +
+    cents(input.giftCardSalesAmountCents) -
+    cents(input.giftCardRedemptionCents)
+  );
+}
+
 /**
  * 店铺经营收入把卖卡实收记为收入，把客人用礼物卡付款的金额记为支出。
  * 结果允许为负数，因此返回 bigint 而不是只允许非负数的 Cents。

@@ -1829,22 +1829,16 @@ h2 {
   }
 
   .record-track {
-    display: grid;
-    overflow: visible;
+    scroll-padding-inline: 12px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
     padding: 0 12px 12px;
   }
 
   .record-card,
   .add-record {
-    width: 100%;
-    min-width: 0;
     min-height: 138px;
-  }
-
-  .add-record {
-    min-height: 74px;
-    grid-auto-flow: column;
-    justify-content: center;
+    scroll-snap-align: start;
   }
 
   .employee-totals {

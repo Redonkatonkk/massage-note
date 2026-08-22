@@ -431,7 +431,7 @@ export interface FinanceSummaryResponse {
       role: StoreRole;
     }
   >;
-  days: Array<FinanceTotals & { businessDate: string }>;
+  days: Array<FinanceTotals & { businessDate: string; dailyTurnoverCents: number }>;
   balances: EmployeeBalance[];
 }
 

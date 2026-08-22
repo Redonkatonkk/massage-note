@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DomainError,
+  calculateDailyTurnover,
   calculateDailyCashSettlement,
   calculatePersonalClosingCashToSubmit,
   calculatePersonalClosingPaymentDividends,
@@ -10,6 +11,28 @@ import {
   calculateWorkRecordFinance,
   type WorkRecordFinanceInput,
 } from "../src/index.js";
+
+describe("每日流水", () => {
+  it("按折后大费加卖卡收入再减礼物卡核销计算", () => {
+    expect(
+      calculateDailyTurnover({
+        discountedFeePerformanceCents: 20_000n,
+        giftCardSalesAmountCents: 9_500n,
+        giftCardRedemptionCents: 2_500n,
+      }),
+    ).toBe(27_000n);
+  });
+
+  it("允许核销使每日流水为负数", () => {
+    expect(
+      calculateDailyTurnover({
+        discountedFeePerformanceCents: 1_000n,
+        giftCardSalesAmountCents: 0n,
+        giftCardRedemptionCents: 2_000n,
+      }),
+    ).toBe(-1_000n);
+  });
+});
 
 describe("店铺收入", () => {
   it("卖卡计入收入，礼物卡核销计入支出", () => {

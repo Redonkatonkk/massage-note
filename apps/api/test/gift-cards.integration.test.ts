@@ -374,6 +374,7 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
         businessDate,
         itemCount: 5,
         customerTotalPaidCents: 31_000n,
+        dailyTurnoverCents: 28_000n,
       }),
     ]);
     expect(details.records).toHaveLength(2);

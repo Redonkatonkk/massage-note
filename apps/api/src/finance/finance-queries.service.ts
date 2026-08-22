@@ -8,6 +8,7 @@ import type { User } from "@massage-note/database";
 import type { FinanceQuery } from "@massage-note/contracts";
 import {
   businessDateFor,
+  calculateDailyTurnover,
   calculatePayrollBalance,
   calculateStoreIncome,
   hasStoreCapability,
@@ -160,9 +161,14 @@ export class FinanceQueriesService {
         ),
       },
       employees: [...employees.values()],
-      days: [...days.values()].sort((left, right) =>
-        right.businessDate.localeCompare(left.businessDate),
-      ),
+      days: [...days.values()]
+        .map((day) => ({
+          ...day,
+          dailyTurnoverCents: calculateDailyTurnover(day),
+        }))
+        .sort((left, right) =>
+          right.businessDate.localeCompare(left.businessDate),
+        ),
       balances,
     };
   }

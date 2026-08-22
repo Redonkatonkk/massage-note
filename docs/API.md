@@ -53,7 +53,7 @@
 | GET/POST | `/stores/:storeId/cash-settlements/:businessDate/...` | 单人/全员现金结清和取消结清；列表仅含当日有记工的员工 |
 | GET/POST/PATCH/DELETE | `/stores/:storeId/payroll-settlements/:id?` | 工资结算账本与软删除 |
 | POST | `/stores/:storeId/payroll-settlements/:id/restore` | 恢复工资结算 |
-| GET | `/stores/:storeId/finance/summary` | 财务汇总、员工/每日小计和累计余额；`highlightFilter` 支持 `ALL`、`ONLY_HIGHLIGHTED`、`EXCLUDE_HIGHLIGHTED` |
+| GET | `/stores/:storeId/finance/summary` | 财务汇总、员工/每日小计和累计余额；每日行包含服务端计算的 `dailyTurnoverCents`；`highlightFilter` 支持 `ALL`、`ONLY_HIGHLIGHTED`、`EXCLUDE_HIGHLIGHTED` |
 | GET | `/stores/:storeId/finance/details` | 与汇总筛选一致的组成明细，包括高亮状态 |
 | GET | `/stores/:storeId/finance/export.csv` | 与汇总筛选一致且防公式注入的 UTF-8 CSV 导出，包括高亮标记列 |
 | GET | `/stores/:storeId/audit-logs` | 按时间、对象、动作和操作人查询审计 |
@@ -169,6 +169,8 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 - `highlightFilter`：`ALL`、`ONLY_HIGHLIGHTED` 或 `EXCLUDE_HIGHLIGHTED`。
 
 店主或经理未限定员工且选择全部金额时，汇总、明细和 CSV 会纳入店铺级礼物卡销售：`itemCount = recordCount + giftCardSaleCount`，`customerTotalPaidCents = actualServiceCollectedCents + totalTipCents + giftCardSalesAmountCents`。员工小计、明确员工筛选、仅大费、仅小费或仅高亮记工不分摊卖卡记录。`giftCardRedemptionCents = giftCardServiceCents + giftCardTipCents`，`storeIncomeCents = discountedFeePerformanceCents + totalTipCents - employeeIncomeCents + giftCardSalesAmountCents - giftCardRedemptionCents`。
+
+`finance/summary` 的每个 `days[]` 行额外返回 `dailyTurnoverCents = discountedFeePerformanceCents + giftCardSalesAmountCents - giftCardRedemptionCents`。该字段由服务端使用整数美分计算；Web 每日小计把它放在营业日后的第一项，并隐藏全部项目数、记工数、实收服务费、小费和客人总付款列。
 
 工资结算列表支持日期、成员和 `includeDeleted=true`。审计列表支持 `dateFrom`、`dateTo`、`entityType`、`action`、`actorUserId` 与游标分页。
 

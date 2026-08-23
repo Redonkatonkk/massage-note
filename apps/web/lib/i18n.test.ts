@@ -152,6 +152,16 @@ describe("bilingual UI translation", () => {
     );
   });
 
+  it("translates the new finance settlement summary and employee checkboxes", () => {
+    expect(translateText("总流水", "en-US")).toBe("Total turnover");
+    expect(translateText("店铺总结算", "en-US")).toBe("Store settlement summary");
+    expect(translateText("店长总收入", "en-US")).toBe("Owner worker income");
+    expect(translateText("经理总收入", "en-US")).toBe("Manager worker income");
+    expect(translateText("礼物卡收入", "en-US")).toBe("Gift card net income");
+    expect(translateText("选择员工", "en-US")).toBe("Select employees");
+    expect(translateText("已选 3 人", "en-US")).toBe("3 selected");
+  });
+
   it("explains that today's summary has no separate tips card", () => {
     expect(
       translateText(

@@ -540,12 +540,32 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       totalTipCents: 3_000n,
       totalLargeFeeWageCents: 6_000n,
       employeeIncomeCents: 9_000n,
+      totalTurnoverCents: 10_000n,
+      ownerWorkerIncomeCents: 0n,
+      managerWorkerIncomeCents: 0n,
+      giftCardNetIncomeCents: 0n,
+      totalIncomeCents: 4_000n,
       settledCashAcquiredWithinRangeCents: 3_400n,
       employerOwesCents: 0n,
       overpaidCents: 400n,
     });
     expect(summary.employees).toHaveLength(1);
     expect(summary.days).toHaveLength(1);
+    const allEmployeesSummary = await finance.summary(actor(managerId), storeId, {
+      dateFrom: businessDate,
+      dateTo: businessDate,
+      membershipIds: [],
+      paymentMethod: "ALL",
+      amountType: "ALL",
+      highlightFilter: "ALL",
+    });
+    expect(allEmployeesSummary.totals).toMatchObject({
+      totalTurnoverCents: 20_000n,
+      ownerWorkerIncomeCents: 0n,
+      managerWorkerIncomeCents: 6_000n,
+      giftCardNetIncomeCents: 0n,
+      totalIncomeCents: 14_000n,
+    });
     const payrollLedger = await payroll.list(actor(managerId), storeId, { includeDeleted: true });
     expect(payrollLedger.find((item) => item.id === payrollId)).toMatchObject({ historyChangedAfterSettlement: true });
     const csv = await finance.exportCsv(actor(managerId), storeId, {

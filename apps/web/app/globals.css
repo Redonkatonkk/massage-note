@@ -2259,6 +2259,16 @@ h2 {
 .filter-panel label, .date-toolbar label, .payroll-fields label { display: grid; gap: 6px; color: var(--muted); font-size: 0.78rem; font-weight: 800; }
 .filter-panel input, .filter-panel select, .date-toolbar input, .payroll-fields input, .payroll-fields select { width: 100%; min-height: 46px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); color: var(--ink); }
 .filter-panel select[multiple] { height: 74px; }
+.finance-member-filter { grid-column: span 2; min-width: 0; margin: 0; padding: 10px; border: 1px solid var(--line); border-radius: 13px; background: #fcfaf7; }
+.finance-member-filter legend { padding: 0 5px; color: var(--muted); font-size: .78rem; font-weight: 800; }
+.finance-member-filter__heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.finance-member-filter__heading span { color: var(--ink); font-size: .82rem; font-weight: 800; }
+.finance-member-filter__heading button { border: 0; background: transparent; color: var(--brand); font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; }
+.finance-member-filter__options { display: flex; flex-wrap: wrap; gap: 7px; max-height: 116px; overflow-y: auto; }
+.filter-panel .finance-member-filter__options label { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 7px; min-height: 36px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: .82rem; cursor: pointer; }
+.filter-panel .finance-member-filter__options label:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+.filter-panel .finance-member-filter__options input { flex: none; width: 17px; min-height: 17px; margin: 0; padding: 0; accent-color: var(--brand); }
+.filter-panel .finance-member-filter__all { font-weight: 850; }
 .filter-panel .primary-action { min-height: 46px; padding: 0 16px; }
 .finance-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .finance-cards article, .finance-cards > button { display: grid; gap: 7px; min-height: 130px; align-content: center; padding: 17px; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); text-align: left; }
@@ -2428,6 +2438,7 @@ h2 {
 
 @media (max-width: 1100px) {
   .filter-panel, .payroll-fields { grid-template-columns: repeat(3, minmax(130px, 1fr)); }
+  .finance-member-filter { grid-column: 1 / -1; }
   .finance-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cash-grid { grid-template-columns: 1fr; }
   .gift-card-ledger__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2444,6 +2455,7 @@ h2 {
   .balance-list article, .closing-status, .date-toolbar { align-items: stretch; flex-direction: column; }
   .filter-panel__heading, .finance-metric-group > header, .finance-report-heading, .finance-details__heading { align-items: stretch; flex-direction: column; }
   .filter-panel__heading .export-link { width: 100%; }
+  .finance-member-filter { grid-column: auto; }
   .finance-metric-group { padding: 14px; border-radius: 17px; }
   .finance-details-backdrop { align-items: stretch; padding: 0; }
   .finance-details { width: 100vw; max-height: 100dvh; padding: 16px; border-radius: 0; }

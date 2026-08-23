@@ -8,6 +8,7 @@ import {
   calculatePayrollBalance,
   calculatePayrollPaymentTotal,
   calculateStoreIncome,
+  calculateStoreSettlement,
   calculateWorkRecordFinance,
   type WorkRecordFinanceInput,
 } from "../src/index.js";
@@ -31,6 +32,38 @@ describe("每日流水", () => {
         giftCardRedemptionCents: 2_000n,
       }),
     ).toBe(-1_000n);
+  });
+});
+
+describe("店铺总结算", () => {
+  it("汇总店铺、店长、全部经理和礼物卡净收入", () => {
+    expect(
+      calculateStoreSettlement({
+        storeIncomeCents: 15_000n,
+        ownerWorkerIncomeCents: 8_000n,
+        managerWorkerIncomeCents: 12_000n,
+        giftCardSalesAmountCents: 9_500n,
+        giftCardRedemptionCents: 2_500n,
+      }),
+    ).toEqual({
+      giftCardNetIncomeCents: 7_000n,
+      totalIncomeCents: 42_000n,
+    });
+  });
+
+  it("允许礼物卡净支出使总收入下降", () => {
+    expect(
+      calculateStoreSettlement({
+        storeIncomeCents: -600n,
+        ownerWorkerIncomeCents: 0n,
+        managerWorkerIncomeCents: 500n,
+        giftCardSalesAmountCents: 0n,
+        giftCardRedemptionCents: 1_000n,
+      }),
+    ).toEqual({
+      giftCardNetIncomeCents: -1_000n,
+      totalIncomeCents: -1_100n,
+    });
   });
 });
 

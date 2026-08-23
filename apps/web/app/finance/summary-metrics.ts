@@ -36,6 +36,12 @@ export const financeSummaryMetrics = [
     calculation: "折后大费业绩 = 大费基数 − 折扣总额。",
   },
   {
+    key: "totalTurnoverCents",
+    label: "总流水",
+    explanation: "当前筛选范围内的折后项目业绩与礼物卡净流入合计，不包含小费。",
+    calculation: "总流水 = 折后大费业绩 + 礼物卡销售收入 − 礼物卡核销支出。",
+  },
+  {
     key: "actualServiceCollectedCents",
     label: "实收服务费",
     explanation: "客人实际支付的大费，不包含任何小费；它可以与折后大费业绩不同。",
@@ -84,12 +90,6 @@ export const financeSummaryMetrics = [
     calculation: "小费总额 = 现金小费 + 刷卡小费 + 礼物卡小费。",
   },
   {
-    key: "customerTotalPaidCents",
-    label: "客人总付款",
-    explanation: "客人实际支付的服务费、小费与购买礼物卡的实际付款总和。",
-    calculation: "客人总付款 = 实收服务费 + 小费总额 + 礼物卡销售实际收款。",
-  },
-  {
     key: "giftCardSaleCashCents",
     label: "卖卡现金收款",
     explanation: "客人购买礼物卡时以现金支付的金额，不进入任何员工现金结算。",
@@ -120,22 +120,28 @@ export const financeSummaryMetrics = [
     calculation: "店铺收入 = 折后大费业绩 + 小费总额 − 员工总收入 + 礼物卡销售收入 − 礼物卡核销支出。",
   },
   {
-    key: "totalLargeFeeWageCents",
-    label: "大费工资",
-    explanation: "员工从主要项目和额外项目中应得的提成工资，折扣不会降低该金额。",
-    calculation: "大费工资 = Σ 每个项目分别按“项目金额 × 生效提成比例”四舍五入后的工资。",
+    key: "ownerWorkerIncomeCents",
+    label: "店长总收入",
+    explanation: "店长在当前筛选范围内亲自记工所得的大费工资和小费，不包含店铺经营收入。",
+    calculation: "店长总收入 = 店长作为工人的大费工资 + 店长作为工人的全部小费。",
   },
   {
-    key: "employeeIncomeCents",
-    label: "员工总收入",
-    explanation: "员工在当前范围内应得的大费工资和小费合计。",
-    calculation: "员工总收入 = 大费工资 + 现金小费 + 刷卡小费 + 礼物卡小费。",
+    key: "managerWorkerIncomeCents",
+    label: "经理总收入",
+    explanation: "所有经理在当前筛选范围内亲自记工所得的大费工资和小费合计。",
+    calculation: "经理总收入 = Σ 每位经理作为工人的大费工资与全部小费。",
   },
   {
-    key: "settledCashAcquiredWithinRangeCents",
-    label: "已通过现金取得",
-    explanation: "已完成现金结算后，确认员工实际从现金中取得的工资和现金小费。未结清记录不计入。",
-    calculation: "已通过现金取得 = 已结清的实际现金大费工资 + 已结清的现金小费。",
+    key: "giftCardNetIncomeCents",
+    label: "礼物卡收入",
+    explanation: "当前筛选范围内卖出礼物卡的实际收款减去客人使用礼物卡的核销支出。",
+    calculation: "礼物卡收入 = 礼物卡销售收入 − 礼物卡核销支出。",
+  },
+  {
+    key: "totalIncomeCents",
+    label: "总收入",
+    explanation: "店铺总结算中前四项收入的直接合计。",
+    calculation: "总收入 = 店铺收入 + 店长总收入 + 经理总收入 + 礼物卡收入。",
   },
 ] as const;
 
@@ -151,8 +157,8 @@ export const financeSummaryGroups: ReadonlyArray<{
   {
     key: "overview",
     title: "先看关键结果",
-    description: "先回答今天做了多少、客人付了多少、店里做出多少业绩、员工应得多少。",
-    metricKeys: ["itemCount", "customerTotalPaidCents", "storeIncomeCents", "discountedFeePerformanceCents", "employeeIncomeCents"],
+    description: "先看项目数量、折后业绩和包含礼物卡净收支的总流水。",
+    metricKeys: ["itemCount", "totalTurnoverCents", "discountedFeePerformanceCents"],
     emphasis: true,
   },
   {
@@ -174,9 +180,9 @@ export const financeSummaryGroups: ReadonlyArray<{
     metricKeys: ["giftCardSaleCashCents", "giftCardSaleCardCents", "giftCardSalesAmountCents", "giftCardRedemptionCents"],
   },
   {
-    key: "wages",
-    title: "工资与现金结算",
-    description: "查看项目提成工资，以及员工已通过现金实际取得的部分。",
-    metricKeys: ["totalLargeFeeWageCents", "settledCashAcquiredWithinRangeCents"],
+    key: "store-settlement",
+    title: "店铺总结算",
+    description: "汇总店铺经营、店长与经理作为工人的收入，以及礼物卡净收支。",
+    metricKeys: ["storeIncomeCents", "ownerWorkerIncomeCents", "managerWorkerIncomeCents", "giftCardNetIncomeCents", "totalIncomeCents"],
   },
 ];

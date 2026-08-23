@@ -10,6 +10,7 @@ import {
   businessDateFor,
   calculateDailyTurnover,
   calculatePayrollBalance,
+  calculateStoreSettlement,
   calculateStoreIncome,
   hasStoreCapability,
 } from "@massage-note/domain";
@@ -137,6 +138,19 @@ export class FinanceQueriesService {
           ? settledCashWithinRange._sum.cashTipCents ?? 0n
           : 0n)
       : 0n;
+    const ownerWorkerIncomeCents = [...employees.values()]
+      .filter((employee) => employee.role === "OWNER")
+      .reduce((sum, employee) => sum + employee.employeeIncomeCents, 0n);
+    const managerWorkerIncomeCents = [...employees.values()]
+      .filter((employee) => employee.role === "MANAGER")
+      .reduce((sum, employee) => sum + employee.employeeIncomeCents, 0n);
+    const storeSettlement = calculateStoreSettlement({
+      storeIncomeCents: total.storeIncomeCents,
+      ownerWorkerIncomeCents,
+      managerWorkerIncomeCents,
+      giftCardSalesAmountCents: total.giftCardSalesAmountCents,
+      giftCardRedemptionCents: total.giftCardRedemptionCents,
+    });
     return {
       filters: {
         dateFrom: context.dateFrom,
@@ -148,6 +162,10 @@ export class FinanceQueriesService {
       },
       totals: {
         ...total,
+        totalTurnoverCents: calculateDailyTurnover(total),
+        ownerWorkerIncomeCents,
+        managerWorkerIncomeCents,
+        ...storeSettlement,
         payrollPaidWithinRangeCents:
           payrollWithinRange._sum.totalPaidCents ?? 0n,
         settledCashAcquiredWithinRangeCents,

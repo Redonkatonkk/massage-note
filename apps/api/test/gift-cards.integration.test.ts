@@ -368,6 +368,11 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
       giftCardSalesAmountCents: 28_500n,
       giftCardRedemptionCents: 2_500n,
       storeIncomeCents: 26_800n,
+      totalTurnoverCents: 28_000n,
+      ownerWorkerIncomeCents: 0n,
+      managerWorkerIncomeCents: 0n,
+      giftCardNetIncomeCents: 26_000n,
+      totalIncomeCents: 52_800n,
     });
     expect(summary.days).toEqual([
       expect.objectContaining({

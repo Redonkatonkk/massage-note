@@ -72,6 +72,19 @@ export interface DailyTurnoverInput {
   giftCardRedemptionCents: Cents;
 }
 
+export interface StoreSettlementInput {
+  storeIncomeCents: bigint;
+  ownerWorkerIncomeCents: Cents;
+  managerWorkerIncomeCents: Cents;
+  giftCardSalesAmountCents: Cents;
+  giftCardRedemptionCents: Cents;
+}
+
+export interface StoreSettlement {
+  giftCardNetIncomeCents: bigint;
+  totalIncomeCents: bigint;
+}
+
 /**
  * 每日流水只看折后项目业绩与礼物卡净流入，不计小费、员工收入或实际服务付款拆分。
  * 核销可能高于当天业绩与卖卡收入，因此结果允许为负数。
@@ -82,6 +95,29 @@ export function calculateDailyTurnover(input: DailyTurnoverInput): bigint {
     cents(input.giftCardSalesAmountCents) -
     cents(input.giftCardRedemptionCents)
   );
+}
+
+/**
+ * 店铺总结算按界面列出的项目直接相加。礼物卡收入为卖卡实收减核销支出，
+ * 因而礼物卡净收入和最终总收入都允许为负数。
+ */
+export function calculateStoreSettlement(
+  input: StoreSettlementInput,
+): StoreSettlement {
+  const ownerWorkerIncomeCents = cents(input.ownerWorkerIncomeCents);
+  const managerWorkerIncomeCents = cents(input.managerWorkerIncomeCents);
+  const giftCardNetIncomeCents =
+    cents(input.giftCardSalesAmountCents) -
+    cents(input.giftCardRedemptionCents);
+
+  return {
+    giftCardNetIncomeCents,
+    totalIncomeCents:
+      input.storeIncomeCents +
+      ownerWorkerIncomeCents +
+      managerWorkerIncomeCents +
+      giftCardNetIncomeCents,
+  };
 }
 
 /**

@@ -419,6 +419,11 @@ export interface FinanceSummaryResponse {
     highlightFilter: "ALL" | "ONLY_HIGHLIGHTED" | "EXCLUDE_HIGHLIGHTED";
   };
   totals: FinanceTotals & {
+    totalTurnoverCents: number;
+    ownerWorkerIncomeCents: number;
+    managerWorkerIncomeCents: number;
+    giftCardNetIncomeCents: number;
+    totalIncomeCents: number;
     payrollPaidWithinRangeCents: number;
     settledCashAcquiredWithinRangeCents: number;
     employerOwesCents: number;

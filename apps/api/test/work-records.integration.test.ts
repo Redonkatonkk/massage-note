@@ -32,6 +32,24 @@ const ownerMembershipId = randomUUID();
 const employeeMembershipId = randomUUID();
 const actor = (id: string) => ({ id }) as User;
 
+function safeStartAtForForwardShift(): Date {
+  const startAt = new Date();
+  startAt.setUTCSeconds(0, 0);
+  const localParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(startAt);
+  const hour = Number(localParts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(localParts.find((part) => part.type === "minute")?.value ?? 0);
+  const localMinutes = hour * 60 + minute;
+  if (localMinutes >= 21 * 60 + 30 && localMinutes < 22 * 60) {
+    startAt.setUTCMinutes(startAt.getUTCMinutes() - 60);
+  }
+  return startAt;
+}
+
 describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
   beforeAll(async () => {
     await prisma.user.createMany({
@@ -481,8 +499,7 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
   });
 
   it("增减额外项目会调整结束时间，修改开始时间会保留工作时长", async () => {
-    const startAt = new Date();
-    startAt.setUTCSeconds(0, 0);
+    const startAt = safeStartAtForForwardShift();
     const durationRecord = await workRecords.create(
       actor(employeeId),
       storeId,

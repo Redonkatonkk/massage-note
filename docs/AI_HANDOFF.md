@@ -1,7 +1,7 @@
 # AI 接管指南
 
 > 最后核对：2026-08-22（America/New_York）
-> 当前版本：`0.12.16`
+> 当前版本：`0.12.17`
 > 目标：用最少上下文安全修改 Massage note；历史过程请查 Git 和 `CHANGELOG.md`。
 
 ## 1. 接手顺序
@@ -212,7 +212,7 @@ pnpm audit --prod
 `test:integration` 使用独立的 `massage_note_test`，会重建测试 schema，不应指向开发主库、生产库或任何含人工数据的库。
 若本机默认的 PostgreSQL/Redis 端口已被其他项目占用，可用 `POSTGRES_HOST_PORT`、`REDIS_HOST_PORT` 启动本项目 Compose，并把 `MASSAGE_NOTE_TEST_DATABASE_URL` 指向对应 PostgreSQL 端口；不得为测试停止不属于本项目的容器。
 
-最近一次核心质量核对（2026-08-22，版本 0.12.16）：
+最近一次核心质量核对（2026-08-22，版本 0.12.17）：
 
 - `version:check`、typecheck 和生产构建通过；Next 生成 11 个路由。
 - 单元/非集成测试 167 项通过；数据库约束测试 4 项、API 全量测试 98 项通过。

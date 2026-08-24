@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
+import { shouldConfirmPaymentOnSave } from "../lib/record-payment";
 import {
   adjustedEndLocalDateTime,
   localDateTimeValue,
@@ -571,7 +572,7 @@ export function RecordEditor({
     void onChanged();
   }
 
-  async function confirmPayment() {
+  async function saveAndConfirmPayment() {
     const servicePayments: Record<string, number> = {};
     if (cashService !== "") servicePayments.cashServiceCents = cents(cashService, "现金大费");
     if (cardService !== "") servicePayments.cardServiceCents = cents(cardService, "刷卡大费");
@@ -606,6 +607,27 @@ export function RecordEditor({
     await finish();
   }
 
+  const willConfirmPayment = shouldConfirmPaymentOnSave({
+    status: record.status,
+    cashService,
+    cardService,
+    usesGiftCard,
+    giftCardSerialNumber,
+    giftCardService,
+    cashTip,
+    cardTip,
+    giftCardTip,
+  });
+
+  async function saveRecord() {
+    if (willConfirmPayment) {
+      await saveAndConfirmPayment();
+      return;
+    }
+    await saveDetails();
+    await finish();
+  }
+
   const draftMainAmount = draftCents(serviceAmount);
   const draftAddonAmounts = addons.map((item) => draftCents(item.amount));
   const draftDiscountAmounts = discounts.map((item) => draftCents(item.amount));
@@ -632,6 +654,9 @@ export function RecordEditor({
     ? draftCashService !== null && draftCardService !== null && draftGiftCardService !== null ? draftCashService + draftCardService + draftGiftCardService : null
     : null;
   const draftDifference = draftServicePaid !== null && draftDiscounted !== null ? draftServicePaid - draftDiscounted : null;
+  const draftMismatchText = draftDifference !== null && draftDifference !== 0
+    ? `实收服务费与折后大费业绩不一致，相差 ${formatUsd(Math.abs(draftDifference))}（${draftDifference > 0 ? "多收" : "少收"}）。系统允许确认，但会保留这条异常。`
+    : null;
   const selectedCatalogService = catalog.serviceItems.find(
     (item) => item.id === serviceChoice,
   );
@@ -788,7 +813,13 @@ export function RecordEditor({
           <div><span>实收服务费（按当前填写）</span><strong>{draftServicePaid === null ? "未填写" : formatUsd(draftServicePaid)}</strong></div>
           <div><span>当前已保存员工大费工资</span><strong>{formatUsd(record.totalLargeFeeWageCents)}</strong></div>
         </section>
-        {draftDifference !== null && draftDifference !== 0 && <p className="mismatch-warning" role="status">实收服务费与折后大费业绩不一致，相差 {formatUsd(Math.abs(draftDifference))}（{draftDifference > 0 ? "多收" : "少收"}）。系统允许确认，但会保留这条异常。</p>}
+        {draftMismatchText && <p className="mismatch-warning" role="status">{draftMismatchText}</p>}
+
+        <p className="record-save-help">
+          {willConfirmPayment
+            ? "点击保存会校验付款信息；完整时同时确认付款。小费留空按 0 处理。"
+            : "付款尚未填写；点击保存只保存记工，之后仍可补录付款。"}
+        </p>
 
         {error && <p className="form-error" role="alert">{error}</p>}
         <footer className="editor-actions">
@@ -801,8 +832,7 @@ export function RecordEditor({
             await finish();
           })}>删除记录</button>
           <span />
-          <button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { await saveDetails(); await finish(); })}>{busy ? "正在保存…" : "仅保存修改"}</button>
-          <button className="primary-action" type="button" disabled={busy} onClick={() => run(confirmPayment)}>{busy ? "正在确认…" : record.status === "CONFIRMED" ? "保存并重新确认付款" : "保存并确认付款"}</button>
+          <button className="primary-action" type="button" disabled={busy} onClick={() => run(saveRecord)}>{busy ? "正在保存…" : "保存"}</button>
         </footer>
       </section>
     </div>

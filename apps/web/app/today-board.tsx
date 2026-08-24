@@ -12,6 +12,7 @@ import {
 import { homeClosingAction } from "../lib/closing";
 import { financeClosingHref } from "../lib/navigation";
 import { formatUsd } from "../lib/money";
+import { hasConfirmedPaymentMismatch } from "../lib/record-payment";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
 import { activeWorkRecord } from "../lib/work-status";
 import type {
@@ -50,15 +51,17 @@ function PaymentBreakdown({
   cashCents,
   cardCents,
   giftCardCents,
+  zeroLabel = "金额为 0",
 }: {
   status: WorkRecord["status"];
   cashCents: number | null;
   cardCents: number | null;
   giftCardCents: number | null;
+  zeroLabel?: string;
 }) {
   const display = recordPaymentDisplay({ status, cashCents, cardCents, giftCardCents });
   if (display.kind === "PENDING") return <span className="record-payment-empty">待填写</span>;
-  if (display.kind === "ZERO") return <span className="record-payment-empty">金额为 0</span>;
+  if (display.kind === "ZERO") return <span className="record-payment-empty">{zeroLabel}</span>;
 
   return <span className="record-payment-breakdown">
     {display.parts.map((part, index) => {
@@ -484,9 +487,14 @@ export function TodayBoard({
               {!isCollapsed && (
                 <div className={`employee-content${showTotals ? "" : " employee-content--records-only"}`}>
                   <div className="record-track">
-                    {row.workRecords.map((record) => (
+                    {row.workRecords.map((record) => {
+                      const hasPaymentMismatch = hasConfirmedPaymentMismatch(
+                        record.status,
+                        record.paymentDifferenceCents,
+                      );
+                      return (
                       <button
-                        className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}${record.isHighlighted ? " record-card--highlighted" : ""}`}
+                        className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}${record.isHighlighted ? " record-card--highlighted" : ""}${hasPaymentMismatch ? " record-card--payment-mismatch" : ""}`}
                         key={record.id}
                         type="button"
                         disabled={!isCurrentBusinessDay && !canManage}
@@ -513,10 +521,18 @@ export function TodayBoard({
                         <span className="record-money"><b>{money(record.grossFeeBaseCents)}</b><small>小费 {money(record.totalTipCents)}</small></span>
                         <span className="record-payment-summary">
                           <span className="record-payment-row"><span>实收</span><PaymentBreakdown status={record.status} cashCents={record.cashServiceCents} cardCents={record.cardServiceCents} giftCardCents={record.giftCardServiceCents} /></span>
-                          <span className="record-payment-row"><span>小费</span><PaymentBreakdown status={record.status} cashCents={record.cashTipCents} cardCents={record.cardTipCents} giftCardCents={record.giftCardTipCents} /></span>
+                          <span className="record-payment-row"><span>小费</span><PaymentBreakdown status={record.status} cashCents={record.cashTipCents} cardCents={record.cardTipCents} giftCardCents={record.giftCardTipCents} zeroLabel="0" /></span>
                         </span>
+                        {hasPaymentMismatch && (
+                          <span
+                            className="record-payment-mismatch-badge"
+                            aria-label={`付款差额 ${money(Math.abs(record.paymentDifferenceCents ?? 0))}`}
+                            title="实收服务费与应收金额不一致"
+                          >!</span>
+                        )}
                       </button>
-                    ))}
+                      );
+                    })}
                     {!board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage) && (
                       <button className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickEmployeeId(row.membershipId); }}>
                         <span aria-hidden="true">＋</span>新增记工

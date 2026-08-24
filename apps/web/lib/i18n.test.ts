@@ -60,6 +60,18 @@ describe("bilingual UI translation", () => {
     expect(translateText("现金 50 美元", "en-US")).toBe("Cash 50 dollars");
     expect(translateText("记工卡片的付款金额中，细线框内是刷卡，未加框是现金；混合付款按“框内刷卡金额 + 无框现金金额”显示，例如刷卡 $30、现金 $50 会显示为 `[30]+50`。礼物卡付款会直接标出“礼卡”。", "en-US"))
       .toContain("outlined amount is a card payment");
+    expect(translateText("付款尚未填写；点击保存只保存记工，之后仍可补录付款。", "en-US"))
+      .toContain("work-record changes only");
+    expect(translateText("点击保存会校验付款信息；完整时同时确认付款。小费留空按 0 处理。", "en-US"))
+      .toContain("Blank tips are treated as 0");
+    expect(translateText("实收服务费与应收金额不一致", "en-US"))
+      .toContain("do not match");
+    expect(translateText("实收服务费与折后大费业绩不一致，相差 US$10（少收）。系统允许确认，但会保留这条异常。", "en-US"))
+      .toBe("Collected service fees differ from performance after discounts by $10 (under). Confirmation is allowed, but this discrepancy will be retained.");
+    expect(translateText("2 项启用 · 3 项", "en-US")).toBe("2 enabled · 3 items");
+    expect(translateText("＋ 新增额外项目", "en-US")).toBe("+ Add add-on");
+    expect(translateText("常用加项集中维护；金额、时间和默认提成在编辑时保持紧凑横排。", "en-US"))
+      .toContain("one compact editing row");
   });
 
   it("translates appended status lines while retaining arbitrary messages", () => {

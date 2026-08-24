@@ -12,7 +12,7 @@ GitHub Actions 先跑完整测试
 群晖 Container Manager 直接 pull 并重建 mn 项目
 ```
 
-镜像地址：`ghcr.io/redonkatonkk/massage-note`。当前版本：`0.12.17`。正常升级不再构建和上传约 250 MB 的 tar；`scripts/build-nas-image.sh` 只作为 GHCR 故障时的离线备用方案。
+镜像地址：`ghcr.io/redonkatonkk/massage-note`。当前版本：`0.12.18`。正常升级不再构建和上传约 250 MB 的 tar；`scripts/build-nas-image.sh` 只作为 GHCR 故障时的离线备用方案。
 
 ## 0. AI 接手后的最短正确路径
 
@@ -112,7 +112,7 @@ gh api /user/packages/container/massage-note --jq '{name,visibility}'
 ```bash
 task_docker_config=$(mktemp -d /tmp/massage-note-docker.XXXXXX)
 DOCKER_CONFIG="$task_docker_config" \
-  docker manifest inspect ghcr.io/redonkatonkk/massage-note:0.12.17 >/dev/null
+  docker manifest inspect ghcr.io/redonkatonkk/massage-note:0.12.18 >/dev/null
 rmdir "$task_docker_config"
 ```
 
@@ -170,14 +170,14 @@ gh run watch "$run_id" --repo Redonkatonkk/massage-note --exit-status
 
 成功后产生三个标签：
 
-- `0.12.17`：版本标签，NAS 正式部署使用；
+- `0.12.18`：版本标签，NAS 正式部署使用；
 - `latest`：最新 main，仅用于查看，不建议作为生产固定版本；
 - `sha-xxxxxxx`：对应 Git 提交，精确排错或回滚使用。
 
 验证线上镜像：
 
 ```bash
-docker buildx imagetools inspect ghcr.io/redonkatonkk/massage-note:0.12.17
+docker buildx imagetools inspect ghcr.io/redonkatonkk/massage-note:0.12.18
 ```
 
 同时检查 manifest 平台为 `linux/amd64`。群晖不是本机 Mac 的架构环境；不要把未经指定平台的本机构建当作 NAS 产物。
@@ -186,13 +186,17 @@ docker buildx imagetools inspect ghcr.io/redonkatonkk/massage-note:0.12.17
 
 1. 在 NAS 的 `/volume1/docker/massage-note-v2` 保存 `docker-compose.nas.yml` 和只存在 NAS 的 `.env`。
 2. 以 `.env.nas.example` 为模板填写随机且互不相同的数据库/Redis 密码和所需运行时秘密。
-3. 设置 `MASSAGE_NOTE_IMAGE_TAG=0.12.17`、`APP_HTTP_PORT=3100`、`WEB_ORIGIN=https://massagenote.waltonjin.com`。
+3. 设置 `MASSAGE_NOTE_IMAGE_TAG=0.12.18`、`APP_HTTP_PORT=3100`、`WEB_ORIGIN=https://massagenote.waltonjin.com`。
 4. Container Manager 新建项目，项目名固定为 `mn`，使用上述目录的 Compose。
 5. DSM 反向代理固定为 `https://massagenote.waltonjin.com:443` → `http://localhost:3100`。
 
 不要新建第二个项目名，否则 Compose 会创建另一套 PostgreSQL/Redis 命名卷，看起来像“数据丢失”。现有生产卷是 `mn_massage-note-postgres` 和 `mn_massage-note-redis`。
 
 ## 5. 每次升级 NAS
+
+### 0.12.18 升级说明
+
+本版本合并记工详情的两个保存入口，并根据付款是否开始填写自动选择“只保存详情”或“校验并确认付款”；首页新增已确认服务费差额红色感叹号，小费为 0 时只显示数字 0。项目设置改为摘要优先、按需展开，额外项目字段在桌面横向紧凑排列。没有数据库迁移，也不修改历史记工、付款或项目数据；部署后需分别验收空白付款保存、完整付款确认、付款不完整拦截、免费服务显式 0、服务费差额标记、零小费显示，以及桌面/390px 项目设置布局。
 
 ### 0.12.17 升级说明
 
@@ -389,7 +393,7 @@ gzip -t backup-before-upgrade.sql.gz
 
 ### 5.2 更新版本并拉取
 
-把 NAS `.env` 的 `MASSAGE_NOTE_IMAGE_TAG` 改为已经在 GHCR 验证存在的版本，例如 `0.12.17`。确认 `app`、`migrate`、`harden` 三个服务最终引用同一个标签，然后：
+把 NAS `.env` 的 `MASSAGE_NOTE_IMAGE_TAG` 改为已经在 GHCR 验证存在的版本，例如 `0.12.18`。确认 `app`、`migrate`、`harden` 三个服务最终引用同一个标签，然后：
 
 ```bash
 cd /volume1/docker/massage-note-v2
@@ -420,7 +424,7 @@ AI 通过 DSM API 自动更新时还必须遵守：
 curl --fail https://massagenote.waltonjin.com/
 curl --fail https://massagenote.waltonjin.com/api/v1/health
 curl --fail https://massagenote.waltonjin.com/api/v1/health/ready
-curl --fail https://massagenote.waltonjin.com/sw.js | grep 'massage-note-v0.12.17'
+curl --fail https://massagenote.waltonjin.com/sw.js | grep 'massage-note-v0.12.18'
 ```
 
 再用真实浏览器完成登录、快速记工“项目 + 时长”、经理修改项目档位和财务页冒烟测试。
@@ -462,7 +466,7 @@ git status --short
 ```bash
 pnpm version:check
 ./scripts/build-nas-image.sh
-shasum -a 256 -c artifacts/massage-note-0.12.17-linux-amd64.tar.sha256
+shasum -a 256 -c artifacts/massage-note-0.12.18-linux-amd64.tar.sha256
 ```
 
 然后在 Container Manager 的“映像 → 新增 → 从文件新增”导入。恢复网络后应回到 GHCR 流程，避免本机跨架构构建与大文件上传。

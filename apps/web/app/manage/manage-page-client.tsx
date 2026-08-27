@@ -75,6 +75,10 @@ const actionText: Record<string, string> = {
   "business_day.closed": "日结",
   "business_day.force_closed": "强制日结",
   "business_day.closing_cancelled": "取消日结",
+  "employee_closing.delivery_queued": "排队发送员工小结",
+  "employee_closing.delivery_sent": "已发送员工小结",
+  "closing_delivery.agent_credential_rotated": "更新 Mac 信息代理令牌",
+  "closing_delivery.agent_credential_revoked": "撤销 Mac 信息代理令牌",
   "payroll_settlement.created": "新增工资结算",
   "payroll_settlement.updated": "修改工资结算",
   "payroll_settlement.deleted": "删除工资结算",
@@ -97,6 +101,8 @@ const entityText: Record<string, string> = {
   gift_card_sale: "礼物卡销售",
   daily_cash_settlement: "现金结算",
   business_day_closing: "日结记录",
+  employee_closing_delivery: "员工小结发送",
+  closing_delivery_agent: "Mac 信息代理",
   payroll_settlement: "工资结算",
   ai_change_preview: "AI 变更预览",
 };
@@ -228,9 +234,17 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
   const [giftCardDiscountEnabled, setGiftCardDiscountEnabled] = useState(store.giftCardAutoDiscountEnabled);
   const [giftCardDiscountThreshold, setGiftCardDiscountThreshold] = useState(formatMoneyInput(store.giftCardAutoDiscountThresholdCents));
   const [giftCardDiscountPercent, setGiftCardDiscountPercent] = useState((store.giftCardAutoDiscountBps / 100).toString());
+  const [closingDefaultLocale, setClosingDefaultLocale] = useState(store.closingDefaultLocale);
+  const [agentStatus, setAgentStatus] = useState<null | { tokenPrefix: string; lastSeenAt: string | null; revokedAt: string | null; lastStatusJson?: { messagesAvailable?: boolean; serviceTypes?: string[]; lastError?: string | null } | null }>(null);
+  const [agentToken, setAgentToken] = useState("");
   const [nextOwner, setNextOwner] = useState("");
   const [saved, setSaved] = useState(false);
   const canManage = membership.role !== "EMPLOYEE";
+
+  useEffect(() => {
+    if (!canManage) return;
+    void apiRequest<typeof agentStatus>(`/stores/${store.id}/closing-delivery-agent/status`).then(setAgentStatus).catch(() => undefined);
+  }, [canManage, store.id]);
 
   useEffect(() => {
     if (!saved) return;
@@ -240,7 +254,7 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
 
   useEffect(() => {
     setSaved(false);
-  }, [name, timezone, cutoff, commission, autoDiscountEnabled, autoDiscountThreshold, autoDiscountAmount, giftCardDiscountEnabled, giftCardDiscountThreshold, giftCardDiscountPercent]);
+  }, [name, timezone, cutoff, commission, autoDiscountEnabled, autoDiscountThreshold, autoDiscountAmount, giftCardDiscountEnabled, giftCardDiscountThreshold, giftCardDiscountPercent, closingDefaultLocale]);
 
   return <section className="manage-section">
     <form className="manage-card" onSubmit={(event) => { event.preventDefault(); setSaved(false); void run(async () => {
@@ -260,12 +274,13 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
         giftCardAutoDiscountEnabled: giftCardDiscountEnabled,
         giftCardAutoDiscountThresholdCents: giftCardThresholdCents,
         giftCardAutoDiscountBps: giftCardDiscountBps,
+        closingDefaultLocale,
       } });
       await reload();
       setSaved(true);
     }); }}>
       <div className="manage-heading"><div><p className="eyebrow">基础资料</p><h2>{canManage ? "店铺设置" : "店铺信息"}</h2></div><span className="status-chip">营业中</span></div>
-      <div className="manage-form-grid"><label>店铺名称<input disabled={!canManage} required value={name} onChange={(event) => setName(event.target.value)} /></label><label>店铺代码<input disabled value={store.storeCode} /></label><label>时区<input disabled={!canManage} required value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label className="business-cutoff-field">营业日截止<input disabled={!canManage} type="time" required value={cutoff} onChange={(event) => setCutoff(event.target.value)} /></label><label>全店默认提成（%）<input disabled={!canManage} inputMode="decimal" required value={commission} onChange={(event) => setCommission(event.target.value)} /></label><label>当前店主<input disabled value={store.ownerMembership?.displayName ?? "—"} /></label></div>
+      <div className="manage-form-grid"><label>店铺名称<input disabled={!canManage} required value={name} onChange={(event) => setName(event.target.value)} /></label><label>店铺代码<input disabled value={store.storeCode} /></label><label>时区<input disabled={!canManage} required value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label className="business-cutoff-field">营业日截止<input disabled={!canManage} type="time" required value={cutoff} onChange={(event) => setCutoff(event.target.value)} /></label><label>全店默认提成（%）<input disabled={!canManage} inputMode="decimal" required value={commission} onChange={(event) => setCommission(event.target.value)} /></label><label>个人日结默认语言<select disabled={!canManage} value={closingDefaultLocale} onChange={(event) => setClosingDefaultLocale(event.target.value as "zh_CN" | "en_US")}><option value="zh_CN">中文</option><option value="en_US">English</option></select></label><label>当前店主<input disabled value={store.ownerMembership?.displayName ?? "—"} /></label></div>
       <p className="field-help">提成优先顺序：员工项目专属比例 → 员工默认比例 → 项目默认比例 → 全店默认比例。保存员工提成后会重算未日结的当前营业日；已日结和历史记工继续使用原快照。</p>
       <section className={`auto-discount-settings${autoDiscountEnabled ? " enabled" : ""}`}>
         <div className="auto-discount-heading"><div><strong>周一至周四自动折扣</strong><p>按记工所属营业日判断；达到折前大费门槛后自动添加。</p></div><label className="inline-check"><input type="checkbox" disabled={!canManage} checked={autoDiscountEnabled} onChange={(event) => setAutoDiscountEnabled(event.target.checked)} />开启</label></div>
@@ -280,6 +295,7 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
       {saved && <p className="success-banner manage-save-success" role="status">✓ 店铺设置已保存</p>}
       {canManage && <button className="primary-action" disabled={busy} type="submit">{busy ? "正在保存…" : "保存店铺设置"}</button>}
     </form>
+    {canManage && <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">Mac 信息代理</p><h2>员工小结发送设备</h2></div><span className={`status-chip ${agentStatus?.lastSeenAt && Date.now() - new Date(agentStatus.lastSeenAt).getTime() < 180_000 ? "" : "warning"}`}>{agentStatus?.revokedAt ? "已撤销" : agentStatus?.lastSeenAt ? "最近在线" : "未连接"}</span></div><p className="field-help">代理令牌只在生成时显示一次。请在固定 Mac 上安装 messages-agent，并允许它控制“信息”App。</p>{agentStatus?.lastSeenAt && <p className="field-help">最后在线：{formatTime(agentStatus.lastSeenAt)} · 服务：{agentStatus.lastStatusJson?.serviceTypes?.join(" / ") || "未报告"}{agentStatus.lastStatusJson?.lastError ? ` · ${agentStatus.lastStatusJson.lastError}` : ""}</p>}{agentToken && <label>新代理令牌（请立即复制）<input readOnly value={agentToken} onFocus={(event) => event.currentTarget.select()} /></label>}<div className="inline-controls"><button className="primary-action compact" type="button" disabled={busy} onClick={() => void run(async () => { const result = await apiRequest<{ token: string; tokenPrefix: string }>(`/stores/${store.id}/closing-delivery-agent/credential`, { method: "POST" }); setAgentToken(result.token); setAgentStatus({ tokenPrefix: result.tokenPrefix, lastSeenAt: null, revokedAt: null }); })}>{agentStatus ? "轮换代理令牌" : "生成代理令牌"}</button>{agentStatus && !agentStatus.revokedAt && <button className="secondary-action compact" type="button" disabled={busy} onClick={() => void run(async () => { await apiRequest(`/stores/${store.id}/closing-delivery-agent/credential`, { method: "DELETE" }); setAgentStatus((current) => current ? { ...current, revokedAt: new Date().toISOString() } : current); setAgentToken(""); })}>撤销代理</button>}</div></section>}
     {membership.role === "OWNER" && <section className="manage-card danger-zone"><div className="manage-heading"><div><p className="eyebrow">仅店主</p><h2>店主转移与删除店铺</h2></div></div><p className="field-help">转移后你会变为经理，新店主获得全部店主权限。删除店铺会让所有成员立即无法进入，但历史数据不会物理删除。</p><div className="inline-controls"><select value={nextOwner} onChange={(event) => setNextOwner(event.target.value)}><option value="">选择新店主</option>{members.filter((item) => item.id !== membership.id && item.status === "ACTIVE").map((item) => <option key={item.id} value={item.id}>{item.displayName}（{roleText[item.role]}）</option>)}</select><button className="secondary-action" type="button" disabled={busy || !nextOwner} onClick={() => { if (!window.confirm("确认把店主身份转移给所选成员吗？")) return; void run(async () => { await apiRequest(`/stores/${store.id}/owner-transfer`, { method: "POST", idempotent: true, body: { version: store.version, newOwnerMembershipId: nextOwner } }); await reload(); }); }}>转移店主身份</button><button className="danger-button" type="button" disabled={busy} onClick={() => { const answer = window.prompt(`请输入店铺名称“${store.name}”确认删除`); if (answer !== store.name) return; const reason = window.prompt("请填写删除店铺原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${store.id}`, { method: "DELETE", idempotent: true, body: { version: store.version, reason: reason.trim() } }); window.localStorage.removeItem("massage_note_store_id"); window.location.replace("/"); }); }}>删除店铺</button></div></section>}
   </section>;
 }
@@ -314,19 +330,22 @@ function MemberEditor({ storeId, member, currentRole, catalog, busy, saved, refr
   const [role, setRole] = useState(member.role);
   const [provider, setProvider] = useState(member.isServiceProvider);
   const [defaultCommission, setDefaultCommission] = useState(member.defaultCommissionBps === null ? "" : (member.defaultCommissionBps / 100).toString());
+  const [closingDeliveryEnabled, setClosingDeliveryEnabled] = useState(member.closingDeliveryEnabled);
+  const [closingDeliveryPhone, setClosingDeliveryPhone] = useState(member.closingDeliveryPhoneE164 ?? "");
+  const [closingImageLocale, setClosingImageLocale] = useState(member.closingImageLocale ?? "");
   const [commissionOpen, setCommissionOpen] = useState(false);
   const [history, setHistory] = useState<CommissionHistoryResponse | null>(null);
   const isOwner = member.role === "OWNER";
   const active = member.status === "ACTIVE";
 
   async function saveMember() {
-    if (role === "OWNER") throw new Error("店主身份只能通过店主转移流程修改");
+    if (role === "OWNER" && member.role !== "OWNER") throw new Error("店主身份只能通过店主转移流程修改");
     const commissionBps = parsePercent(defaultCommission, "员工默认提成", true);
     let version = member.version;
     let refreshedToday = false;
     try {
-      if (name.trim() !== member.displayName || role !== member.role || provider !== member.isServiceProvider) {
-        const updated = await apiRequest<StoreMember>(`/stores/${storeId}/members/${member.id}`, { method: "PATCH", body: { version, displayName: name, role, isServiceProvider: provider } });
+      if (name.trim() !== member.displayName || role !== member.role || provider !== member.isServiceProvider || closingDeliveryEnabled !== member.closingDeliveryEnabled || closingDeliveryPhone.trim() !== (member.closingDeliveryPhoneE164 ?? "") || closingImageLocale !== (member.closingImageLocale ?? "")) {
+        const updated = await apiRequest<StoreMember>(`/stores/${storeId}/members/${member.id}`, { method: "PATCH", body: { version, ...(isOwner ? {} : { displayName: name, role, isServiceProvider: provider }), closingDeliveryEnabled, closingDeliveryPhoneE164: closingDeliveryPhone.trim() || null, closingImageLocale: closingImageLocale || null } });
         version = updated.version;
       }
       const commissionResult = await apiRequest<{ refreshedCurrentDayRecordCount: number }>(`/stores/${storeId}/members/${member.id}/commissions/default`, { method: "PUT", idempotent: true, body: { version, commissionBps } });
@@ -343,7 +362,7 @@ function MemberEditor({ storeId, member, currentRole, catalog, busy, saved, refr
     setHistory(await apiRequest<CommissionHistoryResponse>(`/stores/${storeId}/members/${member.id}/commissions`));
   }
   return <article className={`member-card ${active ? "" : "inactive"}`}><header><div className="member-avatar">{member.displayName.slice(0, 1)}</div><div><strong>{member.displayName}</strong><span>{roleText[member.role]} · {active ? "在职" : "已离职/停用"} · {member.user ? "已关联账号" : "等待注册"}</span></div><em>{member.isServiceProvider ? "参与记工" : "不参与记工"}</em></header><div className="member-fields"><label>店内显示名<input disabled={!active || isOwner} value={name} onChange={(event) => { onDirty(); setName(event.target.value); }} /></label><label>角色<select disabled={!active || isOwner} value={role} onChange={(event) => { onDirty(); setRole(event.target.value as "MANAGER" | "EMPLOYEE"); }}>
-  {isOwner && <option value="OWNER">店主</option>}<option value="EMPLOYEE">员工</option><option value="MANAGER">经理</option></select></label><label className="check-field"><input disabled={!active || isOwner} type="checkbox" checked={provider} onChange={(event) => { onDirty(); setProvider(event.target.checked); }} />参与记工</label><label>员工默认提成（%）<input disabled={!active || isOwner} placeholder="留空则继续向下匹配" inputMode="decimal" value={defaultCommission} onChange={(event) => { onDirty(); setDefaultCommission(event.target.value); }} /></label></div>{saved && <p className="success-banner manage-save-success" role="status">{refreshedToday ? "✓ 成员资料与默认提成已保存，今日记工小结已同步" : "✓ 成员资料与默认提成已保存"}</p>}<div className="member-actions">{active && !isOwner && <><button className="secondary-action compact" disabled={busy} type="button" onClick={() => void run(saveMember)}>保存成员资料</button><button className="table-action" type="button" onClick={() => void run(openCommission)}>项目专属提成</button><button className="table-action danger" disabled={busy} type="button" onClick={() => { const reason = window.prompt("请填写离职或停用原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${storeId}/members/${member.id}`, { method: "DELETE", body: { version: member.version, reason: reason.trim() } }); await reload(); }); }}>离职/停用</button></>}{!active && !isOwner && <button className="primary-action compact" disabled={busy} type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/members/${member.id}/restore`, { method: "POST", body: { version: member.version } }); await reload(); })}>恢复为在职成员</button>}{isOwner && <span className="field-help">店主资料和身份需通过店主转移流程修改。</span>}</div>{commissionOpen && <ItemCommissionPanel storeId={storeId} member={member} catalog={catalog} history={history} busy={busy} run={run} close={() => setCommissionOpen(false)} reload={reload} />}</article>;
+  {isOwner && <option value="OWNER">店主</option>}<option value="EMPLOYEE">员工</option><option value="MANAGER">经理</option></select></label><label className="check-field"><input disabled={!active || isOwner} type="checkbox" checked={provider} onChange={(event) => { onDirty(); setProvider(event.target.checked); }} />参与记工</label><label>员工默认提成（%）<input disabled={!active || isOwner} placeholder="留空则继续向下匹配" inputMode="decimal" value={defaultCommission} onChange={(event) => { onDirty(); setDefaultCommission(event.target.value); }} /></label><label className="check-field"><input disabled={!active} type="checkbox" checked={closingDeliveryEnabled} onChange={(event) => { onDirty(); setClosingDeliveryEnabled(event.target.checked); }} />接收个人日结短信</label><label>专用接收号码<input disabled={!active || !closingDeliveryEnabled} inputMode="tel" placeholder={member.user?.phoneE164 ? `默认 ${member.user.phoneE164}` : "+16465551234"} value={closingDeliveryPhone} onChange={(event) => { onDirty(); setClosingDeliveryPhone(event.target.value); }} /></label><label>图片语言<select disabled={!active || !closingDeliveryEnabled} value={closingImageLocale} onChange={(event) => { onDirty(); setClosingImageLocale(event.target.value as "" | "zh_CN" | "en_US"); }}><option value="">使用店铺默认</option><option value="zh_CN">中文</option><option value="en_US">English</option></select></label></div>{saved && <p className="success-banner manage-save-success" role="status">{refreshedToday ? "✓ 成员资料与默认提成已保存，今日记工小结已同步" : "✓ 成员资料与短信设置已保存"}</p>}<div className="member-actions">{active && <button className="secondary-action compact" disabled={busy} type="button" onClick={() => void run(saveMember)}>保存成员资料</button>}{active && !isOwner && <><button className="table-action" type="button" onClick={() => void run(openCommission)}>项目专属提成</button><button className="table-action danger" disabled={busy} type="button" onClick={() => { const reason = window.prompt("请填写离职或停用原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${storeId}/members/${member.id}`, { method: "DELETE", body: { version: member.version, reason: reason.trim() } }); await reload(); }); }}>离职/停用</button></>}{!active && !isOwner && <button className="primary-action compact" disabled={busy} type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/members/${member.id}/restore`, { method: "POST", body: { version: member.version } }); await reload(); })}>恢复为在职成员</button>}{isOwner && <span className="field-help">店主身份通过转移流程修改；短信设置可在这里保存。</span>}</div>{commissionOpen && <ItemCommissionPanel storeId={storeId} member={member} catalog={catalog} history={history} busy={busy} run={run} close={() => setCommissionOpen(false)} reload={reload} />}</article>;
 }
 
 function ItemCommissionPanel({ storeId, member, catalog, history, busy, run, close, reload }: { storeId: string; member: StoreMember; catalog: CatalogResponse; history: CommissionHistoryResponse | null; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; close: () => void; reload: () => Promise<void> }) {

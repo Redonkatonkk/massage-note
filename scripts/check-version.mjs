@@ -7,6 +7,7 @@ const packageFiles = [
   "package.json",
   "apps/api/package.json",
   "apps/web/package.json",
+  "apps/messages-agent/package.json",
   "packages/contracts/package.json",
   "packages/database/package.json",
   "packages/domain/package.json",
@@ -25,8 +26,14 @@ for (const file of packageFiles) {
 const versionedFiles = [
   ["Dockerfile", `ARG APP_VERSION=${expected}`],
   ["docker-compose.nas.yml", `MASSAGE_NOTE_IMAGE_TAG:-${expected}`],
-  ["apps/web/public/sw.js", `massage-note-v${expected}`],
+  [".env.nas.example", `MASSAGE_NOTE_IMAGE_TAG=${expected}`],
   ["README.md", `当前版本：\`${expected}\``],
+  ["docs/PRODUCT.md", `适用版本：\`${expected}\``],
+  ["docs/ARCHITECTURE.md", `与 \`${expected}\` 代码结构核对`],
+  ["docs/DEVELOPMENT.md", `适用版本：\`${expected}\``],
+  ["docs/AI_HANDOFF.md", `当前版本：\`${expected}\``],
+  ["docs/API.md", `适用版本：\`${expected}\``],
+  ["docs/NAS_DEPLOYMENT.md", `当前版本：\`${expected}\``],
   ["CHANGELOG.md", `## ${expected}`],
 ];
 for (const [file, marker] of versionedFiles) {

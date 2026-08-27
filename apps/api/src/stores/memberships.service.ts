@@ -28,6 +28,9 @@ function membershipSnapshot(membership: StoreMembership) {
     displayName: membership.displayName,
     isServiceProvider: membership.isServiceProvider,
     defaultCommissionBps: membership.defaultCommissionBps,
+    closingDeliveryEnabled: membership.closingDeliveryEnabled,
+    closingDeliveryPhoneE164: membership.closingDeliveryPhoneE164,
+    closingImageLocale: membership.closingImageLocale,
     status: membership.status,
     version: membership.version,
   };
@@ -47,7 +50,7 @@ export class MembershipsService {
       orderBy: { createdAt: "asc" },
       include: {
         user: {
-          select: { id: true, firstName: true, lastName: true },
+          select: { id: true, firstName: true, lastName: true, phoneE164: true },
         },
       },
     });
@@ -315,6 +318,15 @@ export class MembershipsService {
             ...(input.defaultCommissionBps === undefined
               ? {}
               : { defaultCommissionBps: input.defaultCommissionBps }),
+            ...(input.closingDeliveryEnabled === undefined
+              ? {}
+              : { closingDeliveryEnabled: input.closingDeliveryEnabled }),
+            ...(input.closingDeliveryPhoneE164 === undefined
+              ? {}
+              : { closingDeliveryPhoneE164: input.closingDeliveryPhoneE164 }),
+            ...(input.closingImageLocale === undefined
+              ? {}
+              : { closingImageLocale: input.closingImageLocale }),
             version: { increment: 1 },
           },
         });

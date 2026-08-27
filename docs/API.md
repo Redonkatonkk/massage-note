@@ -1,6 +1,9 @@
 # API 使用说明
 
-本系统的 HTTP API 供当前中英文 Web/PWA 与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
+> 适用版本：`0.12.22`
+> 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
+
+本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
 
 ## 认证与通用规则
 
@@ -21,47 +24,71 @@
 | POST | `/auth/account-status` | 按手机号码判断新账号、密码账号或待补设密码的老账号 |
 | POST | `/auth/password` | 校验手机号码和密码并签发 Firebase Custom Token |
 | POST | `/auth/session` | 使用 Firebase ID Token 建立会话；首次注册或老账号升级时同时保存姓名/密码 |
+| POST | `/auth/dev-session` | 仅非生产且双侧显式开启时使用的本地开发登录 |
 | DELETE | `/auth/session`、`/auth/sessions` | 退出当前设备、撤销全部设备会话 |
-| GET/PATCH | `/me`、`/me/profile` | 当前账号与姓名资料 |
-| GET/POST | `/stores` | 列出和创建店铺；创建时由店主填写全局唯一 6 位代码 |
+| GET | `/me` | 当前账号、资料状态和有效店铺成员关系 |
+| PATCH | `/me/profile`、`/me/password` | 更新姓名资料、设置或修改密码 |
+| GET | `/stores` | 列出当前用户的有效店铺 |
+| POST | `/stores` | 创建店铺；店主填写全局唯一 6 位代码 |
 | GET | `/stores/resolve-code/:code` | 加入前解析店铺代码并显示店名供确认 |
 | GET/PATCH/DELETE | `/stores/:storeId` | 店铺详情、设置与软删除；设置包含记工和礼物卡自动折扣 |
 | POST | `/stores/:storeId/owner-transfer` | 原子转移店主身份 |
-| POST/GET | `/stores/:storeId/join-requests` | 提交、查看加入申请；注册 First Name 匹配待认领员工时自动绑定账号 |
-| POST | `/stores/:storeId/join-requests/:id/approve`、`reject` | 审批加入申请 |
-| GET/PATCH/DELETE | `/stores/:storeId/members/:membershipId?` | 成员列表、资料、角色和停用 |
+| POST | `/stores/:storeId/join-requests` | 提交加入申请；注册 First Name 匹配待认领员工时自动绑定账号 |
+| GET | `/stores/:storeId/join-requests` | 店主或经理查看加入申请 |
+| POST | `/stores/:storeId/join-requests/:joinRequestId/approve`、`reject` | 审批加入申请 |
+| GET | `/stores/:storeId/members` | 成员列表 |
 | POST | `/stores/:storeId/members` | 店主或经理以 `{ "name": "小林" }` 创建待认领员工，不需要姓氏或手机号 |
+| PATCH/DELETE | `/stores/:storeId/members/:membershipId` | 更新成员资料/角色或软删除成员关系 |
 | POST | `/stores/:storeId/members/:membershipId/restore` | 恢复成员关系 |
-| GET/POST | `/stores/:storeId/catalog`、`catalog/setup` | 项目目录与首次设置 |
-| POST/PATCH/DELETE | `/stores/:storeId/catalog/items/:itemId?` | 主要、额外和折扣项目管理 |
+| GET | `/stores/:storeId/catalog` | 项目目录 |
+| POST | `/stores/:storeId/catalog/setup` | 首次批量设置项目目录 |
+| POST | `/stores/:storeId/catalog/items` | 新增主要、额外或折扣项目 |
+| PATCH/DELETE | `/stores/:storeId/catalog/items/:itemId` | 修改或软删除项目 |
 | POST | `/stores/:storeId/catalog/reorder` | 原子调整一类项目的完整顺序 |
 | POST | `/stores/:storeId/catalog/items/:itemId/restore` | 恢复软删除项目 |
-| GET/PUT | `/stores/:storeId/members/:membershipId/commissions/...` | 员工默认与员工项目专属提成；保存后重算该员工未日结的当前营业日记工，历史与已日结快照不变 |
+| GET | `/stores/:storeId/members/:membershipId/commissions` | 读取员工默认与项目专属提成 |
+| PUT | `/stores/:storeId/members/:membershipId/commissions/default`、`item` | 保存员工默认或项目专属提成；按规则重算未日结当前营业日 |
 | GET | `/stores/:storeId/business-days/current` | 当前营业日、时区和截止时间 |
 | GET | `/stores/:storeId/boards/:businessDate` | 今日或历史记工表；包含该日有效礼物卡销售和店铺销售汇总；普通员工查看历史时仅返回本人行、班次、记工和本人统计，不返回全店卖卡记录 |
-| POST/PATCH | `/stores/:storeId/shifts/...`、`boards/...` | 上下班、行显示与排序；店主和经理可在日结后继续调整行的显示状态，其他业务数据仍只读 |
+| POST | `/stores/:storeId/shifts/clock-in`、`shifts/:shiftId/clock-out` | 上下班；当前 Web 只向符合条件的普通员工显示“上班” |
+| POST | `/stores/:storeId/boards/:businessDate/rows` | 新增每日员工行 |
+| PATCH | `/stores/:storeId/boards/:businessDate/rows/:rowId` | 更新每日员工行；店主和经理可在日结后调整显示状态 |
+| POST | `/stores/:storeId/boards/:businessDate/reorder` | 原子调整每日员工行顺序 |
 | POST | `/stores/:storeId/work-records` | 快速创建预设或自定义记工；可提交 `isHighlighted`；同一员工允许同时存在多笔待结账记录 |
 | GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改高亮及其他字段与软删除 |
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡/礼物卡大费和小费拆分；使用礼物卡时同时提交序列号 |
-| GET/POST | `/stores/:storeId/work-records/deleted`、`.../:id/restore` | 回收站与恢复 |
+| GET | `/stores/:storeId/work-records/deleted` | 记工回收站 |
+| POST | `/stores/:storeId/work-records/:recordId/restore` | 恢复软删除记工 |
 | GET | `/stores/:storeId/gift-card-sales` | 店长或经理读取按序列号自然排序的礼物卡台账、下一序列号及同卡多条使用记录 |
 | POST | `/stores/:storeId/gift-card-sales` | 记录卖出的礼物卡；提交营业日、面值、现金、刷卡和操作人，序列号由服务端每店从 1001 原子分配 |
 | PATCH/DELETE | `/stores/:storeId/gift-card-sales/:saleId` | 修改或软删除卖卡记录；使用 `version`、`Idempotency-Key`、营业日锁和审计 |
-| GET/POST | `/stores/:storeId/gift-card-sales/deleted`、`.../:saleId/restore` | 店长查看与恢复已删除卖卡记录 |
-| GET/POST | `/stores/:storeId/closings/:businessDate/...` | 日结预览、日结与取消日结 |
-| GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人；应提交现金按含现金大费的已确认项目折前基数合计 × 40% 计算；另按付款比例返回已确认记工的现金／刷卡大费分红，并分别汇总现金／刷卡小费分红；不含全店或他人数据 |
-| GET/POST | `/stores/:storeId/cash-settlements/:businessDate/...` | 单人/全员现金结清和取消结清；列表仅含当日有记工的员工 |
-| GET/POST/PATCH/DELETE | `/stores/:storeId/payroll-settlements/:id?` | 工资结算账本与软删除 |
-| POST | `/stores/:storeId/payroll-settlements/:id/restore` | 恢复工资结算 |
+| GET | `/stores/:storeId/gift-card-sales/deleted` | 店长查看已删除卖卡记录 |
+| POST | `/stores/:storeId/gift-card-sales/:saleId/restore` | 恢复已删除卖卡记录 |
+| GET | `/stores/:storeId/closings/:businessDate/preview` | 全店日结预览 |
+| GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人；返回目标员工按开始时间排序的逐笔记工、项目/加项名称、现金/刷卡/礼物卡的大费与小费付款、单笔工资收入，以及现金/刷卡大费分红、现金/刷卡小费分红和对应合计；仅计已确认付款；应提交现金按含现金大费的已确认项目折前基数合计 × 40% 计算；不含全店或他人数据 |
+| POST | `/stores/:storeId/closings/:businessDate`、`.../cancel` | 正常/强制日结与取消日结 |
+| GET | `/stores/:storeId/closings/:businessDate/deliveries` | 店主或经理查看个人日结短信发送历史、错误和 Mac 代理状态 |
+| POST | `/stores/:storeId/closings/:businessDate/deliveries/batch` | 日结后把所有已开启、号码有效且当天有记工的成员幂等加入发送队列 |
+| POST | `/stores/:storeId/closings/:businessDate/deliveries/members/:membershipId` | 单独发送或补发一位员工的个人日结 |
+| GET/POST/DELETE | `/stores/:storeId/closing-delivery-agent/status`、`credential` | 查看代理状态、生成一次性代理令牌或撤销令牌 |
+| POST | `/closing-delivery-agent/jobs/claim`、`jobs/:id/authorize`、`complete`、`fail`、`heartbeat` | Mac 代理使用 Bearer 令牌领取租约任务、发送前复核并回写结果 |
+| GET | `/stores/:storeId/cash-settlements/:businessDate` | 当日现金结算列表，只含当日有记工的员工 |
+| POST | `/stores/:storeId/cash-settlements/:businessDate/settle-all` | 批量结清未结清员工 |
+| POST | `/stores/:storeId/cash-settlements/:businessDate/:membershipId/settle`、`reopen` | 单人结清或回退 |
+| GET/POST | `/stores/:storeId/payroll-settlements` | 查询或新增工资结算账本 |
+| GET/PATCH/DELETE | `/stores/:storeId/payroll-settlements/:settlementId` | 工资结算详情、修改和软删除 |
+| POST | `/stores/:storeId/payroll-settlements/:settlementId/restore` | 恢复工资结算 |
 | GET | `/stores/:storeId/finance/summary` | 财务汇总、每日/员工小计和累计余额；总计包含总流水与店铺总结算，每日行包含 `dailyTurnoverCents`；`highlightFilter` 支持 `ALL`、`ONLY_HIGHLIGHTED`、`EXCLUDE_HIGHLIGHTED` |
 | GET | `/stores/:storeId/finance/details` | 与汇总筛选一致的组成明细，包括高亮状态 |
+| GET | `/stores/:storeId/finance/my-balance` | 当前成员的累计应得、已取得、已支付和尚欠/超付 |
 | GET | `/stores/:storeId/finance/export.csv` | 与汇总筛选一致且防公式注入的 UTF-8 CSV 导出，包括高亮标记列 |
 | GET | `/stores/:storeId/audit-logs` | 按时间、对象、动作和操作人查询审计 |
 | GET | `/stores/:storeId/events` | 支持 `Last-Event-ID` 的 SSE 实时事件流 |
 | POST | `/stores/:storeId/ai/work/messages` | 生成记工操作预览，不直接写入 |
 | POST | `/stores/:storeId/ai/finance/messages` | 使用后端确定性统计回答财务问题 |
 | POST | `/stores/:storeId/ai/work/transcribe` | 语音转文字 |
-| GET/POST/DELETE | `/stores/:storeId/ai/previews/:previewId/...` | 查看、确认或取消一次性 AI 预览 |
+| GET/DELETE | `/stores/:storeId/ai/previews/:previewId` | 查看或取消一次性 AI 预览 |
+| POST | `/stores/:storeId/ai/previews/:previewId/confirm` | 重新鉴权并一次性确认 AI 预览 |
 
 Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直接打开指定营业日的全店日结；在日结异常列表点击单据时，财务页原地读取 `GET /work-records/:recordId` 并打开单笔记工弹窗，不离开当前页面。`/?store=<storeId>&date=<businessDate>&record=<recordId>` 深链接仍可用于从外部直接打开今日页的指定记工。读取不会自动执行日结或修改记录。
 

@@ -9,6 +9,7 @@ import { IdempotencyService } from "../src/common/idempotency.service.js";
 import { PrismaService } from "../src/database/prisma.service.js";
 import { CashSettlementsService } from "../src/finance/cash-settlements.service.js";
 import { ClosingsService } from "../src/finance/closings.service.js";
+import { ClosingDeliveriesService } from "../src/finance/closing-deliveries.service.js";
 import { FinanceQueriesService } from "../src/finance/finance-queries.service.js";
 import { PayrollSettlementsService } from "../src/finance/payroll-settlements.service.js";
 import { StoreAccessService } from "../src/stores/store-access.service.js";
@@ -20,6 +21,7 @@ const access = new StoreAccessService(prisma);
 const idempotency = new IdempotencyService(prisma);
 const workRecords = new WorkRecordsService(prisma, access, idempotency);
 const closings = new ClosingsService(prisma, access, idempotency);
+const closingDeliveries = new ClosingDeliveriesService(prisma, access, closings);
 const cash = new CashSettlementsService(prisma, access, idempotency);
 const payroll = new PayrollSettlementsService(prisma, access, idempotency);
 const finance = new FinanceQueriesService(prisma, access);
@@ -115,6 +117,8 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
         where: { workRecord: { storeId } },
       });
       await prisma.workRecord.deleteMany({ where: { storeId } });
+      await prisma.employeeClosingDelivery.deleteMany({ where: { storeId } });
+      await prisma.closingDeliveryAgent.deleteMany({ where: { storeId } });
       await prisma.businessDayClosing.deleteMany({ where: { storeId } });
       await prisma.idempotencyRequest.deleteMany({ where: { storeId } });
       await prisma.auditLog.deleteMany({ where: { storeId } });
@@ -237,6 +241,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     );
     expect(own).toMatchObject({
       storeName: "财务集成测试店",
+      storeTimezone: "America/New_York",
       businessDate,
       isClosed: false,
       employee: {
@@ -252,8 +257,32 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
         cashTipDividendCents: 1_000,
         cardLargeFeeDividendCents: 3_600,
         cardTipDividendCents: 2_000,
+        confirmedLargeFeeWageCents: 6_000,
+        confirmedTipWageCents: 3_000,
+        confirmedIncomeCents: 9_000,
       },
+      records: [
+        {
+          id: recordId,
+          status: "CONFIRMED",
+          serviceName: "100 元测试项目",
+          serviceShortName: "100元",
+          addons: [],
+          grossFeeBaseCents: 10_000,
+          cashServiceCents: 4_000,
+          cardServiceCents: 6_000,
+          giftCardServiceCents: 0,
+          cashTipCents: 1_000,
+          cardTipCents: 2_000,
+          giftCardTipCents: 0,
+          totalLargeFeeWageCents: 6_000,
+          totalTipCents: 3_000,
+          employeeIncomeCents: 9_000,
+        },
+      ],
     });
+    expect(own.records[0]?.startAt).toMatch(/T/);
+    expect(own.records[0]?.endAt).toMatch(/T/);
     expect(own).not.toHaveProperty("storeTotals");
     expect(own).not.toHaveProperty("employees");
     await expect(
@@ -364,6 +393,10 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
   });
 
   it("正常日结锁定记工，取消日结会回退现金状态", async () => {
+    await prisma.storeMembership.update({
+      where: { id: employeeMembershipId },
+      data: { closingDeliveryEnabled: true, closingImageLocale: "zh_CN" },
+    });
     const preview = await closings.preview(actor(managerId), storeId, businessDate);
     expect(preview).toMatchObject({ hasWarnings: false, isClosed: false });
     const closed = await closings.close(
@@ -376,6 +409,15 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     );
     closingVersion = closed.closing.version;
     expect(closed.closing).toMatchObject({ status: "CLOSED", cycleNo: 1 });
+    const firstBatch = await closingDeliveries.queueBatch(actor(managerId), storeId, businessDate, "batch-first", "batch-first-request");
+    const duplicateBatch = await closingDeliveries.queueBatch(actor(managerId), storeId, businessDate, "batch-second", "batch-second-request");
+    expect(firstBatch).toMatchObject({ queuedCount: 1, skippedCount: 0 });
+    expect(duplicateBatch.queuedCount).toBe(1);
+    expect(await prisma.employeeClosingDelivery.count({ where: { closingId: closed.closing.id } })).toBe(1);
+    const credential = await closingDeliveries.rotateAgentCredential(actor(managerId), storeId, "agent-credential-request");
+    const claimed = await closingDeliveries.claim(`Bearer ${credential.token}`);
+    expect(claimed).toMatchObject({ phoneE164: expect.stringMatching(/^\+1/), locale: "zh_CN", cycleNo: 1 });
+    await expect(closingDeliveries.authorize(`Bearer ${credential.token}`, claimed!.id, claimed!.leaseToken)).resolves.toEqual({ authorized: true });
     await expect(
       workRecords.update(
         actor(employeeId),
@@ -395,7 +437,8 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       "closing-cancel-0001",
       "closing-cancel",
     );
-    expect(cancelled).toMatchObject({ reopenedCashSettlementCount: 1 });
+    expect(cancelled).toMatchObject({ reopenedCashSettlementCount: 1, cancelledDeliveryCount: 1 });
+    await expect(prisma.employeeClosingDelivery.findFirst({ where: { closingId: closed.closing.id } })).resolves.toMatchObject({ status: "CANCELLED" });
     const afterCancel = await cash.list(actor(managerId), storeId, businessDate);
     expect(
       afterCancel.rows.find((row) => row.membershipId === employeeMembershipId),

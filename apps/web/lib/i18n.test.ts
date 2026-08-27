@@ -32,6 +32,9 @@ describe("bilingual UI translation", () => {
   it("translates dynamic status text without changing user names", () => {
     expect(translateText("已隐藏 Amy", "en-US")).toBe("Hidden Amy");
     expect(translateText("Amy的个人日结", "en-US")).toBe("Amy's employee closing");
+    expect(translateText("逐笔记工", "en-US")).toBe("Work records");
+    expect(translateText("现金大费工资", "en-US")).toBe("Cash service-fee wages");
+    expect(translateText("小费工资", "en-US")).toBe("Tip earnings");
     expect(translateText("3 项需要核对", "en-US")).toBe("3 items to review");
     expect(translateText("1 项提醒", "en-US")).toBe("1 reminder");
     expect(translateText("手动改价提醒", "en-US")).toBe("Manual price reminders");

@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import { isAppLocale } from "../lib/i18n";
 import { LanguageProvider } from "./language-provider";
-import { PwaRegister } from "./pwa-register";
+import { NetworkStatus } from "./network-status";
 import { ScrollBoundaryGuard } from "./scroll-boundary-guard";
 
 export const metadata: Metadata = {
@@ -13,12 +13,6 @@ export const metadata: Metadata = {
   applicationName: "Massage note",
   icons: {
     icon: [{ url: "/app-icon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/app-icon-192.png", sizes: "192x192", type: "image/png" }],
-  },
-  appleWebApp: {
-    capable: true,
-    title: "Massage note",
-    statusBarStyle: "default",
   },
 };
 
@@ -34,7 +28,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const initialLocale = isAppLocale(savedLocale) ? savedLocale : "zh-CN";
   return (
     <html lang={initialLocale}>
-      <body><LanguageProvider initialLocale={initialLocale}><PwaRegister /><ScrollBoundaryGuard />{children}</LanguageProvider></body>
+      <body><LanguageProvider initialLocale={initialLocale}><NetworkStatus /><ScrollBoundaryGuard />{children}</LanguageProvider></body>
     </html>
   );
 }

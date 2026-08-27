@@ -25,6 +25,7 @@ function storeSnapshot(store: {
   giftCardAutoDiscountEnabled: boolean;
   giftCardAutoDiscountThresholdCents: bigint;
   giftCardAutoDiscountBps: number;
+  closingDefaultLocale: string;
   ownerMembershipId: string | null;
   status: string;
   version: number;
@@ -45,6 +46,7 @@ function storeSnapshot(store: {
     giftCardAutoDiscountThresholdCents:
       store.giftCardAutoDiscountThresholdCents.toString(),
     giftCardAutoDiscountBps: store.giftCardAutoDiscountBps,
+    closingDefaultLocale: store.closingDefaultLocale,
     ownerMembershipId: store.ownerMembershipId,
     status: store.status,
     version: store.version,
@@ -135,6 +137,9 @@ export class StoreManagementService {
                     input.giftCardAutoDiscountThresholdCents!,
                   giftCardAutoDiscountBps: input.giftCardAutoDiscountBps!,
                 }),
+            ...(input.closingDefaultLocale === undefined
+              ? {}
+              : { closingDefaultLocale: input.closingDefaultLocale }),
             version: { increment: 1 },
           },
         });

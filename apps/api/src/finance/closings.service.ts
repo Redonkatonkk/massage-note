@@ -76,7 +76,7 @@ export class ClosingsService {
         status: "ACTIVE",
         deletedAt: null,
       },
-      include: { store: { select: { name: true } } },
+      include: { store: { select: { name: true, timezone: true } } },
     });
     if (!target) {
       throw new NotFoundException({
@@ -119,16 +119,28 @@ export class ClosingsService {
           closedAt: preview.activeClosing.closedAt,
         }
       : null;
+    const confirmedLargeFeeWageCents =
+      employee.cashLargeFeeDividendCents + employee.cardLargeFeeDividendCents;
+    const confirmedTipWageCents =
+      employee.cashTipDividendCents + employee.cardTipDividendCents;
     return {
       storeId,
       storeName: target.store.name,
+      storeTimezone: target.store.timezone,
       businessDate,
       isClosed: preview.isClosed,
       activeClosing,
       hasWarnings: preview.hasWarnings,
       warningCount: preview.warningCount,
       warnings: preview.warnings,
-      employee,
+      employee: {
+        ...employee,
+        confirmedLargeFeeWageCents,
+        confirmedTipWageCents,
+        confirmedIncomeCents:
+          confirmedLargeFeeWageCents + confirmedTipWageCents,
+      },
+      records: preview.personalRecords ?? [],
     };
   }
 
@@ -305,6 +317,19 @@ export class ClosingsService {
             version: { increment: 1 },
           },
         });
+        const cancelledDeliveries = await transaction.employeeClosingDelivery.updateMany({
+          where: {
+            closingId: current.id,
+            status: { in: ["QUEUED", "CLAIMED", "FAILED"] },
+          },
+          data: {
+            status: "CANCELLED",
+            leaseToken: null,
+            leaseExpiresAt: null,
+            lastErrorCode: "CLOSING_CANCELLED",
+            lastError: "日结已取消，旧周期员工小结不再发送",
+          },
+        });
         const cancelled = await transaction.businessDayClosing.findUniqueOrThrow({
           where: { id: current.id },
         });
@@ -327,13 +352,14 @@ export class ClosingsService {
               status: cancelled.status,
               cancelledAt: cancelledAt.toISOString(),
               reopenedCashSettlementCount: reopened.count,
+              cancelledDeliveryCount: cancelledDeliveries.count,
               version: cancelled.version,
             },
             reason: input.reason,
             requestId,
           },
         });
-        return { closing: cancelled, reopenedCashSettlementCount: reopened.count };
+        return { closing: cancelled, reopenedCashSettlementCount: reopened.count, cancelledDeliveryCount: cancelledDeliveries.count };
       },
     );
   }
@@ -376,6 +402,13 @@ export class ClosingsService {
         orderBy: { startAt: "asc" },
         include: {
           employee: { select: { id: true, displayName: true, role: true } },
+          serviceSnapshot: {
+            select: { name: true, shortName: true },
+          },
+          addonSnapshots: {
+            orderBy: { position: "asc" },
+            select: { name: true, shortName: true },
+          },
         },
       }),
       membershipId
@@ -584,6 +617,59 @@ export class ClosingsService {
       },
     );
     const safeGiftCardSaleTotals = this.safeTotals(giftCardSaleTotals);
+    const personalRecords = membershipId
+      ? records.map((record) => ({
+          id: record.id,
+          status: record.status,
+          startAt: record.startAt.toISOString(),
+          endAt: record.endAt?.toISOString() ?? null,
+          serviceName: record.serviceSnapshot?.name ?? "自定义项目",
+          serviceShortName:
+            record.serviceSnapshot?.shortName ??
+            record.serviceSnapshot?.name ??
+            "自定义",
+          addons: record.addonSnapshots.map((addon) => ({
+            name: addon.name,
+            shortName: addon.shortName,
+          })),
+          grossFeeBaseCents: this.safeNumber(record.grossFeeBaseCents),
+          cashServiceCents:
+            record.cashServiceCents === null
+              ? null
+              : this.safeNumber(record.cashServiceCents),
+          cardServiceCents:
+            record.cardServiceCents === null
+              ? null
+              : this.safeNumber(record.cardServiceCents),
+          giftCardServiceCents:
+            record.giftCardServiceCents === null
+              ? null
+              : this.safeNumber(record.giftCardServiceCents),
+          cashTipCents:
+            record.cashTipCents === null
+              ? null
+              : this.safeNumber(record.cashTipCents),
+          cardTipCents:
+            record.cardTipCents === null
+              ? null
+              : this.safeNumber(record.cardTipCents),
+          giftCardTipCents:
+            record.giftCardTipCents === null
+              ? null
+              : this.safeNumber(record.giftCardTipCents),
+          totalLargeFeeWageCents: this.safeNumber(
+            record.totalLargeFeeWageCents,
+          ),
+          totalTipCents:
+            record.totalTipCents === null
+              ? null
+              : this.safeNumber(record.totalTipCents),
+          employeeIncomeCents:
+            record.employeeTotalIncomeCents === null
+              ? null
+              : this.safeNumber(record.employeeTotalIncomeCents),
+        }))
+      : undefined;
     const giftCardRedemptionCents = this.safeNumber(
       records.reduce(
         (total, record) =>
@@ -626,6 +712,7 @@ export class ClosingsService {
       warnings,
       employees,
       storeTotals,
+      personalRecords,
     };
   }
 

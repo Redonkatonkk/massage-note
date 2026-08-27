@@ -19,6 +19,7 @@ import type {
   BoardResponse,
   CatalogResponse,
   ClosingPreview,
+  ClosingDeliveryList,
   CurrentBusinessDay,
   MembershipSummary,
   StoreDetails,
@@ -119,6 +120,7 @@ export function TodayBoard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [deliveryList, setDeliveryList] = useState<ClosingDeliveryList | null>(null);
   const [statusNow, setStatusNow] = useState(() => {
     const serverTime = Date.parse(currentDay.serverTime);
     return Number.isFinite(serverTime) ? serverTime : Date.now();
@@ -129,6 +131,14 @@ export function TodayBoard({
     const timer = window.setTimeout(() => setNotice(""), 4_000);
     return () => window.clearTimeout(timer);
   }, [notice]);
+
+  useEffect(() => {
+    if (!canManage || !board.isClosed) { setDeliveryList(null); return; }
+    const load = () => void apiRequest<ClosingDeliveryList>(`/stores/${membership.store.id}/closings/${currentDay.businessDate}/deliveries`).then(setDeliveryList).catch(() => undefined);
+    load();
+    const timer = window.setInterval(load, 15_000);
+    return () => window.clearInterval(timer);
+  }, [board.isClosed, canManage, currentDay.businessDate, membership.store.id]);
 
   useEffect(() => {
     if (!initialRecordId) return;
@@ -287,6 +297,12 @@ export function TodayBoard({
     await onReload();
   }
 
+  async function queueEmployeeClosings() {
+    const result = await apiRequest<{ queuedCount: number; skippedCount: number }>(`/stores/${membership.store.id}/closings/${currentDay.businessDate}/deliveries/batch`, { method: "POST", idempotent: true });
+    setNotice(`已排队 ${result.queuedCount} 位员工${result.skippedCount ? `，跳过 ${result.skippedCount} 位` : ""}`);
+    setDeliveryList(await apiRequest<ClosingDeliveryList>(`/stores/${membership.store.id}/closings/${currentDay.businessDate}/deliveries`));
+  }
+
   async function setRowHidden(row: BoardResponse["rows"][number], isHidden: boolean) {
     const path = `/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}`;
     try {
@@ -425,7 +441,7 @@ export function TodayBoard({
             await onReload();
           })}>{busy ? "正在上班…" : "上班"}</button>}
           {canManage && (board.isClosed
-            ? <button className="secondary-action board-closing-action" type="button" disabled={busy} onClick={() => run(cancelBusinessDayClosing)}>取消日结</button>
+            ? <><button className="primary-action board-closing-action" type="button" disabled={busy || deliveryList?.batchAllowed === false} title={deliveryList?.batchBlockedReason ?? undefined} onClick={() => run(queueEmployeeClosings)}>{deliveryList?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button><button className="secondary-action board-closing-action" type="button" disabled={busy} onClick={() => run(cancelBusinessDayClosing)}>取消日结</button></>
             : <button className="primary-action board-closing-action" type="button" disabled={busy} onClick={() => run(closeBusinessDay)}>日结</button>)}
         </div>
       </section>
@@ -436,6 +452,7 @@ export function TodayBoard({
       </section>}
 
       {board.isClosed && <p className="closed-banner" role="status">这个营业日已经日结。记工和结算内容只读；店长或经理仍可调整员工行显示，如需修改其他内容请先取消日结。</p>}
+      {canManage && board.isClosed && deliveryList && deliveryList.deliveries.length > 0 && <div className="delivery-status-strip" aria-label="员工小结发送状态">{(["QUEUED", "CLAIMED", "SENT", "FAILED", "CANCELLED"] as const).map((status) => { const count = deliveryList.deliveries.filter((item) => item.status === status).length; return count > 0 ? <span key={status}>{({ QUEUED: "排队", CLAIMED: "发送中", SENT: "已发送", FAILED: "失败", CANCELLED: "已取消" } as const)[status]} <strong>{count}</strong></span> : null; })}</div>}
       {notice && <p className="success-banner" role="status">✓ {notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
 
@@ -652,6 +669,7 @@ export function TodayBoard({
           businessDate={currentDay.businessDate}
           membershipId={closingEmployee.id}
           displayName={closingEmployee.displayName}
+          canSend={canManage}
           onClose={() => setClosingEmployee(null)}
         />
       )}

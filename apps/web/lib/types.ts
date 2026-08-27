@@ -38,8 +38,11 @@ export interface StoreMember {
   status: string;
   version: number;
   defaultCommissionBps: number | null;
+  closingDeliveryEnabled: boolean;
+  closingDeliveryPhoneE164: string | null;
+  closingImageLocale: "zh_CN" | "en_US" | null;
   deletedAt: string | null;
-  user?: null | { id: string; firstName: string | null; lastName: string | null };
+  user?: null | { id: string; firstName: string | null; lastName: string | null; phoneE164?: string };
 }
 
 export interface StoreDetails extends StoreSummary {
@@ -50,9 +53,41 @@ export interface StoreDetails extends StoreSummary {
   giftCardAutoDiscountEnabled: boolean;
   giftCardAutoDiscountThresholdCents: number;
   giftCardAutoDiscountBps: number;
+  closingDefaultLocale: "zh_CN" | "en_US";
   version: number;
   ownerMembershipId: string | null;
   ownerMembership: null | { id: string; displayName: string; userId: string };
+}
+
+export type ClosingDeliveryStatus = "QUEUED" | "CLAIMED" | "SENT" | "FAILED" | "CANCELLED";
+
+export interface ClosingDeliveryItem {
+  id: string;
+  closingId: string;
+  membershipId: string;
+  kind: "INITIAL" | "RESEND";
+  status: ClosingDeliveryStatus;
+  recipientPhoneE164: string;
+  locale: "zh_CN" | "en_US";
+  attemptCount: number;
+  lastErrorCode: string | null;
+  lastError: string | null;
+  sentAt: string | null;
+  createdAt: string;
+  closing: { cycleNo: number; status: string };
+  membership: { displayName: string };
+}
+
+export interface ClosingDeliveryList {
+  deliveries: ClosingDeliveryItem[];
+  batchAllowed: boolean;
+  batchBlockedReason: string | null;
+  agent: null | {
+    tokenPrefix: string;
+    lastSeenAt: string | null;
+    lastStatusJson: null | { messagesAvailable?: boolean; serviceTypes?: string[]; version?: string; lastError?: string | null };
+    revokedAt: string | null;
+  };
 }
 
 export interface JoinRequest {
@@ -555,13 +590,39 @@ export interface ClosingPreview {
 export interface EmployeeClosingPreview {
   storeId: string;
   storeName: string;
+  storeTimezone: string;
   businessDate: string;
   isClosed: boolean;
   activeClosing: ActiveClosingSummary | null;
   hasWarnings: boolean;
   warningCount: number;
   warnings: ClosingWarning[];
-  employee: ClosingEmployeeTotals;
+  employee: ClosingEmployeeTotals & {
+    confirmedLargeFeeWageCents: number;
+    confirmedTipWageCents: number;
+    confirmedIncomeCents: number;
+  };
+  records: EmployeeClosingRecord[];
+}
+
+export interface EmployeeClosingRecord {
+  id: string;
+  status: "PENDING_PAYMENT" | "CONFIRMED";
+  startAt: string;
+  endAt: string | null;
+  serviceName: string;
+  serviceShortName: string;
+  addons: Array<{ name: string; shortName: string }>;
+  grossFeeBaseCents: number;
+  cashServiceCents: number | null;
+  cardServiceCents: number | null;
+  giftCardServiceCents: number | null;
+  cashTipCents: number | null;
+  cardTipCents: number | null;
+  giftCardTipCents: number | null;
+  totalLargeFeeWageCents: number;
+  totalTipCents: number | null;
+  employeeIncomeCents: number | null;
 }
 
 export interface PayrollSettlement {

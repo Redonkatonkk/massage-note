@@ -27,6 +27,13 @@ export const businessCutoffSchema = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "营业日截止时间必须使用 HH:mm 格式");
 
+export const closingImageLocaleSchema = z.enum(["zh_CN", "en_US"]);
+export const optionalE164PhoneSchema = z
+  .string()
+  .trim()
+  .regex(/^\+[1-9]\d{7,14}$/, "短信号码必须使用国际格式，例如 +16465551234")
+  .nullable();
+
 export const createStoreSchema = z.object({
   storeCode: storeCodeSchema,
   name: z.string().trim().min(1, "店铺名称不能为空").max(100),
@@ -52,6 +59,7 @@ export const updateStoreSchema = z
     giftCardAutoDiscountEnabled: z.boolean().optional(),
     giftCardAutoDiscountThresholdCents: moneyCentsSchema.optional(),
     giftCardAutoDiscountBps: commissionBpsSchema.optional(),
+    closingDefaultLocale: closingImageLocaleSchema.optional(),
   })
   .superRefine((value, context) => {
     const fields = [
@@ -153,7 +161,8 @@ export const updateStoreSchema = z
       value.businessCutoffLocal !== undefined ||
       value.globalCommissionBps !== undefined ||
       value.mondayThursdayAutoDiscountEnabled !== undefined ||
-      value.giftCardAutoDiscountEnabled !== undefined,
+      value.giftCardAutoDiscountEnabled !== undefined ||
+      value.closingDefaultLocale !== undefined,
     "至少需要修改一个店铺字段",
   );
 
@@ -193,13 +202,19 @@ export const updateMembershipSchema = z
     role: assignableRoleSchema.optional(),
     isServiceProvider: z.boolean().optional(),
     defaultCommissionBps: commissionBpsSchema.nullable().optional(),
+    closingDeliveryEnabled: z.boolean().optional(),
+    closingDeliveryPhoneE164: optionalE164PhoneSchema.optional(),
+    closingImageLocale: closingImageLocaleSchema.nullable().optional(),
   })
   .refine(
     (value) =>
       value.displayName !== undefined ||
       value.role !== undefined ||
       value.isServiceProvider !== undefined ||
-      value.defaultCommissionBps !== undefined,
+      value.defaultCommissionBps !== undefined ||
+      value.closingDeliveryEnabled !== undefined ||
+      value.closingDeliveryPhoneE164 !== undefined ||
+      value.closingImageLocale !== undefined,
     "至少需要修改一个成员字段",
   );
 

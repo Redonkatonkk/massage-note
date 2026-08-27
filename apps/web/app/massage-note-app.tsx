@@ -252,7 +252,7 @@ export function MassageNoteApp() {
       if (selectedMembership.role !== "EMPLOYEE") {
         nextMembers = await apiRequest<StoreMember[]>(`/stores/${selectedMembership.store.id}/members`);
       } else {
-        nextMembers = nextBoard.rows.map((row) => ({ ...row.membership, version: 1, defaultCommissionBps: null, deletedAt: null }));
+        nextMembers = nextBoard.rows.map((row) => ({ ...row.membership, version: 1, defaultCommissionBps: null, closingDeliveryEnabled: false, closingDeliveryPhoneE164: null, closingImageLocale: null, deletedAt: null }));
       }
       if (generation !== storeLoadGeneration.current) return;
       viewDateRef.current = targetDate;

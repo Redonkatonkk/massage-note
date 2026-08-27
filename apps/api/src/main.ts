@@ -36,8 +36,9 @@ async function bootstrap(): Promise<void> {
   app.use((request: Request, response: Response, next: NextFunction) => {
     if (!unsafeMethods.has(request.method)) return next();
     const isSessionBootstrap = request.path === "/api/v1/auth/session" || request.path === "/api/v1/auth/dev-session";
+    const isClosingDeliveryAgent = request.path.startsWith("/api/v1/closing-delivery-agent/") && request.header("authorization")?.startsWith("Bearer mna_");
     const origin = request.header("origin");
-    if (!isSessionBootstrap && origin !== webOrigin) {
+    if (!isSessionBootstrap && !isClosingDeliveryAgent && origin !== webOrigin) {
       return response.status(403).json({ code: "CSRF_ORIGIN_REJECTED", messageZh: "请求来源不受信任，请刷新页面后重试", requestId: response.locals.requestId });
     }
     next();
@@ -51,7 +52,7 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: [webOrigin],
     credentials: true,
-    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",

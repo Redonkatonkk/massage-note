@@ -68,6 +68,12 @@ describe("门店输入契约", () => {
     expect(updateMembershipSchema.safeParse({ version: 1 }).success).toBe(false);
   });
 
+  it("校验个人日结短信号码和语言设置", () => {
+    expect(updateMembershipSchema.safeParse({ version: 1, closingDeliveryEnabled: true, closingDeliveryPhoneE164: "+16465551234", closingImageLocale: "en_US" }).success).toBe(true);
+    expect(updateMembershipSchema.safeParse({ version: 1, closingDeliveryPhoneE164: "6465551234" }).success).toBe(false);
+    expect(updateStoreSchema.safeParse({ version: 1, closingDefaultLocale: "zh_CN" }).success).toBe(true);
+  });
+
   it("店铺设置更新需要版本号和至少一个字段", () => {
     expect(updateStoreSchema.safeParse({ version: 1 }).success).toBe(false);
     expect(

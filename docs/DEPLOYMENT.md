@@ -1,6 +1,14 @@
-# 生产部署说明
+# 生产部署总览
 
-本说明提供单机 Docker Compose 参考部署。正式营业建议使用托管 PostgreSQL（启用自动备份和时间点恢复）与托管 Redis；应用容器的配置保持不变。
+本文说明普通 Linux 主机上的 Docker Compose 部署。群晖使用 GHCR 单镜像与固定项目 `mn`，请直接阅读 [`NAS_DEPLOYMENT.md`](NAS_DEPLOYMENT.md)。
+
+| 场景 | 使用文件 | 应用形态 |
+| --- | --- | --- |
+| 本地开发 | `docker-compose.yml` | 只启动 PostgreSQL/Redis，Web/API 由 pnpm 启动 |
+| 普通 Linux 生产 | `docker-compose.prod.yml` | 独立 Web/API 容器，主机本地构建 |
+| 群晖生产 | `docker-compose.nas.yml` | GHCR 单应用镜像，Container Manager 管理 |
+
+以下内容只适用于普通 Linux 生产。正式营业建议使用启用自动备份和时间点恢复的托管 PostgreSQL 与托管 Redis；应用容器配置保持不变。
 
 ## 1. 前置条件
 

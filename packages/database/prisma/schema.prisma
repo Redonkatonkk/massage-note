@@ -48,6 +48,24 @@ enum ClosingStatus {
   CANCELLED
 }
 
+enum ClosingImageLocale {
+  zh_CN
+  en_US
+}
+
+enum ClosingDeliveryStatus {
+  QUEUED
+  CLAIMED
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum ClosingDeliveryKind {
+  INITIAL
+  RESEND
+}
+
 enum CashSettlementStatus {
   UNSETTLED
   SETTLED
@@ -108,6 +126,7 @@ model Store {
   giftCardAutoDiscountThresholdCents        BigInt      @default(0) @map("gift_card_auto_discount_threshold_cents")
   giftCardAutoDiscountBps                   Int         @default(0) @map("gift_card_auto_discount_bps")
   nextGiftCardSerialNumber                 Int         @default(1001) @map("gift_card_next_serial_number")
+  closingDefaultLocale                    ClosingImageLocale @default(zh_CN) @map("closing_default_locale")
   ownerMembershipId                        String?     @unique @map("owner_membership_id") @db.Uuid
   status                                   StoreStatus @default(SETUP)
   version                                  Int         @default(1)
@@ -128,6 +147,8 @@ model Store {
   workRecords          WorkRecord[]
   giftCardSales        GiftCardSale[]
   closings             BusinessDayClosing[]
+  closingDeliveries    EmployeeClosingDelivery[]
+  closingDeliveryAgent ClosingDeliveryAgent?
   cashSettlements      DailyCashSettlement[]
   payrollSettlements   PayrollSettlement[]
   audits               AuditLog[]
@@ -150,6 +171,9 @@ model StoreMembership {
   displayNameNormalized String           @map("display_name_normalized")
   isServiceProvider     Boolean          @default(true) @map("is_service_provider")
   defaultCommissionBps  Int?             @map("default_commission_bps")
+  closingDeliveryEnabled Boolean         @default(false) @map("closing_delivery_enabled")
+  closingDeliveryPhoneE164 String?       @map("closing_delivery_phone_e164")
+  closingImageLocale    ClosingImageLocale? @map("closing_image_locale")
   status                MembershipStatus @default(ACTIVE)
   joinedAt              DateTime         @default(now()) @map("joined_at") @db.Timestamptz(3)
   leftAt                DateTime?        @map("left_at") @db.Timestamptz(3)
@@ -171,6 +195,7 @@ model StoreMembership {
   operatedGiftCardSales GiftCardSale[]
   cashSettlements       DailyCashSettlement[]
   payrollSettlements    PayrollSettlement[]
+  closingDeliveries     EmployeeClosingDelivery[]
 
   @@unique([storeId, userId])
   @@index([storeId, status])
@@ -559,11 +584,62 @@ model BusinessDayClosing {
   cancelledAt         DateTime?     @map("cancelled_at") @db.Timestamptz(3)
   version             Int           @default(1)
 
-  store Store @relation(fields: [storeId], references: [id])
+  store      Store                     @relation(fields: [storeId], references: [id])
+  deliveries EmployeeClosingDelivery[]
 
   @@unique([storeId, businessDate, cycleNo])
   @@index([storeId, businessDate, status])
   @@map("business_day_closings")
+}
+
+model EmployeeClosingDelivery {
+  id                    String                @id @default(uuid()) @db.Uuid
+  storeId               String                @map("store_id") @db.Uuid
+  closingId             String                @map("closing_id") @db.Uuid
+  membershipId          String                @map("membership_id") @db.Uuid
+  kind                   ClosingDeliveryKind
+  status                 ClosingDeliveryStatus @default(QUEUED)
+  recipientPhoneE164     String                @map("recipient_phone_e164")
+  locale                 ClosingImageLocale
+  snapshotJson           Json                  @map("snapshot_json")
+  queuedBy               String                @map("queued_by") @db.Uuid
+  requestKey             String?               @map("request_key")
+  attemptCount           Int                   @default(0) @map("attempt_count")
+  leaseToken             String?               @map("lease_token") @db.Uuid
+  leaseExpiresAt         DateTime?              @map("lease_expires_at") @db.Timestamptz(3)
+  nextAttemptAt          DateTime               @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  lastErrorCode          String?                @map("last_error_code")
+  lastError              String?                @map("last_error")
+  sentAt                 DateTime?              @map("sent_at") @db.Timestamptz(3)
+  createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store      Store              @relation(fields: [storeId], references: [id])
+  closing    BusinessDayClosing @relation(fields: [closingId], references: [id])
+  membership StoreMembership    @relation(fields: [membershipId], references: [id])
+
+  @@unique([storeId, closingId, membershipId, kind, requestKey])
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([storeId, closingId, createdAt])
+  @@index([storeId, membershipId, createdAt])
+  @@map("employee_closing_deliveries")
+}
+
+model ClosingDeliveryAgent {
+  id             String    @id @default(uuid()) @db.Uuid
+  storeId        String    @unique @map("store_id") @db.Uuid
+  tokenHash      String    @map("token_hash")
+  tokenPrefix    String    @unique @map("token_prefix")
+  lastSeenAt     DateTime? @map("last_seen_at") @db.Timestamptz(3)
+  lastStatusJson Json?     @map("last_status_json")
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@map("closing_delivery_agents")
 }
 
 model DailyCashSettlement {

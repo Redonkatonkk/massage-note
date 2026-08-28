@@ -19,6 +19,7 @@ import type {
   BoardResponse,
   CatalogResponse,
   ClosingPreview,
+  ClosingDeliveryItem,
   ClosingDeliveryList,
   CurrentBusinessDay,
   MembershipSummary,
@@ -26,6 +27,7 @@ import type {
   StoreMember,
   WorkRecord,
 } from "../lib/types";
+import { ClosingDeliveryQueue } from "./closing-delivery-queue";
 import { EmployeeClosingModal } from "./employee-closing";
 import { GiftCardSales } from "./gift-card-sales";
 import { RecordEditor } from "./record-editor";
@@ -303,6 +305,12 @@ export function TodayBoard({
     setDeliveryList(await apiRequest<ClosingDeliveryList>(`/stores/${membership.store.id}/closings/${currentDay.businessDate}/deliveries`));
   }
 
+  async function cancelEmployeeClosingDelivery(delivery: ClosingDeliveryItem) {
+    await apiRequest(`/stores/${membership.store.id}/closings/${currentDay.businessDate}/deliveries/${delivery.id}`, { method: "DELETE" });
+    setNotice(`已取消 ${delivery.membership.displayName} 的短信发送任务`);
+    setDeliveryList(await apiRequest<ClosingDeliveryList>(`/stores/${membership.store.id}/closings/${currentDay.businessDate}/deliveries`));
+  }
+
   async function setRowHidden(row: BoardResponse["rows"][number], isHidden: boolean) {
     const path = `/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}`;
     try {
@@ -452,7 +460,7 @@ export function TodayBoard({
       </section>}
 
       {board.isClosed && <p className="closed-banner" role="status">这个营业日已经日结。记工和结算内容只读；店长或经理仍可调整员工行显示，如需修改其他内容请先取消日结。</p>}
-      {canManage && board.isClosed && deliveryList && deliveryList.deliveries.length > 0 && <div className="delivery-status-strip" aria-label="员工小结发送状态">{(["QUEUED", "CLAIMED", "SENT", "FAILED", "CANCELLED"] as const).map((status) => { const count = deliveryList.deliveries.filter((item) => item.status === status).length; return count > 0 ? <span key={status}>{({ QUEUED: "排队", CLAIMED: "发送中", SENT: "已发送", FAILED: "失败", CANCELLED: "已取消" } as const)[status]} <strong>{count}</strong></span> : null; })}</div>}
+      {canManage && board.isClosed && deliveryList && <ClosingDeliveryQueue value={deliveryList} busy={busy} onCancel={(delivery) => void run(() => cancelEmployeeClosingDelivery(delivery))} />}
       {notice && <p className="success-banner" role="status">✓ {notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
 

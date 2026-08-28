@@ -83,6 +83,8 @@ const actionText: Record<string, string> = {
   "business_day.closing_cancelled": "取消日结",
   "employee_closing.delivery_queued": "排队发送员工小结",
   "employee_closing.delivery_sent": "已发送员工小结",
+  "employee_closing.delivery_cancelled": "已取消员工小结发送",
+  "employee_closing.delivery_rejected": "员工小结发送任务无效",
   "closing_delivery.agent_credential_rotated": "更新 Mac 信息代理令牌",
   "closing_delivery.agent_credential_revoked": "撤销 Mac 信息代理令牌",
   "payroll_settlement.created": "新增工资结算",

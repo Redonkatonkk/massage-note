@@ -414,7 +414,53 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     expect(firstBatch).toMatchObject({ queuedCount: 1, skippedCount: 0 });
     expect(duplicateBatch.queuedCount).toBe(1);
     expect(await prisma.employeeClosingDelivery.count({ where: { closingId: closed.closing.id } })).toBe(1);
+    const queuedDelivery = firstBatch.deliveries[0]!;
+    await expect(
+      closingDeliveries.cancel(
+        actor(managerId),
+        storeId,
+        businessDate,
+        queuedDelivery.id,
+        "delivery-cancel-request",
+      ),
+    ).resolves.toMatchObject({ status: "CANCELLED", lastErrorCode: "CANCELLED_BY_MANAGER" });
+    await expect(
+      closingDeliveries.cancel(
+        actor(managerId),
+        storeId,
+        businessDate,
+        queuedDelivery.id,
+        "delivery-cancel-again-request",
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
     const credential = await closingDeliveries.rotateAgentCredential(actor(managerId), storeId, "agent-credential-request");
+    const invalidDelivery = await closingDeliveries.queueMember(
+      actor(managerId),
+      storeId,
+      businessDate,
+      employeeMembershipId,
+      "invalid-phone-test",
+      "invalid-phone-request",
+    );
+    await prisma.employeeClosingDelivery.update({
+      where: { id: invalidDelivery.id },
+      data: { recipientPhoneE164: "" },
+    });
+    await expect(closingDeliveries.claim(`Bearer ${credential.token}`)).resolves.toBeNull();
+    await expect(prisma.employeeClosingDelivery.findUnique({ where: { id: invalidDelivery.id } })).resolves.toMatchObject({
+      status: "FAILED",
+      lastErrorCode: "RECIPIENT_PHONE_INVALID",
+    });
+
+    await closingDeliveries.queueMember(
+      actor(managerId),
+      storeId,
+      businessDate,
+      employeeMembershipId,
+      "valid-after-invalid",
+      "valid-after-invalid-request",
+    );
     const claimed = await closingDeliveries.claim(`Bearer ${credential.token}`);
     expect(claimed).toMatchObject({ phoneE164: expect.stringMatching(/^\+1/), locale: "zh_CN", cycleNo: 1 });
     await expect(closingDeliveries.authorize(`Bearer ${credential.token}`, claimed!.id, claimed!.leaseToken)).resolves.toEqual({ authorized: true });
@@ -437,7 +483,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       "closing-cancel-0001",
       "closing-cancel",
     );
-    expect(cancelled).toMatchObject({ reopenedCashSettlementCount: 1, cancelledDeliveryCount: 1 });
+    expect(cancelled).toMatchObject({ reopenedCashSettlementCount: 1, cancelledDeliveryCount: 2 });
     await expect(prisma.employeeClosingDelivery.findFirst({ where: { closingId: closed.closing.id } })).resolves.toMatchObject({ status: "CANCELLED" });
     const afterCancel = await cash.list(actor(managerId), storeId, businessDate);
     expect(

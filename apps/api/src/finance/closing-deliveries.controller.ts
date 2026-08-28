@@ -34,6 +34,11 @@ export class ClosingDeliveriesController {
   member(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Param("businessDate") businessDate: string, @Param("membershipId") membershipId: string, @Headers("idempotency-key") key: string | undefined, @Res({ passthrough: true }) response: Response) {
     return this.deliveries.queueMember(user, parseRequest(uuidSchema, storeId), parseRequest(businessDateSchema, businessDate), parseRequest(uuidSchema, membershipId), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
   }
+
+  @Delete(":deliveryId")
+  cancel(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Param("businessDate") businessDate: string, @Param("deliveryId") deliveryId: string, @Res({ passthrough: true }) response: Response) {
+    return this.deliveries.cancel(user, parseRequest(uuidSchema, storeId), parseRequest(businessDateSchema, businessDate), parseRequest(uuidSchema, deliveryId), response.locals.requestId as string);
+  }
 }
 
 @Controller("stores/:storeId/closing-delivery-agent")

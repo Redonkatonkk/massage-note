@@ -34,6 +34,9 @@ printf 'export MASSAGE_NOTE_API_URL=%q\nexport MASSAGE_NOTE_AGENT_TOKEN=%q\nexpo
   "$MASSAGE_NOTE_API_URL" "$MASSAGE_NOTE_AGENT_TOKEN" "$agent_dir" > "$config_path"
 chmod 600 "$config_path"
 
+print "正在前台检查‘信息’登录状态与 macOS 自动化权限…"
+MASSAGE_NOTE_AGENT_DATA_DIR="$agent_dir" "$node_bin" "$agent_dir/app/index.js" --diagnose
+
 cat > "$plist_path" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -54,5 +57,5 @@ launchctl bootstrap "gui/$(id -u)" "$plist_path"
 launchctl kickstart -k "gui/$(id -u)/$label"
 
 print "已安装并启动 Massage Note Messages Agent。"
-print "macOS 弹出自动化权限时，请允许它控制“信息”。"
+print "‘信息’自动化权限与可用服务已经通过前台检查。"
 print "日志：$agent_dir/agent-error.log"

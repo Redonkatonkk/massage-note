@@ -17,6 +17,8 @@ import { ClosingsService } from "./closings.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
+const isE164Phone = (phone: string | null | undefined): phone is string =>
+  typeof phone === "string" && /^\+[1-9]\d{7,14}$/.test(phone);
 
 @Injectable()
 export class ClosingDeliveriesService {
@@ -36,6 +38,7 @@ export class ClosingDeliveriesService {
           id: true, closingId: true, membershipId: true, kind: true, status: true,
           recipientPhoneE164: true, locale: true, attemptCount: true,
           lastErrorCode: true, lastError: true, sentAt: true, createdAt: true,
+          nextAttemptAt: true, updatedAt: true,
           closing: { select: { cycleNo: true, status: true } },
           membership: { select: { displayName: true } },
         },
@@ -90,7 +93,7 @@ export class ClosingDeliveriesService {
         skipped.push({ membershipId: member.id, displayName: member.displayName, reason: "未开启接收个人日结" });
         return [];
       }
-      if (!phone) {
+      if (!isE164Phone(phone)) {
         skipped.push({ membershipId: member.id, displayName: member.displayName, reason: "没有有效接收号码" });
         return [];
       }
@@ -102,7 +105,17 @@ export class ClosingDeliveriesService {
         const existing = await transaction.employeeClosingDelivery.findFirst({
           where: { storeId, closingId: closing.id, membershipId: item.member.id, kind: "INITIAL", requestKey: "initial" },
         });
-        if (existing) { rows.push(existing); continue; }
+        if (existing) {
+          if (existing.status === "QUEUED" && !isE164Phone(existing.recipientPhoneE164)) {
+            rows.push(await transaction.employeeClosingDelivery.update({
+              where: { id: existing.id },
+              data: { recipientPhoneE164: item.phone, lastErrorCode: null, lastError: null },
+            }));
+          } else {
+            rows.push(existing);
+          }
+          continue;
+        }
         const snapshot = await this.closings.previewMember(actor, storeId, businessDate, item.member.id);
         const delivery = await transaction.employeeClosingDelivery.upsert({
           where: { storeId_closingId_membershipId_kind_requestKey: { storeId, closingId: closing.id, membershipId: item.member.id, kind: "INITIAL", requestKey: "initial" } },
@@ -140,11 +153,19 @@ export class ClosingDeliveriesService {
     if (!member) throw new NotFoundException({ code: "CLOSING_MEMBERSHIP_NOT_FOUND", messageZh: "没有找到这位在职员工" });
     if (!member.closingDeliveryEnabled) throw new ConflictException({ code: "CLOSING_DELIVERY_DISABLED", messageZh: "这位员工尚未开启接收个人日结" });
     const phone = member.closingDeliveryPhoneE164 ?? member.user?.phoneE164;
-    if (!phone) throw new ConflictException({ code: "CLOSING_DELIVERY_PHONE_MISSING", messageZh: "这位员工没有有效接收号码" });
+    if (!isE164Phone(phone)) throw new ConflictException({ code: "CLOSING_DELIVERY_PHONE_MISSING", messageZh: "这位员工没有有效接收号码" });
     const existing = await this.prisma.employeeClosingDelivery.findFirst({
       where: { storeId, closingId: closing.id, membershipId, kind: "RESEND", requestKey },
     });
-    if (existing) return existing;
+    if (existing) {
+      if (existing.status === "QUEUED" && !isE164Phone(existing.recipientPhoneE164)) {
+        return this.prisma.employeeClosingDelivery.update({
+          where: { id: existing.id },
+          data: { recipientPhoneE164: phone, lastErrorCode: null, lastError: null },
+        });
+      }
+      return existing;
+    }
     const snapshot = await this.closings.previewMember(actor, storeId, businessDate, membershipId);
     const delivery = await this.prisma.employeeClosingDelivery.upsert({
       where: { storeId_closingId_membershipId_kind_requestKey: { storeId, closingId: closing.id, membershipId, kind: "RESEND", requestKey } },
@@ -166,6 +187,64 @@ export class ClosingDeliveriesService {
       },
     });
     return delivery;
+  }
+
+  async cancel(actor: User, storeId: string, businessDate: string, deliveryId: string, requestId: string) {
+    const actorMembership = await this.access.requireCapability(actor.id, storeId, "DAY_CLOSE_MANAGE");
+    const delivery = await this.prisma.employeeClosingDelivery.findFirst({
+      where: {
+        id: deliveryId,
+        storeId,
+        closing: { businessDate: dateAtUtc(businessDate) },
+      },
+      include: { closing: { select: { businessDate: true } } },
+    });
+    if (!delivery) {
+      throw new NotFoundException({
+        code: "CLOSING_DELIVERY_NOT_FOUND",
+        messageZh: "没有找到这条员工日结短信任务",
+      });
+    }
+    if (delivery.status !== "QUEUED") {
+      throw new ConflictException({
+        code: "CLOSING_DELIVERY_NOT_CANCELLABLE",
+        messageZh: "只有仍在排队、尚未交给信息 App 的任务可以取消",
+      });
+    }
+    const cancelled = await this.prisma.employeeClosingDelivery.updateMany({
+      where: { id: delivery.id, status: "QUEUED" },
+      data: {
+        status: "CANCELLED",
+        leaseToken: null,
+        leaseExpiresAt: null,
+        lastErrorCode: "CANCELLED_BY_MANAGER",
+        lastError: "店主或经理已取消发送",
+      },
+    });
+    if (cancelled.count !== 1) {
+      throw new ConflictException({
+        code: "CLOSING_DELIVERY_NOT_CANCELLABLE",
+        messageZh: "任务状态刚刚发生变化，请刷新后再检查",
+      });
+    }
+    const updated = await this.prisma.employeeClosingDelivery.findUniqueOrThrow({
+      where: { id: delivery.id },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        storeId,
+        actorUserId: actor.id,
+        actorMembershipId: actorMembership.id,
+        source: "api",
+        action: "employee_closing.delivery_cancelled",
+        entityType: "employee_closing_delivery",
+        entityId: delivery.id,
+        businessDate: delivery.closing.businessDate,
+        afterJson: { membershipId: delivery.membershipId, status: "CANCELLED" },
+        requestId,
+      },
+    });
+    return updated;
   }
 
   async rotateAgentCredential(actor: User, storeId: string, requestId: string) {
@@ -205,28 +284,60 @@ export class ClosingDeliveriesService {
 
   async claim(authorization: string | undefined) {
     const agent = await this.authenticateAgent(authorization);
-    const now = new Date();
-    const candidate = await this.prisma.employeeClosingDelivery.findFirst({
-      where: {
-        storeId: agent.storeId,
-        nextAttemptAt: { lte: now },
-        OR: [{ status: "QUEUED" }, { status: "CLAIMED", leaseExpiresAt: { lt: now } }],
-      },
-      orderBy: { createdAt: "asc" },
-    });
-    await this.prisma.closingDeliveryAgent.update({ where: { id: agent.id }, data: { lastSeenAt: now } });
-    if (!candidate) return null;
-    const leaseToken = randomUUID();
-    const updated = await this.prisma.employeeClosingDelivery.updateMany({
-      where: {
+    await this.prisma.closingDeliveryAgent.update({ where: { id: agent.id }, data: { lastSeenAt: new Date() } });
+    for (let checked = 0; checked < 100; checked += 1) {
+      const now = new Date();
+      const candidate = await this.prisma.employeeClosingDelivery.findFirst({
+        where: {
+          storeId: agent.storeId,
+          nextAttemptAt: { lte: now },
+          OR: [{ status: "QUEUED" }, { status: "CLAIMED", leaseExpiresAt: { lt: now } }],
+        },
+        orderBy: { createdAt: "asc" },
+      });
+      if (!candidate) return null;
+      const claimableWhere = {
         id: candidate.id,
-        OR: [{ status: "QUEUED" }, { status: "CLAIMED", leaseExpiresAt: { lt: now } }],
-      },
-      data: { status: "CLAIMED", leaseToken, leaseExpiresAt: new Date(now.getTime() + 5 * 60_000), attemptCount: { increment: 1 } },
-    });
-    if (updated.count !== 1) return null;
-    const job = await this.prisma.employeeClosingDelivery.findUniqueOrThrow({ where: { id: candidate.id }, include: { closing: { select: { cycleNo: true } }, membership: { select: { displayName: true } } } });
-    return { id: job.id, leaseToken, phoneE164: job.recipientPhoneE164, locale: job.locale, kind: job.kind, cycleNo: job.closing.cycleNo, displayName: job.membership.displayName, snapshot: job.snapshotJson };
+        OR: [{ status: "QUEUED" as const }, { status: "CLAIMED" as const, leaseExpiresAt: { lt: now } }],
+      };
+      if (!isE164Phone(candidate.recipientPhoneE164)) {
+        const rejected = await this.prisma.employeeClosingDelivery.updateMany({
+          where: claimableWhere,
+          data: {
+            status: "FAILED",
+            leaseToken: null,
+            leaseExpiresAt: null,
+            lastErrorCode: "RECIPIENT_PHONE_INVALID",
+            lastError: "接收号码为空或不是有效的 E.164 号码，请完善成员号码后人工补发",
+          },
+        });
+        if (rejected.count === 1) {
+          await this.prisma.auditLog.create({
+            data: {
+              storeId: candidate.storeId,
+              actorUserId: null,
+              actorMembershipId: null,
+              source: "messages_agent",
+              action: "employee_closing.delivery_rejected",
+              entityType: "employee_closing_delivery",
+              entityId: candidate.id,
+              afterJson: { status: "FAILED", errorCode: "RECIPIENT_PHONE_INVALID" },
+              requestId: `agent:${candidate.id}:invalid-phone`,
+            },
+          });
+        }
+        continue;
+      }
+      const leaseToken = randomUUID();
+      const updated = await this.prisma.employeeClosingDelivery.updateMany({
+        where: claimableWhere,
+        data: { status: "CLAIMED", leaseToken, leaseExpiresAt: new Date(now.getTime() + 5 * 60_000), attemptCount: { increment: 1 } },
+      });
+      if (updated.count !== 1) continue;
+      const job = await this.prisma.employeeClosingDelivery.findUniqueOrThrow({ where: { id: candidate.id }, include: { closing: { select: { cycleNo: true } }, membership: { select: { displayName: true } } } });
+      return { id: job.id, leaseToken, phoneE164: job.recipientPhoneE164, locale: job.locale, kind: job.kind, cycleNo: job.closing.cycleNo, displayName: job.membership.displayName, snapshot: job.snapshotJson };
+    }
+    return null;
   }
 
   async authorize(authorization: string | undefined, deliveryId: string, leaseToken: string) {

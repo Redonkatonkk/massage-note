@@ -73,7 +73,9 @@ export interface ClosingDeliveryItem {
   lastErrorCode: string | null;
   lastError: string | null;
   sentAt: string | null;
+  nextAttemptAt: string;
   createdAt: string;
+  updatedAt: string;
   closing: { cycleNo: number; status: string };
   membership: { displayName: string };
 }

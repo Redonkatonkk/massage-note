@@ -2451,7 +2451,22 @@ h2 {
 .delivery-status-strip strong { color: var(--ink); font-variant-numeric: tabular-nums; }
 .closing-delivery-panel { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 16px; border: 1px solid #a9d1bb; border-radius: 18px; background: #f5fcf8; }
 .closing-delivery-panel p { margin: 4px 0 0; color: var(--muted); font-size: .8rem; }
-.closing-delivery-panel .delivery-status-strip { grid-column: 1 / -1; }
+.closing-delivery-panel .closing-delivery-queue { grid-column: 1 / -1; }
+.closing-delivery-queue { display: grid; gap: 10px; width: 100%; }
+.delivery-queue-details { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.delivery-queue-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; color: var(--brand); font-size: .8rem; font-weight: 800; cursor: pointer; list-style-position: inside; }
+.delivery-queue-details > summary strong { display: inline-grid; min-width: 25px; min-height: 25px; place-items: center; border-radius: 999px; background: #f4ece6; color: var(--ink); font-variant-numeric: tabular-nums; }
+.delivery-queue-details[open] > summary { border-bottom: 1px solid var(--line); }
+.delivery-queue-table { min-width: 1120px; }
+.delivery-queue-table th, .delivery-queue-table td { padding: 10px 9px; font-size: .75rem; vertical-align: middle; white-space: nowrap; }
+.delivery-queue-table td:nth-child(9) { max-width: 310px; white-space: normal; }
+.delivery-phone { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.delivery-phone.invalid { color: #9d2c24; font-family: inherit; font-weight: 800; }
+.delivery-row-status { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #f4ece6; color: var(--muted); font-weight: 800; }
+.delivery-row-status.is-sent { background: #e5f6eb; color: var(--success); }
+.delivery-row-status.is-failed { background: #fff0ed; color: #9d2c24; }
+.delivery-row-status.is-cancelled { background: #efefef; color: #696969; }
+.delivery-row-status.is-claimed { background: #fff5d9; color: #80590a; }
 .delivery-error-list { grid-column: 1 / -1; display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; background: #fff0ed; color: #8d2c24; }
 .delivery-error-list p { margin: 0; font-size: .78rem; }
 .employee-closing-privacy { margin: 0 0 16px; padding: 12px 14px; border-radius: 13px; background: #edf8f1; color: var(--success); font-size: .84rem; font-weight: 700; }

@@ -1,6 +1,6 @@
 # GitHub → GHCR → 群晖部署
 
-> 当前版本：`0.12.27` · 镜像：`ghcr.io/redonkatonkk/massage-note`
+> 当前版本：`0.12.28` · 镜像：`ghcr.io/redonkatonkk/massage-note`
 > 历史版本变化统一查看 [`CHANGELOG.md`](../CHANGELOG.md)，不在本手册重复累积。
 
 标准发布链路：
@@ -154,7 +154,7 @@ docker buildx imagetools inspect "ghcr.io/redonkatonkk/massage-note:$release_ver
 
 NAS 只保存任务并提供 HTTPS API，不能从容器或浏览器直接控制远端 Mac 的“信息”App。本地 Mac 的 LaunchAgent 使用店铺代理令牌主动访问 `https://<production-domain>/api/v1`、领取任务，再通过本机 `/usr/bin/osascript` 调用“信息”；NAS 无需访问 Mac，也不需要为代理开放入站端口。
 
-安装时必须在已登录“信息”的目标 macOS 用户桌面会话中运行 `scripts/install-messages-agent.sh`。脚本会以前台诊断模式触发并验证自动化权限；该用户退出登录后 LaunchAgent 不运行，重新登录会自动启动。向非 Apple 号码发送图片还依赖配对 iPhone 的短信转发和运营商 MMS/RCS 支持。
+安装时必须在已登录“信息”的目标 macOS 用户桌面会话中运行 `scripts/install-messages-agent.sh`。首次运行安装附件暂存 App 后可能停止；店长只需在“完全磁盘访问权限”中添加并开启该 App，再重新运行安装。脚本随后以前台诊断模式验证 Messages 附件目录探针与自动化权限；后台代理不使用模拟键盘、剪贴板或相册，也不读取聊天数据库。该用户退出登录后 LaunchAgent 不运行，重新登录会自动启动。向非 Apple 号码发送图片还依赖配对 iPhone 的短信转发和运营商 MMS/RCS 支持。
 
 ## 每次升级 NAS
 

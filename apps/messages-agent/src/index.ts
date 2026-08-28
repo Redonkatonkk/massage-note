@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { messagesServices, sendMessagesAttachment } from "./messages.js";
 import { cleanupOutbox, closingPngPath, prepareOutbox, secureClosingPng } from "./outbox.js";
 import { closingMessage, renderClosingPng, type ClosingSnapshot } from "./render.js";
+import { messagesStagerReady, stageMessagesAttachment } from "./stager.js";
 
 const apiUrl = process.env.MASSAGE_NOTE_API_URL?.replace(/\/$/, "");
 const agentToken = process.env.MASSAGE_NOTE_AGENT_TOKEN;
@@ -37,11 +38,12 @@ async function heartbeat(lastError: string | null = null) {
   let diagnosticError = lastError;
   try {
     services = await messagesServices();
+    await messagesStagerReady();
   } catch (error) {
     diagnosticError = error instanceof Error ? error.message : String(error);
   }
   try {
-    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.27", lastError: diagnosticError }) });
+    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.28", lastError: diagnosticError }) });
   } catch (error) {
     process.stderr.write(`heartbeat: ${error instanceof Error ? error.message : String(error)}\n`);
   }
@@ -53,7 +55,8 @@ if (process.argv.includes("--diagnose")) {
   if (supported.length === 0) {
     throw new Error("信息 App 没有可用的 iMessage、RCS 或 SMS 服务，请先登录信息，并检查 iPhone 短信转发");
   }
-  process.stdout.write(`Messages automation ready: ${supported.join(" / ")}\n`);
+  await messagesStagerReady();
+  process.stdout.write(`Messages background automation and attachment staging ready: ${supported.join(" / ")}\n`);
   process.exit(0);
 }
 
@@ -72,8 +75,9 @@ async function processJob(job: Job, journal: Journal) {
   try {
     await renderClosingPng(job.snapshot, job.locale, svgPath, pngPath);
     await secureClosingPng(pngPath);
+    const stagedPath = await stageMessagesAttachment(pngPath, job.id);
     sendStarted = true;
-    await sendMessagesAttachment(job.phoneE164, pngPath, closingMessage(job.snapshot, job.locale, job.kind, job.cycleNo));
+    await sendMessagesAttachment(job.phoneE164, stagedPath, closingMessage(job.snapshot, job.locale, job.kind, job.cycleNo));
     journal.accepted.push(job.id); await saveJournal(journal);
     await request(`/closing-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
     journal.completed.push(job.id); await saveJournal(journal);

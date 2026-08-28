@@ -3,28 +3,39 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
+export function messagesPhoneHandle(phoneE164: string) {
+  const match = /^\+1(\d{10})$/.exec(phoneE164);
+  return match?.[1] ?? phoneE164;
+}
+
 export const messagesAttachmentScript = `on run argv
 set phoneNumber to item 1 of argv
 set filePath to item 2 of argv
 set messageText to item 3 of argv
-set serviceUsed to sendWithType(phoneNumber, filePath, messageText, "iMessage")
+set serviceUsed to sendWithType(phoneNumber, filePath, messageText, "SMS")
 if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, messageText, "RCS")
-if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, messageText, "SMS")
-if serviceUsed is "" then error "No iMessage, RCS, or SMS account can address this phone number"
+if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, messageText, "iMessage")
+if serviceUsed is "" then error "No enabled Messages account can address this phone number"
+delay 15
 return serviceUsed
 end run
 
 on sendWithType(phoneNumber, filePath, messageText, requestedType)
 tell application "Messages"
   repeat with targetAccount in accounts
+    set accountType to ""
     try
-      if (service type of targetAccount as text) is requestedType then
-        set targetParticipant to participant phoneNumber of targetAccount
-        send POSIX file filePath to targetParticipant
-        send messageText to targetParticipant
-        return requestedType
-      end if
+      set accountType to service type of targetAccount as text
+    on error
+      -- macOS 26 exposes additional account kinds that its AppleScript
+      -- dictionary cannot convert. Ignore only that account and continue.
     end try
+    if accountType is requestedType and enabled of targetAccount is true then
+      set targetParticipant to participant phoneNumber of targetAccount
+      send POSIX file filePath to targetParticipant
+      send messageText to targetParticipant
+      return requestedType
+    end if
   end repeat
 end tell
 return ""
@@ -36,7 +47,7 @@ export async function messagesServices(): Promise<string[]> {
 set foundServices to {}
 repeat with targetAccount in accounts
   try
-    set end of foundServices to (service type of targetAccount as text)
+    if enabled of targetAccount then set end of foundServices to (service type of targetAccount as text)
   end try
 end repeat
 return foundServices
@@ -46,6 +57,11 @@ end tell`;
 }
 
 export async function sendMessagesAttachment(phoneE164: string, pngPath: string, message: string): Promise<string> {
-  const { stdout } = await execFileAsync("/usr/bin/osascript", ["-e", messagesAttachmentScript, "--", phoneE164, pngPath, message]);
+  const phoneHandle = messagesPhoneHandle(phoneE164);
+  const { stdout } = await execFileAsync(
+    "/usr/bin/osascript",
+    ["-e", messagesAttachmentScript, "--", phoneHandle, pngPath, message],
+    { timeout: 45_000 },
+  );
   return stdout.trim();
 }

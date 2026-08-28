@@ -77,8 +77,9 @@ MASSAGE_NOTE_AGENT_TOKEN='<设置页生成的令牌>' \
 ./scripts/install-messages-agent.sh
 ```
 
-4. 安装脚本会先以前台诊断模式触发 macOS 自动化授权，并确认至少存在 iMessage、RCS 或 SMS 服务，再创建 `~/Library/LaunchAgents/com.massagenote.messages-agent.plist`。诊断失败时不要跳过；先登录“信息”、允许 Node 控制“信息”，非 Apple 号码还要检查 iPhone 短信转发和 MMS/RCS。
-5. 安装后验证：
+4. 首次运行会安装无界面的 `~/Applications/Massage Note Attachment Stager.app` 并尝试在 Messages 受保护附件目录写入后立即删除一个探针。若脚本以状态 2 停止，在“系统设置 → 隐私与安全性 → 完全磁盘访问权限”中添加并开启这个 App。它只接受代理 outbox 中与任务 UUID 精确匹配的 PNG，只写 `~/Library/Messages/Attachments/MassageNote`，不读取聊天数据库或控制界面；不要给 Node、终端或 Messages 整体授予更宽权限。
+5. 完成一次性权限设置后，原命令再运行一次。安装脚本用源码 SHA-256 识别暂存程序：代码未变时保留现有二进制和签名，避免 macOS 撤销权限；仅首次安装或源码变化时重建签名。随后脚本验证目录探针，触发 macOS 自动化授权，确认至少存在 iMessage、RCS 或 SMS 服务，再创建 `~/Library/LaunchAgents/com.massagenote.messages-agent.plist`。若源码升级后权限失效，重新关闭再开启该 App 的完全磁盘访问后再运行。诊断失败时不要跳过；先登录“信息”、允许 Node 控制“信息”，非 Apple 号码还要检查 iPhone 短信转发和 MMS/RCS。
+6. 安装后验证：
 
 ```bash
 launchctl print "gui/$(id -u)/com.massagenote.messages-agent"
@@ -86,6 +87,12 @@ stat -f '%Lp %Su' "$HOME/Library/Application Support/Massage Note Messages Agent
 tail -n 50 "$HOME/Library/Application Support/Massage Note Messages Agent/agent-error.log"
 ```
 
-正常结果是 LaunchAgent `state = running`、配置权限 `600`，店铺设置显示最近在线。重复安装时必须等 `bootout` 的旧服务注册完全消失再调用 `bootstrap`，安装脚本已包含这段等待；不要把偶发的 `Bootstrap failed: 5` 当作 Messages 权限问题。队列“排队、尝试 0”表示没有代理成功领取，优先查 LaunchAgent、API URL/令牌和网络；尝试数增加但失败则展开队列详情并查本地错误日志。AppleScript 必须以 `on run argv` 接收 `osascript -e ... -- <参数>` 的参数，否则会在调用“信息”前报“argv 未定义”。
+正常结果是 LaunchAgent `state = running`、配置权限 `600`，店铺设置显示最近在线。重复安装时必须等 `bootout` 的旧服务注册完全消失再调用 `bootstrap`，安装脚本已包含这段等待；不要把偶发的 `Bootstrap failed: 5` 当作 Messages 权限问题。队列“排队、尝试 0”表示没有代理成功领取，优先查 LaunchAgent、API URL/令牌和网络；尝试数增加但失败则展开队列详情并查本地错误日志。AppleScript 必须以 `on run argv` 接收 `osascript -e ... -- <参数>` 的参数，否则会在调用“信息”前报“argv 未定义”。macOS 26 可能暴露 AppleScript 字典无法转换的额外账户类型，枚举时必须把 `service type` 读取包在逐账户 `try` 内，不能让一个未知账户终止整个发送。
 
-代理把待发送 PNG 以 `0600` 权限暂存在 `~/Library/Application Support/Massage Note Messages Agent/outbox`。AppleScript 返回只表示 Messages 接受了发送指令，附件复制仍可能异步进行，因此文件保留 30 分钟后才自动清理。若“信息”显示附件 `0 KB / 原大小`，优先检查代理是否运行了旧版“发送后立即删除”逻辑；不要反复点击红色重试，以免更新代理后产生重复消息。代理启动及心跳时都会清理超过保留时间的 PNG。
+代理先把每个任务的 PNG 以 `0600` 权限保存在 `~/Library/Application Support/Massage Note Messages Agent/outbox`。暂存程序同时验证源路径、任务 UUID 和 PNG 文件头，再写入 `~/Library/Messages/Attachments/MassageNote/<前两位>/<任务 UUID>/closing.png`；同一任务若已有不同内容会拒绝覆盖。代理串行处理队列，发送脚本额外保留 15 秒让 Messages 接管附件；源 outbox 保留 30 分钟后清理，Messages 内的正式附件交由 Messages 自身管理。AppleScript 返回只表示 Messages 接受了发送指令，运营商最终结果仍可能异步失败，结果不明确时不得自动重发。
+
+发送路由不能只根据 Mac 是否登录 iMessage 判断，因为“本机有 iMessage 账号”不代表收件号码注册了 iMessage。数据库、权限和审计继续使用 E.164；对 `+1` 号码，Messages 调用使用十位本地号码并先交给已连接 SMS 账户，由配对 iPhone 升级为 RCS 或发送 SMS/MMS，无 SMS 时才回退到 RCS/iMessage。真实设备日志出现 `RCS Relay received message delivered` 才是 RCS 送达回执。
+
+若新 PNG 显示 `0 KB / 原大小`、日志为 `fileTransfer rejected error 30` 或 `IMFileTransfer error 15`，而已经位于 Messages 附件目录的旧图能发，根因是 Messages 无法读取外部源文件。不要改用模拟键盘、剪贴板粘贴、相册最近项、复制私有 `com.apple.macl` 属性或操作 Messages/Photos 数据库；检查任务实际交给 AppleScript 的路径是否位于 `~/Library/Messages/Attachments/MassageNote`，再运行暂存程序 `--diagnose`。正式代理不需要“辅助功能”权限，也不会激活或切换前台 App。
+
+正式代理完全不使用系统“照片”。若诊断时临时使用相册作为对照，必须保存 `Photos import` 返回的唯一 `media item id`，后续定位、复制和删除都按该 ID 且要求恰好匹配一项；不得按导入时间、排序位置或“最近项目”猜测目标。

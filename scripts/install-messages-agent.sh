@@ -53,6 +53,16 @@ PLIST
 chmod 600 "$plist_path"
 
 launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+for attempt in {1..25}; do
+  if ! launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.2
+done
+if launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
+  print -u2 "旧 Messages Agent 尚未完全停止，请稍后重试。"
+  exit 1
+fi
 launchctl bootstrap "gui/$(id -u)" "$plist_path"
 launchctl kickstart -k "gui/$(id -u)/$label"
 

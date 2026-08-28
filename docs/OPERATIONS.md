@@ -64,3 +64,26 @@ psql "$ADMIN_DATABASE_URL" --set=ON_ERROR_STOP=1 --file=scripts/maintenance.sql
 - **实时连接失败**：业务提交仍以数据库响应为准；刷新页面会重新读取真相。检查反向代理是否缓冲或过早关闭 SSE。
 - **疑似重复记工**：不要直接删数据库行。先查审计与幂等记录，再从界面软删除并写清原因。
 - **密钥泄露**：立即轮换相应供应商密钥/数据库密码，重启服务，检查时间范围内的审计和访问日志；Firebase 私钥泄露还需撤销服务账号密钥。
+
+### 新 Mac 安装员工日结短信代理
+
+1. 安装 Node.js 24 LTS 和项目声明的 pnpm 版本，确保新的登录 shell 中 `node --version`、`pnpm --version` 均可用；LaunchAgent 不应依赖 Codex、IDE 或临时缓存目录里的 Node。
+2. 在生产“店铺设置 → Mac 信息代理”生成店铺级令牌。令牌只显示一次，只写入当前 macOS 用户的 `~/Library/Application Support/Massage Note Messages Agent/agent.env`，文件权限必须为 `0600`，不得写入仓库或日志。
+3. 在已登录“信息”的目标 macOS 桌面用户会话中运行：
+
+```bash
+MASSAGE_NOTE_API_URL='https://<production-domain>/api/v1' \
+MASSAGE_NOTE_AGENT_TOKEN='<设置页生成的令牌>' \
+./scripts/install-messages-agent.sh
+```
+
+4. 安装脚本会先以前台诊断模式触发 macOS 自动化授权，并确认至少存在 iMessage、RCS 或 SMS 服务，再创建 `~/Library/LaunchAgents/com.massagenote.messages-agent.plist`。诊断失败时不要跳过；先登录“信息”、允许 Node 控制“信息”，非 Apple 号码还要检查 iPhone 短信转发和 MMS/RCS。
+5. 安装后验证：
+
+```bash
+launchctl print "gui/$(id -u)/com.massagenote.messages-agent"
+stat -f '%Lp %Su' "$HOME/Library/Application Support/Massage Note Messages Agent/agent.env"
+tail -n 50 "$HOME/Library/Application Support/Massage Note Messages Agent/agent-error.log"
+```
+
+正常结果是 LaunchAgent `state = running`、配置权限 `600`，店铺设置显示最近在线。重复安装时必须等 `bootout` 的旧服务注册完全消失再调用 `bootstrap`，安装脚本已包含这段等待；不要把偶发的 `Bootstrap failed: 5` 当作 Messages 权限问题。队列“排队、尝试 0”表示没有代理成功领取，优先查 LaunchAgent、API URL/令牌和网络；尝试数增加但失败则展开队列详情并查本地错误日志。AppleScript 必须以 `on run argv` 接收 `osascript -e ... -- <参数>` 的参数，否则会在调用“信息”前报“argv 未定义”。

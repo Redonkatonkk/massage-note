@@ -1,6 +1,6 @@
 # AI 接管指南
 
-> 最后核对：2026-08-28（America/New_York） · 当前版本：`0.12.25`
+> 最后核对：2026-08-28（America/New_York） · 当前版本：`0.12.26`
 > 目标：用最少上下文安全维护 Massage note；历史过程查 Git 和 [`CHANGELOG.md`](../CHANGELOG.md)。
 
 ## 1. 接手顺序

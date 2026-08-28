@@ -87,3 +87,5 @@ tail -n 50 "$HOME/Library/Application Support/Massage Note Messages Agent/agent-
 ```
 
 正常结果是 LaunchAgent `state = running`、配置权限 `600`，店铺设置显示最近在线。重复安装时必须等 `bootout` 的旧服务注册完全消失再调用 `bootstrap`，安装脚本已包含这段等待；不要把偶发的 `Bootstrap failed: 5` 当作 Messages 权限问题。队列“排队、尝试 0”表示没有代理成功领取，优先查 LaunchAgent、API URL/令牌和网络；尝试数增加但失败则展开队列详情并查本地错误日志。AppleScript 必须以 `on run argv` 接收 `osascript -e ... -- <参数>` 的参数，否则会在调用“信息”前报“argv 未定义”。
+
+代理把待发送 PNG 以 `0600` 权限暂存在 `~/Library/Application Support/Massage Note Messages Agent/outbox`。AppleScript 返回只表示 Messages 接受了发送指令，附件复制仍可能异步进行，因此文件保留 30 分钟后才自动清理。若“信息”显示附件 `0 KB / 原大小`，优先检查代理是否运行了旧版“发送后立即删除”逻辑；不要反复点击红色重试，以免更新代理后产生重复消息。代理启动及心跳时都会清理超过保留时间的 PNG。

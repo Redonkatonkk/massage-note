@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { messagesServices, sendMessagesAttachment } from "./messages.js";
+import { cleanupOutbox, closingPngPath, prepareOutbox, secureClosingPng } from "./outbox.js";
 import { closingMessage, renderClosingPng, type ClosingSnapshot } from "./render.js";
 
 const apiUrl = process.env.MASSAGE_NOTE_API_URL?.replace(/\/$/, "");
@@ -12,6 +13,8 @@ if (!apiUrl || !agentToken) throw new Error("MASSAGE_NOTE_API_URL and MASSAGE_NO
 interface Job { id: string; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; kind: "INITIAL" | "RESEND"; cycleNo: number; snapshot: ClosingSnapshot }
 interface Journal { accepted: string[]; completed: string[] }
 const journalPath = join(dataDir, "journal.json");
+const outboxDir = await prepareOutbox(dataDir);
+await cleanupOutbox(outboxDir);
 
 async function loadJournal(): Promise<Journal> {
   await mkdir(dataDir, { recursive: true, mode: 0o700 });
@@ -38,7 +41,7 @@ async function heartbeat(lastError: string | null = null) {
     diagnosticError = error instanceof Error ? error.message : String(error);
   }
   try {
-    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.26", lastError: diagnosticError }) });
+    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.27", lastError: diagnosticError }) });
   } catch (error) {
     process.stderr.write(`heartbeat: ${error instanceof Error ? error.message : String(error)}\n`);
   }
@@ -64,10 +67,11 @@ async function processJob(job: Job, journal: Journal) {
   if (!authorized.authorized) return;
   const workDir = await mkdtemp(join(tmpdir(), "massage-note-closing-"));
   const svgPath = join(workDir, "closing.svg");
-  const pngPath = join(workDir, "closing.png");
+  const pngPath = closingPngPath(outboxDir, job.id);
   let sendStarted = false;
   try {
     await renderClosingPng(job.snapshot, job.locale, svgPath, pngPath);
+    await secureClosingPng(pngPath);
     sendStarted = true;
     await sendMessagesAttachment(job.phoneE164, pngPath, closingMessage(job.snapshot, job.locale, job.kind, job.cycleNo));
     journal.accepted.push(job.id); await saveJournal(journal);
@@ -93,11 +97,11 @@ while (!stopped) {
   try {
     const job = await request<Job | null>("/closing-delivery-agent/jobs/claim", { method: "POST" });
     if (job) await processJob(job, journal);
-    if (Date.now() - lastHeartbeat > 60_000) { await heartbeat(); lastHeartbeat = Date.now(); }
+    if (Date.now() - lastHeartbeat > 60_000) { await heartbeat(); await cleanupOutbox(outboxDir); lastHeartbeat = Date.now(); }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`${new Date().toISOString()} ${message}\n`);
-    if (Date.now() - lastHeartbeat > 60_000) { await heartbeat(message); lastHeartbeat = Date.now(); }
+    if (Date.now() - lastHeartbeat > 60_000) { await heartbeat(message); await cleanupOutbox(outboxDir); lastHeartbeat = Date.now(); }
   }
   await new Promise((resolve) => setTimeout(resolve, 10_000));
 }

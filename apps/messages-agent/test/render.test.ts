@@ -25,7 +25,8 @@ const snapshot: ClosingSnapshot = {
   records: [{
     startAt: "2026-08-27T14:00:00.000Z", endAt: "2026-08-27T15:00:00.000Z", status: "CONFIRMED",
     serviceShortName: "全身", serviceName: "全身按摩", addons: [],
-    cashServiceCents: 7_000, cardServiceCents: 0, giftCardServiceCents: 3_000,
+    grossFeeBaseCents: 10_000,
+    cashServiceCents: 7_000, cardServiceCents: 0, giftCardServiceCents: 2_000,
     cashTipCents: 0, cardTipCents: 3_000, giftCardTipCents: 0, employeeIncomeCents: 9_000,
   }],
 };
@@ -41,11 +42,13 @@ describe.skipIf(process.platform !== "darwin")("个人日结 PNG", () => {
       const svgMarkup = await readFile(svg, "utf8");
       expect(bytes.subarray(1, 4).toString()).toBe("PNG");
       expect(bytes.length).toBeGreaterThan(10_000);
-      expect(svgMarkup).toContain('viewBox="0 0 1170 950"');
-      expect(svgMarkup).toContain('<rect x="0" y="0" width="1170" height="950" fill="url(#bg)"/>');
+      expect(svgMarkup).toContain('viewBox="0 0 1170 985"');
+      expect(svgMarkup).toContain('<rect x="0" y="0" width="1170" height="985" fill="url(#bg)"/>');
       expect(svgMarkup).not.toContain('width="100%"');
       expect(svgMarkup).toContain('class="card-amount-box"');
-      expect(svgMarkup).toContain('30（礼物卡）');
+      expect(svgMarkup).toContain('20（礼物卡）');
+      expect(svgMarkup).toContain('员工大费（折前）');
+      expect(svgMarkup).toContain('class="gross-value">US$100.00</text>');
       expect(svgMarkup).toContain('class="summary-heading">现金</text>');
       expect(svgMarkup).toContain('class="summary-heading">刷卡</text>');
       expect(svgMarkup).toContain('class="summary-label">大费工资</text>');

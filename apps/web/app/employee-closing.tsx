@@ -35,6 +35,13 @@ function money(cents: number, locale: AppLocale = "zh-CN"): string {
   return formatUsd(cents, locale);
 }
 
+function compactMoney(cents: number, locale: AppLocale = "zh-CN"): string {
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
 function localizedDate(value: string, locale: AppLocale = "zh-CN"): string {
   return new Intl.DateTimeFormat(locale, {
     year: "numeric",
@@ -123,7 +130,7 @@ async function generateClosingImage(
   const landscape = logicalWidth > screenHeight;
   const logicalHeight = Math.max(
     screenHeight,
-    Math.round((landscape ? 430 : 520) + preview.records.length * (landscape ? 62 : 82)),
+    Math.round((landscape ? 430 : 520) + preview.records.length * (landscape ? 74 : 94)),
   );
   const pixelRatio = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
   const canvas = document.createElement("canvas");
@@ -166,89 +173,50 @@ async function generateClosingImage(
   context.fillText(localizedDate(preview.businessDate, locale), margin, y + 14 * scale, contentWidth);
   y += 30 * scale;
 
-  const statusText = preview.isClosed
-    ? `营业日已日结${preview.activeClosing ? ` · 第 ${preview.activeClosing.cycleNo} 次` : ""}`
-    : preview.hasWarnings
-      ? `${preview.warningCount} 项需要核对`
-      : "个人记录已完整";
-  const statusColor = preview.isClosed ? "#176b45" : preview.hasWarnings ? "#9a5a0c" : "#176b45";
-  const statusBackground = preview.isClosed ? "#e7f5ed" : preview.hasWarnings ? "#fff0d8" : "#e7f5ed";
-  context.font = `800 ${Math.round(12 * scale)}px ${imageFont}`;
-  const localizedStatusText = tr(statusText);
-  const statusWidth = Math.min(contentWidth, context.measureText(localizedStatusText).width + 24 * scale);
-  fillRoundedRect(context, margin, y, statusWidth, 30 * scale, 15 * scale, statusBackground);
-  context.fillStyle = statusColor;
-  context.fillText(localizedStatusText, margin + 12 * scale, y + 20 * scale, statusWidth - 24 * scale);
-  y += 42 * scale;
-
-  const formulaRows = [
-    [
-      tr("现金大费工资"),
-      money(preview.employee.cashLargeFeeDividendCents, locale),
-      tr("非现金大费工资"),
-      money(preview.employee.cardLargeFeeDividendCents, locale),
-      tr("大费工资"),
-      money(preview.employee.confirmedLargeFeeWageCents, locale),
-    ],
-    [
-      tr("现金小费"),
-      money(preview.employee.cashTipDividendCents, locale),
-      tr("非现金小费"),
-      money(preview.employee.cardTipDividendCents, locale),
-      tr("小费工资"),
-      money(preview.employee.confirmedTipWageCents, locale),
-    ],
-    [
-      tr("大费工资"),
-      money(preview.employee.confirmedLargeFeeWageCents, locale),
-      tr("小费工资"),
-      money(preview.employee.confirmedTipWageCents, locale),
-      tr("今日总收入"),
-      money(preview.employee.confirmedIncomeCents, locale),
-    ],
-  ];
-  const formulaGap = 6 * scale;
-  const formulaHeaderHeight = 30 * scale;
-  const formulaRowHeight = 44 * scale;
-  const formulaPanelHeight =
-    formulaHeaderHeight + formulaRows.length * formulaRowHeight + (formulaRows.length - 1) * formulaGap + 12 * scale;
-  fillRoundedRect(context, margin, y, contentWidth, formulaPanelHeight, 18 * scale, "rgba(255,255,255,0.9)");
-  context.fillStyle = "#6b635a";
-  context.font = `800 ${Math.round(10 * scale)}px ${imageFont}`;
-  context.fillText(tr("已确认收入公式"), margin + 13 * scale, y + 20 * scale);
-  const formulaInnerWidth = contentWidth - 26 * scale;
-  const operatorWidth = 16 * scale;
-  const formulaCardWidth = (formulaInnerWidth - operatorWidth * 2) / 3;
-  formulaRows.forEach((row, index) => {
-    const rowY = y + formulaHeaderHeight + index * (formulaRowHeight + formulaGap);
-    const resultBackground = index === formulaRows.length - 1 ? "#8e3e2f" : "#f6ece7";
-    [0, 1, 2].forEach((column) => {
-      const x = margin + 13 * scale + column * (formulaCardWidth + operatorWidth);
-      fillRoundedRect(
-        context,
-        x,
-        rowY,
-        formulaCardWidth,
-        formulaRowHeight,
-        10 * scale,
-        column === 2 ? resultBackground : index === 1 ? "#edf8f1" : "#fff2dc",
-      );
-      context.fillStyle = column === 2 && index === formulaRows.length - 1 ? "rgba(255,255,255,.76)" : "#756b62";
-      context.font = `700 ${Math.round(8 * scale)}px ${imageFont}`;
-      context.fillText(row[column * 2]!, x + 8 * scale, rowY + 15 * scale, formulaCardWidth - 16 * scale);
-      context.fillStyle = column === 2 && index === formulaRows.length - 1 ? "#fff" : "#211d18";
+  const summaryHeight = 132 * scale;
+  const totalWidth = Math.min(138 * scale, contentWidth * 0.34);
+  const tableWidth = contentWidth - totalWidth - 10 * scale;
+  fillRoundedRect(context, margin, y, contentWidth, summaryHeight, 18 * scale, "rgba(255,255,255,0.94)");
+  const labelWidth = tableWidth * 0.32;
+  const valueWidth = (tableWidth - labelWidth) / 3;
+  [tr("现金"), tr("刷卡"), tr("合计")].forEach((label, index) => {
+    context.fillStyle = "#756b62";
+    context.font = `800 ${Math.round(9 * scale)}px ${imageFont}`;
+    context.textAlign = "center";
+    context.fillText(label, margin + labelWidth + valueWidth * (index + 0.5), y + 24 * scale);
+  });
+  const summaryRows = [
+    [tr("大费工资"), preview.employee.cashLargeFeeDividendCents, preview.employee.cardLargeFeeDividendCents, preview.employee.confirmedLargeFeeWageCents],
+    [tr("小费工资"), preview.employee.cashTipDividendCents, preview.employee.cardTipDividendCents, preview.employee.confirmedTipWageCents],
+  ] as const;
+  summaryRows.forEach((row, rowIndex) => {
+    const baseline = y + (60 + rowIndex * 45) * scale;
+    context.textAlign = "left";
+    context.fillStyle = "#211d18";
+    context.font = `800 ${Math.round(10 * scale)}px ${imageFont}`;
+    context.fillText(row[0], margin + 12 * scale, baseline);
+    [row[1], row[2], row[3]].forEach((value, column) => {
+      context.textAlign = "center";
       context.font = `900 ${Math.round(12 * scale)}px ${imageFont}`;
-      context.fillText(row[column * 2 + 1]!, x + 8 * scale, rowY + 35 * scale, formulaCardWidth - 16 * scale);
-      if (column < 2) {
-        context.fillStyle = "#8e3e2f";
-        context.font = `900 ${Math.round(13 * scale)}px ${imageFont}`;
-        context.textAlign = "center";
-        context.fillText(column === 0 ? "+" : "=", x + formulaCardWidth + operatorWidth / 2, rowY + 28 * scale);
-        context.textAlign = "left";
-      }
+      context.fillText(compactMoney(value, locale), margin + labelWidth + valueWidth * (column + 0.5), baseline);
     });
   });
-  y += formulaPanelHeight + 10 * scale;
+  context.strokeStyle = "#eee4dd";
+  context.lineWidth = 1.5 * scale;
+  context.beginPath();
+  context.moveTo(margin + 12 * scale, y + 75 * scale);
+  context.lineTo(margin + tableWidth - 8 * scale, y + 75 * scale);
+  context.stroke();
+  const totalX = margin + tableWidth + 2 * scale;
+  fillRoundedRect(context, totalX, y + 12 * scale, totalWidth, summaryHeight - 24 * scale, 14 * scale, "#8e3e2f");
+  context.textAlign = "left";
+  context.fillStyle = "rgba(255,255,255,.78)";
+  context.font = `800 ${Math.round(9 * scale)}px ${imageFont}`;
+  context.fillText(tr("今日总收入"), totalX + 12 * scale, y + 42 * scale, totalWidth - 24 * scale);
+  context.fillStyle = "#fff";
+  context.font = `900 ${Math.round(16 * scale)}px ${imageFont}`;
+  context.fillText(money(preview.employee.confirmedIncomeCents, locale), totalX + 12 * scale, y + 86 * scale, totalWidth - 24 * scale);
+  y += summaryHeight + 10 * scale;
 
   const handoffHeight = 48 * scale;
   fillRoundedRect(context, margin, y, contentWidth, handoffHeight, 14 * scale, "#fff1de");
@@ -266,7 +234,7 @@ async function generateClosingImage(
   context.font = `800 ${Math.round(11 * scale)}px ${imageFont}`;
   context.fillText(`${tr("逐笔记工")} · ${preview.records.length} ${tr("条")}`, margin, y + 12 * scale);
   y += 22 * scale;
-  const recordHeight = (landscape ? 50 : 68) * scale;
+  const recordHeight = (landscape ? 64 : 84) * scale;
   preview.records.forEach((record) => {
     fillRoundedRect(context, margin, y, contentWidth, recordHeight, 13 * scale, "rgba(255,255,255,.88)");
     context.fillStyle = "#211d18";
@@ -284,33 +252,21 @@ async function generateClosingImage(
     context.fillStyle = "#756b62";
     context.font = `700 ${Math.round(8 * scale)}px ${imageFont}`;
     const time = `${recordTime(record.startAt, preview.storeTimezone, locale)}–${recordTime(record.endAt, preview.storeTimezone, locale)}`;
-    const servicePayments = `${tr("大费")} ${tr("现金")} ${paymentMoney(record.cashServiceCents, locale)} · ${tr("刷卡")} ${paymentMoney(record.cardServiceCents, locale)} · ${tr("礼卡")} ${paymentMoney(record.giftCardServiceCents, locale)}`;
+    const grossFee = `${tr("员工大费（折前）")} ${money(record.grossFeeBaseCents, locale)}`;
+    const servicePayments = `${tr("大费实收")} ${tr("现金")} ${paymentMoney(record.cashServiceCents, locale)} · ${tr("刷卡")} ${paymentMoney(record.cardServiceCents, locale)} · ${tr("礼卡")} ${paymentMoney(record.giftCardServiceCents, locale)}`;
     const tipPayments = `${tr("小费")} ${tr("现金")} ${paymentMoney(record.cashTipCents, locale)} · ${tr("刷卡")} ${paymentMoney(record.cardTipCents, locale)} · ${tr("礼卡")} ${paymentMoney(record.giftCardTipCents, locale)}`;
     context.fillText(time, margin + 12 * scale, y + 34 * scale, contentWidth * 0.28);
-    context.fillText(servicePayments, margin + 12 * scale, y + 50 * scale, contentWidth - 24 * scale);
-    if (!landscape) context.fillText(tipPayments, margin + 12 * scale, y + 64 * scale, contentWidth - 24 * scale);
-    else context.fillText(tipPayments, margin + contentWidth * 0.48, y + 34 * scale, contentWidth * 0.48);
+    context.fillStyle = "#211d18";
+    context.font = `800 ${Math.round(9 * scale)}px ${imageFont}`;
+    context.fillText(grossFee, margin + contentWidth * 0.32, y + 34 * scale, contentWidth * 0.62);
+    context.fillStyle = "#756b62";
+    context.font = `700 ${Math.round(8 * scale)}px ${imageFont}`;
+    context.fillText(servicePayments, margin + 12 * scale, y + 52 * scale, contentWidth - 24 * scale);
+    context.fillText(tipPayments, margin + 12 * scale, y + (landscape ? 64 : 72) * scale, contentWidth - 24 * scale);
     y += recordHeight + 7 * scale;
   });
 
   const footerY = logicalHeight - margin;
-  const availableForWarnings = footerY - y - 30 * scale;
-  if (preview.warnings.length > 0 && availableForWarnings >= 44 * scale) {
-    const warningHeight = Math.min(availableForWarnings, (42 + preview.warnings.length * 18) * scale);
-    fillRoundedRect(context, margin, y, contentWidth, warningHeight, 15 * scale, "rgba(255,240,216,0.94)");
-    context.fillStyle = "#8a4b08";
-    context.font = `800 ${Math.round(11 * scale)}px ${imageFont}`;
-    context.fillText(tr("待核对"), margin + 13 * scale, y + 20 * scale);
-    context.font = `700 ${Math.round(10 * scale)}px ${imageFont}`;
-    preview.warnings.slice(0, landscape ? 2 : 4).forEach((warning, index) => {
-      context.fillText(
-        tr(`${warning.labelZh} ${warning.count} 条`),
-        margin + 13 * scale,
-        y + (39 + index * 17) * scale,
-      );
-    });
-  }
-
   context.fillStyle = "#756b62";
   context.font = `600 ${Math.round(10 * scale)}px ${imageFont}`;
   context.textAlign = "left";
@@ -413,51 +369,47 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
       <header className="employee-closing-hero">
         <div className="employee-closing-heading">
           <div>
-            <p className="eyebrow">{preview.storeName} · {localizedDate(preview.businessDate, locale)}</p>
-            <h2>{employee.displayName}的个人日结</h2>
-          </div>
-          <span className={`employee-closing-status ${preview.hasWarnings ? "warning" : "ready"}`}>
-            {preview.isClosed
-              ? `营业日已日结${preview.activeClosing ? ` · 第 ${preview.activeClosing.cycleNo} 次` : ""}`
-              : preview.hasWarnings
-                ? `${preview.warningCount} 项需要核对`
-                : "个人记录已完整"}
-          </span>
-        </div>
-        <div className="employee-closing-formula" aria-label="已确认收入公式">
-          <div className="employee-closing-formula-heading"><strong>已确认收入</strong><small>待结账记工暂不计入</small></div>
-          <div className="employee-closing-equation-row">
-            <article><span>现金大费工资</span><strong>{money(employee.cashLargeFeeDividendCents, locale)}</strong></article>
-            <b aria-hidden="true">＋</b>
-            <article><span>刷卡／礼物卡大费工资</span><strong>{money(employee.cardLargeFeeDividendCents, locale)}</strong></article>
-            <b aria-hidden="true">＝</b>
-            <article className="result"><span>大费工资</span><strong>{money(employee.confirmedLargeFeeWageCents, locale)}</strong></article>
-          </div>
-          <div className="employee-closing-equation-row">
-            <article><span>现金小费</span><strong>{money(employee.cashTipDividendCents, locale)}</strong></article>
-            <b aria-hidden="true">＋</b>
-            <article><span>刷卡／礼物卡小费</span><strong>{money(employee.cardTipDividendCents, locale)}</strong></article>
-            <b aria-hidden="true">＝</b>
-            <article className="result"><span>小费工资</span><strong>{money(employee.confirmedTipWageCents, locale)}</strong></article>
-          </div>
-          <div className="employee-closing-equation-row total">
-            <article><span>大费工资</span><strong>{money(employee.confirmedLargeFeeWageCents, locale)}</strong></article>
-            <b aria-hidden="true">＋</b>
-            <article><span>小费工资</span><strong>{money(employee.confirmedTipWageCents, locale)}</strong></article>
-            <b aria-hidden="true">＝</b>
-            <article className="result"><span>今日总收入</span><strong>{money(employee.confirmedIncomeCents, locale)}</strong></article>
+            <p className="eyebrow">{preview.storeName} · 个人日结</p>
+            <h2>{employee.displayName}</h2>
+            <p className="employee-closing-date">{localizedDate(preview.businessDate, locale)}{preview.activeClosing ? ` · #${preview.activeClosing.cycleNo}` : ""}</p>
           </div>
         </div>
-        <div className="employee-closing-compact-meta">
-          <span>大费基数 <strong>{money(employee.grossFeeBaseCents, locale)}</strong></span>
-          <span>全部记工 <strong>{preview.records.length} 条</strong></span>
-          {employee.incompleteRecordCount > 0 && <span className="warning">待结账 <strong>{employee.incompleteRecordCount} 条</strong></span>}
+        <div className="employee-closing-income-summary" aria-label="已确认收入">
+          <div className="employee-closing-income-table" role="table" aria-label="现金刷卡工资汇总">
+            <div className="employee-closing-income-row heading" role="row">
+              <span role="columnheader" />
+              <span role="columnheader">现金</span>
+              <span role="columnheader">刷卡</span>
+              <span role="columnheader">合计</span>
+            </div>
+            <div className="employee-closing-income-row" role="row">
+              <strong role="rowheader">大费工资</strong>
+              <span>{compactMoney(employee.cashLargeFeeDividendCents, locale)}</span>
+              <span>{compactMoney(employee.cardLargeFeeDividendCents, locale)}</span>
+              <span>{compactMoney(employee.confirmedLargeFeeWageCents, locale)}</span>
+            </div>
+            <div className="employee-closing-income-row" role="row">
+              <strong role="rowheader">小费工资</strong>
+              <span>{compactMoney(employee.cashTipDividendCents, locale)}</span>
+              <span>{compactMoney(employee.cardTipDividendCents, locale)}</span>
+              <span>{compactMoney(employee.confirmedTipWageCents, locale)}</span>
+            </div>
+          </div>
+          <article className="employee-closing-income-total">
+            <span>今日总收入</span>
+            <strong>{money(employee.confirmedIncomeCents, locale)}</strong>
+          </article>
         </div>
       </header>
 
+      <section className="employee-closing-handoff" aria-labelledby="employee-closing-settlement-title">
+        <div><h3 id="employee-closing-settlement-title">现金交接</h3><p>员工需要交给店铺的现金，不属于工资收入。</p></div>
+        <article><span>应提交现金</span><strong>{money(employee.cashToSubmitToStoreCents, locale)}</strong><small>含现金大费的已确认项目，折前大费基数 × 40%</small></article>
+      </section>
+
       <section className="employee-closing-records" aria-labelledby="employee-closing-records-title">
         <div className="employee-closing-section-heading">
-          <div><h3 id="employee-closing-records-title">逐笔记工</h3><p>每笔分别列出客人的大费和小费付款。</p></div>
+          <div><h3 id="employee-closing-records-title">逐笔记工</h3><p>员工大费显示折扣前金额；实收付款拆分仅供核对。</p></div>
           <strong>{preview.records.length} 条</strong>
         </div>
         <div className="employee-closing-record-list">
@@ -470,10 +422,14 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
                 </div>
                 <em>{record.status === "CONFIRMED" ? "已确认" : "待结账"}</em>
               </header>
+              <div className="employee-closing-record-gross">
+                <span>员工大费（折前）</span>
+                <strong>{money(record.grossFeeBaseCents, locale)}</strong>
+              </div>
               <div className="employee-closing-payment-grid">
                 <span />
                 <b>现金</b><b>刷卡</b><b>礼物卡</b>
-                <strong>大费</strong>
+                <strong>大费实收</strong>
                 <span>{paymentMoney(record.cashServiceCents, locale)}</span>
                 <span>{paymentMoney(record.cardServiceCents, locale)}</span>
                 <span>{paymentMoney(record.giftCardServiceCents, locale)}</span>
@@ -492,18 +448,6 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
           {preview.records.length === 0 && <p className="employee-closing-empty">这个营业日还没有记工。</p>}
         </div>
       </section>
-
-      <section className="employee-closing-handoff" aria-labelledby="employee-closing-settlement-title">
-        <div><h3 id="employee-closing-settlement-title">现金交接</h3><p>员工需要交给店铺的现金，不属于工资收入。</p></div>
-        <article><span>应提交现金</span><strong>{money(employee.cashToSubmitToStoreCents, locale)}</strong><small>含现金大费的已确认项目，折前大费基数 × 40%</small></article>
-      </section>
-
-      {preview.warnings.length > 0 ? (
-        <section className="employee-closing-warnings" aria-label="个人日结待核对项目">
-          <strong>请先核对</strong>
-          <div>{preview.warnings.map((warning) => <span key={warning.code}>{warning.labelZh}<b>{warning.count} 条</b></span>)}</div>
-        </section>
-      ) : <p className="employee-closing-complete">✓ 当前个人记录没有待结账或异常提示</p>}
 
       <div className="employee-closing-image-actions">
         <button className="primary-action" type="button" disabled={generating} onClick={() => void createImage()}>{generating ? "正在生成…" : generated ? "重新生成图片" : "生成日结图片"}</button>

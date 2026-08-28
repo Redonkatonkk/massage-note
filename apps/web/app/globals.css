@@ -2385,28 +2385,20 @@ h2 {
 .employee-closing-modal-heading { margin-bottom: 16px; }
 .employee-closing-card { overflow: hidden; border: 1px solid #e5d1c4; border-radius: 24px; background: linear-gradient(145deg, #fff 0%, #fff8ef 56%, #f9e5dc 100%); box-shadow: 0 16px 42px rgba(83, 54, 31, .1); }
 .employee-closing-hero { display: grid; gap: 12px; padding: clamp(16px, 3vw, 22px); }
-.employee-closing-hero h2 { margin: 2px 0 0; font-size: clamp(1.35rem, 3vw, 1.8rem); }
-.employee-closing-heading { display: flex; min-width: 0; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.employee-closing-hero h2 { margin: 5px 0 0; font-size: clamp(2rem, 7vw, 3.35rem); line-height: 1.05; }
+.employee-closing-heading { min-width: 0; }
 .employee-closing-heading > div { min-width: 0; }
-.employee-closing-status { display: inline-flex; min-height: 34px; align-items: center; padding: 5px 11px; border-radius: 999px; font-size: .8rem; font-weight: 800; }
-.employee-closing-status.ready { background: #e7f5ed; color: var(--success); }
-.employee-closing-status.warning { background: var(--pending); color: #8a4b08; }
-.employee-closing-formula { display: grid; gap: 7px; padding: 12px; border: 1px solid #e5d1c4; border-radius: 18px; background: rgba(255,255,255,.86); }
-.employee-closing-formula-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 2px 2px; }
-.employee-closing-formula-heading small { color: var(--muted); font-size: .7rem; }
-.employee-closing-equation-row { display: grid; grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr) 20px minmax(0, 1fr); align-items: stretch; gap: 3px; }
-.employee-closing-equation-row > b { display: grid; place-items: center; color: var(--brand); font-size: 1rem; }
-.employee-closing-equation-row article { display: grid; min-width: 0; align-content: center; gap: 3px; min-height: 54px; padding: 8px 10px; border-radius: 11px; background: #fff1de; }
-.employee-closing-equation-row:nth-of-type(3) article { background: #edf8f1; }
-.employee-closing-equation-row article.result { background: #f6ece7; }
-.employee-closing-equation-row.total article.result { background: var(--brand); color: #fff; }
-.employee-closing-equation-row span { color: var(--muted); font-size: .68rem; font-weight: 800; line-height: 1.25; }
-.employee-closing-equation-row.total article.result span { color: rgba(255,255,255,.75); }
-.employee-closing-equation-row strong { min-width: 0; font-size: clamp(.9rem, 2vw, 1.12rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.employee-closing-compact-meta { display: flex; flex-wrap: wrap; gap: 7px; }
-.employee-closing-compact-meta span { padding: 6px 9px; border-radius: 999px; background: #f4ece6; color: var(--muted); font-size: .72rem; }
-.employee-closing-compact-meta span.warning { background: #fff0d8; color: #8a4b08; }
-.employee-closing-compact-meta strong { color: var(--ink); }
+.employee-closing-date { margin: 8px 0 0; color: var(--muted); font-size: clamp(.86rem, 2.2vw, 1rem); font-weight: 750; }
+.employee-closing-income-summary { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(190px, .95fr); gap: 14px; padding: 14px 16px; border: 1px solid #eadbd0; border-radius: 22px; background: rgba(255,255,255,.94); }
+.employee-closing-income-table { display: grid; align-content: center; }
+.employee-closing-income-row { display: grid; grid-template-columns: minmax(100px, 1.25fr) repeat(3, minmax(56px, 1fr)); align-items: center; min-height: 48px; border-top: 1px solid #eee4dd; }
+.employee-closing-income-row.heading { min-height: 34px; border-top: 0; color: var(--muted); font-size: .72rem; font-weight: 800; }
+.employee-closing-income-row > * { min-width: 0; padding: 4px 7px; text-align: center; font-variant-numeric: tabular-nums; }
+.employee-closing-income-row > strong { text-align: left; }
+.employee-closing-income-row:not(.heading) span { font-size: clamp(.92rem, 2.4vw, 1.12rem); font-weight: 800; }
+.employee-closing-income-total { display: grid; align-content: center; gap: 11px; min-width: 0; padding: 18px 22px; border-radius: 18px; background: var(--brand); color: #fff; }
+.employee-closing-income-total span { color: rgba(255,255,255,.78); font-weight: 800; }
+.employee-closing-income-total strong { font-size: clamp(1.5rem, 4vw, 2.2rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .employee-closing-records { padding: 16px 18px; border-top: 1px solid #eadbd0; border-bottom: 1px solid #eadbd0; background: rgba(255,255,255,.58); }
 .employee-closing-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
 .employee-closing-section-heading h3 { margin: 0; font-size: 1rem; }
@@ -2421,6 +2413,9 @@ h2 {
 .employee-closing-record > header strong { overflow: hidden; font-size: .88rem; text-overflow: ellipsis; white-space: nowrap; }
 .employee-closing-record > header em { flex: 0 0 auto; padding: 4px 7px; border-radius: 999px; background: #e7f5ed; color: var(--success); font-size: .66rem; font-style: normal; font-weight: 800; }
 .employee-closing-record.pending > header em { background: #fff0d8; color: #8a4b08; }
+.employee-closing-record-gross { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 12px; border-top: 1px solid #eee2da; background: #fff8ef; }
+.employee-closing-record-gross span { color: var(--muted); font-size: .72rem; font-weight: 800; }
+.employee-closing-record-gross strong { color: var(--brand); font-size: 1rem; font-variant-numeric: tabular-nums; }
 .employee-closing-payment-grid { display: grid; grid-template-columns: minmax(54px, .7fr) repeat(3, minmax(62px, 1fr)); border-top: 1px solid #eee2da; border-bottom: 1px solid #eee2da; }
 .employee-closing-payment-grid > * { min-width: 0; padding: 6px 8px; border-right: 1px solid #eee2da; text-align: right; }
 .employee-closing-payment-grid > *:nth-child(4n) { border-right: 0; }
@@ -2522,12 +2517,10 @@ h2 {
   .closing-actions { display: grid; }
   .employee-closing-backdrop { align-items: stretch; padding: 0; }
   .employee-closing-modal { width: 100vw; max-height: 100dvh; padding: 10px; border-radius: 0; }
-  .employee-closing-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
-  .employee-closing-formula { padding: 9px; }
-  .employee-closing-equation-row { grid-template-columns: minmax(0, 1fr) 13px minmax(0, 1fr) 13px minmax(0, 1fr); gap: 1px; }
-  .employee-closing-equation-row article { min-height: 50px; padding: 7px 6px; }
-  .employee-closing-equation-row span { font-size: .58rem; }
-  .employee-closing-equation-row strong { font-size: .82rem; }
+  .employee-closing-income-summary { grid-template-columns: 1fr; padding: 10px; }
+  .employee-closing-income-total { min-height: 96px; }
+  .employee-closing-income-row { grid-template-columns: minmax(78px, 1.2fr) repeat(3, minmax(0, 1fr)); }
+  .employee-closing-income-row > * { padding-inline: 3px; }
   .employee-closing-records { padding: 13px 10px; }
   .employee-closing-payment-grid { grid-template-columns: 48px repeat(3, minmax(0, 1fr)); }
   .employee-closing-payment-grid > * { padding: 6px 4px; }

@@ -3,7 +3,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { messagesServices, sendMessagesAttachment } from "./messages.js";
 import { cleanupOutbox, closingPngPath, prepareOutbox, secureClosingPng } from "./outbox.js";
-import { closingMessage, renderClosingPng, type ClosingSnapshot } from "./render.js";
+import { renderClosingPng, type ClosingSnapshot } from "./render.js";
 import { messagesStagerReady, stageMessagesAttachment } from "./stager.js";
 
 const apiUrl = process.env.MASSAGE_NOTE_API_URL?.replace(/\/$/, "");
@@ -11,7 +11,7 @@ const agentToken = process.env.MASSAGE_NOTE_AGENT_TOKEN;
 const dataDir = process.env.MASSAGE_NOTE_AGENT_DATA_DIR ?? join(homedir(), "Library", "Application Support", "Massage Note Messages Agent");
 if (!apiUrl || !agentToken) throw new Error("MASSAGE_NOTE_API_URL and MASSAGE_NOTE_AGENT_TOKEN are required");
 
-interface Job { id: string; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; kind: "INITIAL" | "RESEND"; cycleNo: number; snapshot: ClosingSnapshot }
+interface Job { id: string; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; snapshot: ClosingSnapshot }
 interface Journal { accepted: string[]; completed: string[] }
 const journalPath = join(dataDir, "journal.json");
 const outboxDir = await prepareOutbox(dataDir);
@@ -43,7 +43,7 @@ async function heartbeat(lastError: string | null = null) {
     diagnosticError = error instanceof Error ? error.message : String(error);
   }
   try {
-    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.29", lastError: diagnosticError }) });
+    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.30", lastError: diagnosticError }) });
   } catch (error) {
     process.stderr.write(`heartbeat: ${error instanceof Error ? error.message : String(error)}\n`);
   }
@@ -77,7 +77,7 @@ async function processJob(job: Job, journal: Journal) {
     await secureClosingPng(pngPath);
     const stagedPath = await stageMessagesAttachment(pngPath, job.id);
     sendStarted = true;
-    await sendMessagesAttachment(job.phoneE164, stagedPath, closingMessage(job.snapshot, job.locale, job.kind, job.cycleNo));
+    await sendMessagesAttachment(job.phoneE164, stagedPath);
     journal.accepted.push(job.id); await saveJournal(journal);
     await request(`/closing-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
     journal.completed.push(job.id); await saveJournal(journal);

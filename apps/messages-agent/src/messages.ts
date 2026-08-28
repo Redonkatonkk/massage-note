@@ -11,16 +11,15 @@ export function messagesPhoneHandle(phoneE164: string) {
 export const messagesAttachmentScript = `on run argv
 set phoneNumber to item 1 of argv
 set filePath to item 2 of argv
-set messageText to item 3 of argv
-set serviceUsed to sendWithType(phoneNumber, filePath, messageText, "SMS")
-if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, messageText, "RCS")
-if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, messageText, "iMessage")
+set serviceUsed to sendWithType(phoneNumber, filePath, "SMS")
+if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, "RCS")
+if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, "iMessage")
 if serviceUsed is "" then error "No enabled Messages account can address this phone number"
 delay 15
 return serviceUsed
 end run
 
-on sendWithType(phoneNumber, filePath, messageText, requestedType)
+on sendWithType(phoneNumber, filePath, requestedType)
 tell application "Messages"
   repeat with targetAccount in accounts
     set accountType to ""
@@ -33,7 +32,6 @@ tell application "Messages"
     if accountType is requestedType and enabled of targetAccount is true then
       set targetParticipant to participant phoneNumber of targetAccount
       send POSIX file filePath to targetParticipant
-      send messageText to targetParticipant
       return requestedType
     end if
   end repeat
@@ -56,11 +54,11 @@ end tell`;
   return stdout.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
-export async function sendMessagesAttachment(phoneE164: string, pngPath: string, message: string): Promise<string> {
+export async function sendMessagesAttachment(phoneE164: string, pngPath: string): Promise<string> {
   const phoneHandle = messagesPhoneHandle(phoneE164);
   const { stdout } = await execFileAsync(
     "/usr/bin/osascript",
-    ["-e", messagesAttachmentScript, "--", phoneHandle, pngPath, message],
+    ["-e", messagesAttachmentScript, "--", phoneHandle, pngPath],
     { timeout: 45_000 },
   );
   return stdout.trim();

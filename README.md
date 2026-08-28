@@ -1,6 +1,6 @@
 # Massage note
 
-当前版本：`0.12.29`
+当前版本：`0.12.30`
 
 面向美国按摩店的中英文记工与财务管理 Web 应用，支持手机、iPad 和电脑。系统覆盖多店成员、今日记工、礼物卡、提成、确定性财务、日结、现金与工资结算、审计、实时同步和带确认预览的 AI 助手。
 
@@ -79,7 +79,7 @@ MASSAGE_NOTE_AGENT_TOKEN="设置页生成的令牌" \
 ./scripts/install-messages-agent.sh
 ```
 
-首次运行安装脚本会安装无界面的 `~/Applications/Massage Note Attachment Stager.app`；必须在“系统设置 → 隐私与安全性 → 完全磁盘访问权限”中只添加并开启这个 App，再重新运行脚本。代理通过 LaunchServices 以 App 身份后台启动暂存程序；程序只把经过任务路径、UUID 和 PNG 文件头验证的日结图写入 Messages 自有附件目录，并返回与任务绑定的结果文件。代理核对明确成功和固定目标路径后才通过 AppleScript 后台静默发送，不模拟键盘、不激活窗口，也不读取系统相册或聊天数据库。安装脚本还会检查“信息”登录状态和 macOS 自动化权限；系统弹窗时必须允许 Node/终端控制“信息”，检查不通过则不会启动后台代理。向非 Apple 手机发送图片还要求同 Apple 账户的 iPhone 开启短信转发，并由运营商支持 MMS/RCS。代理只向 API 发起出站 HTTPS 请求；NAS 不需要连接或控制 Mac。固定 Mac 必须保持对应用户登录（锁屏可以，退出 macOS 用户会停止 LaunchAgent），令牌保存在当前 Mac 用户权限保护的配置文件中。卸载可运行 `./scripts/uninstall-messages-agent.sh`。
+首次运行安装脚本会安装无界面的 `~/Applications/Massage Note Attachment Stager.app`；必须在“系统设置 → 隐私与安全性 → 完全磁盘访问权限”中只添加并开启这个 App，再重新运行脚本。代理通过 LaunchServices 以 App 身份后台启动暂存程序；程序只把经过任务路径、UUID 和 PNG 文件头验证的日结图写入 Messages 自有附件目录，并返回与任务绑定的结果文件。代理核对明确成功和固定目标路径后才通过 AppleScript 后台静默发送，每个任务只发送 PNG，不再发送重复的文字气泡；全程不模拟键盘、不激活窗口，也不读取系统相册或聊天数据库。安装脚本还会检查“信息”登录状态和 macOS 自动化权限；系统弹窗时必须允许 Node/终端控制“信息”，检查不通过则不会启动后台代理。向非 Apple 手机发送图片还要求同 Apple 账户的 iPhone 开启短信转发，并由运营商支持 MMS/RCS。代理只向 API 发起出站 HTTPS 请求；NAS 不需要连接或控制 Mac。固定 Mac 必须保持对应用户登录（锁屏可以，退出 macOS 用户会停止 LaunchAgent），令牌保存在当前 Mac 用户权限保护的配置文件中。卸载可运行 `./scripts/uninstall-messages-agent.sh`。
 
 - 普通 Docker Compose：[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
 - 群晖 Container Manager：[`docs/NAS_DEPLOYMENT.md`](docs/NAS_DEPLOYMENT.md)

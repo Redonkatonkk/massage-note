@@ -80,11 +80,6 @@ function time(value: string | null, timezone: string, locale: Locale) {
   return new Intl.DateTimeFormat(locale === "zh_CN" ? "zh-CN" : "en-US", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value));
 }
 
-export function closingMessage(snapshot: ClosingSnapshot, locale: Locale, kind: "INITIAL" | "RESEND", cycleNo: number) {
-  if (locale === "en_US") return `${snapshot.storeName}: ${kind === "RESEND" ? "Corrected " : ""}employee closing for ${snapshot.employee.displayName}, ${snapshot.businessDate} (closing #${cycleNo}). The attached image is the saved business-day snapshot.`;
-  return `${snapshot.storeName}：${snapshot.employee.displayName} ${snapshot.businessDate}${kind === "RESEND" ? "更正后的" : ""}个人日结（第 ${cycleNo} 次日结）。附件图片以系统保存的营业日快照为准。`;
-}
-
 export async function renderClosingPng(snapshot: ClosingSnapshot, locale: Locale, svgPath: string, pngPath: string) {
   const en = locale === "en_US";
   const labels = en ? {

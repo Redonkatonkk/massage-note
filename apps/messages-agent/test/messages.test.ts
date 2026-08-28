@@ -13,7 +13,9 @@ describe("Messages AppleScript", () => {
     expect(messagesAttachmentScript).toContain("on run argv");
     expect(messagesAttachmentScript).toContain("set phoneNumber to item 1 of argv");
     expect(messagesAttachmentScript).toContain("set filePath to item 2 of argv");
-    expect(messagesAttachmentScript).toContain("set messageText to item 3 of argv");
+    expect(messagesAttachmentScript).not.toContain("messageText");
+    expect(messagesAttachmentScript).not.toContain("send messageText");
+    expect(messagesAttachmentScript.match(/send POSIX file/g)).toHaveLength(1);
   });
 
   it("逐个忽略 macOS 26 无法转换的账户类型", () => {

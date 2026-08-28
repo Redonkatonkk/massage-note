@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `0.12.29` 代码结构核对。
+> 状态：与 `0.12.30` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -134,7 +134,7 @@ Web 表单
 | 本地开发 | Next.js `:3000` + NestJS `:4000` + Docker PostgreSQL/Redis |
 | 普通生产 Compose | 独立 `web` 与 `api` 容器，端口只绑定 loopback |
 | 群晖 | 一个 `nas` 应用镜像同时启动 Web/API；Next.js 把 `/api/*` 代理到容器内 API |
-| 固定 Mac | LaunchAgent 只向 NAS 发出 HTTPS 请求；通过 LaunchServices 以 FDA 授权的无界面 App 身份暂存已验证 PNG，核对任务结果与固定 Messages 路径后再由 AppleScript 静默发送 |
+| 固定 Mac | LaunchAgent 只向 NAS 发出 HTTPS 请求；通过 LaunchServices 以 FDA 授权的无界面 App 身份暂存已验证 PNG，核对任务结果与固定 Messages 路径后只由 AppleScript 静默发送该图片，不附带文字 |
 
 数据库迁移在应用启动前由一次性 `migrate` 服务执行，随后 `harden` 服务收紧应用账号权限。CI 在每次 push/PR 执行类型检查、单元测试、数据库/API 集成测试和生产构建；`main` 验证成功后再发布 `linux/amd64` NAS 镜像。
 

@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { closingMessage, renderClosingPng, type ClosingSnapshot } from "../src/render.js";
+import { renderClosingPng, type ClosingSnapshot } from "../src/render.js";
 
 const snapshot: ClosingSnapshot = {
   storeName: "安心按摩",
@@ -56,10 +56,5 @@ describe.skipIf(process.platform !== "darwin")("个人日结 PNG", () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
-  });
-
-  it("补发消息标明更正和日结周期", () => {
-    expect(closingMessage(snapshot, "zh_CN", "RESEND", 2)).toContain("更正后的");
-    expect(closingMessage(snapshot, "en_US", "RESEND", 2)).toContain("Corrected");
   });
 });

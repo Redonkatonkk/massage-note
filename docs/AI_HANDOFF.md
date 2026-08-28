@@ -1,6 +1,6 @@
 # AI 接管指南
 
-> 最后核对：2026-08-28（America/New_York） · 当前版本：`0.12.28`
+> 最后核对：2026-08-28（America/New_York） · 当前版本：`0.12.29`
 > 目标：用最少上下文安全维护 Massage note；历史过程查 Git 和 [`CHANGELOG.md`](../CHANGELOG.md)。
 
 ## 1. 接手顺序
@@ -110,7 +110,7 @@ AI 是可选增强；未配置时手动记工和确定性财务必须正常工�
 
 当用户明确说“更新部署”时，视为完整发布授权：同步文档与版本，只提交本次项目文件，push 后等待该 commit 的 CI 与 GHCR 版本镜像成功，再按 NAS 手册备份、迁移、升级项目 `mn` 并完成线上验收。不能把它缩减为只改本地代码，也不能跳过 CI、备份或健康检查。
 
-Mac“信息”代理的安装与排障以 [`OPERATIONS.md`](OPERATIONS.md) 的“新 Mac 安装员工日结短信代理”为准。正式实现必须后台静默运行：禁止模拟键盘、粘贴剪贴板、激活 Messages 窗口或按相册“最近项”猜测图片。新 Mac 只给 `Massage Note Attachment Stager.app` 完全磁盘访问；暂存程序把经过路径、UUID 和 PNG 文件头验证的任务图片写进 Messages 自有附件目录，不得扩大为 Node/终端全盘访问，也不得读写聊天数据库。
+Mac“信息”代理的安装与排障以 [`OPERATIONS.md`](OPERATIONS.md) 的“新 Mac 安装员工日结短信代理”为准。正式实现必须后台静默运行：禁止模拟键盘、粘贴剪贴板、激活 Messages 窗口或按相册“最近项”猜测图片。新 Mac 只给 `Massage Note Attachment Stager.app` 完全磁盘访问；LaunchAgent 必须通过 LaunchServices 以该 App 身份启动暂存，不能直接执行 App 内二进制。暂存程序把经过路径、UUID 和 PNG 文件头验证的任务图片写进 Messages 自有附件目录，只返回与任务 UUID 绑定的结果；不得扩大为 Node/终端全盘访问，也不得读写聊天数据库。
 
 真实部署秘密只可从被 Git 忽略且权限受限的本地文件或系统钥匙串读取，不得复制到文档、输出或 GitHub。恢复具有覆盖性，只能对明确确认的目标数据库执行；未经授权不要删除任何开发或生产数据卷。
 

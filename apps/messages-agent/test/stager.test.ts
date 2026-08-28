@@ -4,45 +4,63 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { messagesStagerReady, stageMessagesAttachment } from "../src/stager.js";
 
-const previousStager = process.env.MASSAGE_NOTE_MESSAGES_STAGER;
+const previousApp = process.env.MASSAGE_NOTE_MESSAGES_STAGER_APP;
+const previousDataDir = process.env.MASSAGE_NOTE_AGENT_DATA_DIR;
+const previousOpen = process.env.MASSAGE_NOTE_OPEN_BIN;
 const directories: string[] = [];
 
 afterEach(async () => {
-  if (previousStager === undefined) delete process.env.MASSAGE_NOTE_MESSAGES_STAGER;
-  else process.env.MASSAGE_NOTE_MESSAGES_STAGER = previousStager;
+  if (previousApp === undefined) delete process.env.MASSAGE_NOTE_MESSAGES_STAGER_APP;
+  else process.env.MASSAGE_NOTE_MESSAGES_STAGER_APP = previousApp;
+  if (previousDataDir === undefined) delete process.env.MASSAGE_NOTE_AGENT_DATA_DIR;
+  else process.env.MASSAGE_NOTE_AGENT_DATA_DIR = previousDataDir;
+  if (previousOpen === undefined) delete process.env.MASSAGE_NOTE_OPEN_BIN;
+  else process.env.MASSAGE_NOTE_OPEN_BIN = previousOpen;
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
 });
 
+async function prepareOpenMock(payload: { ok: boolean; path?: string; error?: string }) {
+  const directory = await mkdtemp(join(tmpdir(), "messages-stager-test-"));
+  directories.push(directory);
+  const helper = join(directory, "open.sh");
+  const log = join(directory, "arguments.txt");
+  await writeFile(
+    helper,
+    `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(log)}\nfor result_path do :; done\nmkdir -p "$(dirname "$result_path")"\nprintf '%s' ${JSON.stringify(JSON.stringify(payload))} > "$result_path"\n`,
+  );
+  await chmod(helper, 0o700);
+  process.env.MASSAGE_NOTE_MESSAGES_STAGER_APP = "/Applications/Test Stager.app";
+  process.env.MASSAGE_NOTE_AGENT_DATA_DIR = directory;
+  process.env.MASSAGE_NOTE_OPEN_BIN = helper;
+  return { log };
+}
+
 describe("Messages attachment stager", () => {
-  it("缺少原生暂存程序路径时拒绝运行", async () => {
-    delete process.env.MASSAGE_NOTE_MESSAGES_STAGER;
-    await expect(messagesStagerReady()).rejects.toThrow("MASSAGE_NOTE_MESSAGES_STAGER is required");
+  it("缺少原生暂存 App 路径时拒绝运行", async () => {
+    delete process.env.MASSAGE_NOTE_MESSAGES_STAGER_APP;
+    await expect(messagesStagerReady()).rejects.toThrow("MASSAGE_NOTE_MESSAGES_STAGER_APP is required");
   });
 
-  it("只接受 Messages MassageNote 附件目录中的返回路径", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "messages-stager-test-"));
-    directories.push(directory);
-    const helper = join(directory, "stager.sh");
-    const log = join(directory, "arguments.txt");
+  it("通过 LaunchServices 后台启动并只接受精确 Messages 路径", async () => {
     const jobId = "ab48f3d5-8a80-4260-98ae-e8b4fd603d14";
     const validPath = join(process.env.HOME!, "Library", "Messages", "Attachments", "MassageNote", "ab", jobId, "closing.png");
-    await writeFile(helper, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(log)}\nprintf '%s\\n' ${JSON.stringify(validPath)}\n`);
-    await chmod(helper, 0o700);
-    process.env.MASSAGE_NOTE_MESSAGES_STAGER = helper;
+    const { log } = await prepareOpenMock({ ok: true, path: validPath });
 
-    await messagesStagerReady();
     expect(await stageMessagesAttachment("/source/closing.png", jobId)).toBe(validPath);
-    expect(await readFile(log, "utf8")).toContain(jobId);
+    const argumentsLog = await readFile(log, "utf8");
+    expect(argumentsLog).toContain("-g");
+    expect(argumentsLog).toContain("-n");
+    expect(argumentsLog).toContain("/Applications/Test Stager.app");
+    expect(argumentsLog).toContain(jobId);
   });
 
-  it("拒绝暂存程序返回任意外部路径", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "messages-stager-invalid-test-"));
-    directories.push(directory);
-    const helper = join(directory, "stager.sh");
-    await writeFile(helper, "#!/bin/sh\nprintf '/tmp/not-allowed.png\\n'\n");
-    await chmod(helper, 0o700);
-    process.env.MASSAGE_NOTE_MESSAGES_STAGER = helper;
+  it("把 App 报告的暂存错误保持为发送前失败", async () => {
+    await prepareOpenMock({ ok: false, error: "Full Disk Access denied" });
+    await expect(messagesStagerReady()).rejects.toThrow("Full Disk Access denied");
+  });
 
-    await expect(stageMessagesAttachment("/source/closing.png", "job-id")).rejects.toThrow("invalid path");
+  it("拒绝暂存 App 返回任意外部路径", async () => {
+    await prepareOpenMock({ ok: true, path: "/tmp/not-allowed.png" });
+    await expect(stageMessagesAttachment("/source/closing.png", "ab48f3d5-8a80-4260-98ae-e8b4fd603d14")).rejects.toThrow("invalid path");
   });
 });

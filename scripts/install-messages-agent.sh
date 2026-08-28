@@ -52,7 +52,7 @@ if [[ ! -x "$stager_bin" || "$installed_stager_hash" != "$stager_source_hash" ]]
   <key>CFBundleIdentifier</key><string>com.massagenote.messages-stager</string>
   <key>CFBundleName</key><string>Massage Note Attachment Stager</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.12.28</string>
+  <key>CFBundleShortVersionString</key><string>0.12.29</string>
   <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST
@@ -61,20 +61,19 @@ PLIST
   chmod 600 "$stager_hash_path"
 fi
 
-printf 'export MASSAGE_NOTE_API_URL=%q\nexport MASSAGE_NOTE_AGENT_TOKEN=%q\nexport MASSAGE_NOTE_AGENT_DATA_DIR=%q\nexport MASSAGE_NOTE_MESSAGES_STAGER=%q\n' \
-  "$MASSAGE_NOTE_API_URL" "$MASSAGE_NOTE_AGENT_TOKEN" "$agent_dir" "$stager_bin" > "$config_path"
+printf 'export MASSAGE_NOTE_API_URL=%q\nexport MASSAGE_NOTE_AGENT_TOKEN=%q\nexport MASSAGE_NOTE_AGENT_DATA_DIR=%q\nexport MASSAGE_NOTE_MESSAGES_STAGER_APP=%q\n' \
+  "$MASSAGE_NOTE_API_URL" "$MASSAGE_NOTE_AGENT_TOKEN" "$agent_dir" "$stager_app" > "$config_path"
 chmod 600 "$config_path"
 
 print "正在前台检查‘信息’登录状态与 macOS 自动化权限…"
-if ! "$stager_bin" --diagnose; then
+if ! MASSAGE_NOTE_AGENT_DATA_DIR="$agent_dir" MASSAGE_NOTE_MESSAGES_STAGER_APP="$stager_app" \
+  "$node_bin" "$agent_dir/app/index.js" --diagnose; then
   print -u2 "附件暂存程序还不能写入 Messages 的受保护附件目录。"
   print -u2 "请在‘系统设置 → 隐私与安全性 → 完全磁盘访问权限’中添加并开启："
   print -u2 "$stager_app"
   print -u2 "完成后重新运行本安装脚本。该程序不读取聊天数据库，也不控制任何界面。"
   exit 2
 fi
-MASSAGE_NOTE_AGENT_DATA_DIR="$agent_dir" MASSAGE_NOTE_MESSAGES_STAGER="$stager_bin" \
-  "$node_bin" "$agent_dir/app/index.js" --diagnose
 
 cat > "$plist_path" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

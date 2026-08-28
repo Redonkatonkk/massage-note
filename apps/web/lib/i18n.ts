@@ -313,6 +313,7 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "正在排队…": "Queueing…",
   "接收个人日结短信": "Receive employee-closing messages",
   "专用接收号码": "Dedicated recipient number",
+  "此成员没有注册手机号，请先填写短信接收号码，再开启接收个人日结短信。": "This member has no registered phone number. Enter a message recipient number before enabling employee-closing messages.",
   "图片语言": "Image language",
   "使用店铺默认": "Use store default",
   "个人日结默认语言": "Default closing image language",

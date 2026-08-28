@@ -63,7 +63,7 @@ export class MembershipsService {
       orderBy: [{ status: "asc" }, { joinedAt: "asc" }],
       include: {
         user: {
-          select: { id: true, firstName: true, lastName: true },
+          select: { id: true, firstName: true, lastName: true, phoneE164: true },
         },
       },
     });
@@ -300,6 +300,27 @@ export class MembershipsService {
         );
         if (current.role === "OWNER" && input.role !== undefined) {
           this.throwOwnerTransferRequired();
+        }
+        const closingDeliveryEnabled =
+          input.closingDeliveryEnabled ?? current.closingDeliveryEnabled;
+        const closingDeliveryPhoneE164 =
+          input.closingDeliveryPhoneE164 === undefined
+            ? current.closingDeliveryPhoneE164
+            : input.closingDeliveryPhoneE164;
+        if (closingDeliveryEnabled && !closingDeliveryPhoneE164) {
+          const linkedUser = current.userId
+            ? await transaction.user.findUnique({
+                where: { id: current.userId },
+                select: { phoneE164: true },
+              })
+            : null;
+          if (!linkedUser?.phoneE164) {
+            throw new ConflictException({
+              code: "CLOSING_DELIVERY_PHONE_REQUIRED",
+              messageZh:
+                "此成员没有注册手机号，请先填写短信接收号码，再开启接收个人日结短信",
+            });
+          }
         }
 
         const changed = await transaction.storeMembership.updateMany({

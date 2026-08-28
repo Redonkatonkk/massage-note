@@ -300,6 +300,54 @@ describe.skipIf(!enabled).sequential("成员审批与跨店隔离", () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it("成员列表返回注册手机号，开启短信接收时至少要有一个号码", async () => {
+    const listed = await memberships.listMembers(actor(ownerId), storeId);
+    expect(listed.find((item) => item.id === managerMembershipId)?.user).toMatchObject({
+      phoneE164: expect.stringMatching(/^\+1/),
+    });
+
+    await expect(
+      memberships.updateMember(
+        actor(ownerId),
+        storeId,
+        managerMembershipId,
+        {
+          version: 1,
+          closingDeliveryEnabled: true,
+          closingDeliveryPhoneE164: null,
+        },
+        "enable-delivery-with-registered-phone",
+      ),
+    ).resolves.toMatchObject({
+      closingDeliveryEnabled: true,
+      closingDeliveryPhoneE164: null,
+    });
+
+    const unregistered = await memberships.createEmployee(
+      actor(managerId),
+      storeId,
+      { name: "未注册短信员工" },
+      "create-unregistered-delivery-member",
+    );
+    await expect(
+      memberships.updateMember(
+        actor(ownerId),
+        storeId,
+        unregistered.id,
+        {
+          version: unregistered.version,
+          closingDeliveryEnabled: true,
+          closingDeliveryPhoneE164: null,
+        },
+        "reject-delivery-without-phone",
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: "CLOSING_DELIVERY_PHONE_REQUIRED",
+      }),
+    });
+  });
+
   it("停用和恢复仅改变当前成员关系并保留审计", async () => {
     const inactive = await memberships.deactivateMember(
       actor(managerId),

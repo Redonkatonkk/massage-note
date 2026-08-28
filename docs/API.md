@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`0.12.23`
+> 适用版本：`0.12.24`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -36,9 +36,9 @@
 | POST | `/stores/:storeId/join-requests` | 提交加入申请；注册 First Name 匹配待认领员工时自动绑定账号 |
 | GET | `/stores/:storeId/join-requests` | 店主或经理查看加入申请 |
 | POST | `/stores/:storeId/join-requests/:joinRequestId/approve`、`reject` | 审批加入申请 |
-| GET | `/stores/:storeId/members` | 成员列表 |
+| GET | `/stores/:storeId/members` | 成员列表；已关联账号同时返回注册手机号，供短信接收号码回填 |
 | POST | `/stores/:storeId/members` | 店主或经理以 `{ "name": "小林" }` 创建待认领员工，不需要姓氏或手机号 |
-| PATCH/DELETE | `/stores/:storeId/members/:membershipId` | 更新成员资料/角色或软删除成员关系 |
+| PATCH/DELETE | `/stores/:storeId/members/:membershipId` | 更新成员资料/角色或软删除成员关系；开启个人日结短信时，专用号码与关联账号注册手机号至少存在一个，否则拒绝更新 |
 | POST | `/stores/:storeId/members/:membershipId/restore` | 恢复成员关系 |
 | GET | `/stores/:storeId/catalog` | 项目目录 |
 | POST | `/stores/:storeId/catalog/setup` | 首次批量设置项目目录 |

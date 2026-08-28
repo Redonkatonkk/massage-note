@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
 import { formatMoneyInput, formatUsd } from "../../lib/money";
+import {
+  CLOSING_DELIVERY_PHONE_REQUIRED_MESSAGE,
+  effectiveClosingDeliveryPhone,
+  validateClosingDeliveryPhone,
+} from "../../lib/member-closing-delivery";
 import type {
   AddonItem,
   AuditLogItem,
@@ -21,6 +26,7 @@ import type {
 } from "../../lib/types";
 import { useStoreRealtime } from "../../lib/realtime";
 import { AppNav } from "../app-nav";
+import { useLanguage } from "../language-provider";
 
 type ManageTab = "store" | "members" | "catalog" | "recovery" | "audit";
 type CatalogKind = "SERVICE" | "ADDON" | "DISCOUNT";
@@ -326,12 +332,17 @@ function MembersPanel({ storeId, currentRole, members, requests, catalog, busy, 
 }
 
 function MemberEditor({ storeId, member, currentRole, catalog, busy, saved, refreshedToday, onDirty, onSaved, run, reload }: { storeId: string; member: StoreMember; currentRole: MembershipSummary["role"]; catalog: CatalogResponse; busy: boolean; saved: boolean; refreshedToday: boolean; onDirty: () => void; onSaved: (refreshedToday: boolean) => void; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
+  const { t } = useLanguage();
   const [name, setName] = useState(member.displayName);
   const [role, setRole] = useState(member.role);
   const [provider, setProvider] = useState(member.isServiceProvider);
   const [defaultCommission, setDefaultCommission] = useState(member.defaultCommissionBps === null ? "" : (member.defaultCommissionBps / 100).toString());
   const [closingDeliveryEnabled, setClosingDeliveryEnabled] = useState(member.closingDeliveryEnabled);
-  const [closingDeliveryPhone, setClosingDeliveryPhone] = useState(member.closingDeliveryPhoneE164 ?? "");
+  const initialClosingDeliveryPhone = effectiveClosingDeliveryPhone(
+    member.closingDeliveryPhoneE164,
+    member.user?.phoneE164,
+  );
+  const [closingDeliveryPhone, setClosingDeliveryPhone] = useState(initialClosingDeliveryPhone);
   const [closingImageLocale, setClosingImageLocale] = useState(member.closingImageLocale ?? "");
   const [commissionOpen, setCommissionOpen] = useState(false);
   const [history, setHistory] = useState<CommissionHistoryResponse | null>(null);
@@ -340,11 +351,21 @@ function MemberEditor({ storeId, member, currentRole, catalog, busy, saved, refr
 
   async function saveMember() {
     if (role === "OWNER" && member.role !== "OWNER") throw new Error("店主身份只能通过店主转移流程修改");
+    try {
+      validateClosingDeliveryPhone(
+        closingDeliveryEnabled,
+        closingDeliveryPhone,
+        member.user?.phoneE164,
+      );
+    } catch (caught) {
+      window.alert(t(CLOSING_DELIVERY_PHONE_REQUIRED_MESSAGE));
+      throw caught;
+    }
     const commissionBps = parsePercent(defaultCommission, "员工默认提成", true);
     let version = member.version;
     let refreshedToday = false;
     try {
-      if (name.trim() !== member.displayName || role !== member.role || provider !== member.isServiceProvider || closingDeliveryEnabled !== member.closingDeliveryEnabled || closingDeliveryPhone.trim() !== (member.closingDeliveryPhoneE164 ?? "") || closingImageLocale !== (member.closingImageLocale ?? "")) {
+      if (name.trim() !== member.displayName || role !== member.role || provider !== member.isServiceProvider || closingDeliveryEnabled !== member.closingDeliveryEnabled || closingDeliveryPhone.trim() !== initialClosingDeliveryPhone || closingImageLocale !== (member.closingImageLocale ?? "")) {
         const updated = await apiRequest<StoreMember>(`/stores/${storeId}/members/${member.id}`, { method: "PATCH", body: { version, ...(isOwner ? {} : { displayName: name, role, isServiceProvider: provider }), closingDeliveryEnabled, closingDeliveryPhoneE164: closingDeliveryPhone.trim() || null, closingImageLocale: closingImageLocale || null } });
         version = updated.version;
       }

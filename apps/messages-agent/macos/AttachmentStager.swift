@@ -10,7 +10,7 @@ enum StagerError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidArguments: return "usage: AttachmentStager --diagnose <result-json> | <source> <job-uuid> [closing.png|settlement-summary.png|settlement-details.pdf] <result-json>"
+        case .invalidArguments: return "usage: AttachmentStager --diagnose <result-json> | <source> <job-uuid> [closing.png|settlement-summary.png|settlement-details.pdf] [--reuse-existing] <result-json>"
         case .invalidJobID: return "invalid closing delivery job id"
         case .invalidResultPath: return "result must be the exact job result file in the Massage Note agent data directory"
         case .invalidSource: return "source must be the exact job PNG in the Massage Note agent outbox"
@@ -63,7 +63,7 @@ func diagnose() throws {
     try fileManager.removeItem(at: probeDirectory)
 }
 
-func stage(sourceArgument: String, jobArgument: String, fileName: String) throws -> String {
+func stage(sourceArgument: String, jobArgument: String, fileName: String, reuseExisting: Bool = false) throws -> String {
     guard let jobID = UUID(uuidString: jobArgument), jobID.uuidString.lowercased() == jobArgument.lowercased() else {
         throw StagerError.invalidJobID
     }
@@ -89,7 +89,9 @@ func stage(sourceArgument: String, jobArgument: String, fileName: String) throws
 
     if fileManager.fileExists(atPath: destination.path) {
         let existing = try Data(contentsOf: destination, options: .mappedIfSafe)
-        guard existing == data else { throw StagerError.conflictingDestination }
+        guard existing == data || (reuseExisting && fileName == "settlement-details.pdf") else {
+            throw StagerError.conflictingDestination
+        }
     } else {
         try data.write(to: destination, options: .atomic)
         try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
@@ -108,13 +110,17 @@ do {
             try? writeResult(ok: false, error: error.localizedDescription, to: result)
             throw error
         }
-    } else if arguments.count == 3 || arguments.count == 4 {
+    } else if arguments.count == 3 || arguments.count == 4 || arguments.count == 5 {
         guard let jobID = UUID(uuidString: arguments[1]) else { throw StagerError.invalidJobID }
         let stem = jobID.uuidString.lowercased()
-        let fileName = arguments.count == 4 ? arguments[2] : "closing.png"
+        let fileName = arguments.count >= 4 ? arguments[2] : "closing.png"
+        let reuseExisting = arguments.count == 5 && arguments[3] == "--reuse-existing"
+        guard arguments.count != 5 || (reuseExisting && fileName == "settlement-details.pdf") else {
+            throw StagerError.invalidArguments
+        }
         let result = try validatedResultURL(arguments[arguments.count - 1], expectedStem: stem)
         do {
-            let destination = try stage(sourceArgument: arguments[0], jobArgument: arguments[1], fileName: fileName)
+            let destination = try stage(sourceArgument: arguments[0], jobArgument: arguments[1], fileName: fileName, reuseExisting: reuseExisting)
             try writeResult(ok: true, path: destination, to: result)
         } catch {
             try? writeResult(ok: false, error: error.localizedDescription, to: result)

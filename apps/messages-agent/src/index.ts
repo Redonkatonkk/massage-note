@@ -45,7 +45,7 @@ async function heartbeat(lastError: string | null = null) {
     diagnosticError = error instanceof Error ? error.message : String(error);
   }
   try {
-    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.33", lastError: diagnosticError }) });
+    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.34", lastError: diagnosticError }) });
   } catch (error) {
     process.stderr.write(`heartbeat: ${error instanceof Error ? error.message : String(error)}\n`);
   }
@@ -115,7 +115,7 @@ async function processSettlementJob(job: SettlementJob) {
     if (!job.detailSent) {
       activeAttachment = "DETAIL";
       sendStarted = false;
-      const staged = await stageMessagesAttachment(detailsPath, job.id, "settlement-details.pdf");
+      const staged = await stageMessagesAttachment(detailsPath, job.id, "settlement-details.pdf", job.summarySent);
       sendStarted = true;
       const service = await sendMessagesAttachment(job.phoneE164, staged, "DOCUMENT");
       process.stdout.write(`settlement ${job.id} PDF accepted by ${service}\n`);

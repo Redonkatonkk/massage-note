@@ -52,7 +52,7 @@ if [[ ! -x "$stager_bin" || "$installed_stager_hash" != "$stager_source_hash" ]]
   <key>CFBundleIdentifier</key><string>com.massagenote.messages-stager</string>
   <key>CFBundleName</key><string>Massage Note Attachment Stager</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.12.33</string>
+  <key>CFBundleShortVersionString</key><string>0.12.34</string>
   <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST

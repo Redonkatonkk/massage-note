@@ -7,6 +7,7 @@ import { renderSettlementArtifacts, type SettlementSnapshot } from "../src/settl
 
 const snapshot: SettlementSnapshot = {
   storeName: "Massage Note", storeTimezone: "America/New_York", dateFrom: "2026-08-01", dateTo: "2026-08-28", paymentScope: "ALL",
+  generatedAt: "2026-08-29T18:00:00.000Z",
   employee: { displayName: "Amy 测试员工" },
   summary: { recordCount: 45, cashLargeFeeWageCents: 108000, nonCashLargeFeeWageCents: 162000, cashTipCents: 45000, nonCashTipCents: 103500, cashIncomeCents: 153000, nonCashIncomeCents: 265500, totalIncomeCents: 418500 },
   records: Array.from({ length: 45 }, (_, index) => ({
@@ -30,6 +31,20 @@ describe.skipIf(process.platform !== "darwin")("employee settlement artifacts", 
       expect((await PDFDocument.load(await readFile(details))).getPageCount()).toBe(3);
     } finally {
       await rm(directory, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("同一不可变快照重复生成完全相同的 PDF，允许只重发明细", async () => {
+    const firstDirectory = await mkdtemp(join(tmpdir(), "settlement-render-first-"));
+    const secondDirectory = await mkdtemp(join(tmpdir(), "settlement-render-second-"));
+    try {
+      const first = join(firstDirectory, "details.pdf");
+      const second = join(secondDirectory, "details.pdf");
+      await renderSettlementArtifacts(snapshot, "zh_CN", firstDirectory, join(firstDirectory, "summary.png"), first);
+      await renderSettlementArtifacts(snapshot, "zh_CN", secondDirectory, join(secondDirectory, "summary.png"), second);
+      expect(await readFile(second)).toEqual(await readFile(first));
+    } finally {
+      await Promise.all([firstDirectory, secondDirectory].map((directory) => rm(directory, { recursive: true, force: true })));
     }
   }, 30_000);
 });

@@ -18,6 +18,7 @@ interface SettlementRecord {
 
 export interface SettlementSnapshot {
   storeName: string; storeTimezone: string; dateFrom: string; dateTo: string; paymentScope: Scope;
+  generatedAt: string;
   employee: { displayName: string };
   summary: {
     recordCount: number; cashLargeFeeWageCents: number; nonCashLargeFeeWageCents: number;
@@ -122,6 +123,12 @@ export async function renderSettlementArtifacts(snapshot: SettlementSnapshot, lo
     pageImagePaths.push(imagePath);
   }
   const pdf = await PDFDocument.create();
+  const generatedAt = new Date(snapshot.generatedAt);
+  if (Number.isNaN(generatedAt.getTime())) throw new Error("Settlement snapshot generatedAt is invalid");
+  pdf.setCreationDate(generatedAt);
+  pdf.setModificationDate(generatedAt);
+  pdf.setCreator("Massage Note");
+  pdf.setProducer("Massage Note");
   for (const imagePath of pageImagePaths) {
     const image = await pdf.embedJpg(await import("node:fs/promises").then(({ readFile }) => readFile(imagePath)));
     const page = pdf.addPage([900, 1273]);

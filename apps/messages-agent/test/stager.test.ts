@@ -66,6 +66,14 @@ describe("Messages attachment stager", () => {
     await expect(stageMessagesAttachment("/source/details.pdf", jobId, "settlement-details.pdf")).resolves.toBe(validPath);
   });
 
+  it("PDF 重试要求暂存程序复用同任务已经校验的文档", async () => {
+    const jobId = "ab48f3d5-8a80-4260-98ae-e8b4fd603d14";
+    const validPath = join(process.env.HOME!, "Library", "Messages", "Attachments", "MassageNote", "ab", jobId, "settlement-details.pdf");
+    const { log } = await prepareOpenMock({ ok: true, path: validPath });
+    await stageMessagesAttachment("/source/details.pdf", jobId, "settlement-details.pdf", true);
+    expect(await readFile(log, "utf8")).toContain("--reuse-existing");
+  });
+
   it("拒绝暂存 App 返回任意外部路径", async () => {
     await prepareOpenMock({ ok: true, path: "/tmp/not-allowed.png" });
     await expect(stageMessagesAttachment("/source/closing.png", "ab48f3d5-8a80-4260-98ae-e8b4fd603d14")).rejects.toThrow("invalid path");

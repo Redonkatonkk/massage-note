@@ -67,6 +67,7 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
 
   afterAll(async () => {
     if (enabled) {
+      await prisma.employeeSettlementDelivery.deleteMany({ where: { storeId } });
       await prisma.storeJoinRequest.deleteMany({ where: { storeId } });
       await prisma.store.update({
         where: { id: storeId },
@@ -131,6 +132,27 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
       displayName: "待注册员工",
       status: "ACTIVE",
     });
+  });
+
+  it("员工区间结算发送记录使用迁移定义的 last_error 列", async () => {
+    const delivery = await prisma.employeeSettlementDelivery.create({
+      data: {
+        storeId,
+        membershipId: ownerMembershipId,
+        periodStart: new Date("2026-08-01T00:00:00.000Z"),
+        periodEnd: new Date("2026-08-07T00:00:00.000Z"),
+        paymentScope: "ALL",
+        recipientPhoneE164: "+12025550123",
+        locale: "zh_CN",
+        snapshotJson: { records: [] },
+        queuedBy: ownerId,
+        requestKey: randomUUID(),
+        lastError: "测试错误",
+      },
+    });
+
+    expect(delivery.lastError).toBe("测试错误");
+    await expect(prisma.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: delivery.id } })).resolves.toMatchObject({ lastError: "测试错误" });
   });
 
   it("数据库包含迁移追加的关键检查约束", async () => {

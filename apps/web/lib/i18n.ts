@@ -1767,7 +1767,7 @@ const API_ERROR_ENGLISH: Record<string, string> = {
   SETTLEMENT_DELIVERY_NOT_RETRYABLE: "Only a failed settlement delivery can be retried.",
   SETTLEMENT_DELIVERY_PHONE_MISSING: "This employee does not have a valid recipient phone number.",
   SETTLEMENT_HAS_NO_RECORDS: "There are no confirmed records to send in this range.",
-  SETTLEMENT_MEMBERSHIP_NOT_FOUND: "The active employee available for settlement was not found.",
+  SETTLEMENT_MEMBERSHIP_NOT_FOUND: "The active store member available for settlement was not found.",
   SETTLEMENT_MESSAGES_UNAVAILABLE: "The Mac Messages app has no available SMS, RCS, or iMessage service.",
   PAYMENT_MISMATCH: "The payment amounts do not match the expected service total.",
   PENDING_PAYMENT: "Payment is still pending on this record.",

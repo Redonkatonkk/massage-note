@@ -647,7 +647,7 @@ model EmployeeSettlementDelivery {
   summarySentAt         DateTime?               @map("summary_sent_at") @db.Timestamptz(3)
   detailSentAt          DateTime?               @map("detail_sent_at") @db.Timestamptz(3)
   lastErrorCode         String?                 @map("last_error_code")
-  lastError             String?
+  lastError             String?                @map("last_error")
   sentAt                DateTime?               @map("sent_at") @db.Timestamptz(3)
   createdAt             DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)

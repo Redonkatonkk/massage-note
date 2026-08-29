@@ -78,10 +78,10 @@ export class EmployeeSettlementsService {
       return existing;
     }
     const member = await this.prisma.storeMembership.findFirst({
-      where: { id: input.membershipId, storeId, status: "ACTIVE", deletedAt: null, role: { not: "OWNER" } },
+      where: { id: input.membershipId, storeId, status: "ACTIVE", deletedAt: null },
       include: { user: { select: { phoneE164: true } }, store: { select: { closingDefaultLocale: true } } },
     });
-    if (!member) throw new NotFoundException({ code: "SETTLEMENT_MEMBERSHIP_NOT_FOUND", messageZh: "没有找到可结算的在职员工" });
+    if (!member) throw new NotFoundException({ code: "SETTLEMENT_MEMBERSHIP_NOT_FOUND", messageZh: "没有找到可结算的在职成员" });
     if (!member.closingDeliveryEnabled) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_DISABLED", messageZh: "这位员工尚未开启接收结算短信" });
     const phone = member.closingDeliveryPhoneE164 ?? member.user?.phoneE164;
     if (!isE164Phone(phone)) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_PHONE_MISSING", messageZh: "这位员工没有有效接收号码" });
@@ -202,10 +202,10 @@ export class EmployeeSettlementsService {
 
   private async buildPreview(storeId: string, query: EmployeeSettlementQuery) {
     const member = await this.prisma.storeMembership.findFirst({
-      where: { id: query.membershipId, storeId, status: "ACTIVE", deletedAt: null, role: { not: "OWNER" } },
+      where: { id: query.membershipId, storeId, status: "ACTIVE", deletedAt: null },
       include: { store: { select: { name: true, timezone: true } } },
     });
-    if (!member) throw new NotFoundException({ code: "SETTLEMENT_MEMBERSHIP_NOT_FOUND", messageZh: "没有找到可结算的在职员工" });
+    if (!member) throw new NotFoundException({ code: "SETTLEMENT_MEMBERSHIP_NOT_FOUND", messageZh: "没有找到可结算的在职成员" });
     const rows = await this.prisma.workRecord.findMany({
       where: { storeId, employeeMembershipId: member.id, businessDate: { gte: dateAtUtc(query.dateFrom), lte: dateAtUtc(query.dateTo) }, status: "CONFIRMED", deletedAt: null },
       orderBy: [{ businessDate: "asc" }, { startAt: "asc" }, { id: "asc" }],

@@ -39,7 +39,7 @@ function SettlementRecords({ preview }: { preview: EmployeeSettlementPreview }) 
 }
 
 export function EmployeeSettlementPanel({ storeId, businessDate, members, busy, run }: { storeId: string; businessDate: string; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void> }) {
-  const payable = members.filter((member) => member.role !== "OWNER" && !member.deletedAt);
+  const payable = members.filter((member) => member.status === "ACTIVE" && !member.deletedAt);
   const [membershipId, setMembershipId] = useState(payable[0]?.id ?? "");
   const [dateFrom, setDateFrom] = useState(shiftDate(businessDate, -6));
   const [dateTo, setDateTo] = useState(businessDate);

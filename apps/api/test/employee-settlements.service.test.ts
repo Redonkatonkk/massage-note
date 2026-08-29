@@ -47,6 +47,14 @@ describe("EmployeeSettlementsService preview", () => {
     expect(prisma.workRecord.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId, employeeMembershipId: member.id, status: "CONFIRMED", deletedAt: null }) }));
   });
 
+  it("店主或经理作为在职服务成员时也可以生成区间结算", async () => {
+    const { value, prisma } = service([record(1)]);
+    await expect(value.preview(actor, storeId, { membershipId: member.id, dateFrom: "2026-08-01", dateTo: "2026-08-31", paymentScope: "ALL" })).resolves.toMatchObject({ employee: { membershipId: member.id } });
+    const membershipWhere = prisma.storeMembership.findFirst.mock.calls[0]?.[0]?.where;
+    expect(membershipWhere).not.toHaveProperty("role");
+    expect(membershipWhere).toMatchObject({ id: member.id, storeId, status: "ACTIVE", deletedAt: null });
+  });
+
   it("999 笔可以预览，第 1000 笔明确拒绝且不截断", async () => {
     const allowed = service(Array.from({ length: 999 }, (_, index) => record(index)));
     await expect(allowed.value.preview(actor, storeId, { membershipId: member.id, dateFrom: "2026-08-01", dateTo: "2026-08-31", paymentScope: "ALL" })).resolves.toMatchObject({ summary: { recordCount: 999 } });

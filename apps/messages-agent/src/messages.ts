@@ -11,9 +11,16 @@ export function messagesPhoneHandle(phoneE164: string) {
 export const messagesAttachmentScript = `on run argv
 set phoneNumber to item 1 of argv
 set filePath to item 2 of argv
-set serviceUsed to sendWithType(phoneNumber, filePath, "SMS")
-if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, "RCS")
-if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, "iMessage")
+set attachmentKind to "IMAGE"
+if (count of argv) is greater than 2 then set attachmentKind to item 3 of argv
+set requestedTypes to {"SMS", "RCS", "iMessage"}
+-- Carrier SMS/MMS accepts images but rejects PDF documents asynchronously.
+-- Documents therefore use data messaging only, preferring iMessage for Apple recipients.
+if attachmentKind is "DOCUMENT" then set requestedTypes to {"iMessage", "RCS"}
+set serviceUsed to ""
+repeat with requestedType in requestedTypes
+  if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, requestedType as text)
+end repeat
 if serviceUsed is "" then error "No enabled Messages account can address this phone number"
 delay 15
 return serviceUsed
@@ -54,11 +61,15 @@ end tell`;
   return stdout.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
-export async function sendMessagesAttachment(phoneE164: string, pngPath: string): Promise<string> {
+export async function sendMessagesAttachment(
+  phoneE164: string,
+  attachmentPath: string,
+  attachmentKind: "IMAGE" | "DOCUMENT" = "IMAGE",
+): Promise<string> {
   const phoneHandle = messagesPhoneHandle(phoneE164);
   const { stdout } = await execFileAsync(
     "/usr/bin/osascript",
-    ["-e", messagesAttachmentScript, "--", phoneHandle, pngPath],
+    ["-e", messagesAttachmentScript, "--", phoneHandle, attachmentPath, attachmentKind],
     { timeout: 45_000 },
   );
   return stdout.trim();

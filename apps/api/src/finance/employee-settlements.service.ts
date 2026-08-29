@@ -137,6 +137,44 @@ export class EmployeeSettlementsService {
     return this.prisma.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: deliveryId } });
   }
 
+  async retryDetail(actor: User, storeId: string, deliveryId: string, requestId: string) {
+    const manager = await this.access.requireCapability(actor.id, storeId, "PAYROLL_MANAGE");
+    await this.assertAgentReady(storeId);
+    const changed = await this.prisma.employeeSettlementDelivery.updateMany({
+      where: {
+        id: deliveryId,
+        storeId,
+        status: { in: ["SENT", "FAILED"] },
+        summarySentAt: { not: null },
+      },
+      data: {
+        status: "QUEUED",
+        detailSentAt: null,
+        sentAt: null,
+        nextAttemptAt: new Date(),
+        lastError: null,
+        lastErrorCode: null,
+        leaseToken: null,
+        leaseExpiresAt: null,
+      },
+    });
+    if (changed.count !== 1) throw new ConflictException({ code: "SETTLEMENT_DETAIL_NOT_RETRYABLE", messageZh: "只有已发送摘要的结算任务可以单独重发 PDF" });
+    await this.prisma.auditLog.create({
+      data: {
+        storeId,
+        actorUserId: actor.id,
+        actorMembershipId: manager.id,
+        source: "api",
+        action: "employee_settlement.delivery_detail_retried",
+        entityType: "employee_settlement_delivery",
+        entityId: deliveryId,
+        afterJson: { attachment: "DETAIL", reason: "manager_requested_redelivery" },
+        requestId,
+      },
+    });
+    return this.prisma.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: deliveryId } });
+  }
+
   async claim(authorization: string | undefined) {
     const agent = await this.authenticateAgent(authorization);
     const now = new Date();

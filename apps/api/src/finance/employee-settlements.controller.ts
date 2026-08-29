@@ -36,6 +36,11 @@ export class EmployeeSettlementsController {
   retry(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Param("deliveryId") deliveryId: string, @Res({ passthrough: true }) response: Response) {
     return this.settlements.retry(user, parseRequest(uuidSchema, storeId), parseRequest(uuidSchema, deliveryId), response.locals.requestId as string);
   }
+
+  @Post("deliveries/:deliveryId/retry-detail")
+  retryDetail(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Param("deliveryId") deliveryId: string, @Res({ passthrough: true }) response: Response) {
+    return this.settlements.retryDetail(user, parseRequest(uuidSchema, storeId), parseRequest(uuidSchema, deliveryId), response.locals.requestId as string);
+  }
 }
 
 @Controller("employee-settlement-delivery-agent")

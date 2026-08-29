@@ -1,6 +1,6 @@
 # GitHub → GHCR → 群晖部署
 
-> 当前版本：`0.12.32` · 镜像：`ghcr.io/redonkatonkk/massage-note`
+> 当前版本：`0.12.33` · 镜像：`ghcr.io/redonkatonkk/massage-note`
 > 历史版本变化统一查看 [`CHANGELOG.md`](../CHANGELOG.md)，不在本手册重复累积。
 
 标准发布链路：

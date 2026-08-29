@@ -45,7 +45,7 @@ async function heartbeat(lastError: string | null = null) {
     diagnosticError = error instanceof Error ? error.message : String(error);
   }
   try {
-    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.32", lastError: diagnosticError }) });
+    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.33", lastError: diagnosticError }) });
   } catch (error) {
     process.stderr.write(`heartbeat: ${error instanceof Error ? error.message : String(error)}\n`);
   }
@@ -108,7 +108,8 @@ async function processSettlementJob(job: SettlementJob) {
       sendStarted = false;
       const staged = await stageMessagesAttachment(summaryPath, job.id, "settlement-summary.png");
       sendStarted = true;
-      await sendMessagesAttachment(job.phoneE164, staged);
+      const service = await sendMessagesAttachment(job.phoneE164, staged);
+      process.stdout.write(`settlement ${job.id} summary accepted by ${service}\n`);
       await request(`/employee-settlement-delivery-agent/jobs/${job.id}/checkpoint`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, attachment: "SUMMARY" }) });
     }
     if (!job.detailSent) {
@@ -116,7 +117,8 @@ async function processSettlementJob(job: SettlementJob) {
       sendStarted = false;
       const staged = await stageMessagesAttachment(detailsPath, job.id, "settlement-details.pdf");
       sendStarted = true;
-      await sendMessagesAttachment(job.phoneE164, staged);
+      const service = await sendMessagesAttachment(job.phoneE164, staged, "DOCUMENT");
+      process.stdout.write(`settlement ${job.id} PDF accepted by ${service}\n`);
       await request(`/employee-settlement-delivery-agent/jobs/${job.id}/checkpoint`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, attachment: "DETAIL" }) });
     }
     await request(`/employee-settlement-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });

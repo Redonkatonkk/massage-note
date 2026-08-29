@@ -62,3 +62,41 @@ describe("EmployeeSettlementsService preview", () => {
     await expect(refused.value.preview(actor, storeId, { membershipId: member.id, dateFrom: "2026-08-01", dateTo: "2026-08-31", paymentScope: "ALL" })).rejects.toMatchObject({ response: { code: "RECORD_LIMIT_EXCEEDED", latestResource: { recordCount: 1000, limit: 999 } } });
   });
 });
+
+describe("EmployeeSettlementsService PDF redelivery", () => {
+  it("只清除 PDF 完成时间并保留摘要完成时间", async () => {
+    const prisma = {
+      closingDeliveryAgent: {
+        findUnique: vi.fn().mockResolvedValue({
+          revokedAt: null,
+          lastSeenAt: new Date(),
+          lastStatusJson: { messagesAvailable: true },
+        }),
+      },
+      employeeSettlementDelivery: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ id: "delivery" }),
+      },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const access = { requireCapability: vi.fn().mockResolvedValue({ id: "manager" }) };
+    const value = new EmployeeSettlementsService(prisma as never, access as never);
+
+    await expect(value.retryDetail(actor, storeId, "50000000-0000-4000-8000-000000000001", "request-id")).resolves.toEqual({ id: "delivery" });
+    expect(prisma.employeeSettlementDelivery.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "50000000-0000-4000-8000-000000000001",
+        storeId,
+        status: { in: ["SENT", "FAILED"] },
+        summarySentAt: { not: null },
+      },
+      data: expect.objectContaining({
+        status: "QUEUED",
+        detailSentAt: null,
+        sentAt: null,
+      }),
+    });
+    expect(prisma.employeeSettlementDelivery.updateMany.mock.calls[0]?.[0]?.data).not.toHaveProperty("summarySentAt");
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "employee_settlement.delivery_detail_retried" }) }));
+  });
+});

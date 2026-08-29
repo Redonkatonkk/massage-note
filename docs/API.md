@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`0.12.32`
+> 适用版本：`0.12.33`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -84,6 +84,7 @@
 | GET/POST | `/stores/:storeId/employee-settlements/deliveries` | 查看区间结算短信队列，或把服务端重算后的不可变快照加入摘要 PNG＋逐笔 PDF 发送队列 |
 | DELETE | `/stores/:storeId/employee-settlements/deliveries/:deliveryId` | 取消仍在排队的区间结算发送任务 |
 | POST | `/stores/:storeId/employee-settlements/deliveries/:deliveryId/retry` | 重试失败任务；保留摘要/PDF 已完成检查点，只补发未完成附件 |
+| POST | `/stores/:storeId/employee-settlements/deliveries/:deliveryId/retry-detail` | 对摘要已发送的失败或已完成任务只重发 PDF；清除 PDF/整单完成时间但保留摘要检查点与原始快照 |
 | POST | `/employee-settlement-delivery-agent/jobs/claim`、`jobs/:id/authorize`、`checkpoint`、`complete`、`fail` | Mac 代理领取区间结算任务，并分别回写摘要图和 PDF 附件进度 |
 | GET | `/stores/:storeId/finance/summary` | 财务汇总、每日/员工小计和累计余额；总计包含总流水与店铺总结算，每日行包含 `dailyTurnoverCents`；`highlightFilter` 支持 `ALL`、`ONLY_HIGHLIGHTED`、`EXCLUDE_HIGHLIGHTED` |
 | GET | `/stores/:storeId/finance/details` | 与汇总筛选一致的组成明细，包括高亮状态 |

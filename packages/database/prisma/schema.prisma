@@ -148,6 +148,7 @@ model Store {
   giftCardSales        GiftCardSale[]
   closings             BusinessDayClosing[]
   closingDeliveries    EmployeeClosingDelivery[]
+  settlementDeliveries EmployeeSettlementDelivery[]
   closingDeliveryAgent ClosingDeliveryAgent?
   cashSettlements      DailyCashSettlement[]
   payrollSettlements   PayrollSettlement[]
@@ -196,6 +197,7 @@ model StoreMembership {
   cashSettlements       DailyCashSettlement[]
   payrollSettlements    PayrollSettlement[]
   closingDeliveries     EmployeeClosingDelivery[]
+  settlementDeliveries  EmployeeSettlementDelivery[]
 
   @@unique([storeId, userId])
   @@index([storeId, status])
@@ -623,6 +625,40 @@ model EmployeeClosingDelivery {
   @@index([storeId, closingId, createdAt])
   @@index([storeId, membershipId, createdAt])
   @@map("employee_closing_deliveries")
+}
+
+model EmployeeSettlementDelivery {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  storeId               String                 @map("store_id") @db.Uuid
+  membershipId          String                 @map("membership_id") @db.Uuid
+  periodStart           DateTime               @map("period_start") @db.Date
+  periodEnd             DateTime               @map("period_end") @db.Date
+  paymentScope          String                 @map("payment_scope")
+  status                ClosingDeliveryStatus  @default(QUEUED)
+  recipientPhoneE164    String                 @map("recipient_phone_e164")
+  locale                ClosingImageLocale
+  snapshotJson          Json                   @map("snapshot_json")
+  queuedBy              String                 @map("queued_by") @db.Uuid
+  requestKey            String                 @map("request_key")
+  attemptCount          Int                    @default(0) @map("attempt_count")
+  leaseToken            String?                @map("lease_token") @db.Uuid
+  leaseExpiresAt        DateTime?               @map("lease_expires_at") @db.Timestamptz(3)
+  nextAttemptAt         DateTime                @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  summarySentAt         DateTime?               @map("summary_sent_at") @db.Timestamptz(3)
+  detailSentAt          DateTime?               @map("detail_sent_at") @db.Timestamptz(3)
+  lastErrorCode         String?                 @map("last_error_code")
+  lastError             String?
+  sentAt                DateTime?               @map("sent_at") @db.Timestamptz(3)
+  createdAt             DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store      Store           @relation(fields: [storeId], references: [id])
+  membership StoreMembership @relation(fields: [membershipId], references: [id])
+
+  @@unique([storeId, requestKey])
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([storeId, membershipId, createdAt])
+  @@map("employee_settlement_deliveries")
 }
 
 model ClosingDeliveryAgent {

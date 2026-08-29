@@ -174,6 +174,32 @@ export const financeQuerySchema = z
     }
   });
 
+export const calendarDateRangeQuerySchema = z
+  .object({
+    dateFrom: businessDateSchema,
+    dateTo: businessDateSchema,
+  })
+  .superRefine((value, context) => {
+    if (value.dateTo < value.dateFrom) {
+      context.addIssue({
+        code: "custom",
+        path: ["dateTo"],
+        message: "结束日期不能早于开始日期",
+      });
+      return;
+    }
+    const from = new Date(`${value.dateFrom}T00:00:00.000Z`);
+    const to = new Date(`${value.dateTo}T00:00:00.000Z`);
+    const rangeDays = Math.round((to.getTime() - from.getTime()) / 86_400_000);
+    if (rangeDays > 62) {
+      context.addIssue({
+        code: "custom",
+        path: ["dateTo"],
+        message: "日历查询范围不能超过 63 天",
+      });
+    }
+  });
+
 export const payrollListQuerySchema = z.object({
   membershipId: uuidSchema.optional(),
   includeDeleted: z
@@ -202,4 +228,5 @@ export type RestorePayrollSettlementInput = z.input<
   typeof restorePayrollSettlementSchema
 >;
 export type FinanceQuery = z.output<typeof financeQuerySchema>;
+export type CalendarDateRangeQuery = z.output<typeof calendarDateRangeQuerySchema>;
 export type PayrollListQuery = z.output<typeof payrollListQuerySchema>;

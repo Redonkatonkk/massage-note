@@ -5,16 +5,16 @@ enum StagerError: LocalizedError {
     case invalidJobID
     case invalidResultPath
     case invalidSource
-    case invalidPNG
+    case invalidAttachment
     case conflictingDestination
 
     var errorDescription: String? {
         switch self {
-        case .invalidArguments: return "usage: AttachmentStager --diagnose <result-json> | <source-png> <job-uuid> <result-json>"
+        case .invalidArguments: return "usage: AttachmentStager --diagnose <result-json> | <source> <job-uuid> [closing.png|settlement-summary.png|settlement-details.pdf] <result-json>"
         case .invalidJobID: return "invalid closing delivery job id"
         case .invalidResultPath: return "result must be the exact job result file in the Massage Note agent data directory"
         case .invalidSource: return "source must be the exact job PNG in the Massage Note agent outbox"
-        case .invalidPNG: return "source is not a valid non-empty PNG"
+        case .invalidAttachment: return "source is not a valid PNG or PDF attachment"
         case .conflictingDestination: return "a different attachment already exists for this job"
         }
     }
@@ -63,26 +63,29 @@ func diagnose() throws {
     try fileManager.removeItem(at: probeDirectory)
 }
 
-func stage(sourceArgument: String, jobArgument: String) throws -> String {
+func stage(sourceArgument: String, jobArgument: String, fileName: String) throws -> String {
     guard let jobID = UUID(uuidString: jobArgument), jobID.uuidString.lowercased() == jobArgument.lowercased() else {
         throw StagerError.invalidJobID
     }
     let source = URL(fileURLWithPath: sourceArgument).standardizedFileURL
-    let expectedSource = outboxRoot.appendingPathComponent("\(jobArgument).png").standardizedFileURL
+    let allowedNames = ["closing.png", "settlement-summary.png", "settlement-details.pdf"]
+    guard allowedNames.contains(fileName) else { throw StagerError.invalidAttachment }
+    let sourceName = fileName == "closing.png" ? "\(jobArgument).png" : "\(jobArgument)-\(fileName == "settlement-summary.png" ? "summary.png" : "details.pdf")"
+    let expectedSource = outboxRoot.appendingPathComponent(sourceName).standardizedFileURL
     guard source.path == expectedSource.path else { throw StagerError.invalidSource }
 
     let data = try Data(contentsOf: source, options: .mappedIfSafe)
     let pngSignature = Data([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-    guard data.count >= pngSignature.count, data.prefix(pngSignature.count) == pngSignature else {
-        throw StagerError.invalidPNG
-    }
+    let pdfSignature = Data("%PDF-".utf8)
+    let valid = fileName.hasSuffix(".png") ? data.count >= pngSignature.count && data.prefix(pngSignature.count) == pngSignature : data.count >= pdfSignature.count && data.prefix(pdfSignature.count) == pdfSignature
+    guard valid else { throw StagerError.invalidAttachment }
 
     try ensureDirectory(messagesRoot)
     let jobDirectory = messagesRoot
         .appendingPathComponent(String(jobArgument.prefix(2)).lowercased(), isDirectory: true)
         .appendingPathComponent(jobArgument.lowercased(), isDirectory: true)
     try ensureDirectory(jobDirectory)
-    let destination = jobDirectory.appendingPathComponent("closing.png")
+    let destination = jobDirectory.appendingPathComponent(fileName)
 
     if fileManager.fileExists(atPath: destination.path) {
         let existing = try Data(contentsOf: destination, options: .mappedIfSafe)
@@ -105,12 +108,13 @@ do {
             try? writeResult(ok: false, error: error.localizedDescription, to: result)
             throw error
         }
-    } else if arguments.count == 3 {
+    } else if arguments.count == 3 || arguments.count == 4 {
         guard let jobID = UUID(uuidString: arguments[1]) else { throw StagerError.invalidJobID }
         let stem = jobID.uuidString.lowercased()
-        let result = try validatedResultURL(arguments[2], expectedStem: stem)
+        let fileName = arguments.count == 4 ? arguments[2] : "closing.png"
+        let result = try validatedResultURL(arguments[arguments.count - 1], expectedStem: stem)
         do {
-            let destination = try stage(sourceArgument: arguments[0], jobArgument: arguments[1])
+            let destination = try stage(sourceArgument: arguments[0], jobArgument: arguments[1], fileName: fileName)
             try writeResult(ok: true, path: destination, to: result)
         } catch {
             try? writeResult(ok: false, error: error.localizedDescription, to: result)

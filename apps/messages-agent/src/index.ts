@@ -2,8 +2,9 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { messagesServices, sendMessagesAttachment } from "./messages.js";
-import { cleanupOutbox, closingPngPath, prepareOutbox, secureClosingPng } from "./outbox.js";
+import { cleanupOutbox, closingPngPath, prepareOutbox, secureAttachment, secureClosingPng, settlementAttachmentPath } from "./outbox.js";
 import { renderClosingPng, type ClosingSnapshot } from "./render.js";
+import { renderSettlementArtifacts, type SettlementSnapshot } from "./settlement-render.js";
 import { messagesStagerReady, stageMessagesAttachment } from "./stager.js";
 
 const apiUrl = process.env.MASSAGE_NOTE_API_URL?.replace(/\/$/, "");
@@ -12,6 +13,7 @@ const dataDir = process.env.MASSAGE_NOTE_AGENT_DATA_DIR ?? join(homedir(), "Libr
 if (!apiUrl || !agentToken) throw new Error("MASSAGE_NOTE_API_URL and MASSAGE_NOTE_AGENT_TOKEN are required");
 
 interface Job { id: string; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; snapshot: ClosingSnapshot }
+interface SettlementJob { id: string; documentType: "RANGE_SETTLEMENT"; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; summarySent: boolean; detailSent: boolean; snapshot: SettlementSnapshot }
 interface Journal { accepted: string[]; completed: string[] }
 const journalPath = join(dataDir, "journal.json");
 const outboxDir = await prepareOutbox(dataDir);
@@ -43,7 +45,7 @@ async function heartbeat(lastError: string | null = null) {
     diagnosticError = error instanceof Error ? error.message : String(error);
   }
   try {
-    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.30", lastError: diagnosticError }) });
+    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.31", lastError: diagnosticError }) });
   } catch (error) {
     process.stderr.write(`heartbeat: ${error instanceof Error ? error.message : String(error)}\n`);
   }
@@ -90,6 +92,43 @@ async function processJob(job: Job, journal: Journal) {
   }
 }
 
+async function processSettlementJob(job: SettlementJob) {
+  const authorized = await request<{ authorized: boolean }>(`/employee-settlement-delivery-agent/jobs/${job.id}/authorize`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
+  if (!authorized.authorized) return;
+  const workDir = await mkdtemp(join(tmpdir(), "massage-note-settlement-"));
+  const summaryPath = settlementAttachmentPath(outboxDir, job.id, "summary");
+  const detailsPath = settlementAttachmentPath(outboxDir, job.id, "details");
+  let activeAttachment: "SUMMARY" | "DETAIL" = job.summarySent ? "DETAIL" : "SUMMARY";
+  let sendStarted = false;
+  try {
+    await renderSettlementArtifacts(job.snapshot, job.locale, workDir, summaryPath, detailsPath);
+    await Promise.all([secureAttachment(summaryPath), secureAttachment(detailsPath)]);
+    if (!job.summarySent) {
+      activeAttachment = "SUMMARY";
+      sendStarted = false;
+      const staged = await stageMessagesAttachment(summaryPath, job.id, "settlement-summary.png");
+      sendStarted = true;
+      await sendMessagesAttachment(job.phoneE164, staged);
+      await request(`/employee-settlement-delivery-agent/jobs/${job.id}/checkpoint`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, attachment: "SUMMARY" }) });
+    }
+    if (!job.detailSent) {
+      activeAttachment = "DETAIL";
+      sendStarted = false;
+      const staged = await stageMessagesAttachment(detailsPath, job.id, "settlement-details.pdf");
+      sendStarted = true;
+      await sendMessagesAttachment(job.phoneE164, staged);
+      await request(`/employee-settlement-delivery-agent/jobs/${job.id}/checkpoint`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, attachment: "DETAIL" }) });
+    }
+    await request(`/employee-settlement-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await request(`/employee-settlement-delivery-agent/jobs/${job.id}/fail`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, code: sendStarted ? `${activeAttachment}_RESULT_AMBIGUOUS` : `${activeAttachment}_PRE_SEND_FAILURE`, message, retryable: !sendStarted }) }).catch(() => undefined);
+    throw error;
+  } finally {
+    await rm(workDir, { recursive: true, force: true });
+  }
+}
+
 let stopped = false;
 process.on("SIGTERM", () => { stopped = true; });
 process.on("SIGINT", () => { stopped = true; });
@@ -99,8 +138,12 @@ await heartbeat();
 let lastHeartbeat = Date.now();
 while (!stopped) {
   try {
-    const job = await request<Job | null>("/closing-delivery-agent/jobs/claim", { method: "POST" });
-    if (job) await processJob(job, journal);
+    const settlementJob = await request<SettlementJob | null>("/employee-settlement-delivery-agent/jobs/claim", { method: "POST" });
+    if (settlementJob) await processSettlementJob(settlementJob);
+    else {
+      const job = await request<Job | null>("/closing-delivery-agent/jobs/claim", { method: "POST" });
+      if (job) await processJob(job, journal);
+    }
     if (Date.now() - lastHeartbeat > 60_000) { await heartbeat(); await cleanupOutbox(outboxDir); lastHeartbeat = Date.now(); }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/p
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { cleanupOutbox, closingPngPath, OUTBOX_RETENTION_MS, prepareOutbox, secureClosingPng } from "../src/outbox.js";
+import { cleanupOutbox, closingPngPath, OUTBOX_RETENTION_MS, prepareOutbox, secureClosingPng, settlementAttachmentPath } from "../src/outbox.js";
 
 describe("Messages attachment outbox", () => {
   it("使用受限目录与文件权限", async () => {
@@ -44,6 +44,7 @@ describe("Messages attachment outbox", () => {
     try {
       await mkdir(join(directory, "outbox"));
       expect(() => closingPngPath(join(directory, "outbox"), "../secret")).toThrow("invalid closing delivery job id");
+      expect(() => settlementAttachmentPath(join(directory, "outbox"), "../secret", "details")).toThrow("invalid settlement delivery job id");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

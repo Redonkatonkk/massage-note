@@ -57,11 +57,11 @@ export async function messagesStagerReady() {
   await launchStager(["--diagnose"], "diagnose.json");
 }
 
-export async function stageMessagesAttachment(sourcePath: string, jobId: string) {
-  const result = await launchStager([sourcePath, jobId], `${jobId.toLowerCase()}.json`);
+export async function stageMessagesAttachment(sourcePath: string, jobId: string, fileName = "closing.png") {
+  const result = await launchStager(fileName === "closing.png" ? [sourcePath, jobId] : [sourcePath, jobId, fileName], `${jobId.toLowerCase()}.json`);
   const stagedPath = result.path?.trim() ?? "";
   const allowedRoot = resolve(join(homedir(), "Library", "Messages", "Attachments", "MassageNote"));
-  const expectedPath = resolve(join(allowedRoot, jobId.slice(0, 2).toLowerCase(), jobId.toLowerCase(), "closing.png"));
+  const expectedPath = resolve(join(allowedRoot, jobId.slice(0, 2).toLowerCase(), jobId.toLowerCase(), fileName));
   if (!stagedPath || resolve(stagedPath) !== expectedPath) {
     throw new Error("Messages attachment stager returned an invalid path");
   }

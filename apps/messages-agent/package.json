@@ -1,6 +1,6 @@
 {
   "name": "@massage-note/messages-agent",
-  "version": "0.12.30",
+  "version": "0.12.31",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,6 +8,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/index.js",
     "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "pdf-lib": "1.17.1"
   },
   "devDependencies": {
     "@types/node": "24.10.0",

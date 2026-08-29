@@ -15,15 +15,22 @@ export function closingPngPath(outboxDir: string, jobId: string) {
   return join(outboxDir, `${jobId}.png`);
 }
 
+export function settlementAttachmentPath(outboxDir: string, jobId: string, kind: "summary" | "details") {
+  if (!/^[a-f0-9-]{36}$/i.test(jobId)) throw new Error("invalid settlement delivery job id");
+  return join(outboxDir, `${jobId}-${kind}.${kind === "summary" ? "png" : "pdf"}`);
+}
+
 export async function secureClosingPng(path: string) {
   await chmod(path, 0o600);
 }
+
+export const secureAttachment = secureClosingPng;
 
 export async function cleanupOutbox(outboxDir: string, now = Date.now()) {
   const entries = await readdir(outboxDir, { withFileTypes: true });
   let removed = 0;
   for (const entry of entries) {
-    if (!entry.isFile() || !/^[a-f0-9-]{36}\.png$/i.test(entry.name)) continue;
+    if (!entry.isFile() || !/^[a-f0-9-]{36}(?:-(?:summary|details))?\.(?:png|pdf)$/i.test(entry.name)) continue;
     const path = join(outboxDir, entry.name);
     const details = await stat(path);
     if (now - details.mtimeMs < OUTBOX_RETENTION_MS) continue;

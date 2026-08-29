@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`0.12.30`
+> 适用版本：`0.12.31`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -49,6 +49,7 @@
 | GET | `/stores/:storeId/members/:membershipId/commissions` | 读取员工默认与项目专属提成 |
 | PUT | `/stores/:storeId/members/:membershipId/commissions/default`、`item` | 保存员工默认或项目专属提成；按规则重算未日结当前营业日 |
 | GET | `/stores/:storeId/business-days/current` | 当前营业日、时区和截止时间 |
+| GET | `/stores/:storeId/business-days/open-work-dates` | 查询日期范围内有有效记工但尚未日结的营业日，供今日记工和财务日结日历标记；`dateFrom`、`dateTo` 必填，均包含端点，范围最多 63 天；Owner/Manager 返回全店日期，员工仅返回自己的记工日期 |
 | GET | `/stores/:storeId/boards/:businessDate` | 今日或历史记工表；包含该日有效礼物卡销售和店铺销售汇总；普通员工查看历史时仅返回本人行、班次、记工和本人统计，不返回全店卖卡记录 |
 | POST | `/stores/:storeId/shifts/clock-in`、`shifts/:shiftId/clock-out` | 上下班；当前 Web 只向符合条件的普通员工显示“上班” |
 | POST | `/stores/:storeId/boards/:businessDate/rows` | 新增每日员工行 |
@@ -79,6 +80,11 @@
 | GET/POST | `/stores/:storeId/payroll-settlements` | 查询或新增工资结算账本 |
 | GET/PATCH/DELETE | `/stores/:storeId/payroll-settlements/:settlementId` | 工资结算详情、修改和软删除 |
 | POST | `/stores/:storeId/payroll-settlements/:settlementId/restore` | 恢复工资结算 |
+| GET | `/stores/:storeId/employee-settlements/preview` | Owner/Manager 按 `membershipId`、`dateFrom`、`dateTo` 和 `paymentScope=CASH|NON_CASH|ALL` 预览员工区间结算；只含已确认且未删除记工，最多 999 笔 |
+| GET/POST | `/stores/:storeId/employee-settlements/deliveries` | 查看区间结算短信队列，或把服务端重算后的不可变快照加入摘要 PNG＋逐笔 PDF 发送队列 |
+| DELETE | `/stores/:storeId/employee-settlements/deliveries/:deliveryId` | 取消仍在排队的区间结算发送任务 |
+| POST | `/stores/:storeId/employee-settlements/deliveries/:deliveryId/retry` | 重试失败任务；保留摘要/PDF 已完成检查点，只补发未完成附件 |
+| POST | `/employee-settlement-delivery-agent/jobs/claim`、`jobs/:id/authorize`、`checkpoint`、`complete`、`fail` | Mac 代理领取区间结算任务，并分别回写摘要图和 PDF 附件进度 |
 | GET | `/stores/:storeId/finance/summary` | 财务汇总、每日/员工小计和累计余额；总计包含总流水与店铺总结算，每日行包含 `dailyTurnoverCents`；`highlightFilter` 支持 `ALL`、`ONLY_HIGHLIGHTED`、`EXCLUDE_HIGHLIGHTED` |
 | GET | `/stores/:storeId/finance/details` | 与汇总筛选一致的组成明细，包括高亮状态 |
 | GET | `/stores/:storeId/finance/my-balance` | 当前成员的累计应得、已取得、已支付和尚欠/超付 |

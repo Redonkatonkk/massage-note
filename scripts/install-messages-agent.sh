@@ -31,9 +31,9 @@ stager_hash_path="$agent_dir/stager-source.sha256"
 label="com.massagenote.messages-agent"
 
 "$pnpm_bin" --dir "$repo_dir" --filter @massage-note/messages-agent build
-mkdir -p "$agent_dir/app" "$launch_agents_dir"
+mkdir -p "$agent_dir" "$launch_agents_dir"
 chmod 700 "$agent_dir"
-ditto "$repo_dir/apps/messages-agent/dist" "$agent_dir/app"
+"$pnpm_bin" --dir "$repo_dir" --filter @massage-note/messages-agent deploy --prod --legacy --force "$agent_dir/app"
 
 stager_source_hash="$(/usr/bin/shasum -a 256 "$stager_source" | /usr/bin/awk '{print $1}')"
 installed_stager_hash="$(cat "$stager_hash_path" 2>/dev/null || true)"
@@ -52,7 +52,7 @@ if [[ ! -x "$stager_bin" || "$installed_stager_hash" != "$stager_source_hash" ]]
   <key>CFBundleIdentifier</key><string>com.massagenote.messages-stager</string>
   <key>CFBundleName</key><string>Massage Note Attachment Stager</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.12.30</string>
+  <key>CFBundleShortVersionString</key><string>0.12.31</string>
   <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST
@@ -67,7 +67,7 @@ chmod 600 "$config_path"
 
 print "正在前台检查‘信息’登录状态与 macOS 自动化权限…"
 if ! MASSAGE_NOTE_AGENT_DATA_DIR="$agent_dir" MASSAGE_NOTE_MESSAGES_STAGER_APP="$stager_app" \
-  "$node_bin" "$agent_dir/app/index.js" --diagnose; then
+  "$node_bin" "$agent_dir/app/dist/index.js" --diagnose; then
   print -u2 "附件暂存程序还不能写入 Messages 的受保护附件目录。"
   print -u2 "请在‘系统设置 → 隐私与安全性 → 完全磁盘访问权限’中添加并开启："
   print -u2 "$stager_app"
@@ -80,7 +80,7 @@ cat > "$plist_path" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>$label</string>
-  <key>ProgramArguments</key><array><string>/bin/zsh</string><string>-lc</string><string>source '$config_path'; exec '$node_bin' '$agent_dir/app/index.js'</string></array>
+  <key>ProgramArguments</key><array><string>/bin/zsh</string><string>-lc</string><string>source '$config_path'; exec '$node_bin' '$agent_dir/app/dist/index.js'</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>10</integer>

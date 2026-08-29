@@ -142,6 +142,15 @@ describe("bilingual UI translation", () => {
       .toContain("already been recorded");
     expect(translateApiError("FUTURE_CODE", "未来错误", "en-US"))
       .toBe("Request failed (FUTURE_CODE).");
+    expect(translateApiError("RECORD_LIMIT_EXCEEDED", "最多支持 999 笔", "en-US"))
+      .toContain("more than 999 confirmed records");
+  });
+
+  it("translates employee range settlement controls and delivery progress", () => {
+    expect(translateText("员工结算区", "en-US")).toBe("Employee settlement");
+    expect(translateText("刷卡＋礼物卡", "en-US")).toBe("Card + gift card");
+    expect(translateText("短信发送摘要图＋PDF", "en-US")).toBe("Send summary image + PDF");
+    expect(translateText("摘要已发 · PDF 待发送", "en-US")).toBe("Summary sent · PDF pending");
   });
 
   it("explains that highlighted cards use only the yellow card background", () => {

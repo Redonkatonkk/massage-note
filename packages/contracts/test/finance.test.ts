@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  calendarDateRangeQuerySchema,
   closeBusinessDaySchema,
   createPayrollSettlementSchema,
   financeQuerySchema,
@@ -62,5 +63,26 @@ describe("日结与财务契约", () => {
         highlightFilter,
       );
     }
+  });
+
+  it("日历查询只接受不超过 63 天的正向日期范围", () => {
+    expect(
+      calendarDateRangeQuerySchema.safeParse({
+        dateFrom: "2026-08-01",
+        dateTo: "2026-08-31",
+      }).success,
+    ).toBe(true);
+    expect(
+      calendarDateRangeQuerySchema.safeParse({
+        dateFrom: "2026-08-31",
+        dateTo: "2026-08-01",
+      }).success,
+    ).toBe(false);
+    expect(
+      calendarDateRangeQuerySchema.safeParse({
+        dateFrom: "2026-01-01",
+        dateTo: "2026-04-01",
+      }).success,
+    ).toBe(false);
   });
 });

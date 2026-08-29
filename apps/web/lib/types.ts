@@ -92,6 +92,46 @@ export interface ClosingDeliveryList {
   };
 }
 
+export type EmployeeSettlementPaymentScope = "CASH" | "NON_CASH" | "ALL";
+
+export interface EmployeeSettlementRecord {
+  id: string; businessDate: string; startAt: string; endAt: string | null;
+  serviceName: string; serviceShortName: string;
+  addons: Array<{ name: string; shortName: string }>;
+  grossFeeBaseCents: number; cashServiceCents: number; nonCashServiceCents: number;
+  cashLargeFeeWageCents: number; nonCashLargeFeeWageCents: number;
+  cashTipCents: number; nonCashTipCents: number;
+  cashIncomeCents: number; nonCashIncomeCents: number; totalIncomeCents: number;
+}
+
+export interface EmployeeSettlementPreview {
+  storeId: string; storeName: string; storeTimezone: string;
+  dateFrom: string; dateTo: string; paymentScope: EmployeeSettlementPaymentScope;
+  employee: { membershipId: string; displayName: string };
+  summary: {
+    recordCount: number; cashServiceCents: number; nonCashServiceCents: number;
+    cashLargeFeeWageCents: number; nonCashLargeFeeWageCents: number;
+    cashTipCents: number; nonCashTipCents: number;
+    cashIncomeCents: number; nonCashIncomeCents: number; totalIncomeCents: number;
+  };
+  records: EmployeeSettlementRecord[];
+  generatedAt: string;
+}
+
+export interface EmployeeSettlementDelivery {
+  id: string; membershipId: string; periodStart: string; periodEnd: string;
+  paymentScope: EmployeeSettlementPaymentScope; status: ClosingDeliveryStatus;
+  recipientPhoneE164: string; locale: "zh_CN" | "en_US"; attemptCount: number;
+  summarySentAt: string | null; detailSentAt: string | null; sentAt: string | null;
+  lastErrorCode: string | null; lastError: string | null;
+  createdAt: string; updatedAt: string; membership: { displayName: string };
+}
+
+export interface EmployeeSettlementDeliveryList {
+  deliveries: EmployeeSettlementDelivery[];
+  agent: null | { lastSeenAt: string | null; lastStatusJson: null | { messagesAvailable?: boolean; lastError?: string | null }; revokedAt: string | null };
+}
+
 export interface JoinRequest {
   id: string;
   requestedDisplayName: string;

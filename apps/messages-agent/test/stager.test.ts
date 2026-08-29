@@ -59,6 +59,13 @@ describe("Messages attachment stager", () => {
     await expect(messagesStagerReady()).rejects.toThrow("Full Disk Access denied");
   });
 
+  it("严格接受区间结算 PDF 的固定 Messages 路径", async () => {
+    const jobId = "ab48f3d5-8a80-4260-98ae-e8b4fd603d14";
+    const validPath = join(process.env.HOME!, "Library", "Messages", "Attachments", "MassageNote", "ab", jobId, "settlement-details.pdf");
+    await prepareOpenMock({ ok: true, path: validPath });
+    await expect(stageMessagesAttachment("/source/details.pdf", jobId, "settlement-details.pdf")).resolves.toBe(validPath);
+  });
+
   it("拒绝暂存 App 返回任意外部路径", async () => {
     await prepareOpenMock({ ok: true, path: "/tmp/not-allowed.png" });
     await expect(stageMessagesAttachment("/source/closing.png", "ab48f3d5-8a80-4260-98ae-e8b4fd603d14")).rejects.toThrow("invalid path");

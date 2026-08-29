@@ -134,6 +134,29 @@ textarea:focus-visible {
   font-size: 0.9rem;
 }
 
+.business-date-field { display: grid; width: min(260px, 100%); gap: 6px; color: var(--muted); font-size: 0.78rem; font-weight: 800; }
+.history-toolbar .business-date-field { display: flex; width: auto; align-items: center; gap: 10px; color: var(--ink); font-size: inherit; }
+.business-date-picker { position: relative; min-width: 172px; color: var(--ink); font-size: 0.9rem; }
+.business-date-picker__trigger { display: flex; width: 100%; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+.business-date-picker__trigger:hover, .business-date-picker__trigger[aria-expanded="true"] { border-color: var(--brand); }
+.business-date-picker__trigger:focus-visible, .business-date-picker__popover button:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 28%, transparent); outline-offset: 2px; }
+.business-date-picker__popover { position: absolute; top: calc(100% + 8px); left: 0; z-index: 80; width: min(320px, calc(100vw - 32px)); padding: 14px; border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line)); border-radius: 16px; background: var(--surface); box-shadow: 0 18px 46px rgb(49 36 23 / 22%); }
+.business-date-picker__popover header { display: grid; grid-template-columns: 38px 1fr 38px; align-items: center; gap: 8px; margin-bottom: 10px; }
+.business-date-picker__popover header strong { text-align: center; }
+.business-date-picker__popover header button { width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 10px; background: #fffaf3; color: var(--ink); font-size: 1.45rem; line-height: 1; cursor: pointer; }
+.business-date-picker__popover header button:disabled { opacity: 0.35; cursor: default; }
+.business-date-picker__weekdays, .business-date-picker__days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.business-date-picker__weekdays { margin-bottom: 4px; color: var(--muted); font-size: 0.72rem; text-align: center; }
+.business-date-picker__days > span, .business-date-picker__days button { min-width: 0; height: 38px; }
+.business-date-picker__days button { position: relative; display: grid; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; }
+.business-date-picker__days button:hover:not(:disabled) { border-color: var(--brand); background: var(--brand-soft); }
+.business-date-picker__days button.selected { background: var(--brand); color: white; font-weight: 850; }
+.business-date-picker__days button:disabled { color: color-mix(in srgb, var(--muted) 45%, transparent); cursor: default; }
+.business-date-picker__days button i { position: absolute; right: 4px; bottom: 3px; width: 7px; height: 7px; border: 1px solid var(--surface); border-radius: 999px; background: #df741f; box-shadow: 0 0 0 1px #c65f10; }
+.business-date-picker__popover footer { display: flex; align-items: center; gap: 7px; margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.75rem; font-weight: 700; }
+.business-date-picker__popover footer em { margin-left: auto; font-style: normal; font-weight: 500; }
+.business-date-picker__legend-dot { width: 8px; height: 8px; border-radius: 999px; background: #df741f; box-shadow: 0 0 0 1px #c65f10; }
+
 .resolved-store {
   display: grid;
   gap: 5px;
@@ -2496,6 +2519,43 @@ h2 {
 .payroll-fields { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 10px; }
 .payroll-fields .wide { grid-column: span 4; }
 .payroll-form > .primary-action { margin-top: 14px; }
+.employee-settlement-builder { display: grid; gap: 16px; margin-bottom: 24px; padding: 20px; border: 1px solid #d9b9a7; border-radius: 22px; background: linear-gradient(145deg, #fffaf3, #f8e8df); box-shadow: var(--shadow); }
+.employee-settlement-builder-heading h2 { margin: 4px 0 5px; }
+.employee-settlement-builder-heading p:last-child { margin: 0; color: var(--muted); font-size: .84rem; }
+.employee-settlement-controls { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)) auto; align-items: end; gap: 10px; }
+.employee-settlement-controls label { display: grid; gap: 6px; color: var(--muted); font-size: .76rem; font-weight: 800; }
+.employee-settlement-controls input, .employee-settlement-controls select { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: var(--ink); }
+.employee-settlement-preview { overflow: hidden; border: 1px solid #e5d1c4; border-radius: 20px; background: rgba(255,255,255,.9); }
+.employee-settlement-preview > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; }
+.employee-settlement-preview > header h2 { margin: 4px 0; font-size: clamp(1.8rem, 4vw, 2.7rem); }
+.employee-settlement-preview > header p:last-child { margin: 0; color: var(--muted); font-weight: 700; }
+.employee-settlement-summary { display: grid; gap: 12px; padding: 0 20px 20px; }
+.employee-settlement-summary.mode-single { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.employee-settlement-summary.mode-all { grid-template-columns: minmax(0, 2fr) minmax(200px, .8fr); }
+.employee-settlement-summary article, .employee-settlement-matrix { padding: 16px; border: 1px solid #eadbd0; border-radius: 16px; background: #fff; }
+.employee-settlement-summary article { display: grid; align-content: center; gap: 9px; }
+.employee-settlement-summary article span { color: var(--muted); font-size: .78rem; font-weight: 800; }
+.employee-settlement-summary article strong { font-size: clamp(1.3rem, 3vw, 1.9rem); font-variant-numeric: tabular-nums; }
+.employee-settlement-summary article.total { border-color: var(--brand); background: var(--brand); color: #fff; }
+.employee-settlement-summary article.total span { color: rgba(255,255,255,.76); }
+.employee-settlement-matrix { display: grid; grid-template-columns: minmax(100px, 1.2fr) repeat(3, minmax(86px, 1fr)); align-items: center; padding-block: 9px; }
+.employee-settlement-matrix > * { min-width: 0; padding: 9px; border-bottom: 1px solid #eee4dd; text-align: right; font-variant-numeric: tabular-nums; }
+.employee-settlement-matrix > :nth-last-child(-n+4) { border-bottom: 0; }
+.employee-settlement-matrix > strong { text-align: left; }
+.employee-settlement-matrix > b { color: var(--muted); font-size: .7rem; }
+.employee-settlement-records { border-top: 1px solid #eadbd0; background: rgba(255,250,246,.74); }
+.employee-settlement-records > header { display: flex; justify-content: space-between; gap: 12px; padding: 15px 20px 10px; }
+.employee-settlement-records h3, .employee-settlement-records p { margin: 0; }
+.employee-settlement-records p { margin-top: 3px; color: var(--muted); font-size: .72rem; }
+.employee-settlement-records > header > strong { color: var(--brand); font-size: .78rem; }
+.employee-settlement-record-scroll { max-height: min(64dvh, 720px); overflow: auto; border-top: 1px solid #eadbd0; }
+.employee-settlement-record-table { min-width: 820px; }
+.employee-settlement-record-table thead { position: sticky; top: 0; z-index: 1; background: #fbf5f0; }
+.employee-settlement-record-table td:first-child { white-space: nowrap; }
+.employee-settlement-record-table td:first-child small { display: block; margin-top: 3px; color: var(--muted); }
+.settlement-delivery-queue { padding: 13px 15px; border: 1px solid #a9d1bb; border-radius: 15px; background: #f5fcf8; }
+.settlement-delivery-queue summary { cursor: pointer; font-weight: 800; }
+.settlement-delivery-queue .table-scroll { margin-top: 12px; }
 .table-action { border: 0; background: transparent; color: var(--brand); font-weight: 800; cursor: pointer; }
 .table-action.danger { color: #9d2c24; }
 .table-actions { display: inline-flex; gap: 8px; }
@@ -2505,6 +2565,8 @@ h2 {
 
 @media (max-width: 1100px) {
   .filter-panel, .payroll-fields { grid-template-columns: repeat(3, minmax(130px, 1fr)); }
+  .employee-settlement-controls { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
+  .employee-settlement-controls button { grid-column: span 2; }
   .finance-member-filter { grid-column: 1 / -1; }
   .finance-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cash-grid { grid-template-columns: 1fr; }
@@ -2517,8 +2579,15 @@ h2 {
   .gift-card-ledger__usage-list article { align-items: flex-start; flex-direction: column; }
   .gift-card-ledger__usage-list article > div:last-child { grid-auto-flow: row; text-align: left; }
   .history-toolbar { align-items: stretch; flex-direction: column; }
-  .history-toolbar label, .history-date-form { align-items: stretch; flex-direction: column; }
+  .history-toolbar label, .history-date-form, .history-toolbar .business-date-field { align-items: stretch; flex-direction: column; }
   .payroll-fields .wide { grid-column: auto; }
+  .employee-settlement-builder { padding: 13px; }
+  .employee-settlement-controls, .employee-settlement-summary.mode-single, .employee-settlement-summary.mode-all { grid-template-columns: 1fr; }
+  .employee-settlement-controls button { grid-column: auto; }
+  .employee-settlement-preview > header { align-items: stretch; flex-direction: column; }
+  .employee-settlement-summary { padding-inline: 10px; }
+  .employee-settlement-matrix { grid-template-columns: minmax(72px, 1.1fr) repeat(3, minmax(0, 1fr)); padding: 5px; font-size: .72rem; }
+  .employee-settlement-matrix > * { padding: 7px 3px; }
   .balance-list article, .closing-status, .date-toolbar { align-items: stretch; flex-direction: column; }
   .filter-panel__heading, .finance-metric-group > header, .finance-report-heading, .finance-details__heading { align-items: stretch; flex-direction: column; }
   .filter-panel__heading .export-link { width: 100%; }

@@ -6,12 +6,14 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Res,
   UseGuards,
 } from "@nestjs/common";
 import {
   addBoardRowSchema,
   boardDateSchema,
+  calendarDateRangeQuerySchema,
   clockInSchema,
   clockOutSchema,
   idempotencyKeySchema,
@@ -37,6 +39,19 @@ export class BoardsController {
     @Param("storeId") storeId: string,
   ) {
     return this.boards.currentBusinessDay(user, parseRequest(uuidSchema, storeId));
+  }
+
+  @Get("business-days/open-work-dates")
+  openWorkDates(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("storeId") storeId: string,
+    @Query() query: unknown,
+  ) {
+    return this.boards.openWorkDates(
+      user,
+      parseRequest(uuidSchema, storeId),
+      parseRequest(calendarDateRangeQuerySchema, query),
+    );
   }
 
   @Get("boards/:businessDate")

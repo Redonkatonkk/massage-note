@@ -8,6 +8,7 @@ import {
 import { Prisma, type StoreMembership, type User } from "@massage-note/database";
 import type {
   AddBoardRowInput,
+  CalendarDateRangeQuery,
   ClockOutInput,
   ReorderBoardInput,
   UpdateBoardRowInput,
@@ -61,6 +62,53 @@ export class BoardsService {
       timezone: store.timezone,
       businessCutoffLocal: store.businessCutoffLocal,
       serverTime: new Date(),
+    };
+  }
+
+  async openWorkDates(
+    actor: User,
+    storeId: string,
+    query: CalendarDateRangeQuery,
+  ) {
+    const actorMembership = await this.access.requireActiveMembership(
+      actor.id,
+      storeId,
+    );
+    const canReadStore = hasStoreCapability(
+      actorMembership.role,
+      "FINANCE_READ_STORE",
+    );
+    const dateRange = {
+      gte: dateAtUtc(query.dateFrom),
+      lte: dateAtUtc(query.dateTo),
+    };
+    const [workDates, closedDates] = await Promise.all([
+      this.prisma.workRecord.findMany({
+        where: {
+          storeId,
+          businessDate: dateRange,
+          deletedAt: null,
+          ...(canReadStore
+            ? {}
+            : { employeeMembershipId: actorMembership.id }),
+        },
+        select: { businessDate: true },
+        distinct: ["businessDate"],
+      }),
+      this.prisma.businessDayClosing.findMany({
+        where: { storeId, businessDate: dateRange, status: "CLOSED" },
+        select: { businessDate: true },
+        distinct: ["businessDate"],
+      }),
+    ]);
+    const closed = new Set(
+      closedDates.map((item) => item.businessDate.toISOString().slice(0, 10)),
+    );
+    return {
+      dates: workDates
+        .map((item) => item.businessDate.toISOString().slice(0, 10))
+        .filter((date) => !closed.has(date))
+        .sort(),
     };
   }
 

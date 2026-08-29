@@ -17,6 +17,7 @@ import { TodayBoard } from "./today-board";
 import { useStoreRealtime } from "../lib/realtime";
 import { AppNav } from "./app-nav";
 import { FloatingAiAssistant } from "./floating-ai-assistant";
+import { BusinessDatePicker } from "./business-date-picker";
 
 function chineseDate(value: string): string {
   const [year, month, day] = value.split("-");
@@ -286,7 +287,7 @@ export function MassageNoteApp() {
           <button className="store-switcher" type="button" onClick={() => apiRequest("/auth/session", { method: "DELETE" }).finally(() => window.location.replace("/login"))}>退出</button>
         </div>
       </header>
-      <section className="history-toolbar" aria-label="切换营业日"><div className="history-date-form"><label>{membership.role === "EMPLOYEE" ? "查看自己的营业日" : "查看营业日"}<input key={viewDate} name="businessDate" type="date" defaultValue={viewDate} max={currentDay.businessDate} onInput={(event) => { const value = event.currentTarget.value; if (!value) return; viewDateRef.current = value; void loadStore(); }} /></label></div>{viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => { viewDateRef.current = currentDay.businessDate; void loadStore(); }}>返回今天</button>}<span>{viewDate === currentDay.businessDate ? "当前营业日" : membership.role === "EMPLOYEE" ? "历史营业日；只显示你自己的记工" : "历史营业日；已日结时须先取消日结才能修改"}</span></section>
+      <section className="history-toolbar" aria-label="切换营业日"><div className="history-date-form"><div className="business-date-field"><span>{membership.role === "EMPLOYEE" ? "查看自己的营业日" : "查看营业日"}</span><BusinessDatePicker storeId={membership.store.id} value={viewDate} max={currentDay.businessDate} ariaLabel="查看营业日" onChange={(value) => { viewDateRef.current = value; void loadStore(); }} /></div></div>{viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => { viewDateRef.current = currentDay.businessDate; void loadStore(); }}>返回今天</button>}<span>{viewDate === currentDay.businessDate ? "当前营业日" : membership.role === "EMPLOYEE" ? "历史营业日；只显示你自己的记工" : "历史营业日；已日结时须先取消日结才能修改"}</span></section>
       {error && <p className="form-error" role="alert">{error}</p>}
       <TodayBoard key={`today-${membership.store.id}-${viewDate}`} membership={membership} store={storeDetails} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} board={board} catalog={catalog} members={members} initialRecordId={initialRecordId || undefined} onInitialRecordOpened={() => { setInitialRecordId(""); const url = new URL(window.location.href); url.searchParams.delete("record"); window.history.replaceState(null, "", `${url.pathname}${url.search}`); }} onReload={loadStore} />
       <FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} type="work" onWorkChanged={loadStore} />

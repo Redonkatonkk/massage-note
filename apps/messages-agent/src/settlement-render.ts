@@ -101,7 +101,7 @@ function detailPage(snapshot: SettlementSnapshot, locale: Locale, pageRecords: S
   const cash = snapshot.paymentScope === "CASH";
   const columns = all
     ? [{ label: en ? "Date / time" : "日期／时间", x: 48, anchor: "start" }, { label: en ? "Service" : "项目／加项", x: 180, anchor: "start" }, { label: en ? "Fee base" : "大费基数", x: 528, anchor: "end" }, { label: en ? "Cash" : "现金收入", x: 632, anchor: "end" }, { label: en ? "Non-cash" : "刷卡＋礼卡", x: 752, anchor: "end" }, { label: en ? "Total" : "总收入", x: 856, anchor: "end" }]
-    : [{ label: en ? "Date / time" : "日期／时间", x: 48, anchor: "start" }, { label: en ? "Service" : "项目／加项", x: 180, anchor: "start" }, { label: en ? "Fee base" : "大费基数", x: 485, anchor: "end" }, { label: en ? "Paid" : "所选实收", x: 585, anchor: "end" }, { label: en ? "Wage" : "大费工资", x: 685, anchor: "end" }, { label: en ? "Tips" : "小费", x: 775, anchor: "end" }, { label: en ? "Income" : "本笔收入", x: 856, anchor: "end" }];
+    : [{ label: en ? "Date / time" : "日期／时间", x: 48, anchor: "start" }, { label: en ? "Service" : "项目／加项", x: 180, anchor: "start" }, { label: en ? "Fee base" : "大费基数", x: 528, anchor: "end" }, { label: en ? "Wage" : "大费工资", x: 650, anchor: "end" }, { label: en ? "Tips" : "小费", x: 760, anchor: "end" }, { label: en ? "Income" : "本笔收入", x: 856, anchor: "end" }];
   const headings = columns.map((column) => `<text x="${column.x}" y="${tableTop + 31}" text-anchor="${column.anchor}" class="table-head">${escapeXml(column.label)}</text>`).join("");
   const rows = pageRecords.map((record, index) => {
     const y = tableTop + 47 + index * rowHeight;
@@ -117,7 +117,7 @@ function detailPage(snapshot: SettlementSnapshot, locale: Locale, pageRecords: S
     }
     const amounts = all
       ? [record.grossFeeBaseCents, record.cashIncomeCents, record.nonCashIncomeCents, record.totalIncomeCents]
-      : [record.grossFeeBaseCents, cash ? record.cashServiceCents : record.nonCashServiceCents, cash ? record.cashLargeFeeWageCents : record.nonCashLargeFeeWageCents, cash ? record.cashTipCents : record.nonCashTipCents, cash ? record.cashIncomeCents : record.nonCashIncomeCents];
+      : [record.grossFeeBaseCents, cash ? record.cashLargeFeeWageCents : record.nonCashLargeFeeWageCents, cash ? record.cashTipCents : record.nonCashTipCents, cash ? record.cashIncomeCents : record.nonCashIncomeCents];
     amounts.forEach((amount, amountIndex) => base.push(`<text x="${columns[amountIndex + 2]!.x}" y="${y + (detailed ? 31 : 21)}" text-anchor="end" class="${amountIndex === amounts.length - 1 ? "table-strong" : "table-value"}">${escapeXml(money(amount, locale))}</text>`));
     return `<rect x="${left}" y="${y}" width="${width - left * 2}" height="${rowHeight - 2}" rx="7" fill="${index % 2 ? "#fffaf6" : "#fff"}"/>${base.join("")}`;
   }).join("");

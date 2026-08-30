@@ -2563,6 +2563,7 @@ h2 {
 .settlement-delivery-queue { padding: 13px 15px; border: 1px solid #a9d1bb; border-radius: 15px; background: #f5fcf8; }
 .settlement-delivery-queue summary { cursor: pointer; font-weight: 800; }
 .settlement-delivery-queue .table-scroll { margin-top: 12px; }
+.employee-settlement-send-message { margin: 7px 0 0; max-width: 280px; color: var(--muted); font-size: .74rem; line-height: 1.45; }
 .table-action { border: 0; background: transparent; color: var(--brand); font-weight: 800; cursor: pointer; }
 .table-action.danger { color: #9d2c24; }
 .table-actions { display: inline-flex; gap: 8px; }

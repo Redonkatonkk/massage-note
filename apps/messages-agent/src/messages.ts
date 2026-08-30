@@ -37,9 +37,14 @@ tell application "Messages"
       -- dictionary cannot convert. Ignore only that account and continue.
     end try
     if accountType is requestedType and enabled of targetAccount is true then
-      set targetParticipant to participant phoneNumber of targetAccount
-      send POSIX file filePath to targetParticipant
-      return requestedType
+      try
+        set targetParticipant to participant phoneNumber of targetAccount
+        send POSIX file filePath to targetParticipant
+        return requestedType
+      on error
+        -- An enabled account may not be able to address this recipient;
+        -- continue so RCS/iMessage fallback can be attempted.
+      end try
     end if
   end repeat
 end tell

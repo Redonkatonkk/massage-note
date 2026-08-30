@@ -262,9 +262,14 @@ export class EmployeeSettlementsService {
         addons: record.addonSnapshots,
         grossFeeBaseCents: this.safeNumber(record.grossFeeBaseCents),
         cashServiceCents: this.safeNumber(record.cashServiceCents ?? 0n),
+        cardServiceCents: this.safeNumber(record.cardServiceCents ?? 0n),
+        giftCardServiceCents: this.safeNumber(record.giftCardServiceCents ?? 0n),
         nonCashServiceCents: this.safeNumber((record.cardServiceCents ?? 0n) + (record.giftCardServiceCents ?? 0n)),
         cashLargeFeeWageCents: this.safeNumber(cashLargeFeeWageCents), nonCashLargeFeeWageCents: this.safeNumber(nonCashLargeFeeWageCents),
-        cashTipCents: this.safeNumber(cashTipCents), nonCashTipCents: this.safeNumber(nonCashTipCents),
+        cashTipCents: this.safeNumber(cashTipCents),
+        cardTipCents: this.safeNumber(record.cardTipCents ?? 0n),
+        giftCardTipCents: this.safeNumber(record.giftCardTipCents ?? 0n),
+        nonCashTipCents: this.safeNumber(nonCashTipCents),
         cashIncomeCents: this.safeNumber(cashIncomeCents), nonCashIncomeCents: this.safeNumber(nonCashIncomeCents), totalIncomeCents: this.safeNumber(cashIncomeCents + nonCashIncomeCents),
       };
     }).filter((record) => this.includeRecord(record, query.paymentScope));
@@ -279,7 +284,12 @@ export class EmployeeSettlementsService {
         cashServiceCents: sum("cashServiceCents"), nonCashServiceCents: sum("nonCashServiceCents"),
         cashLargeFeeWageCents: sum("cashLargeFeeWageCents"), nonCashLargeFeeWageCents: sum("nonCashLargeFeeWageCents"),
         cashTipCents: sum("cashTipCents"), nonCashTipCents: sum("nonCashTipCents"),
-        cashIncomeCents: sum("cashIncomeCents"), nonCashIncomeCents: sum("nonCashIncomeCents"), totalIncomeCents: sum("totalIncomeCents"),
+        cashIncomeCents: sum("cashIncomeCents"), nonCashIncomeCents: sum("nonCashIncomeCents"),
+        totalIncomeCents: query.paymentScope === "CASH"
+          ? sum("cashIncomeCents")
+          : query.paymentScope === "NON_CASH"
+            ? sum("nonCashIncomeCents")
+            : sum("totalIncomeCents"),
       },
       records,
       generatedAt: new Date().toISOString(),

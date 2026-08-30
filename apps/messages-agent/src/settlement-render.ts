@@ -11,9 +11,9 @@ type Scope = "CASH" | "NON_CASH" | "ALL";
 interface SettlementRecord {
   businessDate: string; startAt: string; endAt: string | null;
   serviceName: string; serviceShortName: string; addons: Array<{ name: string; shortName: string }>;
-  grossFeeBaseCents: number; cashServiceCents: number; nonCashServiceCents: number;
+  grossFeeBaseCents: number; cashServiceCents: number; cardServiceCents?: number; giftCardServiceCents?: number; nonCashServiceCents: number;
   cashLargeFeeWageCents: number; nonCashLargeFeeWageCents: number;
-  cashTipCents: number; nonCashTipCents: number; cashIncomeCents: number; nonCashIncomeCents: number; totalIncomeCents: number;
+  cashTipCents: number; cardTipCents?: number; giftCardTipCents?: number; nonCashTipCents: number; cashIncomeCents: number; nonCashIncomeCents: number; totalIncomeCents: number;
 }
 
 export interface SettlementSnapshot {
@@ -34,9 +34,24 @@ const compact = (value: string, length: number) => value.length > length ? `${va
 const scopeLabel = (scope: Scope, locale: Locale) => locale === "en_US" ? ({ CASH: "Cash", NON_CASH: "Card + gift card", ALL: "All" } as const)[scope] : ({ CASH: "现金", NON_CASH: "刷卡＋礼物卡", ALL: "全部" } as const)[scope];
 const recordName = (record: SettlementRecord) => [record.serviceShortName || record.serviceName, ...record.addons.map((item) => item.shortName || item.name)].join(" + ");
 const recordTime = (value: string | null, timezone: string, locale: Locale) => value ? new Intl.DateTimeFormat(localeName(locale), { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)) : "—";
+const hasPaymentBreakdown = (record: SettlementRecord) => record.cardServiceCents !== undefined || record.giftCardServiceCents !== undefined || record.cardTipCents !== undefined || record.giftCardTipCents !== undefined;
+const paymentParts = (record: SettlementRecord, kind: "service" | "tip", locale: Locale) => {
+  const en = locale === "en_US";
+  const values = kind === "service"
+    ? [[en ? "Cash" : "现金", record.cashServiceCents], [en ? "Card" : "刷卡", record.cardServiceCents ?? 0], [en ? "Gift" : "礼卡", record.giftCardServiceCents ?? 0]] as const
+    : [[en ? "Cash" : "现金", record.cashTipCents], [en ? "Card" : "刷卡", record.cardTipCents ?? 0], [en ? "Gift" : "礼卡", record.giftCardTipCents ?? 0]] as const;
+  return values.filter(([, value]) => value > 0).map(([label, value]) => `${label} ${money(value, locale)}`).join(" / ") || "—";
+};
+const paymentNotice = (record: SettlementRecord, scope: Scope, locale: Locale) => {
+  const hasCash = record.cashServiceCents > 0 || record.cashTipCents > 0;
+  const hasNonCash = record.nonCashServiceCents > 0 || record.nonCashTipCents > 0;
+  if (!hasCash || !hasNonCash) return "";
+  if (locale === "en_US") return scope === "CASH" ? "Mixed · cash portion only" : scope === "NON_CASH" ? "Mixed · card + gift portion only" : "Mixed cash + non-cash";
+  return scope === "CASH" ? "混合付款 · 仅计算现金部分" : scope === "NON_CASH" ? "混合付款 · 仅计算刷卡＋礼卡部分" : "现金＋非现金混合付款";
+};
 
 function documentSvg(width: number, height: number, content: string) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fffaf3"/><stop offset="1" stop-color="#f2d7cb"/></linearGradient><style>text{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;fill:#211d18}.eyebrow{font-size:21px;font-weight:750;fill:#8e3e2f}.name{font-size:48px;font-weight:850}.meta{font-size:19px;font-weight:650;fill:#6b635a}.label{font-size:17px;font-weight:750;fill:#756b62}.value{font-size:30px;font-weight:850}.white{fill:#fff}.table-head{font-size:12px;font-weight:800;fill:#6b635a}.table-value{font-size:12px;font-weight:650}.table-strong{font-size:12px;font-weight:800;fill:#8e3e2f}.footer{font-size:11px;fill:#756b62}</style></defs><rect width="${width}" height="${height}" fill="url(#bg)"/>${content}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fffaf3"/><stop offset="1" stop-color="#f2d7cb"/></linearGradient><style>text{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;fill:#211d18}.eyebrow{font-size:21px;font-weight:750;fill:#8e3e2f}.name{font-size:48px;font-weight:850}.meta{font-size:19px;font-weight:650;fill:#6b635a}.label{font-size:17px;font-weight:750;fill:#756b62}.value{font-size:30px;font-weight:850}.white{fill:#fff}.table-head{font-size:12px;font-weight:800;fill:#6b635a}.table-value{font-size:12px;font-weight:650}.table-strong{font-size:12px;font-weight:800;fill:#8e3e2f}.table-notice{font-size:10px;font-weight:800;fill:#8e3e2f}.footer{font-size:11px;fill:#756b62}</style></defs><rect width="${width}" height="${height}" fill="url(#bg)"/>${content}</svg>`;
 }
 
 function summaryContent(snapshot: SettlementSnapshot, locale: Locale, width: number, tall: boolean) {
@@ -80,7 +95,8 @@ async function svgToJpeg(svg: string, svgPath: string, jpegPath: string) {
 
 function detailPage(snapshot: SettlementSnapshot, locale: Locale, pageRecords: SettlementRecord[], page: number, pages: number) {
   const en = locale === "en_US";
-  const width = 900, height = 1273, left = 42, tableTop = 180, rowHeight = 34;
+  const detailed = pageRecords.some(hasPaymentBreakdown);
+  const width = 900, height = 1273, left = 42, tableTop = 180, rowHeight = detailed ? 68 : 34;
   const all = snapshot.paymentScope === "ALL";
   const cash = snapshot.paymentScope === "CASH";
   const columns = all
@@ -90,11 +106,19 @@ function detailPage(snapshot: SettlementSnapshot, locale: Locale, pageRecords: S
   const rows = pageRecords.map((record, index) => {
     const y = tableTop + 47 + index * rowHeight;
     const nameLimit = all ? 28 : 24;
-    const base = [`<text x="48" y="${y + 12}" class="table-value">${escapeXml(record.businessDate.slice(5))}</text>`, `<text x="48" y="${y + 27}" class="footer">${escapeXml(recordTime(record.startAt, snapshot.storeTimezone, locale))}-${escapeXml(recordTime(record.endAt, snapshot.storeTimezone, locale))}</text>`, `<text x="180" y="${y + 21}" class="table-value">${escapeXml(compact(recordName(record), nameLimit))}</text>`];
+    const base = [`<text x="48" y="${y + 12}" class="table-value">${escapeXml(record.businessDate.slice(5))}</text>`, `<text x="48" y="${y + 27}" class="footer">${escapeXml(recordTime(record.startAt, snapshot.storeTimezone, locale))}-${escapeXml(recordTime(record.endAt, snapshot.storeTimezone, locale))}</text>`, `<text x="180" y="${y + (detailed ? 14 : 21)}" class="table-value">${escapeXml(compact(recordName(record), nameLimit))}</text>`];
+    if (detailed && hasPaymentBreakdown(record)) {
+      const serviceLabel = en ? "Fee" : "大费";
+      const tipLabel = en ? "Tip" : "小费";
+      base.push(`<text x="180" y="${y + 30}" class="footer">${escapeXml(compact(`${serviceLabel}: ${paymentParts(record, "service", locale)}`, 48))}</text>`);
+      base.push(`<text x="180" y="${y + 44}" class="footer">${escapeXml(compact(`${tipLabel}: ${paymentParts(record, "tip", locale)}`, 48))}</text>`);
+      const notice = paymentNotice(record, snapshot.paymentScope, locale);
+      if (notice) base.push(`<text x="180" y="${y + 59}" class="table-notice">${escapeXml(compact(notice, 42))}</text>`);
+    }
     const amounts = all
       ? [record.grossFeeBaseCents, record.cashIncomeCents, record.nonCashIncomeCents, record.totalIncomeCents]
       : [record.grossFeeBaseCents, cash ? record.cashServiceCents : record.nonCashServiceCents, cash ? record.cashLargeFeeWageCents : record.nonCashLargeFeeWageCents, cash ? record.cashTipCents : record.nonCashTipCents, cash ? record.cashIncomeCents : record.nonCashIncomeCents];
-    amounts.forEach((amount, amountIndex) => base.push(`<text x="${columns[amountIndex + 2]!.x}" y="${y + 21}" text-anchor="end" class="${amountIndex === amounts.length - 1 ? "table-strong" : "table-value"}">${escapeXml(money(amount, locale))}</text>`));
+    amounts.forEach((amount, amountIndex) => base.push(`<text x="${columns[amountIndex + 2]!.x}" y="${y + (detailed ? 31 : 21)}" text-anchor="end" class="${amountIndex === amounts.length - 1 ? "table-strong" : "table-value"}">${escapeXml(money(amount, locale))}</text>`));
     return `<rect x="${left}" y="${y}" width="${width - left * 2}" height="${rowHeight - 2}" rx="7" fill="${index % 2 ? "#fffaf6" : "#fff"}"/>${base.join("")}`;
   }).join("");
   const header = `<text x="42" y="55" class="eyebrow">${escapeXml(snapshot.storeName)} · ${escapeXml(en ? "Settlement details" : "员工结算明细")}</text><text x="42" y="103" class="name" style="font-size:32px">${escapeXml(compact(snapshot.employee.displayName, 24))}</text><text x="42" y="137" class="meta">${escapeXml(snapshot.dateFrom)} - ${escapeXml(snapshot.dateTo)} · ${escapeXml(scopeLabel(snapshot.paymentScope, locale))}</text><rect x="42" y="${tableTop}" width="${width - 84}" height="42" rx="9" fill="#f3e6de"/>${headings}`;
@@ -106,7 +130,7 @@ export async function renderSettlementArtifacts(snapshot: SettlementSnapshot, lo
   const summarySvg = documentSvg(1170, 820, summaryContent(snapshot, locale, 1170, false));
   await svgToPng(summarySvg, join(workDir, "settlement-summary.svg"), summaryPngPath);
 
-  const recordsPerPage = 28;
+  const recordsPerPage = snapshot.records.some(hasPaymentBreakdown) ? 14 : 28;
   const detailPages = Math.max(1, Math.ceil(snapshot.records.length / recordsPerPage));
   const totalPages = detailPages + 1;
   const pageImagePaths: string[] = [];

@@ -44,7 +44,21 @@ describe("EmployeeSettlementsService preview", () => {
     const { value, prisma } = service([record(1)]);
     const preview = await value.preview(actor, storeId, { membershipId: member.id, dateFrom: "2026-08-01", dateTo: "2026-08-31", paymentScope: "ALL" });
     expect(preview.summary).toMatchObject({ cashLargeFeeWageCents: 2400, nonCashLargeFeeWageCents: 3600, cashTipCents: 1000, nonCashTipCents: 2300, cashIncomeCents: 3400, nonCashIncomeCents: 5900, totalIncomeCents: 9300 });
+    expect(preview.records[0]).toMatchObject({ cardServiceCents: 6000, giftCardServiceCents: 0, cardTipCents: 2000, giftCardTipCents: 300 });
     expect(prisma.workRecord.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId, employeeMembershipId: member.id, status: "CONFIRMED", deletedAt: null }) }));
+  });
+
+  it("非现金结算纳入大费或小费含非现金的记录且只计算非现金部分", async () => {
+    const cashServiceCardTip = { ...record(1), cashServiceCents: 10_000n, cardServiceCents: 0n, cashAllocatedServiceWageCents: 6_000n, cashTipCents: 0n, cardTipCents: 2_000n, giftCardTipCents: 0n };
+    const cardServiceCashTip = { ...record(2), cashServiceCents: 0n, cardServiceCents: 10_000n, cashAllocatedServiceWageCents: 0n, cashTipCents: 1_000n, cardTipCents: 0n, giftCardTipCents: 0n };
+    const splitService = { ...record(3), cashServiceCents: 5_000n, cardServiceCents: 0n, giftCardServiceCents: 5_000n, cashAllocatedServiceWageCents: 3_000n, cashTipCents: 0n, cardTipCents: 0n, giftCardTipCents: 0n };
+    const cashOnly = { ...record(4), cashServiceCents: 10_000n, cardServiceCents: 0n, giftCardServiceCents: 0n, cashAllocatedServiceWageCents: 6_000n, cashTipCents: 1_000n, cardTipCents: 0n, giftCardTipCents: 0n };
+    const { value } = service([cashServiceCardTip, cardServiceCashTip, splitService, cashOnly]);
+    const preview = await value.preview(actor, storeId, { membershipId: member.id, dateFrom: "2026-08-01", dateTo: "2026-08-31", paymentScope: "NON_CASH" });
+    expect(preview.records.map((item) => item.id)).toEqual([cashServiceCardTip.id, cardServiceCashTip.id, splitService.id]);
+    expect(preview.summary).toMatchObject({ recordCount: 3, nonCashLargeFeeWageCents: 9_000, nonCashTipCents: 2_000, nonCashIncomeCents: 11_000, totalIncomeCents: 11_000 });
+    expect(preview.records[0]).toMatchObject({ nonCashLargeFeeWageCents: 0, nonCashTipCents: 2_000, nonCashIncomeCents: 2_000 });
+    expect(preview.records[1]).toMatchObject({ nonCashLargeFeeWageCents: 6_000, nonCashTipCents: 0, nonCashIncomeCents: 6_000 });
   });
 
   it("店主或经理作为在职服务成员时也可以生成区间结算", async () => {

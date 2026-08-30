@@ -25,14 +25,16 @@ export function ClosingDeliveryQueue({ value, busy, onCancel }: ClosingDeliveryQ
 
   return (
     <div className="closing-delivery-queue">
-      <div className="delivery-status-strip" aria-label="员工小结发送状态">
-        {(Object.keys(statusLabels) as ClosingDeliveryStatus[]).map((status) => {
-          const count = deliveries.filter((item) => item.status === status).length;
-          return count > 0 ? <span key={status}>{statusLabels[status]} <strong>{count}</strong></span> : null;
-        })}
-      </div>
       <details className="delivery-queue-details">
-        <summary>查看短信队列详情 <strong>{deliveries.length}</strong></summary>
+        <summary>
+          <span className="delivery-status-strip" aria-label="员工小结发送状态">
+            {(Object.keys(statusLabels) as ClosingDeliveryStatus[]).map((status) => {
+              const count = deliveries.filter((item) => item.status === status).length;
+              return count > 0 ? <span key={status}>{statusLabels[status]} <strong>{count}</strong></span> : null;
+            })}
+          </span>
+          <span className="delivery-queue-summary-label">查看短信队列详情</span>
+        </summary>
         <div className="table-scroll">
           <table className="data-table delivery-queue-table">
             <thead>

@@ -12,6 +12,22 @@ const shiftDate = (value: string, days: number) => { const date = new Date(`${va
 const time = (value: string | null, timezone: string) => value ? new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)) : "—";
 const recordName = (record: EmployeeSettlementPreview["records"][number]) => [record.serviceShortName || record.serviceName, ...record.addons.map((item) => item.shortName || item.name)].join(" ＋ ");
 
+function paymentParts(record: EmployeeSettlementPreview["records"][number], kind: "service" | "tip") {
+  const values = kind === "service"
+    ? [["现金", record.cashServiceCents], ["刷卡", record.cardServiceCents], ["礼物卡", record.giftCardServiceCents]] as const
+    : [["现金", record.cashTipCents], ["刷卡", record.cardTipCents], ["礼物卡", record.giftCardTipCents]] as const;
+  return values.filter(([, value]) => value > 0).map(([label, value]) => `${label} ${money(value)}`).join(" / ") || "—";
+}
+
+function paymentNotice(record: EmployeeSettlementPreview["records"][number], scope: EmployeeSettlementPaymentScope) {
+  const hasCash = record.cashServiceCents > 0 || record.cashTipCents > 0;
+  const hasNonCash = record.nonCashServiceCents > 0 || record.nonCashTipCents > 0;
+  if (!hasCash || !hasNonCash) return null;
+  if (scope === "CASH") return "包含非现金付款 · 本结算仅计算现金部分";
+  if (scope === "NON_CASH") return "包含现金付款 · 本结算仅计算刷卡＋礼物卡部分";
+  return "现金＋非现金混合付款";
+}
+
 function DeliveryQueue({ value, busy, action }: { value: EmployeeSettlementDeliveryList; busy: boolean; action: (delivery: EmployeeSettlementDelivery, kind: "cancel" | "retry" | "retry-detail") => void }) {
   if (value.deliveries.length === 0) return null;
   const stage = (item: EmployeeSettlementDelivery) => {
@@ -35,7 +51,7 @@ function SettlementSummary({ preview }: { preview: EmployeeSettlementPreview }) 
 function SettlementRecords({ preview }: { preview: EmployeeSettlementPreview }) {
   const single = preview.paymentScope !== "ALL";
   const cash = preview.paymentScope === "CASH";
-  return <section className="employee-settlement-records"><header><div><h3>逐笔记工</h3><p>仅统计付款已确认记工；列表最多支持 999 笔。</p></div><strong>{preview.records.length} 条</strong></header><div className="employee-settlement-record-scroll"><table className="data-table employee-settlement-record-table"><thead><tr><th>日期／时间</th><th>项目／加项</th><th>大费基数</th>{single ? <><th>所选付款实收</th><th>所选大费工资</th><th>所选小费</th><th>本笔所选收入</th></> : <><th>现金收入</th><th>刷卡＋礼卡收入</th><th>本笔总收入</th></>}</tr></thead><tbody>{preview.records.map((record) => <tr key={record.id}><td><strong>{record.businessDate}</strong><small>{time(record.startAt, preview.storeTimezone)}–{time(record.endAt, preview.storeTimezone)}</small></td><td>{recordName(record)}</td><td>{money(record.grossFeeBaseCents)}</td>{single ? <><td>{money(cash ? record.cashServiceCents : record.nonCashServiceCents)}</td><td>{money(cash ? record.cashLargeFeeWageCents : record.nonCashLargeFeeWageCents)}</td><td>{money(cash ? record.cashTipCents : record.nonCashTipCents)}</td><td><strong>{money(cash ? record.cashIncomeCents : record.nonCashIncomeCents)}</strong></td></> : <><td>{money(record.cashIncomeCents)}</td><td>{money(record.nonCashIncomeCents)}</td><td><strong>{money(record.totalIncomeCents)}</strong></td></>}</tr>)}</tbody></table>{preview.records.length === 0 && <p className="empty-state">当前范围没有符合条件的已确认记工。</p>}</div></section>;
+  return <section className="employee-settlement-records"><header><div><h3>逐笔记工</h3><p>仅统计付款已确认记工；大费基数仅供参考，收入按所选付款来源计算；列表最多支持 999 笔。</p></div><strong>{preview.records.length} 条</strong></header><div className="employee-settlement-record-scroll"><table className="data-table employee-settlement-record-table"><thead><tr><th>日期／时间</th><th>项目／付款拆分</th><th>大费基数（参考）</th>{single ? <><th>所选付款实收</th><th>所选大费工资</th><th>所选小费</th><th>本笔所选收入</th></> : <><th>现金收入</th><th>刷卡＋礼卡收入</th><th>本笔总收入</th></>}</tr></thead><tbody>{preview.records.map((record) => { const notice = paymentNotice(record, preview.paymentScope); return <tr key={record.id}><td><strong>{record.businessDate}</strong><small>{time(record.startAt, preview.storeTimezone)}–{time(record.endAt, preview.storeTimezone)}</small></td><td><strong>{recordName(record)}</strong><small className="settlement-payment-line">大费：{paymentParts(record, "service")}</small><small className="settlement-payment-line">小费：{paymentParts(record, "tip")}</small>{notice && <small className="settlement-payment-notice">{notice}</small>}</td><td>{money(record.grossFeeBaseCents)}</td>{single ? <><td>{money(cash ? record.cashServiceCents : record.nonCashServiceCents)}</td><td>{money(cash ? record.cashLargeFeeWageCents : record.nonCashLargeFeeWageCents)}</td><td>{money(cash ? record.cashTipCents : record.nonCashTipCents)}</td><td><strong>{money(cash ? record.cashIncomeCents : record.nonCashIncomeCents)}</strong></td></> : <><td>{money(record.cashIncomeCents)}</td><td>{money(record.nonCashIncomeCents)}</td><td><strong>{money(record.totalIncomeCents)}</strong></td></>}</tr>; })}</tbody></table>{preview.records.length === 0 && <p className="empty-state">当前范围没有符合条件的已确认记工。</p>}</div></section>;
 }
 
 export function EmployeeSettlementPanel({ storeId, businessDate, members, busy, run }: { storeId: string; businessDate: string; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void> }) {

@@ -98,9 +98,10 @@ export interface EmployeeSettlementRecord {
   id: string; businessDate: string; startAt: string; endAt: string | null;
   serviceName: string; serviceShortName: string;
   addons: Array<{ name: string; shortName: string }>;
-  grossFeeBaseCents: number; cashServiceCents: number; nonCashServiceCents: number;
+  grossFeeBaseCents: number; cashServiceCents: number; cardServiceCents: number;
+  giftCardServiceCents: number; nonCashServiceCents: number;
   cashLargeFeeWageCents: number; nonCashLargeFeeWageCents: number;
-  cashTipCents: number; nonCashTipCents: number;
+  cashTipCents: number; cardTipCents: number; giftCardTipCents: number; nonCashTipCents: number;
   cashIncomeCents: number; nonCashIncomeCents: number; totalIncomeCents: number;
 }
 
@@ -491,7 +492,7 @@ export interface FinanceSummaryResponse {
     dateFrom: string;
     dateTo: string;
     membershipIds: string[];
-    paymentMethod: "ALL" | "CASH" | "CARD" | "GIFT_CARD";
+    paymentMethod: "ALL" | "CASH" | "NON_CASH";
     amountType: "ALL" | "SERVICE" | "TIP";
     highlightFilter: "ALL" | "ONLY_HIGHLIGHTED" | "EXCLUDE_HIGHLIGHTED";
   };
@@ -521,6 +522,10 @@ export interface FinanceDetailsResponse {
   filters: FinanceSummaryResponse["filters"];
   records: Array<WorkRecord & {
     employee: { id: string; displayName: string; role: StoreRole };
+    selectedLargeFeeWageCents: number;
+    selectedTipCents: number;
+    selectedEmployeeIncomeCents: number;
+    hasCashAndNonCashPayment: boolean;
   }>;
   giftCardSales: Array<{
     id: string;

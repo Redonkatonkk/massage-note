@@ -86,9 +86,11 @@ export class AiService {
     const membershipIds = membership.role === "EMPLOYEE" ? [membership.id] : mentioned.map((item) => item.id);
     const mentionsCash = input.text.includes("现金") || /\bcash\b/i.test(input.text);
     const mentionsCard = input.text.includes("刷卡") || /\b(?:card|credit|debit)\b/i.test(input.text);
+    const mentionsGiftCard = /礼物卡|礼卡/u.test(input.text) || /\bgift cards?\b/i.test(input.text);
+    const mentionsNonCash = mentionsCard || mentionsGiftCard;
     const mentionsTips = input.text.includes("小费") || /\btips?\b/i.test(input.text);
     const mentionsServiceFees = input.text.includes("大费") || /\b(?:service fees?|service charges?)\b/i.test(input.text);
-    const paymentMethod: FinanceQuery["paymentMethod"] = mentionsCash && !mentionsCard ? "CASH" : mentionsCard && !mentionsCash ? "CARD" : "ALL";
+    const paymentMethod: FinanceQuery["paymentMethod"] = mentionsCash && !mentionsNonCash ? "CASH" : mentionsNonCash && !mentionsCash ? "NON_CASH" : "ALL";
     const amountType: FinanceQuery["amountType"] = mentionsTips && !mentionsServiceFees ? "TIP" : mentionsServiceFees && !mentionsTips ? "SERVICE" : "ALL";
     const dates = await this.financeDates(storeId, input.text);
     const query: FinanceQuery = {
@@ -420,12 +422,12 @@ export class AiService {
   private deterministicFinanceAnswer(summary: Awaited<ReturnType<FinanceQueriesService["summary"]>>, names: string[], method: string, amountType: string, locale: "zh-CN" | "en-US" = "zh-CN") {
     if (locale === "en-US") {
       const scope = names.length ? names.join(", ") : "all employees within your permissions";
-      const methodText = method === "CASH" ? "cash" : method === "CARD" ? "card" : method === "GIFT_CARD" ? "gift card" : "all payment methods";
+      const methodText = method === "CASH" ? "cash" : method === "NON_CASH" ? "card + gift card" : "all payment methods";
       const typeText = amountType === "TIP" ? "tips only" : amountType === "SERVICE" ? "service fees only" : "service fees and tips";
       return `Range: ${summary.filters.dateFrom} to ${summary.filters.dateTo}; ${scope}; ${methodText}; ${typeText}. ${summary.totals.itemCount} total items (${summary.totals.recordCount} work records and ${summary.totals.giftCardSaleCount} gift card sales); customer payments ${money(summary.totals.customerTotalPaidCents)}, performance after discounts ${money(summary.totals.discountedFeePerformanceCents)}, service fees collected ${money(summary.totals.actualServiceCollectedCents)}, tips ${money(summary.totals.totalTipCents)}, gift card sale income ${money(summary.totals.giftCardSalesAmountCents)}, gift card redemption expense ${money(summary.totals.giftCardRedemptionCents)}, store income ${money(summary.totals.storeIncomeCents)}, employee earnings ${money(summary.totals.employeeIncomeCents)}, payroll still owed ${money(summary.totals.employerOwesCents)}. Gift card sales count as store income and gift card redemptions count as store expense. Every amount comes from the deterministic server-side finance engine.`;
     }
     const scope = names.length ? names.join("、") : "当前权限范围内的全部员工";
-    const methodText = method === "CASH" ? "现金" : method === "CARD" ? "刷卡" : method === "GIFT_CARD" ? "礼物卡" : "全部付款方式";
+    const methodText = method === "CASH" ? "现金" : method === "NON_CASH" ? "刷卡＋礼物卡" : "全部付款方式";
     const typeText = amountType === "TIP" ? "仅小费" : amountType === "SERVICE" ? "仅大费" : "大费与小费";
     return `统计范围：${summary.filters.dateFrom} 至 ${summary.filters.dateTo}，${scope}，${methodText}，${typeText}。共 ${summary.totals.itemCount} 项（${summary.totals.recordCount} 条记工、${summary.totals.giftCardSaleCount} 张礼物卡销售）；客人总付款 ${money(summary.totals.customerTotalPaidCents)}，折后大费业绩 ${money(summary.totals.discountedFeePerformanceCents)}，实际收到大费 ${money(summary.totals.actualServiceCollectedCents)}，小费 ${money(summary.totals.totalTipCents)}，礼物卡销售收入 ${money(summary.totals.giftCardSalesAmountCents)}，礼物卡核销支出 ${money(summary.totals.giftCardRedemptionCents)}，店铺收入 ${money(summary.totals.storeIncomeCents)}，员工总收入 ${money(summary.totals.employeeIncomeCents)}，老板尚欠 ${money(summary.totals.employerOwesCents)}。卖卡算店铺收入，用卡核销算店铺支出；这些金额均来自后端确定性财务引擎。`;
   }

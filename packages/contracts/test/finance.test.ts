@@ -65,6 +65,12 @@ describe("日结与财务契约", () => {
     }
   });
 
+  it("财务查询只提供全部、现金和刷卡＋礼物卡三种来源", () => {
+    expect(financeQuerySchema.parse({ paymentMethod: "NON_CASH" }).paymentMethod).toBe("NON_CASH");
+    expect(financeQuerySchema.safeParse({ paymentMethod: "CARD" }).success).toBe(false);
+    expect(financeQuerySchema.safeParse({ paymentMethod: "GIFT_CARD" }).success).toBe(false);
+  });
+
   it("日历查询只接受不超过 63 天的正向日期范围", () => {
     expect(
       calendarDateRangeQuerySchema.safeParse({

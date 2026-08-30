@@ -117,19 +117,19 @@ export const financeSummaryMetrics = [
     key: "storeIncomeCents",
     label: "店铺收入",
     explanation: "店铺在当前范围内的经营收入；卖卡记收入，用卡核销记支出。",
-    calculation: "店铺收入 = 折后大费业绩 + 小费总额 − 员工总收入 + 礼物卡销售收入 − 礼物卡核销支出。",
+    calculation: "店铺收入 = 折后大费业绩 + 所选小费 − 所选员工收入 + 礼物卡销售收入 − 礼物卡核销支出。按付款方式筛选时，员工收入只计算对应来源。",
   },
   {
     key: "ownerWorkerIncomeCents",
     label: "店长总收入",
     explanation: "店长在当前筛选范围内亲自记工所得的大费工资和小费，不包含店铺经营收入。",
-    calculation: "店长总收入 = 店长作为工人的大费工资 + 店长作为工人的全部小费。",
+    calculation: "店长总收入 = 店长作为工人的所选来源大费工资 + 所选来源小费。",
   },
   {
     key: "managerWorkerIncomeCents",
     label: "经理总收入",
     explanation: "所有经理在当前筛选范围内亲自记工所得的大费工资和小费合计。",
-    calculation: "经理总收入 = Σ 每位经理作为工人的大费工资与全部小费。",
+    calculation: "经理总收入 = Σ 每位经理作为工人的所选来源大费工资与所选来源小费。",
   },
   {
     key: "giftCardNetIncomeCents",

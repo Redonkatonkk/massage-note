@@ -640,6 +640,37 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     });
     expect(summary.employees).toHaveLength(1);
     expect(summary.days).toHaveLength(1);
+    const cashSummary = await finance.summary(actor(managerId), storeId, {
+      dateFrom: businessDate,
+      dateTo: businessDate,
+      membershipIds: [employeeMembershipId],
+      paymentMethod: "CASH",
+      amountType: "ALL",
+      highlightFilter: "ALL",
+    });
+    expect(cashSummary.totals).toMatchObject({ totalLargeFeeWageCents: 2_400n, totalTipCents: 1_000n, employeeIncomeCents: 3_400n, storeIncomeCents: 7_600n });
+    expect(cashSummary.employees[0]).toMatchObject({ totalLargeFeeWageCents: 2_400n, totalTipCents: 1_000n, employeeIncomeCents: 3_400n });
+    expect(cashSummary.days[0]).toMatchObject({ totalLargeFeeWageCents: 2_400n, totalTipCents: 1_000n, employeeIncomeCents: 3_400n });
+    const nonCashSummary = await finance.summary(actor(managerId), storeId, {
+      dateFrom: businessDate,
+      dateTo: businessDate,
+      membershipIds: [employeeMembershipId],
+      paymentMethod: "NON_CASH",
+      amountType: "ALL",
+      highlightFilter: "ALL",
+    });
+    expect(nonCashSummary.totals).toMatchObject({ totalLargeFeeWageCents: 3_600n, totalTipCents: 2_000n, employeeIncomeCents: 5_600n, storeIncomeCents: 6_400n, settledCashAcquiredWithinRangeCents: 0n });
+    expect(nonCashSummary.employees[0]).toMatchObject({ totalLargeFeeWageCents: 3_600n, totalTipCents: 2_000n, employeeIncomeCents: 5_600n });
+    expect(nonCashSummary.days[0]).toMatchObject({ totalLargeFeeWageCents: 3_600n, totalTipCents: 2_000n, employeeIncomeCents: 5_600n });
+    const nonCashDetails = await finance.details(actor(managerId), storeId, {
+      dateFrom: businessDate,
+      dateTo: businessDate,
+      membershipIds: [employeeMembershipId],
+      paymentMethod: "NON_CASH",
+      amountType: "ALL",
+      highlightFilter: "ALL",
+    });
+    expect(nonCashDetails.records[0]).toMatchObject({ selectedLargeFeeWageCents: 3_600n, selectedTipCents: 2_000n, selectedEmployeeIncomeCents: 5_600n, hasCashAndNonCashPayment: true });
     const allEmployeesSummary = await finance.summary(actor(managerId), storeId, {
       dateFrom: businessDate,
       dateTo: businessDate,
@@ -670,6 +701,16 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     expect(csv).toContain("\"100.00\"");
     expect(csv).toContain("\"高亮标记\"");
     expect(csv).toContain("\"高亮\"");
+    const nonCashCsv = await finance.exportCsv(actor(managerId), storeId, {
+      dateFrom: businessDate,
+      dateTo: businessDate,
+      membershipIds: [employeeMembershipId],
+      paymentMethod: "NON_CASH",
+      amountType: "ALL",
+      highlightFilter: "ALL",
+    });
+    expect(nonCashCsv).toContain("\"所选大费工资\",\"所选小费\",\"所选员工收入\"");
+    expect(nonCashCsv).toContain("\"36.00\",\"20.00\",\"56.00\"");
     const highlighted = await finance.summary(actor(managerId), storeId, {
       dateFrom: businessDate,
       dateTo: businessDate,

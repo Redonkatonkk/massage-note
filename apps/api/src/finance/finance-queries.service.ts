@@ -206,7 +206,11 @@ export class FinanceQueriesService {
         amountType: context.query.amountType,
         highlightFilter: context.query.highlightFilter,
       },
-      records,
+      records: records.map((record) => ({
+        ...record,
+        ...this.selectedEmployeeAmounts(record, context.query),
+        hasCashAndNonCashPayment: this.hasCashAndNonCashPayment(record),
+      })),
       giftCardSales,
     };
   }
@@ -217,7 +221,7 @@ export class FinanceQueriesService {
       "记录类型", "营业日", "员工／操作人", "开始时间", "结束时间", "主要项目", "额外项目",
       "大费基数", "折扣", "折后大费业绩", "现金大费", "刷卡大费",
       "礼物卡序列号", "礼物卡大费", "现金小费", "刷卡小费", "礼物卡小费",
-      "大费工资", "员工总收入", "高亮标记", "状态", "备注",
+      "所选大费工资", "所选小费", "所选员工收入", "高亮标记", "状态", "备注",
       "卖卡现金收款", "卖卡刷卡收款", "卖卡实际收款",
     ];
     const cents = (value: bigint | null) => ((value ?? 0n) / 100n).toString() + "." + ((value ?? 0n) % 100n).toString().padStart(2, "0");
@@ -244,8 +248,9 @@ export class FinanceQueriesService {
       cents(record.cashTipCents),
       cents(record.cardTipCents),
       cents(record.giftCardTipCents),
-      cents(record.totalLargeFeeWageCents),
-      cents(record.employeeTotalIncomeCents),
+      cents(record.selectedLargeFeeWageCents),
+      cents(record.selectedTipCents),
+      cents(record.selectedEmployeeIncomeCents),
       record.isHighlighted ? "高亮" : "普通",
       record.status === "CONFIRMED" ? "已确认" : "待结账",
       record.note,
@@ -267,6 +272,7 @@ export class FinanceQueriesService {
       "",
       "",
       sale.serialNumber,
+      "",
       "",
       "",
       "",
@@ -410,8 +416,7 @@ export class FinanceQueriesService {
     if (
       !context.includeStoreLevelGiftCardSales ||
       context.query.amountType !== "ALL" ||
-      context.query.highlightFilter === "ONLY_HIGHLIGHTED" ||
-      context.query.paymentMethod === "GIFT_CARD"
+      context.query.highlightFilter === "ONLY_HIGHLIGHTED"
     ) {
       return [];
     }
@@ -424,7 +429,7 @@ export class FinanceQueriesService {
         },
         ...(context.query.paymentMethod === "CASH"
           ? { cashCents: { gt: 0 } }
-          : context.query.paymentMethod === "CARD"
+          : context.query.paymentMethod === "NON_CASH"
             ? { cardCents: { gt: 0 } }
             : {}),
         deletedAt: null,
@@ -450,14 +455,10 @@ export class FinanceQueriesService {
     if (query.paymentMethod === "ALL") return true;
     const service = query.paymentMethod === "CASH"
       ? record.cashServiceCents ?? 0n
-      : query.paymentMethod === "CARD"
-        ? record.cardServiceCents ?? 0n
-        : record.giftCardServiceCents ?? 0n;
+      : (record.cardServiceCents ?? 0n) + (record.giftCardServiceCents ?? 0n);
     const tip = query.paymentMethod === "CASH"
       ? record.cashTipCents ?? 0n
-      : query.paymentMethod === "CARD"
-        ? record.cardTipCents ?? 0n
-        : record.giftCardTipCents ?? 0n;
+      : (record.cardTipCents ?? 0n) + (record.giftCardTipCents ?? 0n);
     if (query.amountType === "SERVICE") return service > 0n;
     if (query.amountType === "TIP") return tip > 0n;
     return service > 0n || tip > 0n;
@@ -483,6 +484,7 @@ export class FinanceQueriesService {
       customerTotalPaidCents: bigint | null;
       totalLargeFeeWageCents: bigint;
       employeeTotalIncomeCents: bigint | null;
+      cashAllocatedServiceWageCents: bigint | null;
       cashAcquiredServiceWageCents: bigint | null;
     },
     query: FinanceQuery,
@@ -490,9 +492,9 @@ export class FinanceQueriesService {
     const includeService = query.amountType !== "TIP";
     const includeTip = query.amountType !== "SERVICE";
     const includeCash = query.paymentMethod === "ALL" || query.paymentMethod === "CASH";
-    const includeCard = query.paymentMethod === "ALL" || query.paymentMethod === "CARD";
-    const includeGiftCard =
-      query.paymentMethod === "ALL" || query.paymentMethod === "GIFT_CARD";
+    const includeCard = query.paymentMethod === "ALL" || query.paymentMethod === "NON_CASH";
+    const includeGiftCard = includeCard;
+    const selected = this.selectedEmployeeAmounts(record, query);
     totals.recordCount += 1;
     totals.itemCount += 1;
     if (record.status === "PENDING_PAYMENT") totals.incompleteRecordCount += 1;
@@ -512,7 +514,7 @@ export class FinanceQueriesService {
       totals.giftCardServiceCents += includeGiftCard
         ? record.giftCardServiceCents ?? 0n
         : 0n;
-      totals.totalLargeFeeWageCents += record.totalLargeFeeWageCents;
+      totals.totalLargeFeeWageCents += selected.selectedLargeFeeWageCents;
       totals.cashAcquiredServiceWageCents +=
         includeCash ? record.cashAcquiredServiceWageCents ?? 0n : 0n;
     }
@@ -525,13 +527,7 @@ export class FinanceQueriesService {
       totals.giftCardTipCents += giftCardTip;
       totals.totalTipCents += cashTip + cardTip + giftCardTip;
     }
-    totals.employeeIncomeCents +=
-      (includeService ? record.totalLargeFeeWageCents : 0n) +
-      (includeTip
-        ? (includeCash ? record.cashTipCents ?? 0n : 0n) +
-          (includeCard ? record.cardTipCents ?? 0n : 0n)
-          + (includeGiftCard ? record.giftCardTipCents ?? 0n : 0n)
-        : 0n);
+    totals.employeeIncomeCents += selected.selectedEmployeeIncomeCents;
     this.recalculateDerivedTotals(totals);
   }
 
@@ -545,7 +541,7 @@ export class FinanceQueriesService {
         ? sale.cashCents
         : 0n;
     const cardCents =
-      query.paymentMethod === "ALL" || query.paymentMethod === "CARD"
+      query.paymentMethod === "ALL" || query.paymentMethod === "NON_CASH"
         ? sale.cardCents
         : 0n;
     totals.itemCount += 1;
@@ -564,6 +560,55 @@ export class FinanceQueriesService {
       totals.totalTipCents +
       totals.giftCardSalesAmountCents;
     totals.storeIncomeCents = calculateStoreIncome(totals);
+  }
+
+  private selectedEmployeeAmounts(
+    record: {
+      totalLargeFeeWageCents: bigint;
+      cashAllocatedServiceWageCents: bigint | null;
+      cashTipCents: bigint | null;
+      cardTipCents: bigint | null;
+      giftCardTipCents: bigint | null;
+    },
+    query: FinanceQuery,
+  ) {
+    const cashLargeFeeWageCents = record.cashAllocatedServiceWageCents ?? 0n;
+    const nonCashLargeFeeWageCents = record.totalLargeFeeWageCents - cashLargeFeeWageCents;
+    const selectedLargeFeeWageCents = query.amountType === "TIP"
+      ? 0n
+      : query.paymentMethod === "CASH"
+        ? cashLargeFeeWageCents
+        : query.paymentMethod === "NON_CASH"
+          ? nonCashLargeFeeWageCents
+          : record.totalLargeFeeWageCents;
+    const selectedTipCents = query.amountType === "SERVICE"
+      ? 0n
+      : query.paymentMethod === "CASH"
+        ? record.cashTipCents ?? 0n
+        : query.paymentMethod === "NON_CASH"
+          ? (record.cardTipCents ?? 0n) + (record.giftCardTipCents ?? 0n)
+          : (record.cashTipCents ?? 0n) + (record.cardTipCents ?? 0n) + (record.giftCardTipCents ?? 0n);
+    return {
+      selectedLargeFeeWageCents,
+      selectedTipCents,
+      selectedEmployeeIncomeCents: selectedLargeFeeWageCents + selectedTipCents,
+    };
+  }
+
+  private hasCashAndNonCashPayment(record: {
+    cashServiceCents: bigint | null;
+    cardServiceCents: bigint | null;
+    giftCardServiceCents: bigint | null;
+    cashTipCents: bigint | null;
+    cardTipCents: bigint | null;
+    giftCardTipCents: bigint | null;
+  }) {
+    const hasCash = (record.cashServiceCents ?? 0n) > 0n || (record.cashTipCents ?? 0n) > 0n;
+    const hasNonCash = (record.cardServiceCents ?? 0n) > 0n
+      || (record.giftCardServiceCents ?? 0n) > 0n
+      || (record.cardTipCents ?? 0n) > 0n
+      || (record.giftCardTipCents ?? 0n) > 0n;
+    return hasCash && hasNonCash;
   }
 
   private async calculateMembershipBalance(

@@ -1,7 +1,15 @@
 # 产品与业务规则
 
-> 状态：当前产品规则 · 适用版本：`0.12.35`
-> 实现细节以 [`ARCHITECTURE.md`](ARCHITECTURE.md)、[`API.md`](API.md)、Prisma schema、共享契约和自动化测试为准。
+> 状态：当前产品规则 · 适用版本：`0.12.36`
+> 实现细节以 [`ARCHITECTURE.md`](../engineering/ARCHITECTURE.md)、[`API.md`](../engineering/API.md)、Prisma schema、共享契约和自动化测试为准。
+
+本文较长，按以下范围阅读即可：
+
+- 第 1–5 节：产品目标、角色、登录与多店流程。
+- 第 6–10 节：营业日、项目配置、今日记工与详情编辑。
+- 第 11–16 节：金额、工资、现金、工资结算、财务与日结。
+- 第 17–22 节：审计、实时同步、AI、数据快照与 UI 要求。
+- 第 23–25 节：非目标、验收场景与文档边界。
 
 本文整理 Massage note 的产品范围、角色权限、记工与财务口径。它说明“系统应该做什么”；接口字段、代码位置和部署步骤分别由 API、架构和部署文档负责。
 
@@ -998,7 +1006,7 @@ AI 不得直接执行任意 SQL。
 ## 25. 文档维护边界
 
 - 产品行为、角色权限和金额口径在本文维护。
-- 当前模块、依赖方向和数据流在 [`ARCHITECTURE.md`](ARCHITECTURE.md) 维护。
-- HTTP 路径、请求字段和错误语义在 [`API.md`](API.md) 维护。
-- 本地开发与验证命令在 [`DEVELOPMENT.md`](DEVELOPMENT.md) 维护。
-- 初始页面、ER 图和分阶段实施方案已归档到 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](archive/INITIAL_ARCHITECTURE_PLAN.md)，不再作为当前代码结构的事实来源。
+- 当前模块、依赖方向和数据流在 [`ARCHITECTURE.md`](../engineering/ARCHITECTURE.md) 维护。
+- HTTP 路径、请求字段和错误语义在 [`API.md`](../engineering/API.md) 维护。
+- 本地开发与验证命令在 [`DEVELOPMENT.md`](../engineering/DEVELOPMENT.md) 维护。
+- 初始页面、ER 图和分阶段实施方案已归档到 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)，不再作为当前代码结构的事实来源。

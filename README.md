@@ -1,16 +1,17 @@
 # Massage note
 
-当前版本：`0.12.35`
+当前版本：`0.12.36`
 
 面向美国按摩店的中英文记工与财务管理 Web 应用，支持手机、iPad 和电脑。系统覆盖多店成员、今日记工、礼物卡、提成、确定性财务、日结、现金与工资结算、审计、实时同步和带确认预览的 AI 助手。
 
 ## 快速导航
 
-- 想了解业务：[`docs/PRODUCT.md`](docs/PRODUCT.md)
-- 想看代码框架：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- 准备本地开发：[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
+- 想了解业务：[`docs/product/PRODUCT.md`](docs/product/PRODUCT.md)
+- 想看代码框架：[`docs/engineering/ARCHITECTURE.md`](docs/engineering/ARCHITECTURE.md)
+- 准备本地开发：[`docs/engineering/DEVELOPMENT.md`](docs/engineering/DEVELOPMENT.md)
+- 准备部署或排障：[`docs/README.md`](docs/README.md#部署与运行)
 - 查全部文档：[`docs/README.md`](docs/README.md)
-- 让 AI 接管维护：[`docs/AI_HANDOFF.md`](docs/AI_HANDOFF.md)
+- 让 AI 接管维护：[`docs/engineering/AI_HANDOFF.md`](docs/engineering/AI_HANDOFF.md)
 
 ## 当前能力
 
@@ -38,7 +39,7 @@ scripts/        测试库、版本、备份、恢复和维护脚本
 docs/           当前文档与归档设计
 ```
 
-当前依赖方向、页面路由、API 模块和写入链路见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+当前依赖方向、页面路由、API 模块和写入链路见 [`docs/engineering/ARCHITECTURE.md`](docs/engineering/ARCHITECTURE.md)。
 
 ## 本地启动
 
@@ -65,27 +66,16 @@ pnpm test:integration
 pnpm build
 ```
 
-集成测试使用独立的 `massage_note_test`，不会清空开发主库。完整环境和修改流程见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)。
+集成测试使用独立的 `massage_note_test`，不会清空开发主库。完整环境和修改流程见 [`docs/engineering/DEVELOPMENT.md`](docs/engineering/DEVELOPMENT.md)。
 
 ## 部署与运维
 
-### Mac“信息”员工小结代理
-
-店主或经理先在“店铺设置 → Mac 信息代理”生成一次性令牌，然后在已登录“信息”的固定 Mac 上运行：
-
-```bash
-MASSAGE_NOTE_API_URL="https://你的域名/api/v1" \
-MASSAGE_NOTE_AGENT_TOKEN="设置页生成的令牌" \
-./scripts/install-messages-agent.sh
-```
-
-首次运行安装脚本会安装无界面的 `~/Applications/Massage Note Attachment Stager.app`；必须在“系统设置 → 隐私与安全性 → 完全磁盘访问权限”中只添加并开启这个 App，再重新运行脚本。代理通过 LaunchServices 以 App 身份后台启动暂存程序；程序只把经过任务路径、UUID 和 PNG 文件头验证的日结图写入 Messages 自有附件目录，并返回与任务绑定的结果文件。代理核对明确成功和固定目标路径后才通过 AppleScript 后台静默发送，每个任务只发送 PNG，不再发送重复的文字气泡；全程不模拟键盘、不激活窗口，也不读取系统相册或聊天数据库。安装脚本还会检查“信息”登录状态和 macOS 自动化权限；系统弹窗时必须允许 Node/终端控制“信息”，检查不通过则不会启动后台代理。向非 Apple 手机发送图片还要求同 Apple 账户的 iPhone 开启短信转发，并由运营商支持 MMS/RCS。代理只向 API 发起出站 HTTPS 请求；NAS 不需要连接或控制 Mac。固定 Mac 必须保持对应用户登录（锁屏可以，退出 macOS 用户会停止 LaunchAgent），令牌保存在当前 Mac 用户权限保护的配置文件中。卸载可运行 `./scripts/uninstall-messages-agent.sh`。
-
-- 普通 Docker Compose：[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
-- 群晖 Container Manager：[`docs/NAS_DEPLOYMENT.md`](docs/NAS_DEPLOYMENT.md)
-- 备份、恢复和排障：[`docs/OPERATIONS.md`](docs/OPERATIONS.md)
-- 安全边界：[`docs/SECURITY.md`](docs/SECURITY.md)
-- 发布检查：[`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md)
+- 普通 Docker Compose：[`docs/operations/DEPLOYMENT.md`](docs/operations/DEPLOYMENT.md)
+- 群晖 Container Manager：[`docs/operations/NAS_DEPLOYMENT.md`](docs/operations/NAS_DEPLOYMENT.md)
+- 备份、恢复和排障：[`docs/operations/OPERATIONS.md`](docs/operations/OPERATIONS.md)
+- Mac“信息”发送代理：[`docs/operations/MESSAGES_AGENT.md`](docs/operations/MESSAGES_AGENT.md)
+- 安全边界：[`docs/operations/SECURITY.md`](docs/operations/SECURITY.md)
+- 发布检查：[`docs/operations/RELEASE_CHECKLIST.md`](docs/operations/RELEASE_CHECKLIST.md)
 - 版本记录：[`CHANGELOG.md`](CHANGELOG.md)
 
 生产部署必须使用 HTTPS、真实 Firebase 配置、随机且互不相同的数据库/Redis 密码，并在首次营业前完成一次独立数据库恢复演练。

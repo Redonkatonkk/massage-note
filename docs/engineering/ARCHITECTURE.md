@@ -1,7 +1,7 @@
 # 当前架构
 
-> 状态：与 `0.12.35` 代码结构核对。
-> 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](archive/INITIAL_ARCHITECTURE_PLAN.md)。
+> 状态：与 `0.12.36` 代码结构核对。
+> 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
 
@@ -30,7 +30,7 @@ flowchart LR
 | --- | --- | --- |
 | `apps/web` | Next.js App Router、响应式中英文 UI、API 客户端和本地草稿 | 最终权限判断、最终财务计算 |
 | `apps/api` | REST、认证、授权、事务、领域编排、审计、outbox、SSE 和 AI 网关 | 浏览器展示状态、任意 SQL AI 工具 |
-| `apps/messages-agent` | 固定 Mac 上领取个人日结任务、渲染 PNG、受限暂存并调用 Messages AppleScript | 入站端口、聊天数据库读写、键盘/窗口自动化 |
+| `apps/messages-agent` | 固定 Mac 上领取个人日结和员工区间结算任务、渲染附件、受限暂存并调用 Messages AppleScript | 入站端口、聊天数据库读写、键盘/窗口自动化 |
 | `packages/domain` | 无框架依赖的营业日、权限、提成、金额与财务纯函数 | Prisma、HTTP、React、环境变量 |
 | `packages/contracts` | 前后端共享的 Zod 请求契约和类型 | 数据库访问、业务副作用 |
 | `packages/database` | Prisma schema、生成客户端、向前迁移和数据库约束测试 | HTTP 或 UI 逻辑 |
@@ -117,7 +117,7 @@ Web 表单
 - 记工创建时保存项目、时长、价格、折扣、提成及来源、工资、时区和营业日截止快照。
 - 修改目录或提成不能重写已日结历史；允许的当前营业日重算必须经过服务端流程。
 - 日结、现金结算和工资结算是不同账本/状态，不应合并成一个可覆盖总数。
-- 详细产品口径见 [`PRODUCT.md`](PRODUCT.md)。
+- 详细产品口径见 [`PRODUCT.md`](../product/PRODUCT.md)。
 
 ## 认证、安全与隔离
 
@@ -125,7 +125,7 @@ Web 表单
 - Cookie 写请求校验精确 `Origin`；登录初始化另有双提交 CSRF。
 - 每个业务 Service 重新验证活跃成员、角色能力、对象 `storeId` 和营业日状态。
 - 数据库迁移账号与应用账号分离；应用账号不能 DDL，也不能改写审计、AI 日志和 outbox 历史。
-- 当前不使用依赖连接会话变量的 PostgreSQL RLS；完整边界见 [`SECURITY.md`](SECURITY.md)。
+- 当前不使用依赖连接会话变量的 PostgreSQL RLS；完整边界见 [`SECURITY.md`](../operations/SECURITY.md)。
 
 ## 运行与部署形态
 
@@ -134,7 +134,7 @@ Web 表单
 | 本地开发 | Next.js `:3000` + NestJS `:4000` + Docker PostgreSQL/Redis |
 | 普通生产 Compose | 独立 `web` 与 `api` 容器，端口只绑定 loopback |
 | 群晖 | 一个 `nas` 应用镜像同时启动 Web/API；Next.js 把 `/api/*` 代理到容器内 API |
-| 固定 Mac | LaunchAgent 只向 NAS 发出 HTTPS 请求；通过 LaunchServices 以 FDA 授权的无界面 App 身份暂存已验证 PNG，核对任务结果与固定 Messages 路径后只由 AppleScript 静默发送该图片，不附带文字 |
+| 固定 Mac | LaunchAgent 只向 NAS 发出 HTTPS 请求；通过 LaunchServices 以 FDA 授权的无界面 App 身份暂存已验证的 PNG/PDF，核对任务结果与固定 Messages 路径后只由 AppleScript 静默发送附件，不模拟界面操作 |
 
 数据库迁移在应用启动前由一次性 `migrate` 服务执行，随后 `harden` 服务收紧应用账号权限。CI 在每次 push/PR 执行类型检查、单元测试、数据库/API 集成测试和生产构建；`main` 验证成功后再发布 `linux/amd64` NAS 镜像。
 

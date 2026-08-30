@@ -94,12 +94,17 @@ export async function renderClosingPng(snapshot: ClosingSnapshot, locale: Locale
   const width = 1170;
   const recordHeight = 225;
   const height = 760 + Math.max(1, snapshot.records.length) * recordHeight;
+  // English labels are substantially wider than their Chinese counterparts.
+  // Keep the value column far enough to the right so the pre-discount label
+  // never collides with its amount (especially in the Messages preview).
+  const paymentStartX = en ? 430 : 245;
+  const grossValueX = en ? 500 : 330;
   const rows = snapshot.records.map((record, index) => {
     const y = 650 + index * recordHeight;
     const name = [record.serviceShortName || record.serviceName, ...record.addons.map((item) => item.shortName || item.name)].join(" + ");
-    const service = paymentAmounts(record.cashServiceCents, record.cardServiceCents, record.giftCardServiceCents, locale, 245, y + 145);
-    const tips = paymentAmounts(record.cashTipCents, record.cardTipCents, record.giftCardTipCents, locale, 245, y + 183);
-    return `<rect x="60" y="${y}" width="1050" height="205" rx="22" fill="#ffffff" fill-opacity=".92"/><text x="88" y="${y + 36}" class="record">${escapeXml(name)}</text><text x="88" y="${y + 66}" class="small">${escapeXml(time(record.startAt, snapshot.storeTimezone, locale))}–${escapeXml(time(record.endAt, snapshot.storeTimezone, locale))}</text><text x="840" y="${y + 36}" text-anchor="end" class="status">${record.status === "CONFIRMED" ? labels.confirmed : labels.pending}</text><line x1="870" y1="${y + 25}" x2="870" y2="${y + 180}" class="record-divider"/><text x="1080" y="${y + 82}" text-anchor="end" class="small">${escapeXml(labels.recordIncome)}</text><text x="1080" y="${y + 122}" text-anchor="end" class="amount">${escapeXml(money(record.employeeIncomeCents, locale))}</text><text x="88" y="${y + 105}" class="payment-label">${escapeXml(labels.employeeFee)}：</text><text x="330" y="${y + 105}" class="gross-value">${escapeXml(money(record.grossFeeBaseCents, locale))}</text><text x="88" y="${y + 145}" class="payment-label">${escapeXml(labels.actualFee)}：</text>${service}<text x="88" y="${y + 183}" class="payment-label">${escapeXml(labels.tip)}：</text>${tips}`;
+    const service = paymentAmounts(record.cashServiceCents, record.cardServiceCents, record.giftCardServiceCents, locale, paymentStartX, y + 145);
+    const tips = paymentAmounts(record.cashTipCents, record.cardTipCents, record.giftCardTipCents, locale, paymentStartX, y + 183);
+    return `<rect x="60" y="${y}" width="1050" height="205" rx="22" fill="#ffffff" fill-opacity=".92"/><text x="88" y="${y + 36}" class="record">${escapeXml(name)}</text><text x="88" y="${y + 66}" class="small">${escapeXml(time(record.startAt, snapshot.storeTimezone, locale))}–${escapeXml(time(record.endAt, snapshot.storeTimezone, locale))}</text><text x="840" y="${y + 36}" text-anchor="end" class="status">${record.status === "CONFIRMED" ? labels.confirmed : labels.pending}</text><line x1="870" y1="${y + 25}" x2="870" y2="${y + 180}" class="record-divider"/><text x="1080" y="${y + 82}" text-anchor="end" class="small">${escapeXml(labels.recordIncome)}</text><text x="1080" y="${y + 122}" text-anchor="end" class="amount">${escapeXml(money(record.employeeIncomeCents, locale))}</text><text x="88" y="${y + 105}" class="payment-label">${escapeXml(labels.employeeFee)}：</text><text x="${grossValueX}" y="${y + 105}" class="gross-value">${escapeXml(money(record.grossFeeBaseCents, locale))}</text><text x="88" y="${y + 145}" class="payment-label">${escapeXml(labels.actualFee)}：</text>${service}<text x="88" y="${y + 183}" class="payment-label">${escapeXml(labels.tip)}：</text>${tips}`;
   }).join("");
   const date = new Intl.DateTimeFormat(en ? "en-US" : "zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long", timeZone: "UTC" }).format(new Date(`${snapshot.businessDate}T12:00:00Z`));
   // sips interprets percentage SVG dimensions as literal user units in some macOS

@@ -1,8 +1,8 @@
 # 开发指南
 
-> 适用版本：`0.12.35`
+> 适用版本：`0.12.36`
 
-本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
+本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
 ## 环境要求
 
@@ -97,7 +97,7 @@ pnpm test:integration
 pnpm build
 ```
 
-文档整理也至少运行版本检查、Markdown 链接检查和 `git diff --check`。若文档修改涉及命令、路由、契约、金额或部署事实，还要运行相应代码验证；正式发布遵循完整 [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)。
+文档整理也至少运行版本检查、Markdown 链接检查和 `git diff --check`。若文档修改涉及命令、路由、契约、金额或部署事实，还要运行相应代码验证；正式发布遵循完整 [`RELEASE_CHECKLIST.md`](../operations/RELEASE_CHECKLIST.md)。
 
 ## 版本规则
 
@@ -115,13 +115,14 @@ pnpm build
 
 | 内容 | 维护位置 |
 | --- | --- |
-| 产品范围、权限、金额定义 | `docs/PRODUCT.md` |
-| 当前模块与数据流 | `docs/ARCHITECTURE.md` |
-| HTTP 接口 | `docs/API.md` |
-| 本地开发与验证 | `docs/DEVELOPMENT.md` |
-| 普通/NAS 部署 | `docs/DEPLOYMENT.md`、`docs/NAS_DEPLOYMENT.md` |
-| 备份与故障处理 | `docs/OPERATIONS.md` |
-| 安全边界 | `docs/SECURITY.md` |
+| 产品范围、权限、金额定义 | `docs/product/PRODUCT.md` |
+| 当前模块与数据流 | `docs/engineering/ARCHITECTURE.md` |
+| HTTP 接口 | `docs/engineering/API.md` |
+| 本地开发与验证 | `docs/engineering/DEVELOPMENT.md` |
+| 普通/NAS 部署 | `docs/operations/DEPLOYMENT.md`、`docs/operations/NAS_DEPLOYMENT.md` |
+| 备份与故障处理 | `docs/operations/OPERATIONS.md` |
+| Mac“信息”代理安装与排障 | `docs/operations/MESSAGES_AGENT.md` |
+| 安全边界 | `docs/operations/SECURITY.md` |
 | 已发布变化 | `CHANGELOG.md` |
 
 不要把一次性容器 ID、PID、临时 tunnel、真实域名凭据或逐日开发流水写入当前文档。历史设计需要保留时移到 `docs/archive/`，并明确标为归档。

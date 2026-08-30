@@ -1,12 +1,12 @@
 # AI 接管指南
 
-> 最后核对：2026-08-30（America/New_York） · 当前版本：`0.12.35`
-> 目标：用最少上下文安全维护 Massage note；历史过程查 Git 和 [`CHANGELOG.md`](../CHANGELOG.md)。
+> 最后核对：2026-08-30（America/New_York） · 当前版本：`0.12.36`
+> 目标：用最少上下文安全维护 Massage note；历史过程查 Git 和 [`CHANGELOG.md`](../../CHANGELOG.md)。
 
 ## 1. 接手顺序
 
 1. 运行 `git status --short --branch`，区分用户改动、生成物和本轮任务；不要覆盖不属于当前任务的变化。
-2. 阅读 [`README.md`](README.md) 的文档索引，再按任务阅读当前产品、架构、开发或 API 文档。
+2. 阅读 [`docs/README.md`](../README.md) 的文档索引，再按任务阅读当前产品、架构、开发或 API 文档。
 3. 用 `rg` 定位相关代码、契约、schema 和测试。文档与实现冲突时，按文档索引的事实优先级核对并同步修正文档。
 4. 修改后按 [`DEVELOPMENT.md`](DEVELOPMENT.md) 运行相称验证；正式发布使用完整发布清单。
 5. 所有准备提交的变化，包括纯文档，都按语义版本迭代并更新 `CHANGELOG.md`。
@@ -35,7 +35,7 @@ scripts              测试库、版本、备份、恢复和维护脚本
 
 - PostgreSQL 是唯一业务真相来源；前端状态、本地草稿和 SSE 不构成第二套账。
 - 所有持久金额使用整数美分，领域层最终计算使用 `bigint`；提成以 basis points 表示。禁止用 JavaScript 浮点数完成最终财务计算。
-- 财务公式事实来源为 `packages/domain/src/finance.ts`。先改纯函数和测试，再改服务、查询、UI 与 [`PRODUCT.md`](PRODUCT.md)。
+- 财务公式事实来源为 `packages/domain/src/finance.ts`。先改纯函数和测试，再改服务、查询、UI 与 [`PRODUCT.md`](../product/PRODUCT.md)。
 - 记工保存项目名称、时长、价格、折扣、提成及来源、工资、店铺时区和营业日截止快照。目录变化不能改写已日结历史。
 - 提成优先级固定为：员工项目专属 → 员工默认 → 项目默认 → 全店默认。
 - 折扣由店铺承担，不减少员工大费工资。
@@ -90,7 +90,7 @@ Controller 只做 HTTP 适配。权限、对象归属、状态与事务放在 Se
 - 不记录或提交手机号、OTP、Cookie、token、私钥、数据库 URL、短信正文或 AI 密钥。
 - Firebase 验证码只用于认证，不用于加入审批等自定义业务短信。
 
-完整租户隔离和部署责任见 [`SECURITY.md`](SECURITY.md)。当前不启用依赖连接会话变量的不完整 PostgreSQL RLS。
+完整租户隔离和部署责任见 [`SECURITY.md`](../operations/SECURITY.md)。当前不启用依赖连接会话变量的不完整 PostgreSQL RLS。
 
 ## 6. AI 与外部服务
 
@@ -106,11 +106,11 @@ AI 是可选增强；未配置时手动记工和确定性财务必须正常工�
 - Prisma schema 位于 `packages/database/prisma/schema.prisma`；迁移只向前追加，生产只使用 `prisma migrate deploy`。
 - 删除列、改类型和大规模变换采用 expand → backfill → contract。
 - 管理账号负责迁移，应用账号只做业务 DML，不得成为 superuser、表拥有者或 `BYPASSRLS`。
-- 普通生产部署见 [`DEPLOYMENT.md`](DEPLOYMENT.md)，群晖流程见 [`NAS_DEPLOYMENT.md`](NAS_DEPLOYMENT.md)，备份恢复见 [`OPERATIONS.md`](OPERATIONS.md)。
+- 普通生产部署见 [`DEPLOYMENT.md`](../operations/DEPLOYMENT.md)，群晖流程见 [`NAS_DEPLOYMENT.md`](../operations/NAS_DEPLOYMENT.md)，备份恢复见 [`OPERATIONS.md`](../operations/OPERATIONS.md)。
 
 当用户明确说“更新部署”时，视为完整发布授权：同步文档与版本，只提交本次项目文件，push 后等待该 commit 的 CI 与 GHCR 版本镜像成功，再按 NAS 手册备份、迁移、升级项目 `mn` 并完成线上验收。不能把它缩减为只改本地代码，也不能跳过 CI、备份或健康检查。
 
-Mac“信息”代理的安装与排障以 [`OPERATIONS.md`](OPERATIONS.md) 的“新 Mac 安装员工日结短信代理”为准。正式实现必须后台静默运行：禁止模拟键盘、粘贴剪贴板、激活 Messages 窗口或按相册“最近项”猜测图片。新 Mac 只给 `Massage Note Attachment Stager.app` 完全磁盘访问；LaunchAgent 必须通过 LaunchServices 以该 App 身份启动暂存，不能直接执行 App 内二进制。暂存程序把经过路径、UUID 和 PNG 文件头验证的任务图片写进 Messages 自有附件目录，只返回与任务 UUID 绑定的结果；每个任务只发送 PNG，不发送伴随文字。不得扩大为 Node/终端全盘访问，也不得读写聊天数据库。
+Mac“信息”代理的安装与排障以 [`MESSAGES_AGENT.md`](../operations/MESSAGES_AGENT.md) 为准。正式实现必须后台静默运行：禁止模拟键盘、粘贴剪贴板、激活 Messages 窗口或按相册“最近项”猜测附件。新 Mac 只给 `Massage Note Attachment Stager.app` 完全磁盘访问；LaunchAgent 必须通过 LaunchServices 以该 App 身份启动暂存，不能直接执行 App 内二进制。暂存程序验证路径、任务 UUID、固定文件名及 PNG/PDF 文件头，再写入 Messages 自有附件目录，并只返回与任务 UUID 绑定的结果。个人日结发送一张 PNG；员工区间结算发送摘要 PNG 与逐笔 PDF。不得扩大为 Node/终端全盘访问，也不得读写聊天数据库。
 
 真实部署秘密只可从被 Git 忽略且权限受限的本地文件或系统钥匙串读取，不得复制到文档、输出或 GitHub。恢复具有覆盖性，只能对明确确认的目标数据库执行；未经授权不要删除任何开发或生产数据卷。
 

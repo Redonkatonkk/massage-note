@@ -2,31 +2,51 @@
 
 这里是 Massage note 的统一文档入口。先按问题类型选择文档，不需要从根目录逐份通读。
 
-## 从哪里开始
+```text
+docs/
+  product/       当前产品与业务规则
+  engineering/   架构、开发、API 与 AI 接管
+  operations/    部署、运维、安全、发布和 Mac 代理手册
+  archive/       已过时但需要保留的历史设计
+```
 
-| 你要做什么 | 先读 | 再读 |
+## 按任务查找
+
+| 任务 | 主要文档 | 需要时再读 |
 | --- | --- | --- |
-| 了解项目 | 根目录 [`README.md`](../README.md) | [`PRODUCT.md`](PRODUCT.md)、[`ARCHITECTURE.md`](ARCHITECTURE.md) |
-| 修改业务规则或金额公式 | [`PRODUCT.md`](PRODUCT.md) | [`ARCHITECTURE.md`](ARCHITECTURE.md)、对应领域测试 |
-| 修改代码 | [`DEVELOPMENT.md`](DEVELOPMENT.md) | [`ARCHITECTURE.md`](ARCHITECTURE.md)、[`API.md`](API.md) |
-| 修改 HTTP 接口 | [`API.md`](API.md) | 共享契约、Controller 和集成测试 |
-| 本地或服务器部署 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | 群晖使用 [`NAS_DEPLOYMENT.md`](NAS_DEPLOYMENT.md) |
-| 备份、恢复或排障 | [`OPERATIONS.md`](OPERATIONS.md) | [`SECURITY.md`](SECURITY.md) |
-| 准备正式发布 | [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) | [`CHANGELOG.md`](../CHANGELOG.md) |
-| 让 AI 接管维护 | [`AI_HANDOFF.md`](AI_HANDOFF.md) | 按任务继续阅读上面的当前文档 |
+| 快速了解项目 | 根目录 [`README.md`](../README.md) | [`PRODUCT.md`](product/PRODUCT.md)、[`ARCHITECTURE.md`](engineering/ARCHITECTURE.md) |
+| 确认角色、流程或金额口径 | [`PRODUCT.md`](product/PRODUCT.md) | 对应领域测试 |
+| 定位模块、路由或写入链路 | [`ARCHITECTURE.md`](engineering/ARCHITECTURE.md) | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.md) |
+| 修改代码或数据库 | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.md) | [`ARCHITECTURE.md`](engineering/ARCHITECTURE.md)、对应测试 |
+| 调用或修改 HTTP 接口 | [`API.md`](engineering/API.md) | 共享契约、Controller 和集成测试 |
+| 普通 Linux 生产部署 | [`DEPLOYMENT.md`](operations/DEPLOYMENT.md) | [`SECURITY.md`](operations/SECURITY.md) |
+| 群晖发布或升级 | [`NAS_DEPLOYMENT.md`](operations/NAS_DEPLOYMENT.md) | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md) |
+| 监控、数据库备份或恢复 | [`OPERATIONS.md`](operations/OPERATIONS.md) | [`SECURITY.md`](operations/SECURITY.md) |
+| 安装或排查 Mac“信息”代理 | [`MESSAGES_AGENT.md`](operations/MESSAGES_AGENT.md) | [`SECURITY.md`](operations/SECURITY.md) |
+| 准备正式发布 | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md) | 根目录 [`CHANGELOG.md`](../CHANGELOG.md) |
+| 让 AI 接管维护 | [`AI_HANDOFF.md`](engineering/AI_HANDOFF.md) | 按具体任务选择上面的文档 |
 
-## 当前文档
+## 文档分区
 
-- [`PRODUCT.md`](PRODUCT.md)：产品范围、角色权限、记工流程和财务口径。
-- [`ARCHITECTURE.md`](ARCHITECTURE.md)：当前代码结构、依赖方向、请求链路、数据一致性和扩展位置。
-- [`DEVELOPMENT.md`](DEVELOPMENT.md)：本地环境、常用命令、修改顺序、测试与版本规则。
-- [`API.md`](API.md)：HTTP 约定、端点、请求示例、财务筛选和错误语义。
-- [`DEPLOYMENT.md`](DEPLOYMENT.md)：部署方式总览和普通 Docker Compose 生产部署。
-- [`NAS_DEPLOYMENT.md`](NAS_DEPLOYMENT.md)：GitHub Actions、GHCR 与群晖 Container Manager 流程。
-- [`OPERATIONS.md`](OPERATIONS.md)：日常检查、备份、恢复演练和故障处理。
-- [`SECURITY.md`](SECURITY.md)：已实施控制、租户隔离、部署责任和已知边界。
-- [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)：发布前、业务验收和上线后检查。
-- [`AI_HANDOFF.md`](AI_HANDOFF.md)：给维护型 AI 的最短上下文与不可破坏规则。
+### 产品与设计
+
+- [`product/PRODUCT.md`](product/PRODUCT.md)：产品范围、角色权限、记工流程和财务口径；回答“应该怎样工作”。
+- [`engineering/ARCHITECTURE.md`](engineering/ARCHITECTURE.md)：当前代码结构、依赖方向、请求链路和数据一致性；回答“系统现在怎样组成”。
+
+### 开发与接口
+
+- [`engineering/DEVELOPMENT.md`](engineering/DEVELOPMENT.md)：本地环境、修改顺序、测试、版本和交接规则。
+- [`engineering/API.md`](engineering/API.md)：HTTP 约定、端点、请求示例、财务筛选和错误语义。
+- [`engineering/AI_HANDOFF.md`](engineering/AI_HANDOFF.md)：给维护型 AI 的最短上下文与不可破坏规则，不替代上面两份事实文档。
+
+### 部署与运行
+
+- [`operations/DEPLOYMENT.md`](operations/DEPLOYMENT.md)：普通 Linux Docker Compose 的生产部署。
+- [`operations/NAS_DEPLOYMENT.md`](operations/NAS_DEPLOYMENT.md)：GitHub Actions、GHCR 与群晖 Container Manager 的发布和升级。
+- [`operations/OPERATIONS.md`](operations/OPERATIONS.md)：服务监控、数据库备份、恢复演练和通用故障处理。
+- [`operations/MESSAGES_AGENT.md`](operations/MESSAGES_AGENT.md)：固定 Mac“信息”代理的安装、权限、路由和专项排障。
+- [`operations/SECURITY.md`](operations/SECURITY.md)：已实施控制、租户隔离、部署责任和已知边界。
+- [`operations/RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md)：发布前、业务验收和上线后检查。
 - 根目录 [`CHANGELOG.md`](../CHANGELOG.md)：按版本记录已经交付的变化。
 
 ## 事实来源优先级
@@ -55,6 +75,7 @@
 
 - 一个概念只指定一份主要文档；其他文档用链接引用，避免复制整段规则。
 - `PRODUCT.md` 写“应该做什么”，`ARCHITECTURE.md` 写“现在如何组成”，`API.md` 写“如何调用”。
+- `DEPLOYMENT.md` 与 `NAS_DEPLOYMENT.md` 写“如何上线”，`OPERATIONS.md` 写通用运行手册，`MESSAGES_AGENT.md` 只写 Mac 代理。
 - 部署手册不累积每个历史版本的发布说明；版本变化统一写入 `CHANGELOG.md`。
 - 命令、路径、环境变量或接口变化必须在同一次修改中更新对应当前文档。
 - 新文档加入本索引；过时材料移入 `archive/` 并加醒目的归档说明。

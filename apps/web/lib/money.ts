@@ -15,9 +15,29 @@ const usdFormatters: Record<MoneyLocale, Intl.NumberFormat> = {
   }),
 };
 
+const preciseUsdFormatters: Record<MoneyLocale, Intl.NumberFormat> = {
+  "zh-CN": new Intl.NumberFormat("zh-CN", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }),
+  "en-US": new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }),
+};
+
 /** 页面只读金额统一显示为四舍五入后的整美元，底层美分值不变。 */
 export function formatUsd(cents: number, locale: MoneyLocale = "zh-CN"): string {
   return usdFormatters[locale].format(cents / 100);
+}
+
+/** 工资结算等需要对账的位置始终显示到美分，避免把真实小数四舍五入为整美元。 */
+export function formatUsdPrecise(cents: number, locale: MoneyLocale = "zh-CN"): string {
+  return preciseUsdFormatters[locale].format(cents / 100);
 }
 
 /** 今日卡片等不带货币符号的位置使用整美元数字。 */

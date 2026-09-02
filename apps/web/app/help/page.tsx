@@ -29,7 +29,7 @@ const moneyRows = [
 
 export default function HelpPage() {
   return <main className="help-shell">
-    <header className="help-hero"><div><p className="eyebrow">Massage note</p><h1>使用帮助</h1><p>这里说明最常用的操作、金额口径和安全规则。所有财务金额都由服务器按整数美分计算；页面统一四舍五入显示为整美元，不改变账本原始值。</p></div><a className="primary-action help-back" href="/">返回今日记工</a></header>
+    <header className="help-hero"><div><p className="eyebrow">Massage note</p><h1>使用帮助</h1><p>这里说明最常用的操作、金额口径和安全规则。所有财务金额都由服务器按整数美分计算；一般页面以整美元便于浏览，工资结算按美分精确显示，均不改变账本原始值。</p></div><a className="primary-action help-back" href="/">返回今日记工</a></header>
 
     <section className="help-grid">
       <article className="help-card"><h2>当天记工</h2><ol><li>在员工行点“快速记工”。</li><li>选择主要项目，再选择该项目的时长和价格；需要时填写实际开始时间。</li><li>需要重点跟进时，点击弹窗顶部的“高亮标记”；保存后首页整张记工卡会显示黄色背景，不另显示右上角星标。详情页也可随时添加或取消高亮。</li><li>先保存即可开工，记录会显示“待结账”；同一员工可以继续新增其他待结账项目。</li><li>客人付款后打开详情，现金、刷卡和礼物卡大费至少填一项；各类小费可以留空，系统按 0 计算。</li><li>详情页只有一个“保存”：付款完全空白时只保存记工并继续待结账；开始填写付款后会自动校验，信息完整时同步确认付款。</li><li>客人使用礼物卡时勾选“使用礼物卡付款”，填写序列号，并把礼物卡支付的大费和小费分别录入。</li></ol><p>在记工详情中调整开始时间时，结束时间会同步移动并保持当前工作时长；增加、移除或更换额外项目时，也会按该加项配置的分钟数同步增减。修改主要项目时长后仍可手动调整结束时间。店长和经理可在“店铺设置”中为同一个项目维护多个时长价格，无需重复创建项目。当天的有效成员都能帮助任何员工新增或纠正当天记录。历史营业日只能由店主或经理在取消日结后修改。</p></article>

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatMoneyInput,
   formatUsd,
+  formatUsdPrecise,
   formatWholeDollarAmount,
 } from "./money";
 
@@ -12,6 +13,13 @@ describe("页面金额格式", () => {
     expect(formatUsd(12_345)).toBe("US$123");
     expect(formatUsd(12_350)).toBe("US$124");
     expect(formatUsd(12_300, "en-US")).toBe("$123");
+  });
+
+  it("工资结算金额保留真实美分", () => {
+    expect(formatUsdPrecise(0)).toBe("US$0.00");
+    expect(formatUsdPrecise(12_300)).toBe("US$123.00");
+    expect(formatUsdPrecise(12_345)).toBe("US$123.45");
+    expect(formatUsdPrecise(12_350, "en-US")).toBe("$123.50");
   });
 
   it("卡片上的无货币符号金额同样显示为整数", () => {

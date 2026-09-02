@@ -174,8 +174,16 @@ function recordCardHeight(record: SettlementRecord, cardWidth: number, locale: L
   return 112 + serviceLines.length * 25 + detailLines.length * 20 + (noticeLines[0] ? noticeLines.length * 20 : 0);
 }
 
+function summaryLeadingSpacerCount(recordCount: number, columns: number) {
+  return (columns - 1 - (recordCount % columns) + columns) % columns;
+}
+
 function dayLayoutHeight(day: DayGroup, columns: number, cardWidth: number, locale: Locale, scope: Scope) {
-  const heights = [...day.records.map((record) => recordCardHeight(record, cardWidth, locale, scope)), 190];
+  const heights = [
+    ...day.records.map((record) => recordCardHeight(record, cardWidth, locale, scope)),
+    ...Array.from({ length: summaryLeadingSpacerCount(day.records.length, columns) }, () => 0),
+    190,
+  ];
   let cardsHeight = 0;
   for (let index = 0; index < heights.length; index += columns) {
     cardsHeight += Math.max(...heights.slice(index, index + columns));
@@ -232,7 +240,7 @@ function renderDaySummary(day: DayGroup, x: number, y: number, width: number, he
   const totals = day.records.reduce((sum, record) => ({ gross: sum.gross + record.grossFeeBaseCents, cash: sum.cash + record.cashIncomeCents, nonCash: sum.nonCash + record.nonCashIncomeCents, total: sum.total + record.totalIncomeCents }), { gross: 0, cash: 0, nonCash: 0, total: 0 });
   const third = (width - 40) / 3;
   const stats = [[en ? "Fee base" : "大费基数", totals.gross], [en ? "Cash" : "现金收入", totals.cash], [en ? "Non-cash" : "刷卡＋礼卡", totals.nonCash]] as const;
-  const parts = [`<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="20" fill="#8e3e2f"/>`, `<text x="${x + 20}" y="${y + 34}" class="record-title" style="fill:#fff">${escapeXml(en ? "Daily summary" : "当日总结")}</text>`, `<text x="${x + width - 20}" y="${y + 34}" text-anchor="end" class="record-meta" style="fill:#f5d8ce">${day.records.length} ${en ? "records" : "笔"}</text>`, `<text x="${x + 20}" y="${y + 76}" class="record-label" style="fill:#f5d8ce">${escapeXml(en ? "Daily earnings" : "当日总收入")}</text>`, `<text x="${x + 20}" y="${y + 110}" class="value" style="fill:#fff">${escapeXml(money(totals.total, locale))}</text>`];
+  const parts = [`<rect data-card-kind="day-summary" x="${x}" y="${y}" width="${width}" height="${height}" rx="20" fill="#8e3e2f"/>`, `<text x="${x + 20}" y="${y + 34}" class="record-title" style="fill:#fff">${escapeXml(en ? "Daily summary" : "当日总结")}</text>`, `<text x="${x + width - 20}" y="${y + 34}" text-anchor="end" class="record-meta" style="fill:#f5d8ce">${day.records.length} ${en ? "records" : "笔"}</text>`, `<text x="${x + 20}" y="${y + 76}" class="record-label" style="fill:#f5d8ce">${escapeXml(en ? "Daily earnings" : "当日总收入")}</text>`, `<text x="${x + 20}" y="${y + 110}" class="value" style="fill:#fff">${escapeXml(money(totals.total, locale))}</text>`];
   stats.forEach(([label, amount], index) => {
     const statX = x + 20 + index * third;
     const anchor = index === 0 ? "start" : index === 2 ? "end" : "middle";
@@ -256,16 +264,19 @@ function longDetailsImage(snapshot: SettlementSnapshot, locale: Locale) {
   let dayY = HEADER_HEIGHT;
   days.forEach((day, dayIndex) => {
     sections.push(`<text x="${PAGE_MARGIN}" y="${dayY + 31}" class="day-title">${escapeXml(dayLabel(day.businessDate, locale))}</text><text x="${layout.width - PAGE_MARGIN}" y="${dayY + 31}" text-anchor="end" class="day-meta">${escapeXml(`${day.businessDate} · ${day.records.length} ${en ? "records" : "笔记工"}`)}</text>`);
-    const cards = [...day.records.map((record, index) => ({ kind: "record" as const, record, index: index + 1, height: recordCardHeight(record, layout.cardWidth, locale, snapshot.paymentScope) })), { kind: "summary" as const, height: 190 }];
+    const cards = [
+      ...day.records.map((record, index) => ({ kind: "record" as const, record, index: index + 1, height: recordCardHeight(record, layout.cardWidth, locale, snapshot.paymentScope) })),
+      ...Array.from({ length: summaryLeadingSpacerCount(day.records.length, layout.columns) }, () => ({ kind: "spacer" as const, height: 0 })),
+      { kind: "summary" as const, height: 190 },
+    ];
     let rowY = dayY + DAY_HEADER_HEIGHT;
     for (let index = 0; index < cards.length; index += layout.columns) {
       const row = cards.slice(index, index + layout.columns);
       const rowHeight = Math.max(...row.map((card) => card.height));
       row.forEach((card, columnIndex) => {
         const x = PAGE_MARGIN + columnIndex * (layout.cardWidth + CARD_GAP);
-        sections.push(card.kind === "record"
-          ? renderRecordCard(card.record, card.index, x, rowY, layout.cardWidth, rowHeight, snapshot, locale)
-          : renderDaySummary(day, x, rowY, layout.cardWidth, rowHeight, locale));
+        if (card.kind === "record") sections.push(renderRecordCard(card.record, card.index, x, rowY, layout.cardWidth, rowHeight, snapshot, locale));
+        if (card.kind === "summary") sections.push(renderDaySummary(day, x, rowY, layout.cardWidth, rowHeight, locale));
       });
       rowY += rowHeight + (index + layout.columns < cards.length ? CARD_GAP : 0);
     }

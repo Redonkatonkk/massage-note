@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
 import { groupEmployeeSettlementRecordsByDay, type EmployeeSettlementDaySummary } from "../../lib/employee-settlement";
-import { formatUsd } from "../../lib/money";
+import { formatUsdPrecise } from "../../lib/money";
 import type { EmployeeSettlementDelivery, EmployeeSettlementDeliveryList, EmployeeSettlementPaymentScope, EmployeeSettlementPreview, StoreMember } from "../../lib/types";
 import { useLanguage } from "../language-provider";
 
-const money = (value: number) => formatUsd(value);
+const money = (value: number) => formatUsdPrecise(value);
 const dateOnly = (value: string) => value.slice(0, 10);
 const scopeLabel = (scope: EmployeeSettlementPaymentScope) => scope === "CASH" ? "现金" : scope === "NON_CASH" ? "刷卡＋礼物卡" : "全部";
 const shiftDate = (value: string, days: number) => { const date = new Date(`${value}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + days); return date.toISOString().slice(0, 10); };
@@ -30,8 +30,7 @@ function paymentNotice(record: EmployeeSettlementPreview["records"][number], sco
   return "现金＋非现金混合付款";
 }
 
-function DeliveryQueue({ value, busy, action }: { value: EmployeeSettlementDeliveryList; busy: boolean; action: (delivery: EmployeeSettlementDelivery, kind: "cancel" | "retry" | "retry-detail") => void }) {
-  if (value.deliveries.length === 0) return null;
+function DeliveryHistoryModal({ value, busy, action, close }: { value: EmployeeSettlementDeliveryList | null; busy: boolean; action: (delivery: EmployeeSettlementDelivery, kind: "cancel" | "retry" | "retry-detail") => void; close: () => void }) {
   const stage = (item: EmployeeSettlementDelivery) => {
     if (item.status === "SENT") return "全部完成";
     if (item.status === "FAILED") return "长图发送失败";
@@ -39,7 +38,28 @@ function DeliveryQueue({ value, busy, action }: { value: EmployeeSettlementDeliv
     if (item.detailSentAt) return "长图已发送";
     return item.status === "CLAIMED" ? "正在发送长图" : "长图待发送";
   };
-  return <details className="settlement-delivery-queue"><summary>短信发送记录 <strong>{value.deliveries.length}</strong></summary><div className="table-scroll"><table className="data-table"><thead><tr><th>员工</th><th>区间</th><th>分类</th><th>附件进度</th><th>接收号码</th><th>尝试</th><th>错误</th><th>操作</th></tr></thead><tbody>{value.deliveries.map((item) => <tr key={item.id}><td>{item.membership.displayName}</td><td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td><td>{scopeLabel(item.paymentScope)}</td><td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{stage(item)}</span></td><td>{item.recipientPhoneE164}</td><td>{item.attemptCount}</td><td>{item.lastError || "—"}</td><td>{item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={() => action(item, "cancel")}>取消</button> : item.status === "FAILED" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry")}>重试长图</button> : item.status === "SENT" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry-detail")}>重发长图</button> : "—"}</td></tr>)}</tbody></table></div></details>;
+  return (
+    <div className="modal-backdrop settlement-delivery-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
+      <section className="settlement-delivery-modal" role="dialog" aria-modal="true" aria-labelledby="settlement-delivery-title">
+        <div className="modal-heading">
+          <div>
+            <p className="eyebrow">短信发送</p>
+            <h2 id="settlement-delivery-title">发送记录</h2>
+            <p>查看长图发送进度，并处理失败或需要重发的任务。</p>
+          </div>
+          <button className="close-button" type="button" onClick={close} aria-label="关闭短信发送记录">关闭</button>
+        </div>
+        {!value ? <p className="empty-state">正在读取发送记录…</p> : value.deliveries.length === 0 ? <p className="empty-state">还没有短信发送记录。</p> : (
+          <div className="table-scroll settlement-delivery-table">
+            <table className="data-table">
+              <thead><tr><th>员工</th><th>区间</th><th>分类</th><th>附件进度</th><th>接收号码</th><th>尝试</th><th>错误</th><th>操作</th></tr></thead>
+              <tbody>{value.deliveries.map((item) => <tr key={item.id}><td>{item.membership.displayName}</td><td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td><td>{scopeLabel(item.paymentScope)}</td><td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{stage(item)}</span></td><td>{item.recipientPhoneE164}</td><td>{item.attemptCount}</td><td>{item.lastError || "—"}</td><td>{item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={() => action(item, "cancel")}>取消</button> : item.status === "FAILED" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry")}>重试长图</button> : item.status === "SENT" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry-detail")}>重发长图</button> : "—"}</td></tr>)}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
 }
 
 function SettlementSummary({ preview }: { preview: EmployeeSettlementPreview }) {
@@ -199,12 +219,50 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, busy, 
   const [paymentScope, setPaymentScope] = useState<EmployeeSettlementPaymentScope>("ALL");
   const [preview, setPreview] = useState<EmployeeSettlementPreview | null>(null);
   const [deliveries, setDeliveries] = useState<EmployeeSettlementDeliveryList | null>(null);
+  const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
   const [sendMessage, setSendMessage] = useState("");
   const [sending, setSending] = useState(false);
   const loadDeliveries = useCallback(async () => setDeliveries(await apiRequest<EmployeeSettlementDeliveryList>(`/stores/${storeId}/employee-settlements/deliveries`)), [storeId]);
   useEffect(() => { void loadDeliveries().catch(() => undefined); }, [loadDeliveries]);
   useEffect(() => { if (!deliveries?.deliveries.some((item) => item.status === "QUEUED" || item.status === "CLAIMED")) return; const timer = window.setInterval(() => void loadDeliveries().catch(() => undefined), 10_000); return () => window.clearInterval(timer); }, [deliveries, loadDeliveries]);
+  useEffect(() => { if (!deliveryHistoryOpen) return; const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setDeliveryHistoryOpen(false); }; window.addEventListener("keydown", closeOnEscape); return () => window.removeEventListener("keydown", closeOnEscape); }, [deliveryHistoryOpen]);
   async function generate() { const params = new URLSearchParams({ membershipId, dateFrom, dateTo, paymentScope }); setPreview(await apiRequest<EmployeeSettlementPreview>(`/stores/${storeId}/employee-settlements/preview?${params}`)); }
-  async function send() { setSending(true); setSendMessage("正在加入短信发送队列…"); try { const result = await apiRequest<{ queuedCount?: number }>(`/stores/${storeId}/employee-settlements/deliveries`, { method: "POST", idempotent: true, body: { membershipId, dateFrom, dateTo, paymentScope } }); await loadDeliveries(); setSendMessage(result.queuedCount ? `已加入短信发送队列（${result.queuedCount} 条），可在下方查看进度。` : "发送任务已更新，可在下方查看进度。"); } catch (error) { setSendMessage(`发送失败：${errorMessage(error)}`); throw error; } finally { setSending(false); } }
-  return <section className="employee-settlement-builder"><div className="employee-settlement-builder-heading"><div><p className="eyebrow">员工结算区</p><h2>生成区间结算单</h2><p>核对并发送结算资料，不会新增工资账本，也不会改变老板尚欠余额。</p></div></div><form className="employee-settlement-controls" onSubmit={(event) => { event.preventDefault(); void run(generate); }}><label>员工<select required value={membershipId} onChange={(event) => { setMembershipId(event.target.value); setPreview(null); setSendMessage(""); }}>{payable.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label><label>开始日期<input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPreview(null); setSendMessage(""); }} /></label><label>结束日期<input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPreview(null); setSendMessage(""); }} /></label><label>工资来源<select value={paymentScope} onChange={(event) => { setPaymentScope(event.target.value as EmployeeSettlementPaymentScope); setPreview(null); setSendMessage(""); }}><option value="CASH">现金</option><option value="NON_CASH">刷卡＋礼物卡</option><option value="ALL">全部</option></select></label><button className="primary-action" type="submit" disabled={busy || !membershipId}>生成结算单</button></form>{preview && <section className="employee-settlement-preview"><header><div><p className="eyebrow">{preview.storeName} · 员工区间结算</p><h2>{preview.employee.displayName}</h2><p>{preview.dateFrom} 至 {preview.dateTo} · {scopeLabel(preview.paymentScope)} · {preview.records.length} 笔</p></div><div><button className="secondary-action" type="button" disabled={busy || sending || preview.records.length === 0} onClick={() => void run(send)}>{sending ? "正在排队…" : "短信发送长图"}</button>{sendMessage && <p className="employee-settlement-send-message" role="status">{sendMessage}</p>}</div></header><SettlementSummary preview={preview} /><SettlementRecords preview={preview} /></section>}{deliveries && <DeliveryQueue value={deliveries} busy={busy} action={(delivery, kind) => void run(async () => { if (kind === "cancel") { if (!window.confirm("确认取消这条结算短信任务？")) return; await apiRequest(`/stores/${storeId}/employee-settlements/deliveries/${delivery.id}`, { method: "DELETE" }); } else { const endpoint = kind === "retry-detail" ? "retry-detail" : "retry"; await apiRequest(`/stores/${storeId}/employee-settlements/deliveries/${delivery.id}/${endpoint}`, { method: "POST", idempotent: true }); } await loadDeliveries(); })} />}</section>;
+  async function send() { setSending(true); setSendMessage("正在加入短信发送队列…"); try { const result = await apiRequest<{ queuedCount?: number }>(`/stores/${storeId}/employee-settlements/deliveries`, { method: "POST", idempotent: true, body: { membershipId, dateFrom, dateTo, paymentScope } }); await loadDeliveries(); setSendMessage(result.queuedCount ? `已加入短信发送队列（${result.queuedCount} 条），可点发送记录查看进度。` : "发送任务已更新，可点发送记录查看进度。"); } catch (error) { setSendMessage(`发送失败：${errorMessage(error)}`); throw error; } finally { setSending(false); } }
+  const deliveryAction = (delivery: EmployeeSettlementDelivery, kind: "cancel" | "retry" | "retry-detail") => void run(async () => {
+    if (kind === "cancel") {
+      if (!window.confirm("确认取消这条结算短信任务？")) return;
+      await apiRequest(`/stores/${storeId}/employee-settlements/deliveries/${delivery.id}`, { method: "DELETE" });
+    } else {
+      const endpoint = kind === "retry-detail" ? "retry-detail" : "retry";
+      await apiRequest(`/stores/${storeId}/employee-settlements/deliveries/${delivery.id}/${endpoint}`, { method: "POST", idempotent: true });
+    }
+    await loadDeliveries();
+  });
+  return (
+    <section className="employee-settlement-builder">
+      <div className="employee-settlement-builder-heading"><div><p className="eyebrow">员工结算区</p><h2>生成区间结算单</h2><p>核对并发送结算资料，不会新增工资账本，也不会改变老板尚欠余额。</p></div></div>
+      <form className="employee-settlement-controls" onSubmit={(event) => { event.preventDefault(); void run(generate); }}>
+        <label>员工<select required value={membershipId} onChange={(event) => { setMembershipId(event.target.value); setPreview(null); setSendMessage(""); }}>{payable.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
+        <label>开始日期<input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPreview(null); setSendMessage(""); }} /></label>
+        <label>结束日期<input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPreview(null); setSendMessage(""); }} /></label>
+        <label>工资来源<select value={paymentScope} onChange={(event) => { setPaymentScope(event.target.value as EmployeeSettlementPaymentScope); setPreview(null); setSendMessage(""); }}><option value="CASH">现金</option><option value="NON_CASH">刷卡＋礼物卡</option><option value="ALL">全部</option></select></label>
+        <button className="primary-action" type="submit" disabled={busy || !membershipId}>生成结算单</button>
+      </form>
+      {preview && <section className="employee-settlement-preview">
+        <header>
+          <div><p className="eyebrow">{preview.storeName} · 员工区间结算</p><h2>{preview.employee.displayName}</h2><p>{preview.dateFrom} 至 {preview.dateTo} · {scopeLabel(preview.paymentScope)} · {preview.records.length} 笔</p></div>
+          <div className="employee-settlement-preview-actions">
+            <div className="employee-settlement-send-actions">
+              <button className="secondary-action" type="button" disabled={busy || sending || preview.records.length === 0} onClick={() => void run(send)}>{sending ? "正在排队…" : "短信发送长图"}</button>
+              <button className="secondary-action settlement-history-button" type="button" onClick={() => setDeliveryHistoryOpen(true)}>发送记录 <span>{deliveries?.deliveries.length ?? 0}</span></button>
+            </div>
+            {sendMessage && <p className="employee-settlement-send-message" role="status">{sendMessage}</p>}
+          </div>
+        </header>
+        <SettlementSummary preview={preview} />
+        <SettlementRecords preview={preview} />
+      </section>}
+      {deliveryHistoryOpen && <DeliveryHistoryModal value={deliveries} busy={busy} action={deliveryAction} close={() => setDeliveryHistoryOpen(false)} />}
+    </section>
+  );
 }

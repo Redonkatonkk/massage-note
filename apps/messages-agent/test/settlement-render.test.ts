@@ -98,6 +98,23 @@ describe.skipIf(process.platform !== "darwin")("employee settlement artifacts", 
     }
   }, 60_000);
 
+  it("每日总结始终位于最右列，双数笔记工时左侧保留空位", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "settlement-render-summary-position-"));
+    try {
+      const twoRecords = structuredClone(snapshot);
+      twoRecords.dateFrom = "2026-08-20";
+      twoRecords.dateTo = "2026-08-20";
+      twoRecords.records = snapshot.records.slice(0, 2).map((record) => ({ ...structuredClone(record), businessDate: "2026-08-20" }));
+      twoRecords.summary.recordCount = twoRecords.records.length;
+      await renderSettlementLongImage(twoRecords, "zh_CN", directory, join(directory, "details.jpg"));
+      const detailSvg = await readFile(join(directory, "settlement-details-long.svg"), "utf8");
+      expect(detailSvg).toContain('<rect data-card-kind="day-summary" x="548"');
+      expect(detailSvg.match(/data-card-kind="day-summary"/g)).toHaveLength(1);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   it("31 天、每天 12 笔记工仍生成一张可读长图", async () => {
     const directory = await mkdtemp(join(tmpdir(), "settlement-render-month-"));
     try {

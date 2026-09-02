@@ -2532,6 +2532,10 @@ h2 {
 .employee-settlement-preview > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; }
 .employee-settlement-preview > header h2 { margin: 4px 0; font-size: clamp(1.8rem, 4vw, 2.7rem); }
 .employee-settlement-preview > header p:last-child { margin: 0; color: var(--muted); font-weight: 700; }
+.employee-settlement-preview-actions { display: grid; justify-items: end; gap: 7px; }
+.employee-settlement-send-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.settlement-history-button { display: inline-flex; align-items: center; gap: 7px; background: #fff; }
+.settlement-history-button span { display: inline-grid; min-width: 23px; height: 23px; place-items: center; padding-inline: 6px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-size: .68rem; font-variant-numeric: tabular-nums; }
 .employee-settlement-summary { display: grid; gap: 12px; padding: 0 20px 20px; }
 .employee-settlement-summary.mode-single { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .employee-settlement-summary.mode-all { grid-template-columns: minmax(0, 2fr) minmax(200px, .8fr); }
@@ -2588,9 +2592,13 @@ h2 {
 .settlement-payment-notice { display: block; width: fit-content; margin-top: 1px; padding: 3px 7px; border-radius: 999px; background: #fff1de; color: #8e3e2f; font-size: .6rem; font-weight: 800; line-height: 1.35; }
 .finance-record-labels { display: grid; gap: 4px; }
 .finance-payment-label { display: inline-block; width: max-content; padding: 3px 7px; border-radius: 999px; background: #fff1de; color: #8e3e2f; font-size: .68rem; font-weight: 800; white-space: nowrap; }
-.settlement-delivery-queue { padding: 13px 15px; border: 1px solid #a9d1bb; border-radius: 15px; background: #f5fcf8; }
-.settlement-delivery-queue summary { cursor: pointer; font-weight: 800; }
-.settlement-delivery-queue .table-scroll { margin-top: 12px; }
+.settlement-delivery-backdrop { z-index: 42; }
+.settlement-delivery-modal { width: min(1120px, calc(100% - 12px)); max-height: calc(100dvh - 36px); overflow: auto; padding: 22px; border: 1px solid #e4d4c9; border-radius: 22px; background: var(--surface); box-shadow: 0 24px 70px rgba(35,23,14,.24); }
+.settlement-delivery-modal .modal-heading { position: sticky; z-index: 2; top: -22px; margin: -22px -22px 18px; padding: 22px; border-bottom: 1px solid var(--line); background: color-mix(in srgb,var(--surface) 94%,transparent); backdrop-filter: blur(12px); }
+.settlement-delivery-modal .modal-heading h2 { margin: 3px 0 4px; }
+.settlement-delivery-modal .modal-heading p:last-child { margin: 0; color: var(--muted); font-size: .8rem; }
+.settlement-delivery-table { max-height: min(66dvh,720px); border: 1px solid var(--line); border-radius: 14px; }
+.settlement-delivery-table .data-table { margin: 0; }
 .employee-settlement-send-message { margin: 7px 0 0; max-width: 280px; color: var(--muted); font-size: .74rem; line-height: 1.45; }
 .table-action { border: 0; background: transparent; color: var(--brand); font-weight: 800; cursor: pointer; }
 .table-action.danger { color: #9d2c24; }
@@ -2621,6 +2629,14 @@ h2 {
   .employee-settlement-controls, .employee-settlement-summary.mode-single, .employee-settlement-summary.mode-all { grid-template-columns: 1fr; }
   .employee-settlement-controls button { grid-column: auto; }
   .employee-settlement-preview > header { align-items: stretch; flex-direction: column; }
+  .employee-settlement-preview-actions { justify-items: stretch; }
+  .employee-settlement-send-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .employee-settlement-send-actions button { justify-content: center; }
+  .settlement-delivery-backdrop { align-items: stretch; padding: 0; }
+  .settlement-delivery-modal { width: 100vw; max-height: 100dvh; padding: 14px; border: 0; border-radius: 0; }
+  .settlement-delivery-modal .modal-heading { top: -14px; margin: -14px -14px 14px; padding: 14px; }
+  .settlement-delivery-modal .modal-heading p:last-child { display: none; }
+  .settlement-delivery-table { max-height: calc(100dvh - 112px); }
   .employee-settlement-summary { padding-inline: 10px; }
   .employee-settlement-matrix { grid-template-columns: minmax(72px, 1.1fr) repeat(3, minmax(0, 1fr)); padding: 5px; font-size: .72rem; }
   .employee-settlement-matrix > * { padding: 7px 3px; }

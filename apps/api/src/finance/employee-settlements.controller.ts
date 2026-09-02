@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Headers, Param, Post, Query, Res, UseGuards } from "@nestjs/common";
-import { closingDeliveryAuthorizeSchema, closingDeliveryCompleteSchema, closingDeliveryFailureSchema, createEmployeeSettlementDeliverySchema, employeeSettlementAttachmentSchema, employeeSettlementQuerySchema, idempotencyKeySchema, uuidSchema } from "@massage-note/contracts";
+import { closingDeliveryAuthorizeSchema, closingDeliveryCompleteSchema, closingDeliveryFailureSchema, createEmployeeSettlementDeliverySchema, createEmployeeSummaryDeliverySchema, employeeSettlementAttachmentSchema, employeeSettlementQuerySchema, idempotencyKeySchema, uuidSchema } from "@massage-note/contracts";
 import type { Response } from "express";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { SessionAuthGuard } from "../auth/session-auth.guard.js";
@@ -20,6 +20,16 @@ export class EmployeeSettlementsController {
   @Get("deliveries")
   list(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string) {
     return this.settlements.listDeliveries(user, parseRequest(uuidSchema, storeId));
+  }
+
+  @Get("summary-deliveries")
+  listSummaryDeliveries(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string) {
+    return this.settlements.listSummaryDeliveries(user, parseRequest(uuidSchema, storeId));
+  }
+
+  @Post("summary-deliveries")
+  queueSummaryDelivery(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Body() body: unknown, @Headers("idempotency-key") key: string | undefined, @Res({ passthrough: true }) response: Response) {
+    return this.settlements.queueEmployeeSummary(user, parseRequest(uuidSchema, storeId), parseRequest(createEmployeeSummaryDeliverySchema, body), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
   }
 
   @Post("deliveries")

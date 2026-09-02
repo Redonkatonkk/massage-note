@@ -1,6 +1,6 @@
 # 产品与业务规则
 
-> 状态：当前产品规则 · 适用版本：`0.12.46`
+> 状态：当前产品规则 · 适用版本：`0.12.47`
 > 实现细节以 [`ARCHITECTURE.md`](../engineering/ARCHITECTURE.md)、[`API.md`](../engineering/API.md)、Prisma schema、共享契约和自动化测试为准。
 
 本文较长，按以下范围阅读即可：

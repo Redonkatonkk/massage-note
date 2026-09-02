@@ -2367,6 +2367,36 @@ h2 {
 .finance-highlight-label { display: inline-flex; align-items: center; gap: 4px; color: #755700; font-weight: 850; white-space: nowrap; }
 .finance-report-section { display: grid; gap: 12px; }
 .finance-report-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; padding: 0 2px; }
+.employee-subtotal-section { gap: 16px; padding: clamp(14px,2vw,20px); border: 1px solid #d9b9a7; border-radius: 22px; background: linear-gradient(145deg,#fffaf3 0%,#f8e8df 100%); box-shadow: var(--shadow); }
+.employee-subtotal-heading { align-items: flex-start; }
+.employee-subtotal-heading > div:first-child { max-width: 720px; }
+.employee-subtotal-send-panel { display: grid; width: min(260px,100%); flex: 0 0 260px; gap: 8px; padding: 12px; border: 1px solid #e4d4c9; border-radius: 15px; background: rgba(255,255,255,.82); }
+.employee-subtotal-send-panel label { display: grid; gap: 5px; color: var(--muted); font-size: .72rem; font-weight: 850; }
+.employee-subtotal-send-panel input { width: 100%; min-height: 43px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; }
+.employee-subtotal-send-panel > button { width: 100%; min-height: 42px; justify-content: center; }
+.employee-subtotal-send-panel > p { margin: 2px 0 0; color: var(--muted); font-size: .7rem; line-height: 1.4; }
+.employee-subtotal-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.employee-subtotal-card { min-width: 0; overflow: hidden; border: 1px solid #dfc9bb; border-radius: 20px; background: rgba(255,255,255,.94); box-shadow: 0 9px 28px rgba(83,54,31,.075); }
+.employee-subtotal-card > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 18px 14px; border-bottom: 1px solid #eee1d8; }
+.employee-subtotal-card > header div { display: grid; min-width: 0; gap: 2px; }
+.employee-subtotal-card > header span { color: var(--brand); font-size: .65rem; font-weight: 900; letter-spacing: .08em; }
+.employee-subtotal-card > header h3 { margin: 0; overflow-wrap: anywhere; font-size: 1.25rem; }
+.employee-subtotal-card > header button { flex: 0 0 auto; min-height: 34px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font: inherit; font-size: .72rem; font-weight: 900; cursor: pointer; }
+.employee-subtotal-equation { display: grid; grid-template-columns: minmax(0,1fr) 18px minmax(0,1fr) 18px minmax(0,1.15fr); align-items: stretch; gap: 3px; padding: 13px 14px; border-bottom: 1px solid #eee1d8; }
+.employee-subtotal-equation:last-child { border-bottom: 0; }
+.employee-subtotal-equation > b { display: grid; place-items: center; color: #a18e82; font-size: 1rem; }
+.employee-subtotal-equation--base { background: #fff; }
+.employee-subtotal-equation--wage { background: #fdf8f4; }
+.employee-subtotal-equation--income { background: #fff8ef; }
+.employee-subtotal-value, .employee-subtotal-rate { display: grid; min-width: 0; align-content: center; gap: 5px; padding: 9px 7px; border: 0; border-radius: 11px; background: transparent; color: var(--ink); font: inherit; text-align: left; }
+button.employee-subtotal-value { cursor: pointer; }
+button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visible { background: #f7eee8; outline: none; }
+.employee-subtotal-value small, .employee-subtotal-rate small { color: var(--muted); font-size: .62rem; font-weight: 800; line-height: 1.25; }
+.employee-subtotal-value strong, .employee-subtotal-rate strong { min-width: 0; overflow-wrap: anywhere; font-size: clamp(.83rem,1.3vw,1rem); font-variant-numeric: tabular-nums; line-height: 1.22; }
+.employee-subtotal-value.is-emphasis { background: var(--brand-soft); color: var(--brand); }
+.employee-subtotal-equation--income .employee-subtotal-value.is-emphasis { background: var(--brand); color: #fff; }
+.employee-subtotal-equation--income .employee-subtotal-value.is-emphasis small { color: rgba(255,255,255,.75); }
+.employee-subtotal-rate { background: #fff; }
 .table-title { margin-top: 12px; font-size: 1.2rem; }
 .table-scroll { max-width: 100%; min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); box-shadow: var(--shadow); }
 .data-table { width: 100%; border-collapse: collapse; white-space: nowrap; }
@@ -2614,6 +2644,7 @@ h2 {
   .finance-member-filter { grid-column: 1 / -1; }
   .finance-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cash-grid { grid-template-columns: 1fr; }
+  .employee-subtotal-grid { grid-template-columns: 1fr; }
   .gift-card-ledger__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -2649,6 +2680,11 @@ h2 {
   .employee-settlement-record-card { width: min(278px,82vw); min-width: min(278px,82vw); }
   .balance-list article, .closing-status, .date-toolbar { align-items: stretch; flex-direction: column; }
   .filter-panel__heading, .finance-metric-group > header, .finance-report-heading, .finance-details__heading { align-items: stretch; flex-direction: column; }
+  .employee-subtotal-section { padding: 12px; border-radius: 17px; }
+  .employee-subtotal-send-panel { width: 100%; flex-basis: auto; }
+  .employee-subtotal-equation { grid-template-columns: minmax(0,1fr) 12px minmax(0,1fr) 12px minmax(0,1.12fr); gap: 1px; padding-inline: 7px; }
+  .employee-subtotal-value, .employee-subtotal-rate { padding-inline: 4px; }
+  .employee-subtotal-value strong, .employee-subtotal-rate strong { font-size: .77rem; }
   .filter-panel__heading .export-link { width: 100%; }
   .finance-member-filter { grid-column: auto; }
   .finance-metric-group { padding: 14px; border-radius: 17px; }

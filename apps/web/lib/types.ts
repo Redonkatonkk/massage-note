@@ -120,12 +120,13 @@ export interface EmployeeSettlementPreview {
 }
 
 export interface EmployeeSettlementDelivery {
-  id: string; membershipId: string; periodStart: string; periodEnd: string;
+  id: string; membershipId: string | null; periodStart: string; periodEnd: string;
+  documentType: "RANGE_SETTLEMENT" | "EMPLOYEE_SUMMARY";
   paymentScope: EmployeeSettlementPaymentScope; status: ClosingDeliveryStatus;
   recipientPhoneE164: string; locale: "zh_CN" | "en_US"; attemptCount: number;
   summarySentAt: string | null; detailSentAt: string | null; sentAt: string | null;
   lastErrorCode: string | null; lastError: string | null;
-  createdAt: string; updatedAt: string; membership: { displayName: string };
+  createdAt: string; updatedAt: string; membership: { displayName: string } | null;
 }
 
 export interface EmployeeSettlementDeliveryList {

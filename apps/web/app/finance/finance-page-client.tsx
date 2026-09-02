@@ -32,6 +32,7 @@ import { RecordEditor } from "../record-editor";
 import { GiftCardLedger } from "./gift-card-ledger";
 import { BusinessDatePicker } from "../business-date-picker";
 import { EmployeeSettlementPanel } from "./employee-settlement-panel";
+import { EmployeeSubtotalSection } from "./employee-subtotal-section";
 import {
   financeSummaryGroups,
   financeSummaryMetrics,
@@ -412,6 +413,8 @@ export function FinancePageClient() {
   const closingHasBlockingWarnings = closing
     ? hasBlockingClosingWarnings(closing.warnings)
     : false;
+  const ownerMember = members.find((member) => member.id === storeDetails?.ownerMembershipId);
+  const ownerPhone = ownerMember?.user?.phoneE164 ?? ownerMember?.closingDeliveryPhoneE164 ?? "";
 
   return (
     <main className="app-shell finance-shell">
@@ -497,7 +500,15 @@ export function FinancePageClient() {
               return financeSummaryGroups.map((group) => <section className={`finance-metric-group${group.emphasis ? " finance-metric-group--emphasis" : ""}`} key={group.key}><header><div><h2>{group.title}</h2><p>{group.description}</p></div></header><div className="finance-cards">{group.metricKeys.map((key) => { const metric = metricByKey.get(key)!; return <FinanceSummaryCard key={key} label={metric.label} explanation={metric.explanation} calculation={metric.calculation} {...values[key]} onViewDetails={() => void run(async () => { setDetailsTitle(metric.label); setDetails(null); await loadDetails(); })} />; })}</div></section>);
             })()}
           <section className="finance-report-section"><div className="finance-report-heading"><div><h2>每日小计</h2><p>员工收入按当前付款方式只计算对应部分；点击金额可查看当天组成。</p></div></div><div className="table-scroll"><table className="data-table"><thead><tr><th>日期</th><th>星期</th><th>今日流水</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>礼物卡销售</th><th>礼物卡核销支出</th><th>员工总收入</th><th>店铺收入</th></tr></thead><tbody>{summary.days.map((row) => { const scope = { dateFrom: row.businessDate, dateTo: row.businessDate }; return <tr key={row.businessDate}><td>{row.businessDate}</td><td>{weekday(row.businessDate, locale)}</td><td>{detailAmount(money(row.dailyTurnoverCents), `${row.businessDate}今日流水`, scope)}</td><td>{detailAmount(money(row.mainServiceAmountCents), `${row.businessDate}主要项目`, scope)}</td><td>{detailAmount(money(row.addonTotalCents), `${row.businessDate}额外项目`, scope)}</td><td>{detailAmount(money(row.grossFeeBaseCents), `${row.businessDate}大费基数`, scope)}</td><td>{detailAmount(money(row.discountTotalCents), `${row.businessDate}折扣`, scope)}</td><td>{detailAmount(money(row.discountedFeePerformanceCents), `${row.businessDate}折后大费`, scope)}</td><td>{detailAmount(money(row.giftCardSalesAmountCents), `${row.businessDate}礼物卡销售`, scope)}</td><td>{detailAmount(money(row.giftCardRedemptionCents), `${row.businessDate}礼物卡核销支出`, scope)}</td><td>{detailAmount(money(row.employeeIncomeCents), `${row.businessDate}员工总收入`, scope)}</td><td>{detailAmount(money(row.storeIncomeCents), `${row.businessDate}店铺收入`, scope)}</td></tr>; })}</tbody></table></div></section>
-          <section className="finance-report-section"><div className="finance-report-heading"><div><h2>员工小计</h2><p>大费工资、小费和总收入均只统计当前付款方式对应部分。</p></div></div><div className="table-scroll"><table className="data-table"><thead><tr><th>员工</th><th>单数</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>所选小费</th><th>所选大费工资</th><th>所选总收入</th></tr></thead><tbody>{summary.employees.map((row) => { const scope = { memberIds: [row.membershipId] }; return <tr key={row.membershipId}><td>{row.displayName}</td><td>{detailAmount(row.recordCount, `${row.displayName}项目数量`, scope)}</td><td>{detailAmount(money(row.mainServiceAmountCents), `${row.displayName}主要项目`, scope)}</td><td>{detailAmount(money(row.addonTotalCents), `${row.displayName}额外项目`, scope)}</td><td>{detailAmount(money(row.grossFeeBaseCents), `${row.displayName}大费基数`, scope)}</td><td>{detailAmount(money(row.discountTotalCents), `${row.displayName}折扣`, scope)}</td><td>{detailAmount(money(row.discountedFeePerformanceCents), `${row.displayName}折后大费`, scope)}</td><td>{detailAmount(money(row.totalTipCents), `${row.displayName}所选小费`, scope)}</td><td>{detailAmount(money(row.totalLargeFeeWageCents), `${row.displayName}所选大费工资`, scope)}</td><td>{detailAmount(money(row.employeeIncomeCents), `${row.displayName}所选总收入`, scope)}</td></tr>; })}</tbody></table></div></section>
+          <EmployeeSubtotalSection
+            storeId={membership.store.id}
+            summary={summary}
+            ownerPhone={ownerPhone}
+            canSend={canManage}
+            busy={busy}
+            run={run}
+            onViewDetails={(selectedMembershipId, label) => void run(async () => { setDetailsTitle(label); setDetails(null); await loadDetails({ memberIds: [selectedMembershipId] }); })}
+          />
           <section className="finance-report-section"><div className="finance-report-heading"><div><h2>累计余额</h2><p>汇总员工累计应得、现金已取得和工资已支付，快速确认尚欠金额。</p></div></div><div className="balance-list">{summary.balances.map((balance) => <article key={balance.membershipId}><div><strong>{balance.displayName}</strong><span>{balance.excludedOwner ? "店主不进入工资结算" : `累计应得 ${money(balance.cumulativeEmployeeIncomeCents)}`}</span></div>{!balance.excludedOwner && <div className="balance-numbers"><span>现金已取得 {money(balance.settledCashAcquiredCents)}</span><span>工资已支付 {money(balance.payrollPaidCents)}</span><strong>尚欠 {money(balance.employerOwesCents)}</strong>{balance.overpaidCents > 0 && <em>超付 {money(balance.overpaidCents)}</em>}</div>}</article>)}</div></section>
         </section>
       )}

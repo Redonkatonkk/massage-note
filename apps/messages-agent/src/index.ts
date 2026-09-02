@@ -5,6 +5,7 @@ import { messagesServices, sendMessagesAttachment } from "./messages.js";
 import { cleanupOutbox, closingPngPath, prepareOutbox, secureAttachment, secureClosingPng, settlementAttachmentPath } from "./outbox.js";
 import { renderClosingPng, type ClosingSnapshot } from "./render.js";
 import { renderSettlementLongImage, type SettlementSnapshot } from "./settlement-render.js";
+import { renderEmployeeSummaryImage, type EmployeeSummarySnapshot } from "./employee-summary-render.js";
 import { messagesStagerReady, stageMessagesAttachment } from "./stager.js";
 
 const apiUrl = process.env.MASSAGE_NOTE_API_URL?.replace(/\/$/, "");
@@ -13,7 +14,9 @@ const dataDir = process.env.MASSAGE_NOTE_AGENT_DATA_DIR ?? join(homedir(), "Libr
 if (!apiUrl || !agentToken) throw new Error("MASSAGE_NOTE_API_URL and MASSAGE_NOTE_AGENT_TOKEN are required");
 
 interface Job { id: string; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; snapshot: ClosingSnapshot }
-interface SettlementJob { id: string; documentType: "RANGE_SETTLEMENT"; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; detailSent: boolean; snapshot: SettlementSnapshot }
+interface RangeSettlementJob { id: string; documentType: "RANGE_SETTLEMENT"; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; detailSent: boolean; snapshot: SettlementSnapshot }
+interface EmployeeSummaryJob { id: string; documentType: "EMPLOYEE_SUMMARY"; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; detailSent: boolean; snapshot: EmployeeSummarySnapshot }
+type SettlementJob = RangeSettlementJob | EmployeeSummaryJob;
 interface Journal { accepted: string[]; completed: string[] }
 const journalPath = join(dataDir, "journal.json");
 const outboxDir = await prepareOutbox(dataDir);
@@ -45,7 +48,7 @@ async function heartbeat(lastError: string | null = null) {
     diagnosticError = error instanceof Error ? error.message : String(error);
   }
   try {
-    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.46", lastError: diagnosticError }) });
+    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.47", lastError: diagnosticError }) });
   } catch (error) {
     process.stderr.write(`heartbeat: ${error instanceof Error ? error.message : String(error)}\n`);
   }
@@ -99,14 +102,16 @@ async function processSettlementJob(job: SettlementJob) {
   const detailsImagePath = settlementAttachmentPath(outboxDir, job.id);
   let sendStarted = false;
   try {
-    const artifacts = await renderSettlementLongImage(job.snapshot, job.locale, workDir, detailsImagePath);
+    const artifact = job.documentType === "EMPLOYEE_SUMMARY"
+      ? await renderEmployeeSummaryImage(job.snapshot, job.locale, workDir, detailsImagePath)
+      : (await renderSettlementLongImage(job.snapshot, job.locale, workDir, detailsImagePath)).longImage;
     await secureAttachment(detailsImagePath);
     if (!job.detailSent) {
       sendStarted = false;
       const staged = await stageMessagesAttachment(detailsImagePath, job.id, "settlement-details.jpg", true);
       sendStarted = true;
       const service = await sendMessagesAttachment(job.phoneE164, staged, "CONVERSATION_IMAGE");
-      process.stdout.write(`settlement ${job.id} long image (${artifacts.longImage.width}x${artifacts.longImage.height}) accepted by ${service}\n`);
+      process.stdout.write(`settlement ${job.id} ${job.documentType.toLowerCase()} image (${artifact.width}x${artifact.height}) accepted by ${service}\n`);
       // Older APIs require both historical checkpoints. SUMMARY here means the
       // three summary cards embedded at the top of this same long image; no
       // separate summary attachment is generated or sent.

@@ -630,7 +630,8 @@ model EmployeeClosingDelivery {
 model EmployeeSettlementDelivery {
   id                    String                 @id @default(uuid()) @db.Uuid
   storeId               String                 @map("store_id") @db.Uuid
-  membershipId          String                 @map("membership_id") @db.Uuid
+  membershipId          String?                @map("membership_id") @db.Uuid
+  documentType          String                 @default("RANGE_SETTLEMENT") @map("document_type")
   periodStart           DateTime               @map("period_start") @db.Date
   periodEnd             DateTime               @map("period_end") @db.Date
   paymentScope          String                 @map("payment_scope")
@@ -653,7 +654,7 @@ model EmployeeSettlementDelivery {
   updatedAt             DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   store      Store           @relation(fields: [storeId], references: [id])
-  membership StoreMembership @relation(fields: [membershipId], references: [id])
+  membership StoreMembership? @relation(fields: [membershipId], references: [id])
 
   @@unique([storeId, requestKey])
   @@index([status, nextAttemptAt, createdAt])

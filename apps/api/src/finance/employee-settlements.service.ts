@@ -10,12 +10,14 @@ import {
 import { Prisma, type User } from "@massage-note/database";
 import type {
   ClosingDeliveryFailureInput,
+  CreateEmployeeSummaryDeliveryInput,
   CreateEmployeeSettlementDeliveryInput,
   EmployeeSettlementPaymentScope,
   EmployeeSettlementQuery,
 } from "@massage-note/contracts";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
+import { FinanceQueriesService } from "./finance-queries.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
@@ -28,6 +30,7 @@ export class EmployeeSettlementsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: StoreAccessService,
+    private readonly financeQueries: FinanceQueriesService,
   ) {}
 
   async preview(actor: User, storeId: string, query: EmployeeSettlementQuery) {
@@ -39,11 +42,11 @@ export class EmployeeSettlementsService {
     await this.access.requireCapability(actor.id, storeId, "PAYROLL_MANAGE");
     const [deliveries, agent] = await Promise.all([
       this.prisma.employeeSettlementDelivery.findMany({
-        where: { storeId },
+        where: { storeId, documentType: "RANGE_SETTLEMENT" },
         orderBy: { createdAt: "desc" },
         take: 100,
         select: {
-          id: true, membershipId: true, periodStart: true, periodEnd: true,
+          id: true, membershipId: true, documentType: true, periodStart: true, periodEnd: true,
           paymentScope: true, status: true, recipientPhoneE164: true, locale: true,
           attemptCount: true, summarySentAt: true, detailSentAt: true, sentAt: true,
           lastErrorCode: true, lastError: true, createdAt: true, updatedAt: true,
@@ -58,6 +61,127 @@ export class EmployeeSettlementsService {
     return { deliveries, agent };
   }
 
+  async listSummaryDeliveries(actor: User, storeId: string) {
+    await this.access.requireCapability(actor.id, storeId, "PAYROLL_MANAGE");
+    const [deliveries, agent] = await Promise.all([
+      this.prisma.employeeSettlementDelivery.findMany({
+        where: { storeId, documentType: "EMPLOYEE_SUMMARY" },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: {
+          id: true, membershipId: true, documentType: true, periodStart: true, periodEnd: true,
+          paymentScope: true, status: true, recipientPhoneE164: true, locale: true,
+          attemptCount: true, summarySentAt: true, detailSentAt: true, sentAt: true,
+          lastErrorCode: true, lastError: true, createdAt: true, updatedAt: true,
+          membership: { select: { displayName: true } },
+        },
+      }),
+      this.prisma.closingDeliveryAgent.findUnique({
+        where: { storeId },
+        select: { lastSeenAt: true, lastStatusJson: true, revokedAt: true },
+      }),
+    ]);
+    return { deliveries, agent };
+  }
+
+  async queueEmployeeSummary(
+    actor: User,
+    storeId: string,
+    input: CreateEmployeeSummaryDeliveryInput,
+    requestKey: string,
+    requestId: string,
+  ) {
+    const manager = await this.access.requireCapability(actor.id, storeId, "PAYROLL_MANAGE");
+    const existing = await this.prisma.employeeSettlementDelivery.findUnique({
+      where: { storeId_requestKey: { storeId, requestKey } },
+    });
+    if (existing) {
+      const same = existing.documentType === "EMPLOYEE_SUMMARY"
+        && dateOnly(existing.periodStart) === input.dateFrom
+        && dateOnly(existing.periodEnd) === input.dateTo
+        && existing.paymentScope === input.paymentMethod
+        && existing.recipientPhoneE164 === input.recipientPhoneE164;
+      if (!same) throw new ConflictException({ code: "IDEMPOTENCY_KEY_REUSED", messageZh: "同一个请求键不能用于不同的员工小计发送任务" });
+      return existing;
+    }
+    if (!isE164Phone(input.recipientPhoneE164)) {
+      throw new BadRequestException({ code: "SUMMARY_DELIVERY_PHONE_INVALID", messageZh: "接收号码必须使用国际格式，例如 +16465551234" });
+    }
+    await this.assertAgentReady(storeId);
+    const [summary, store] = await Promise.all([
+      this.financeQueries.summary(actor, storeId, {
+        dateFrom: input.dateFrom,
+        dateTo: input.dateTo,
+        membershipIds: input.membershipIds,
+        paymentMethod: input.paymentMethod,
+        amountType: input.amountType,
+        highlightFilter: input.highlightFilter,
+      }),
+      this.prisma.store.findFirst({
+        where: { id: storeId, status: "ACTIVE", deletedAt: null },
+        select: { name: true, timezone: true, closingDefaultLocale: true },
+      }),
+    ]);
+    if (!store) throw new NotFoundException({ code: "STORE_NOT_FOUND", messageZh: "没有找到店铺" });
+    if (summary.employees.length === 0) throw new ConflictException({ code: "EMPLOYEE_SUMMARY_EMPTY", messageZh: "当前范围没有可发送的员工小计" });
+    const snapshot = {
+      documentType: "EMPLOYEE_SUMMARY" as const,
+      storeName: store.name,
+      storeTimezone: store.timezone,
+      dateFrom: summary.filters.dateFrom,
+      dateTo: summary.filters.dateTo,
+      paymentMethod: summary.filters.paymentMethod,
+      amountType: summary.filters.amountType,
+      highlightFilter: summary.filters.highlightFilter,
+      employees: summary.employees.map((employee) => ({
+        membershipId: employee.membershipId,
+        displayName: employee.displayName,
+        role: employee.role,
+        recordCount: employee.recordCount,
+        mainServiceAmountCents: this.safeNumber(employee.mainServiceAmountCents),
+        addonTotalCents: this.safeNumber(employee.addonTotalCents),
+        grossFeeBaseCents: this.safeNumber(employee.grossFeeBaseCents),
+        totalTipCents: this.safeNumber(employee.totalTipCents),
+        totalLargeFeeWageCents: this.safeNumber(employee.totalLargeFeeWageCents),
+        employeeIncomeCents: this.safeNumber(employee.employeeIncomeCents),
+      })),
+      generatedAt: new Date().toISOString(),
+    };
+    const delivery = await this.prisma.employeeSettlementDelivery.create({
+      data: {
+        storeId,
+        membershipId: null,
+        documentType: "EMPLOYEE_SUMMARY",
+        periodStart: dateAtUtc(input.dateFrom),
+        periodEnd: dateAtUtc(input.dateTo),
+        paymentScope: input.paymentMethod,
+        recipientPhoneE164: input.recipientPhoneE164,
+        locale: store.closingDefaultLocale,
+        snapshotJson: snapshot as unknown as Prisma.InputJsonValue,
+        queuedBy: actor.id,
+        requestKey,
+      },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        storeId, actorUserId: actor.id, actorMembershipId: manager.id,
+        source: "api", action: "finance.employee_summary_delivery_queued",
+        entityType: "employee_settlement_delivery", entityId: delivery.id,
+        afterJson: {
+          dateFrom: input.dateFrom,
+          dateTo: input.dateTo,
+          paymentMethod: input.paymentMethod,
+          amountType: input.amountType,
+          highlightFilter: input.highlightFilter,
+          membershipIds: input.membershipIds,
+          recipientPhoneE164: input.recipientPhoneE164,
+        } as Prisma.InputJsonValue,
+        requestId,
+      },
+    });
+    return delivery;
+  }
+
   async queue(
     actor: User,
     storeId: string,
@@ -70,7 +194,8 @@ export class EmployeeSettlementsService {
       where: { storeId_requestKey: { storeId, requestKey } },
     });
     if (existing) {
-      const same = existing.membershipId === input.membershipId
+      const same = existing.documentType === "RANGE_SETTLEMENT"
+        && existing.membershipId === input.membershipId
         && dateOnly(existing.periodStart) === input.dateFrom
         && dateOnly(existing.periodEnd) === input.dateTo
         && existing.paymentScope === input.paymentScope;
@@ -92,6 +217,7 @@ export class EmployeeSettlementsService {
       data: {
         storeId,
         membershipId: input.membershipId,
+        documentType: "RANGE_SETTLEMENT",
         periodStart: dateAtUtc(input.dateFrom),
         periodEnd: dateAtUtc(input.dateTo),
         paymentScope: input.paymentScope,
@@ -190,7 +316,7 @@ export class EmployeeSettlementsService {
     if (changed.count !== 1) return null;
     const job = await this.prisma.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: candidate.id } });
     return {
-      id: job.id, documentType: "RANGE_SETTLEMENT", leaseToken,
+      id: job.id, documentType: job.documentType, leaseToken,
       phoneE164: job.recipientPhoneE164, locale: job.locale,
       detailSent: Boolean(job.detailSentAt),
       snapshot: job.snapshotJson,

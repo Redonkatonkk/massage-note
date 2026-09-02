@@ -33,7 +33,7 @@ function service(rows: ReturnType<typeof record>[]) {
     workRecord: { findMany: vi.fn().mockResolvedValue(rows) },
   };
   const access = { requireCapability: vi.fn().mockResolvedValue({ id: "manager" }) };
-  return { value: new EmployeeSettlementsService(prisma as never, access as never), prisma };
+  return { value: new EmployeeSettlementsService(prisma as never, access as never, {} as never), prisma };
 }
 
 const actor = { id: "30000000-0000-4000-8000-000000000001" } as never;
@@ -94,7 +94,7 @@ describe("EmployeeSettlementsService long-image redelivery", () => {
       auditLog: { create: vi.fn().mockResolvedValue({}) },
     };
     const access = { requireCapability: vi.fn().mockResolvedValue({ id: "manager" }) };
-    const value = new EmployeeSettlementsService(prisma as never, access as never);
+    const value = new EmployeeSettlementsService(prisma as never, access as never, {} as never);
 
     await expect(value.retryDetail(actor, storeId, "50000000-0000-4000-8000-000000000001", "request-id")).resolves.toEqual({ id: "delivery" });
     expect(prisma.employeeSettlementDelivery.updateMany).toHaveBeenCalledWith({
@@ -110,5 +110,48 @@ describe("EmployeeSettlementsService long-image redelivery", () => {
       }),
     });
     expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "employee_settlement.delivery_detail_retried" }) }));
+  });
+});
+
+describe("EmployeeSettlementsService employee-summary delivery", () => {
+  it("把保留美分的员工卡片汇总发送到指定号码", async () => {
+    const created = { id: "50000000-0000-4000-8000-000000000001" };
+    const prisma = {
+      employeeSettlementDelivery: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(created),
+      },
+      closingDeliveryAgent: {
+        findUnique: vi.fn().mockResolvedValue({ revokedAt: null, lastSeenAt: new Date(), lastStatusJson: { messagesAvailable: true } }),
+      },
+      store: {
+        findFirst: vi.fn().mockResolvedValue({ name: "Massage Note", timezone: "America/New_York", closingDefaultLocale: "zh_CN" }),
+      },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const access = { requireCapability: vi.fn().mockResolvedValue({ id: "60000000-0000-4000-8000-000000000001" }) };
+    const financeQueries = {
+      summary: vi.fn().mockResolvedValue({
+        filters: { dateFrom: "2026-09-01", dateTo: "2026-09-02", membershipIds: [member.id], paymentMethod: "ALL", amountType: "ALL", highlightFilter: "ALL" },
+        employees: [{ membershipId: member.id, displayName: "Amy", role: "EMPLOYEE", recordCount: 2, mainServiceAmountCents: 10_050n, addonTotalCents: 1_025n, grossFeeBaseCents: 11_075n, totalTipCents: 2_055n, totalLargeFeeWageCents: 6_701n, employeeIncomeCents: 8_756n }],
+      }),
+    };
+    const value = new EmployeeSettlementsService(prisma as never, access as never, financeQueries as never);
+
+    await expect(value.queueEmployeeSummary(actor, storeId, {
+      dateFrom: "2026-09-01", dateTo: "2026-09-02", membershipIds: [member.id], paymentMethod: "ALL", amountType: "ALL", highlightFilter: "ALL", recipientPhoneE164: "+16465551234",
+    }, "request-key", "request-id")).resolves.toEqual(created);
+
+    expect(prisma.employeeSettlementDelivery.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        documentType: "EMPLOYEE_SUMMARY",
+        membershipId: null,
+        recipientPhoneE164: "+16465551234",
+        snapshotJson: expect.objectContaining({
+          documentType: "EMPLOYEE_SUMMARY",
+          employees: [expect.objectContaining({ mainServiceAmountCents: 10_050, addonTotalCents: 1_025, totalLargeFeeWageCents: 6_701, employeeIncomeCents: 8_756 })],
+        }),
+      }),
+    });
   });
 });

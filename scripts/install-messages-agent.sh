@@ -34,6 +34,9 @@ label="com.massagenote.messages-agent"
 mkdir -p "$agent_dir" "$launch_agents_dir"
 chmod 700 "$agent_dir"
 "$pnpm_bin" --dir "$repo_dir" --filter @massage-note/messages-agent deploy --prod --legacy --force "$agent_dir/app"
+# Legacy deploy temporarily marks the shared workspace node_modules as production-only.
+# Restore the lockfile-defined development links so installing the agent never breaks the checkout.
+"$pnpm_bin" --dir "$repo_dir" install --frozen-lockfile
 
 stager_source_hash="$(/usr/bin/shasum -a 256 "$stager_source" | /usr/bin/awk '{print $1}')"
 installed_stager_hash="$(cat "$stager_hash_path" 2>/dev/null || true)"
@@ -52,7 +55,7 @@ if [[ ! -x "$stager_bin" || "$installed_stager_hash" != "$stager_source_hash" ]]
   <key>CFBundleIdentifier</key><string>com.massagenote.messages-stager</string>
   <key>CFBundleName</key><string>Massage Note Attachment Stager</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.12.37</string>
+  <key>CFBundleShortVersionString</key><string>0.12.45</string>
   <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST

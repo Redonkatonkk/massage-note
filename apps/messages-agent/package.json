@@ -1,6 +1,6 @@
 {
   "name": "@massage-note/messages-agent",
-  "version": "0.12.37",
+  "version": "0.12.45",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "pdf-lib": "1.17.1"
+    "sharp": "0.34.4"
   },
   "devDependencies": {
     "@types/node": "24.10.0",

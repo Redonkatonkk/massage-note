@@ -12,16 +12,20 @@ describe("Messages AppleScript", () => {
   it("通过标准 run handler 接收 osascript 参数", () => {
     expect(messagesAttachmentScript).toContain("on run argv");
     expect(messagesAttachmentScript).toContain("set phoneNumber to item 1 of argv");
-    expect(messagesAttachmentScript).toContain("set filePath to item 2 of argv");
-    expect(messagesAttachmentScript).toContain("set attachmentKind to item 3 of argv");
+    expect(messagesAttachmentScript).toContain("set phoneE164 to item 2 of argv");
+    expect(messagesAttachmentScript).toContain("set filePath to item 3 of argv");
+    expect(messagesAttachmentScript).toContain("set attachmentKind to item 4 of argv");
     expect(messagesAttachmentScript).not.toContain("messageText");
     expect(messagesAttachmentScript).not.toContain("send messageText");
-    expect(messagesAttachmentScript.match(/send POSIX file/g)).toHaveLength(1);
+    expect(messagesAttachmentScript.match(/send POSIX file/g)).toHaveLength(2);
   });
 
-  it("PDF 文档跳过会异步拒绝该格式的 SMS/MMS 通道", () => {
-    expect(messagesAttachmentScript).toContain('if attachmentKind is "DOCUMENT" then set requestedTypes to {"iMessage", "RCS"}');
+  it("结算长图优先沿用该号码现有会话路由", () => {
+    expect(messagesAttachmentScript).toContain('if attachmentKind is "CONVERSATION_IMAGE" then');
+    expect(messagesAttachmentScript).toContain('set serviceUsed to sendToExistingChat(phoneE164, filePath)');
     expect(messagesAttachmentScript).toContain('set requestedTypes to {"SMS", "RCS", "iMessage"}');
+    expect(messagesAttachmentScript).not.toContain("DOCUMENT");
+    expect(messagesAttachmentScript).not.toContain("PDF");
   });
 
   it("逐个忽略 macOS 26 无法转换的账户类型", () => {

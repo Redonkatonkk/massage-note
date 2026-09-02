@@ -1,6 +1,6 @@
 # AI 接管指南
 
-> 最后核对：2026-08-30（America/New_York） · 当前版本：`0.12.37`
+> 最后核对：2026-09-02（America/New_York） · 当前版本：`0.12.45`
 > 目标：用最少上下文安全维护 Massage note；历史过程查 Git 和 [`CHANGELOG.md`](../../CHANGELOG.md)。
 
 ## 1. 接手顺序
@@ -110,7 +110,7 @@ AI 是可选增强；未配置时手动记工和确定性财务必须正常工�
 
 当用户明确说“更新部署”时，视为完整发布授权：同步文档与版本，只提交本次项目文件，push 后等待该 commit 的 CI 与 GHCR 版本镜像成功，再按 NAS 手册备份、迁移、升级项目 `mn` 并完成线上验收。不能把它缩减为只改本地代码，也不能跳过 CI、备份或健康检查。
 
-Mac“信息”代理的安装与排障以 [`MESSAGES_AGENT.md`](../operations/MESSAGES_AGENT.md) 为准。正式实现必须后台静默运行：禁止模拟键盘、粘贴剪贴板、激活 Messages 窗口或按相册“最近项”猜测附件。新 Mac 只给 `Massage Note Attachment Stager.app` 完全磁盘访问；LaunchAgent 必须通过 LaunchServices 以该 App 身份启动暂存，不能直接执行 App 内二进制。暂存程序验证路径、任务 UUID、固定文件名及 PNG/PDF 文件头，再写入 Messages 自有附件目录，并只返回与任务 UUID 绑定的结果。个人日结发送一张 PNG；员工区间结算发送摘要 PNG 与逐笔 PDF。不得扩大为 Node/终端全盘访问，也不得读写聊天数据库。
+Mac“信息”代理的安装与排障以 [`MESSAGES_AGENT.md`](../operations/MESSAGES_AGENT.md) 为准。正式实现必须后台静默运行：禁止模拟键盘、粘贴剪贴板、激活 Messages 窗口或按相册“最近项”猜测附件。新 Mac 只给 `Massage Note Attachment Stager.app` 完全磁盘访问；LaunchAgent 必须通过 LaunchServices 以该 App 身份启动暂存，不能直接执行 App 内二进制。暂存程序验证路径、任务 UUID、固定文件名及 PNG/JPEG 文件头，再写入 Messages 自有附件目录，并只返回与任务 UUID 绑定的结果。个人日结发送一张 PNG；员工区间结算只发送一张专门重新排版的 JPEG 长图，顶部保留三张汇总卡，下面按营业日分组排列记工卡片并以“当日总结”收尾；同日卡片必须自动换行，任何项目或付款文字都不得用省略号截断。不生成 PDF、独立摘要图或分页拼接图。不得扩大为 Node/终端全盘访问，也不得读写聊天数据库。
 
 真实部署秘密只可从被 Git 忽略且权限受限的本地文件或系统钥匙串读取，不得复制到文档、输出或 GitHub。恢复具有覆盖性，只能对明确确认的目标数据库执行；未经授权不要删除任何开发或生产数据卷。
 

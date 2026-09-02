@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`0.12.37`
+> 适用版本：`0.12.45`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
@@ -31,6 +31,34 @@ http://localhost:4000/api/v1/health/ready
 
 Firebase 和 MiniMax 都可以不配置。没有 Firebase 时，只能在本地把 Web 与 API 两侧的开发登录显式打开；生产环境始终禁止开发登录。
 
+## 固定本地演示数据
+
+本地开发统一使用以下演示身份：
+
+- 登录号码：`+1 (770) 575-0450`
+- 店铺：`本地演示店`
+- 角色：店主，可查看和管理财务、工资计算与结算单
+
+`.env` 中须保持以下本地开发配置；密钥只用于签署本机开发会话，不得复制到生产环境：
+
+```dotenv
+NEXT_PUBLIC_DEV_AUTH_ENABLED=true
+DEV_AUTH_ENABLED=true
+DEV_AUTH_SECRET=至少32个字符的本地随机字符串
+```
+
+首次建立或需要刷新演示数据时运行：
+
+```bash
+pnpm docker:up
+pnpm demo:seed
+pnpm dev
+```
+
+登录页输入 `7705750450`，点击“使用此号码直接进入”，不发送短信。演示库包含 3 位成员、2 个主要项目、热石加项、两类折扣、礼物卡销售，以及最近 7 天内 12 笔已确认记工，覆盖现金、刷卡、礼物卡、混合付款、折扣、加项和高亮场景。
+
+`pnpm demo:seed` 会先应用现有数据库迁移，然后幂等刷新固定演示记录，并把演示日期移动到执行当天之前的最近一周。重复执行不会累加记录；其他本地店铺和非演示记录不会被清空。固定实现位于 [`scripts/seed-local-demo.sql`](../../scripts/seed-local-demo.sql)。
+
 ## 常用命令
 
 | 命令 | 用途 |
@@ -44,6 +72,7 @@ Firebase 和 MiniMax 都可以不配置。没有 Firebase 时，只能在本地�
 | `pnpm db:validate` | 校验 Prisma schema |
 | `pnpm db:migrate` | 本地创建新迁移；不能用于生产 |
 | `pnpm db:deploy` | 应用现有迁移，本地和生产均可用 |
+| `pnpm demo:seed` | 应用迁移并创建或刷新固定本地演示数据 |
 | `pnpm docker:status` | 查看本项目 PostgreSQL/Redis 状态 |
 | `pnpm version:check` | 检查版本号、镜像标签和文档标记 |
 

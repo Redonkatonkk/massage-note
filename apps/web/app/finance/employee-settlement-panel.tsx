@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
+import { groupEmployeeSettlementRecordsByDay, type EmployeeSettlementDaySummary } from "../../lib/employee-settlement";
 import { formatUsd } from "../../lib/money";
 import type { EmployeeSettlementDelivery, EmployeeSettlementDeliveryList, EmployeeSettlementPaymentScope, EmployeeSettlementPreview, StoreMember } from "../../lib/types";
+import { useLanguage } from "../language-provider";
 
 const money = (value: number) => formatUsd(value);
 const dateOnly = (value: string) => value.slice(0, 10);
@@ -32,13 +34,12 @@ function DeliveryQueue({ value, busy, action }: { value: EmployeeSettlementDeliv
   if (value.deliveries.length === 0) return null;
   const stage = (item: EmployeeSettlementDelivery) => {
     if (item.status === "SENT") return "全部完成";
-    if (item.status === "FAILED") return item.summarySentAt ? "摘要已发 · PDF 失败" : "发送失败";
+    if (item.status === "FAILED") return "长图发送失败";
     if (item.status === "CANCELLED") return "已取消";
-    if (item.detailSentAt) return "PDF 已发送";
-    if (item.summarySentAt) return "摘要已发 · PDF 待发送";
-    return item.status === "CLAIMED" ? "正在发送摘要" : "摘要待发送";
+    if (item.detailSentAt) return "长图已发送";
+    return item.status === "CLAIMED" ? "正在发送长图" : "长图待发送";
   };
-  return <details className="settlement-delivery-queue"><summary>短信发送记录 <strong>{value.deliveries.length}</strong></summary><div className="table-scroll"><table className="data-table"><thead><tr><th>员工</th><th>区间</th><th>分类</th><th>附件进度</th><th>接收号码</th><th>尝试</th><th>错误</th><th>操作</th></tr></thead><tbody>{value.deliveries.map((item) => <tr key={item.id}><td>{item.membership.displayName}</td><td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td><td>{scopeLabel(item.paymentScope)}</td><td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{stage(item)}</span></td><td>{item.recipientPhoneE164}</td><td>{item.attemptCount}</td><td>{item.lastError || "—"}</td><td>{item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={() => action(item, "cancel")}>取消</button> : item.status === "FAILED" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry")}>重试未完成附件</button> : item.status === "SENT" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry-detail")}>仅重发 PDF</button> : "—"}</td></tr>)}</tbody></table></div></details>;
+  return <details className="settlement-delivery-queue"><summary>短信发送记录 <strong>{value.deliveries.length}</strong></summary><div className="table-scroll"><table className="data-table"><thead><tr><th>员工</th><th>区间</th><th>分类</th><th>附件进度</th><th>接收号码</th><th>尝试</th><th>错误</th><th>操作</th></tr></thead><tbody>{value.deliveries.map((item) => <tr key={item.id}><td>{item.membership.displayName}</td><td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td><td>{scopeLabel(item.paymentScope)}</td><td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{stage(item)}</span></td><td>{item.recipientPhoneE164}</td><td>{item.attemptCount}</td><td>{item.lastError || "—"}</td><td>{item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={() => action(item, "cancel")}>取消</button> : item.status === "FAILED" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry")}>重试长图</button> : item.status === "SENT" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry-detail")}>重发长图</button> : "—"}</td></tr>)}</tbody></table></div></details>;
 }
 
 function SettlementSummary({ preview }: { preview: EmployeeSettlementPreview }) {
@@ -48,10 +49,146 @@ function SettlementSummary({ preview }: { preview: EmployeeSettlementPreview }) 
   return <div className="employee-settlement-summary mode-all"><div className="employee-settlement-matrix"><span /><b>现金</b><b>刷卡＋礼卡</b><b>合计</b><strong>大费工资</strong><span>{money(summary.cashLargeFeeWageCents)}</span><span>{money(summary.nonCashLargeFeeWageCents)}</span><span>{money(summary.cashLargeFeeWageCents + summary.nonCashLargeFeeWageCents)}</span><strong>小费工资</strong><span>{money(summary.cashTipCents)}</span><span>{money(summary.nonCashTipCents)}</span><span>{money(summary.cashTipCents + summary.nonCashTipCents)}</span></div><article className="total"><span>区间总收入</span><strong>{money(summary.totalIncomeCents)}</strong></article></div>;
 }
 
-function SettlementRecords({ preview }: { preview: EmployeeSettlementPreview }) {
-  const single = preview.paymentScope !== "ALL";
+function localizedBusinessDate(value: string, locale: "zh-CN" | "en-US") {
+  return new Intl.DateTimeFormat(locale, {
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T12:00:00.000Z`));
+}
+
+function SettlementRecordCard({
+  preview,
+  record,
+  index,
+}: {
+  preview: EmployeeSettlementPreview;
+  record: EmployeeSettlementPreview["records"][number];
+  index: number;
+}) {
+  const { locale } = useLanguage();
   const cash = preview.paymentScope === "CASH";
-  return <section className="employee-settlement-records"><header><div><h3>逐笔记工</h3></div><strong>{preview.records.length} 条</strong></header><div className="employee-settlement-record-scroll"><table className="data-table employee-settlement-record-table"><thead><tr><th>日期／时间</th><th>项目／付款拆分</th><th>大费基数</th>{single ? <><th>所选大费工资</th><th>所选小费</th><th>本笔所选收入</th></> : <><th>现金收入</th><th>刷卡＋礼卡收入</th><th>本笔总收入</th></>}</tr></thead><tbody>{preview.records.map((record) => { const notice = paymentNotice(record, preview.paymentScope); return <tr key={record.id}><td><strong>{record.businessDate}</strong><small>{time(record.startAt, preview.storeTimezone)}–{time(record.endAt, preview.storeTimezone)}</small></td><td><strong>{recordName(record)}</strong><small className="settlement-payment-line">大费：{paymentParts(record, "service")}</small><small className="settlement-payment-line">小费：{paymentParts(record, "tip")}</small>{notice && <small className="settlement-payment-notice">{notice}</small>}</td><td>{money(record.grossFeeBaseCents)}</td>{single ? <><td>{money(cash ? record.cashLargeFeeWageCents : record.nonCashLargeFeeWageCents)}</td><td>{money(cash ? record.cashTipCents : record.nonCashTipCents)}</td><td><strong>{money(cash ? record.cashIncomeCents : record.nonCashIncomeCents)}</strong></td></> : <><td>{money(record.cashIncomeCents)}</td><td>{money(record.nonCashIncomeCents)}</td><td><strong>{money(record.totalIncomeCents)}</strong></td></>}</tr>; })}</tbody></table>{preview.records.length === 0 && <p className="empty-state">当前范围没有符合条件的已确认记工。</p>}</div></section>;
+  const single = preview.paymentScope !== "ALL";
+  const notice = paymentNotice(record, preview.paymentScope);
+  const largeFeeWage = cash ? record.cashLargeFeeWageCents : record.nonCashLargeFeeWageCents;
+  const tip = cash ? record.cashTipCents : record.nonCashTipCents;
+  const selectedIncome = cash ? record.cashIncomeCents : record.nonCashIncomeCents;
+
+  return (
+    <article className="employee-settlement-record-card">
+      <div className="employee-settlement-record-card__topline">
+        <strong>{recordName(record)}</strong>
+        <span>{locale === "en-US" ? `#${index + 1}` : `第 ${index + 1} 笔`}</span>
+      </div>
+      <span className="record-time">
+        {time(record.startAt, preview.storeTimezone)}–{time(record.endAt, preview.storeTimezone)}
+      </span>
+      <div className="employee-settlement-record-card__amount">
+        <small>大费基数</small>
+        <strong>{money(record.grossFeeBaseCents)}</strong>
+      </div>
+      <div className="employee-settlement-record-card__payments">
+        <span><small>大费实收</small><b>{paymentParts(record, "service")}</b></span>
+        <span><small>小费</small><b>{paymentParts(record, "tip")}</b></span>
+      </div>
+      {notice && <small className="settlement-payment-notice">{notice}</small>}
+      <dl className="employee-settlement-record-card__income">
+        {single ? <>
+          <div><dt>大费工资</dt><dd>{money(largeFeeWage)}</dd></div>
+          <div><dt>所选小费</dt><dd>{money(tip)}</dd></div>
+          <div className="total"><dt>本笔收入</dt><dd>{money(selectedIncome)}</dd></div>
+        </> : <>
+          <div><dt>现金收入</dt><dd>{money(record.cashIncomeCents)}</dd></div>
+          <div><dt>刷卡＋礼卡收入</dt><dd>{money(record.nonCashIncomeCents)}</dd></div>
+          <div className="total"><dt>本笔总收入</dt><dd>{money(record.totalIncomeCents)}</dd></div>
+        </>}
+      </dl>
+    </article>
+  );
+}
+
+function SettlementDaySummaryCard({
+  paymentScope,
+  summary,
+}: {
+  paymentScope: EmployeeSettlementPaymentScope;
+  summary: EmployeeSettlementDaySummary;
+}) {
+  const { locale } = useLanguage();
+  const cash = paymentScope === "CASH";
+  const total = paymentScope === "ALL"
+    ? summary.totalIncomeCents
+    : cash
+      ? summary.cashIncomeCents
+      : summary.nonCashIncomeCents;
+
+  return (
+    <article className="employee-settlement-record-card employee-settlement-record-card--summary">
+      <div className="employee-settlement-record-card__topline">
+        <strong>当日总结</strong>
+        <span>{locale === "en-US" ? `${summary.recordCount} records` : `${summary.recordCount} 笔`}</span>
+      </div>
+      <span className="record-time">本日合计</span>
+      <div className="employee-settlement-record-card__amount">
+        <small>{paymentScope === "ALL" ? "当日总收入" : cash ? "现金工资合计" : "非现金工资合计"}</small>
+        <strong>{money(total)}</strong>
+      </div>
+      <dl className="employee-settlement-record-card__daily-summary">
+        <div><dt>大费基数</dt><dd>{money(summary.grossFeeBaseCents)}</dd></div>
+        {paymentScope === "ALL" ? <>
+          <div><dt>现金收入</dt><dd>{money(summary.cashIncomeCents)}</dd></div>
+          <div><dt>刷卡＋礼卡收入</dt><dd>{money(summary.nonCashIncomeCents)}</dd></div>
+        </> : <>
+          <div><dt>{cash ? "现金大费工资" : "刷卡＋礼卡大费工资"}</dt><dd>{money(cash ? summary.cashLargeFeeWageCents : summary.nonCashLargeFeeWageCents)}</dd></div>
+          <div><dt>{cash ? "现金小费" : "刷卡＋礼卡小费"}</dt><dd>{money(cash ? summary.cashTipCents : summary.nonCashTipCents)}</dd></div>
+        </>}
+      </dl>
+    </article>
+  );
+}
+
+function SettlementRecords({ preview }: { preview: EmployeeSettlementPreview }) {
+  const { locale } = useLanguage();
+  const days = groupEmployeeSettlementRecordsByDay(preview.records);
+  const countLabel = locale === "en-US"
+    ? `${days.length} days · ${preview.records.length} records`
+    : `${days.length} 天 · ${preview.records.length} 笔`;
+
+  return (
+    <section className="employee-settlement-records">
+      <header>
+        <div>
+          <h3>按日记工</h3>
+          <p>每天按时间排列记工，末尾卡片汇总当天收入。</p>
+        </div>
+        <strong>{countLabel}</strong>
+      </header>
+      {days.length > 0 ? (
+        <div className="employee-settlement-days">
+          {days.map((day) => (
+            <section className="employee-settlement-day" key={day.businessDate}>
+              <header>
+                <div>
+                  <time dateTime={day.businessDate}>{localizedBusinessDate(day.businessDate, locale)}</time>
+                  <span>{day.businessDate}</span>
+                </div>
+                <strong>{locale === "en-US" ? `${day.records.length} records` : `${day.records.length} 笔记工`}</strong>
+              </header>
+              <div className="employee-settlement-day-track" aria-label={locale === "en-US" ? `${day.businessDate} records and summary` : `${day.businessDate} 记工与总结`}>
+                {day.records.map((record, index) => (
+                  <SettlementRecordCard key={record.id} preview={preview} record={record} index={index} />
+                ))}
+                <SettlementDaySummaryCard paymentScope={preview.paymentScope} summary={day.summary} />
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <p className="empty-state">当前范围没有符合条件的已确认记工。</p>
+      )}
+    </section>
+  );
 }
 
 export function EmployeeSettlementPanel({ storeId, businessDate, members, busy, run }: { storeId: string; businessDate: string; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void> }) {
@@ -69,5 +206,5 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, busy, 
   useEffect(() => { if (!deliveries?.deliveries.some((item) => item.status === "QUEUED" || item.status === "CLAIMED")) return; const timer = window.setInterval(() => void loadDeliveries().catch(() => undefined), 10_000); return () => window.clearInterval(timer); }, [deliveries, loadDeliveries]);
   async function generate() { const params = new URLSearchParams({ membershipId, dateFrom, dateTo, paymentScope }); setPreview(await apiRequest<EmployeeSettlementPreview>(`/stores/${storeId}/employee-settlements/preview?${params}`)); }
   async function send() { setSending(true); setSendMessage("正在加入短信发送队列…"); try { const result = await apiRequest<{ queuedCount?: number }>(`/stores/${storeId}/employee-settlements/deliveries`, { method: "POST", idempotent: true, body: { membershipId, dateFrom, dateTo, paymentScope } }); await loadDeliveries(); setSendMessage(result.queuedCount ? `已加入短信发送队列（${result.queuedCount} 条），可在下方查看进度。` : "发送任务已更新，可在下方查看进度。"); } catch (error) { setSendMessage(`发送失败：${errorMessage(error)}`); throw error; } finally { setSending(false); } }
-  return <section className="employee-settlement-builder"><div className="employee-settlement-builder-heading"><div><p className="eyebrow">员工结算区</p><h2>生成区间结算单</h2><p>核对并发送结算资料，不会新增工资账本，也不会改变老板尚欠余额。</p></div></div><form className="employee-settlement-controls" onSubmit={(event) => { event.preventDefault(); void run(generate); }}><label>员工<select required value={membershipId} onChange={(event) => { setMembershipId(event.target.value); setPreview(null); setSendMessage(""); }}>{payable.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label><label>开始日期<input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPreview(null); setSendMessage(""); }} /></label><label>结束日期<input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPreview(null); setSendMessage(""); }} /></label><label>工资来源<select value={paymentScope} onChange={(event) => { setPaymentScope(event.target.value as EmployeeSettlementPaymentScope); setPreview(null); setSendMessage(""); }}><option value="CASH">现金</option><option value="NON_CASH">刷卡＋礼物卡</option><option value="ALL">全部</option></select></label><button className="primary-action" type="submit" disabled={busy || !membershipId}>生成结算单</button></form>{preview && <section className="employee-settlement-preview"><header><div><p className="eyebrow">{preview.storeName} · 员工区间结算</p><h2>{preview.employee.displayName}</h2><p>{preview.dateFrom} 至 {preview.dateTo} · {scopeLabel(preview.paymentScope)} · {preview.records.length} 笔</p></div><div><button className="secondary-action" type="button" disabled={busy || sending || preview.records.length === 0} onClick={() => void run(send)}>{sending ? "正在排队…" : "短信发送摘要图＋PDF"}</button>{sendMessage && <p className="employee-settlement-send-message" role="status">{sendMessage}</p>}</div></header><SettlementSummary preview={preview} /><SettlementRecords preview={preview} /></section>}{deliveries && <DeliveryQueue value={deliveries} busy={busy} action={(delivery, kind) => void run(async () => { if (kind === "cancel") { if (!window.confirm("确认取消这条结算短信任务？")) return; await apiRequest(`/stores/${storeId}/employee-settlements/deliveries/${delivery.id}`, { method: "DELETE" }); } else { const endpoint = kind === "retry-detail" ? "retry-detail" : "retry"; await apiRequest(`/stores/${storeId}/employee-settlements/deliveries/${delivery.id}/${endpoint}`, { method: "POST", idempotent: true }); } await loadDeliveries(); })} />}</section>;
+  return <section className="employee-settlement-builder"><div className="employee-settlement-builder-heading"><div><p className="eyebrow">员工结算区</p><h2>生成区间结算单</h2><p>核对并发送结算资料，不会新增工资账本，也不会改变老板尚欠余额。</p></div></div><form className="employee-settlement-controls" onSubmit={(event) => { event.preventDefault(); void run(generate); }}><label>员工<select required value={membershipId} onChange={(event) => { setMembershipId(event.target.value); setPreview(null); setSendMessage(""); }}>{payable.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label><label>开始日期<input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPreview(null); setSendMessage(""); }} /></label><label>结束日期<input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPreview(null); setSendMessage(""); }} /></label><label>工资来源<select value={paymentScope} onChange={(event) => { setPaymentScope(event.target.value as EmployeeSettlementPaymentScope); setPreview(null); setSendMessage(""); }}><option value="CASH">现金</option><option value="NON_CASH">刷卡＋礼物卡</option><option value="ALL">全部</option></select></label><button className="primary-action" type="submit" disabled={busy || !membershipId}>生成结算单</button></form>{preview && <section className="employee-settlement-preview"><header><div><p className="eyebrow">{preview.storeName} · 员工区间结算</p><h2>{preview.employee.displayName}</h2><p>{preview.dateFrom} 至 {preview.dateTo} · {scopeLabel(preview.paymentScope)} · {preview.records.length} 笔</p></div><div><button className="secondary-action" type="button" disabled={busy || sending || preview.records.length === 0} onClick={() => void run(send)}>{sending ? "正在排队…" : "短信发送长图"}</button>{sendMessage && <p className="employee-settlement-send-message" role="status">{sendMessage}</p>}</div></header><SettlementSummary preview={preview} /><SettlementRecords preview={preview} /></section>}{deliveries && <DeliveryQueue value={deliveries} busy={busy} action={(delivery, kind) => void run(async () => { if (kind === "cancel") { if (!window.confirm("确认取消这条结算短信任务？")) return; await apiRequest(`/stores/${storeId}/employee-settlements/deliveries/${delivery.id}`, { method: "DELETE" }); } else { const endpoint = kind === "retry-detail" ? "retry-detail" : "retry"; await apiRequest(`/stores/${storeId}/employee-settlements/deliveries/${delivery.id}/${endpoint}`, { method: "POST", idempotent: true }); } await loadDeliveries(); })} />}</section>;
 }

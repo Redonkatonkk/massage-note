@@ -145,7 +145,6 @@ export class EmployeeSettlementsService {
         id: deliveryId,
         storeId,
         status: { in: ["SENT", "FAILED"] },
-        summarySentAt: { not: null },
       },
       data: {
         status: "QUEUED",
@@ -158,7 +157,7 @@ export class EmployeeSettlementsService {
         leaseExpiresAt: null,
       },
     });
-    if (changed.count !== 1) throw new ConflictException({ code: "SETTLEMENT_DETAIL_NOT_RETRYABLE", messageZh: "只有已发送摘要的结算任务可以单独重发 PDF" });
+    if (changed.count !== 1) throw new ConflictException({ code: "SETTLEMENT_DETAIL_NOT_RETRYABLE", messageZh: "只有已完成或失败的结算任务可以重发长图" });
     await this.prisma.auditLog.create({
       data: {
         storeId,
@@ -193,7 +192,7 @@ export class EmployeeSettlementsService {
     return {
       id: job.id, documentType: "RANGE_SETTLEMENT", leaseToken,
       phoneE164: job.recipientPhoneE164, locale: job.locale,
-      summarySent: Boolean(job.summarySentAt), detailSent: Boolean(job.detailSentAt),
+      detailSent: Boolean(job.detailSentAt),
       snapshot: job.snapshotJson,
     };
   }
@@ -218,7 +217,7 @@ export class EmployeeSettlementsService {
   async complete(authorization: string | undefined, deliveryId: string, leaseToken: string) {
     const agent = await this.authenticateAgent(authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
-    if (!job.summarySentAt || !job.detailSentAt) throw new ConflictException({ code: "SETTLEMENT_ATTACHMENTS_INCOMPLETE", messageZh: "摘要图和明细 PDF 均发送后才能完成任务" });
+    if (!job.detailSentAt) throw new ConflictException({ code: "SETTLEMENT_ATTACHMENTS_INCOMPLETE", messageZh: "结算长图发送后才能完成任务" });
     const sentAt = new Date();
     await this.prisma.$transaction([
       this.prisma.employeeSettlementDelivery.update({ where: { id: job.id }, data: { status: "SENT", sentAt, leaseToken: null, leaseExpiresAt: null, lastError: null, lastErrorCode: null } }),

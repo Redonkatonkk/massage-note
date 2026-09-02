@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { messagesServices, sendMessagesAttachment } from "./messages.js";
 import { cleanupOutbox, closingPngPath, prepareOutbox, secureAttachment, secureClosingPng, settlementAttachmentPath } from "./outbox.js";
 import { renderClosingPng, type ClosingSnapshot } from "./render.js";
-import { renderSettlementArtifacts, type SettlementSnapshot } from "./settlement-render.js";
+import { renderSettlementLongImage, type SettlementSnapshot } from "./settlement-render.js";
 import { messagesStagerReady, stageMessagesAttachment } from "./stager.js";
 
 const apiUrl = process.env.MASSAGE_NOTE_API_URL?.replace(/\/$/, "");
@@ -13,7 +13,7 @@ const dataDir = process.env.MASSAGE_NOTE_AGENT_DATA_DIR ?? join(homedir(), "Libr
 if (!apiUrl || !agentToken) throw new Error("MASSAGE_NOTE_API_URL and MASSAGE_NOTE_AGENT_TOKEN are required");
 
 interface Job { id: string; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; snapshot: ClosingSnapshot }
-interface SettlementJob { id: string; documentType: "RANGE_SETTLEMENT"; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; summarySent: boolean; detailSent: boolean; snapshot: SettlementSnapshot }
+interface SettlementJob { id: string; documentType: "RANGE_SETTLEMENT"; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; detailSent: boolean; snapshot: SettlementSnapshot }
 interface Journal { accepted: string[]; completed: string[] }
 const journalPath = join(dataDir, "journal.json");
 const outboxDir = await prepareOutbox(dataDir);
@@ -45,7 +45,7 @@ async function heartbeat(lastError: string | null = null) {
     diagnosticError = error instanceof Error ? error.message : String(error);
   }
   try {
-    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.37", lastError: diagnosticError }) });
+    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "0.12.45", lastError: diagnosticError }) });
   } catch (error) {
     process.stderr.write(`heartbeat: ${error instanceof Error ? error.message : String(error)}\n`);
   }
@@ -96,36 +96,27 @@ async function processSettlementJob(job: SettlementJob) {
   const authorized = await request<{ authorized: boolean }>(`/employee-settlement-delivery-agent/jobs/${job.id}/authorize`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
   if (!authorized.authorized) return;
   const workDir = await mkdtemp(join(tmpdir(), "massage-note-settlement-"));
-  const summaryPath = settlementAttachmentPath(outboxDir, job.id, "summary");
-  const detailsPath = settlementAttachmentPath(outboxDir, job.id, "details");
-  let activeAttachment: "SUMMARY" | "DETAIL" = job.summarySent ? "DETAIL" : "SUMMARY";
+  const detailsImagePath = settlementAttachmentPath(outboxDir, job.id);
   let sendStarted = false;
   try {
-    await renderSettlementArtifacts(job.snapshot, job.locale, workDir, summaryPath, detailsPath);
-    await Promise.all([secureAttachment(summaryPath), secureAttachment(detailsPath)]);
-    if (!job.summarySent) {
-      activeAttachment = "SUMMARY";
-      sendStarted = false;
-      const staged = await stageMessagesAttachment(summaryPath, job.id, "settlement-summary.png");
-      sendStarted = true;
-      const service = await sendMessagesAttachment(job.phoneE164, staged);
-      process.stdout.write(`settlement ${job.id} summary accepted by ${service}\n`);
-      await request(`/employee-settlement-delivery-agent/jobs/${job.id}/checkpoint`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, attachment: "SUMMARY" }) });
-      job.summarySent = true;
-    }
+    const artifacts = await renderSettlementLongImage(job.snapshot, job.locale, workDir, detailsImagePath);
+    await secureAttachment(detailsImagePath);
     if (!job.detailSent) {
-      activeAttachment = "DETAIL";
       sendStarted = false;
-      const staged = await stageMessagesAttachment(detailsPath, job.id, "settlement-details.pdf", job.summarySent);
+      const staged = await stageMessagesAttachment(detailsImagePath, job.id, "settlement-details.jpg", true);
       sendStarted = true;
-      const service = await sendMessagesAttachment(job.phoneE164, staged, "DOCUMENT");
-      process.stdout.write(`settlement ${job.id} PDF accepted by ${service}\n`);
+      const service = await sendMessagesAttachment(job.phoneE164, staged, "CONVERSATION_IMAGE");
+      process.stdout.write(`settlement ${job.id} long image (${artifacts.longImage.width}x${artifacts.longImage.height}) accepted by ${service}\n`);
+      // Older APIs require both historical checkpoints. SUMMARY here means the
+      // three summary cards embedded at the top of this same long image; no
+      // separate summary attachment is generated or sent.
+      await request(`/employee-settlement-delivery-agent/jobs/${job.id}/checkpoint`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, attachment: "SUMMARY" }) });
       await request(`/employee-settlement-delivery-agent/jobs/${job.id}/checkpoint`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, attachment: "DETAIL" }) });
     }
     await request(`/employee-settlement-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await request(`/employee-settlement-delivery-agent/jobs/${job.id}/fail`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, code: sendStarted ? `${activeAttachment}_RESULT_AMBIGUOUS` : `${activeAttachment}_PRE_SEND_FAILURE`, message, retryable: !sendStarted }) }).catch(() => undefined);
+    await request(`/employee-settlement-delivery-agent/jobs/${job.id}/fail`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, code: sendStarted ? "DETAIL_RESULT_AMBIGUOUS" : "DETAIL_PRE_SEND_FAILURE", message, retryable: !sendStarted }) }).catch(() => undefined);
     throw error;
   } finally {
     await rm(workDir, { recursive: true, force: true });

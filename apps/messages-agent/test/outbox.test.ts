@@ -44,9 +44,15 @@ describe("Messages attachment outbox", () => {
     try {
       await mkdir(join(directory, "outbox"));
       expect(() => closingPngPath(join(directory, "outbox"), "../secret")).toThrow("invalid closing delivery job id");
-      expect(() => settlementAttachmentPath(join(directory, "outbox"), "../secret", "details")).toThrow("invalid settlement delivery job id");
+      expect(() => settlementAttachmentPath(join(directory, "outbox"), "../secret")).toThrow("invalid settlement delivery job id");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  it("为结算长图使用固定路径", () => {
+    const outbox = "/agent/outbox";
+    const jobId = "00000000-0000-4000-8000-000000000004";
+    expect(settlementAttachmentPath(outbox, jobId)).toBe(join(outbox, `${jobId}-details.jpg`));
   });
 });

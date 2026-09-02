@@ -1,9 +1,8 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import { renderSettlementArtifacts, type SettlementSnapshot } from "../src/settlement-render.js";
+import { renderSettlementLongImage, type SettlementSnapshot } from "../src/settlement-render.js";
 
 const snapshot: SettlementSnapshot = {
   storeName: "Massage Note", storeTimezone: "America/New_York", dateFrom: "2026-08-01", dateTo: "2026-08-28", paymentScope: "NON_CASH",
@@ -19,39 +18,44 @@ const snapshot: SettlementSnapshot = {
 };
 
 describe.skipIf(process.platform !== "darwin")("employee settlement artifacts", () => {
-  it("生成摘要 PNG 和自动分页 PDF", async () => {
+  it("生成顶部汇总、按日卡片和每日总结的可读长图", async () => {
     const directory = await mkdtemp(join(tmpdir(), "settlement-render-test-"));
     try {
-      const summary = join(directory, "summary.png");
-      const details = join(directory, "details.pdf");
-      const result = await renderSettlementArtifacts(snapshot, "zh_CN", directory, summary, details);
-      expect(result.pageCount).toBe(5);
-      expect((await readFile(summary)).subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-      expect(await PDFDocument.load(await readFile(details))).toHaveProperty("getPageCount");
-      expect((await PDFDocument.load(await readFile(details))).getPageCount()).toBe(5);
-      const detailSvg = await readFile(join(directory, "settlement-page-002.svg"), "utf8");
+      const detailsImage = join(directory, "details.jpg");
+      const result = await renderSettlementLongImage(snapshot, "zh_CN", directory, detailsImage);
+      expect(result.longImage.width).toBeGreaterThanOrEqual(1080);
+      expect(result.longImage.height).toBeLessThanOrEqual(32_760);
+      expect(result.longImage.byteLength).toBeLessThanOrEqual(4 * 1024 * 1024);
+      expect((await readFile(detailsImage)).subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
+      const detailSvg = await readFile(join(directory, "settlement-details-long.svg"), "utf8");
       expect(detailSvg).toContain("大费: 现金 US$40.00 / 刷卡 US$60.00");
       expect(detailSvg).toContain("混合付款 · 仅计算刷卡＋礼卡部分");
+      expect(detailSvg.match(/员工区间结算/g)).toHaveLength(1);
+      expect(detailSvg).toContain("当日总结");
+      expect(detailSvg).toContain("28 天");
+      expect(detailSvg).toContain("刷卡大费分红");
+      expect(detailSvg).toContain("刷卡小费");
+      expect(detailSvg).toContain("非现金工资合计");
+      expect(detailSvg).not.toContain("仅统计付款已确认记工");
+      expect(detailSvg).not.toContain("…");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
   }, 30_000);
 
-  it("同一不可变快照重复生成完全相同的 PDF，允许只重发明细", async () => {
+  it("同一不可变快照重复生成完全相同的长图，允许只重发明细", async () => {
     const firstDirectory = await mkdtemp(join(tmpdir(), "settlement-render-first-"));
     const secondDirectory = await mkdtemp(join(tmpdir(), "settlement-render-second-"));
     try {
-      const first = join(firstDirectory, "details.pdf");
-      const second = join(secondDirectory, "details.pdf");
-      await renderSettlementArtifacts(snapshot, "zh_CN", firstDirectory, join(firstDirectory, "summary.png"), first);
-      await renderSettlementArtifacts(snapshot, "zh_CN", secondDirectory, join(secondDirectory, "summary.png"), second);
-      expect(await readFile(second)).toEqual(await readFile(first));
+      await renderSettlementLongImage(snapshot, "zh_CN", firstDirectory, join(firstDirectory, "details.jpg"));
+      await renderSettlementLongImage(snapshot, "zh_CN", secondDirectory, join(secondDirectory, "details.jpg"));
+      expect(await readFile(join(secondDirectory, "details.jpg"))).toEqual(await readFile(join(firstDirectory, "details.jpg")));
     } finally {
       await Promise.all([firstDirectory, secondDirectory].map((directory) => rm(directory, { recursive: true, force: true })));
     }
   }, 30_000);
 
-  it("旧快照缺少付款拆分字段时仍可生成旧版分页 PDF", async () => {
+  it("旧快照缺少付款拆分字段时仍可生成紧凑长图", async () => {
     const directory = await mkdtemp(join(tmpdir(), "settlement-render-legacy-"));
     try {
       const legacy = structuredClone(snapshot);
@@ -61,10 +65,59 @@ describe.skipIf(process.platform !== "darwin")("employee settlement artifacts", 
         delete record.cardTipCents;
         delete record.giftCardTipCents;
       }
-      const result = await renderSettlementArtifacts(legacy, "zh_CN", directory, join(directory, "summary.png"), join(directory, "details.pdf"));
-      expect(result.pageCount).toBe(3);
+      const result = await renderSettlementLongImage(legacy, "zh_CN", directory, join(directory, "details.jpg"));
+      expect(result.longImage.width).toBeGreaterThanOrEqual(1080);
+      expect(result.longImage.height).toBeLessThanOrEqual(32_760);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it("同一天记工很多时自动换成多行卡片且不截断文字", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "settlement-render-limit-"));
+    try {
+      const busyDay = structuredClone(snapshot);
+      busyDay.dateFrom = "2026-08-20";
+      busyDay.dateTo = "2026-08-20";
+      busyDay.records = Array.from({ length: 18 }, (_, index) => ({
+        ...structuredClone(snapshot.records[index % snapshot.records.length]!),
+        businessDate: "2026-08-20",
+        serviceName: `完整显示的超长项目名称 ${index + 1}`,
+        serviceShortName: "",
+      }));
+      busyDay.summary.recordCount = busyDay.records.length;
+      const result = await renderSettlementLongImage(busyDay, "zh_CN", directory, join(directory, "details.jpg"));
+      expect(result.longImage.width).toBe(1080);
+      expect(result.longImage.height).toBeGreaterThan(2_000);
+      expect(result.longImage.byteLength).toBeLessThanOrEqual(4 * 1024 * 1024);
+      const detailSvg = await readFile(join(directory, "settlement-details-long.svg"), "utf8");
+      expect(detailSvg).toContain("完整显示的超长项目名称 18");
+      expect(detailSvg).not.toContain("…");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("31 天、每天 12 笔记工仍生成一张可读长图", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "settlement-render-month-"));
+    try {
+      const month = structuredClone(snapshot);
+      month.dateFrom = "2026-08-01";
+      month.dateTo = "2026-08-31";
+      month.records = Array.from({ length: 31 * 12 }, (_, index) => ({
+        ...structuredClone(snapshot.records[index % snapshot.records.length]!),
+        businessDate: `2026-08-${String(Math.floor(index / 12) + 1).padStart(2, "0")}`,
+      }));
+      month.summary.recordCount = month.records.length;
+      const result = await renderSettlementLongImage(month, "zh_CN", directory, join(directory, "details.jpg"));
+      expect(result.longImage.width).toBeGreaterThanOrEqual(1080);
+      expect(result.longImage.height).toBeLessThanOrEqual(32_760);
+      expect(result.longImage.byteLength).toBeLessThanOrEqual(4 * 1024 * 1024);
+      const detailSvg = await readFile(join(directory, "settlement-details-long.svg"), "utf8");
+      expect(detailSvg).toContain("31 天");
+      expect(detailSvg.match(/当日总结/g)).toHaveLength(31);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 120_000);
 });

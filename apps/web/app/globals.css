@@ -2547,17 +2547,45 @@ h2 {
 .employee-settlement-matrix > strong { text-align: left; }
 .employee-settlement-matrix > b { color: var(--muted); font-size: .7rem; }
 .employee-settlement-records { border-top: 1px solid #eadbd0; background: rgba(255,250,246,.74); }
-.employee-settlement-records > header { display: flex; justify-content: space-between; gap: 12px; padding: 15px 20px 10px; }
+.employee-settlement-records > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px 14px; }
 .employee-settlement-records h3, .employee-settlement-records p { margin: 0; }
 .employee-settlement-records p { margin-top: 3px; color: var(--muted); font-size: .72rem; }
-.employee-settlement-records > header > strong { color: var(--brand); font-size: .78rem; }
-.employee-settlement-record-scroll { max-height: min(64dvh, 720px); overflow: auto; border-top: 1px solid #eadbd0; }
-.employee-settlement-record-table { min-width: 820px; }
-.employee-settlement-record-table thead { position: sticky; top: 0; z-index: 1; background: #fbf5f0; }
-.employee-settlement-record-table td:first-child { white-space: nowrap; }
-.employee-settlement-record-table td:first-child small { display: block; margin-top: 3px; color: var(--muted); }
-.settlement-payment-line { display: block; margin-top: 4px; color: var(--muted); font-size: .7rem; white-space: nowrap; }
-.settlement-payment-notice { display: block; width: fit-content; margin-top: 6px; padding: 3px 7px; border-radius: 999px; background: #fff1de; color: #8e3e2f; font-size: .66rem; font-weight: 800; white-space: nowrap; }
+.employee-settlement-records > header > strong { flex: 0 0 auto; padding: 5px 9px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-size: .72rem; }
+.employee-settlement-days { display: grid; max-height: min(72dvh, 900px); overflow-y: auto; border-top: 1px solid #eadbd0; scrollbar-color: #d9b9a7 transparent; }
+.employee-settlement-day { min-width: 0; padding: 17px 0 19px; border-bottom: 1px solid #eadbd0; }
+.employee-settlement-day:last-child { border-bottom: 0; }
+.employee-settlement-day > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 20px 12px; }
+.employee-settlement-day > header > div { display: flex; min-width: 0; align-items: baseline; gap: 9px; }
+.employee-settlement-day > header time { font-size: 1rem; font-weight: 900; }
+.employee-settlement-day > header span { color: var(--muted); font-size: .68rem; font-variant-numeric: tabular-nums; }
+.employee-settlement-day > header > strong { flex: 0 0 auto; color: var(--brand); font-size: .72rem; }
+.employee-settlement-day-track { display: flex; min-width: 0; gap: 12px; overflow-x: auto; padding: 0 20px 4px; scroll-padding-inline: 20px; scroll-snap-type: x proximity; scrollbar-color: #d9b9a7 transparent; }
+.employee-settlement-record-card { display: flex; width: 276px; min-width: 276px; min-height: 286px; flex-direction: column; gap: 7px; padding: 15px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 7px 20px rgba(83,54,31,.055); scroll-snap-align: start; }
+.employee-settlement-record-card__topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.employee-settlement-record-card__topline > strong { min-width: 0; overflow-wrap: anywhere; font-size: .94rem; line-height: 1.3; }
+.employee-settlement-record-card__topline > span { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; background: #f4eee8; color: var(--muted); font-size: .64rem; font-weight: 850; }
+.employee-settlement-record-card__amount { display: grid; gap: 2px; margin-top: 3px; }
+.employee-settlement-record-card__amount small { color: var(--muted); font-size: .68rem; font-weight: 750; }
+.employee-settlement-record-card__amount strong { color: var(--ink); font-size: 1.28rem; font-variant-numeric: tabular-nums; }
+.employee-settlement-record-card__payments { display: grid; gap: 5px; padding-top: 7px; border-top: 1px solid rgba(80,61,47,.12); }
+.employee-settlement-record-card__payments > span { display: grid; grid-template-columns: 56px minmax(0,1fr); gap: 7px; align-items: baseline; }
+.employee-settlement-record-card__payments small { color: var(--muted); font-size: .64rem; font-weight: 750; }
+.employee-settlement-record-card__payments b { min-width: 0; overflow-wrap: anywhere; font-size: .67rem; font-weight: 750; line-height: 1.4; }
+.employee-settlement-record-card__income { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 5px; margin: auto 0 0; padding-top: 9px; border-top: 1px solid rgba(80,61,47,.12); }
+.employee-settlement-record-card__income > div { display: grid; min-width: 0; gap: 4px; padding: 7px 5px; border-radius: 9px; background: #fbf6f1; }
+.employee-settlement-record-card__income > div.total { background: var(--brand-soft); }
+.employee-settlement-record-card__income dt { color: var(--muted); font-size: .57rem; font-weight: 800; line-height: 1.25; }
+.employee-settlement-record-card__income dd { margin: 0; overflow-wrap: anywhere; font-size: .7rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+.employee-settlement-record-card--summary { border-color: color-mix(in srgb,var(--brand) 44%,var(--line)); background: linear-gradient(145deg,#fff7ee 0%,#f8e3da 100%); box-shadow: 0 9px 24px rgba(142,62,47,.12); }
+.employee-settlement-record-card--summary .employee-settlement-record-card__topline > span { background: var(--brand); color: #fff; }
+.employee-settlement-record-card--summary .employee-settlement-record-card__amount { margin-top: 13px; padding: 13px; border-radius: 13px; background: var(--brand); }
+.employee-settlement-record-card--summary .employee-settlement-record-card__amount small { color: rgba(255,255,255,.76); }
+.employee-settlement-record-card--summary .employee-settlement-record-card__amount strong { color: #fff; font-size: 1.58rem; }
+.employee-settlement-record-card__daily-summary { display: grid; gap: 7px; margin: auto 0 0; padding: 11px 12px; border: 1px solid rgba(142,62,47,.14); border-radius: 12px; background: rgba(255,255,255,.72); }
+.employee-settlement-record-card__daily-summary > div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.employee-settlement-record-card__daily-summary dt { color: var(--muted); font-size: .65rem; font-weight: 750; }
+.employee-settlement-record-card__daily-summary dd { margin: 0; font-size: .75rem; font-weight: 900; font-variant-numeric: tabular-nums; text-align: right; }
+.settlement-payment-notice { display: block; width: fit-content; margin-top: 1px; padding: 3px 7px; border-radius: 999px; background: #fff1de; color: #8e3e2f; font-size: .6rem; font-weight: 800; line-height: 1.35; }
 .finance-record-labels { display: grid; gap: 4px; }
 .finance-payment-label { display: inline-block; width: max-content; padding: 3px 7px; border-radius: 999px; background: #fff1de; color: #8e3e2f; font-size: .68rem; font-weight: 800; white-space: nowrap; }
 .settlement-delivery-queue { padding: 13px 15px; border: 1px solid #a9d1bb; border-radius: 15px; background: #f5fcf8; }
@@ -2596,6 +2624,13 @@ h2 {
   .employee-settlement-summary { padding-inline: 10px; }
   .employee-settlement-matrix { grid-template-columns: minmax(72px, 1.1fr) repeat(3, minmax(0, 1fr)); padding: 5px; font-size: .72rem; }
   .employee-settlement-matrix > * { padding: 7px 3px; }
+  .employee-settlement-records > header { align-items: stretch; flex-direction: column; padding-inline: 14px; }
+  .employee-settlement-records > header > strong { width: fit-content; }
+  .employee-settlement-days { max-height: none; overflow-y: visible; }
+  .employee-settlement-day > header { padding-inline: 14px; }
+  .employee-settlement-day > header > div { display: grid; gap: 2px; }
+  .employee-settlement-day-track { padding-inline: 14px; scroll-padding-inline: 14px; }
+  .employee-settlement-record-card { width: min(278px,82vw); min-width: min(278px,82vw); }
   .balance-list article, .closing-status, .date-toolbar { align-items: stretch; flex-direction: column; }
   .filter-panel__heading, .finance-metric-group > header, .finance-report-heading, .finance-details__heading { align-items: stretch; flex-direction: column; }
   .filter-panel__heading .export-link { width: 100%; }

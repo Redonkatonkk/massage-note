@@ -10,11 +10,11 @@ enum StagerError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidArguments: return "usage: AttachmentStager --diagnose <result-json> | <source> <job-uuid> [closing.png|settlement-summary.png|settlement-details.pdf] [--reuse-existing] <result-json>"
+        case .invalidArguments: return "usage: AttachmentStager --diagnose <result-json> | <source> <job-uuid> [closing.png|settlement-details.jpg] [--reuse-existing] <result-json>"
         case .invalidJobID: return "invalid closing delivery job id"
         case .invalidResultPath: return "result must be the exact job result file in the Massage Note agent data directory"
         case .invalidSource: return "source must be the exact job PNG in the Massage Note agent outbox"
-        case .invalidAttachment: return "source is not a valid PNG or PDF attachment"
+        case .invalidAttachment: return "source is not a valid PNG or JPEG attachment"
         case .conflictingDestination: return "a different attachment already exists for this job"
         }
     }
@@ -68,16 +68,18 @@ func stage(sourceArgument: String, jobArgument: String, fileName: String, reuseE
         throw StagerError.invalidJobID
     }
     let source = URL(fileURLWithPath: sourceArgument).standardizedFileURL
-    let allowedNames = ["closing.png", "settlement-summary.png", "settlement-details.pdf"]
+    let allowedNames = ["closing.png", "settlement-details.jpg"]
     guard allowedNames.contains(fileName) else { throw StagerError.invalidAttachment }
-    let sourceName = fileName == "closing.png" ? "\(jobArgument).png" : "\(jobArgument)-\(fileName == "settlement-summary.png" ? "summary.png" : "details.pdf")"
+    let sourceName = fileName == "closing.png" ? "\(jobArgument).png" : "\(jobArgument)-details.jpg"
     let expectedSource = outboxRoot.appendingPathComponent(sourceName).standardizedFileURL
     guard source.path == expectedSource.path else { throw StagerError.invalidSource }
 
     let data = try Data(contentsOf: source, options: .mappedIfSafe)
     let pngSignature = Data([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-    let pdfSignature = Data("%PDF-".utf8)
-    let valid = fileName.hasSuffix(".png") ? data.count >= pngSignature.count && data.prefix(pngSignature.count) == pngSignature : data.count >= pdfSignature.count && data.prefix(pdfSignature.count) == pdfSignature
+    let jpegSignature = Data([0xff, 0xd8, 0xff])
+    let valid = fileName.hasSuffix(".png")
+        ? data.count >= pngSignature.count && data.prefix(pngSignature.count) == pngSignature
+        : data.count >= jpegSignature.count && data.prefix(jpegSignature.count) == jpegSignature
     guard valid else { throw StagerError.invalidAttachment }
 
     try ensureDirectory(messagesRoot)
@@ -89,7 +91,7 @@ func stage(sourceArgument: String, jobArgument: String, fileName: String, reuseE
 
     if fileManager.fileExists(atPath: destination.path) {
         let existing = try Data(contentsOf: destination, options: .mappedIfSafe)
-        guard existing == data || (reuseExisting && fileName == "settlement-details.pdf") else {
+        guard existing == data || (reuseExisting && fileName == "settlement-details.jpg") else {
             throw StagerError.conflictingDestination
         }
     } else {
@@ -115,7 +117,7 @@ do {
         let stem = jobID.uuidString.lowercased()
         let fileName = arguments.count >= 4 ? arguments[2] : "closing.png"
         let reuseExisting = arguments.count == 5 && arguments[3] == "--reuse-existing"
-        guard arguments.count != 5 || (reuseExisting && fileName == "settlement-details.pdf") else {
+        guard arguments.count != 5 || (reuseExisting && fileName == "settlement-details.jpg") else {
             throw StagerError.invalidArguments
         }
         let result = try validatedResultURL(arguments[arguments.count - 1], expectedStem: stem)

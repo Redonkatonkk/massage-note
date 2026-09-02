@@ -7,12 +7,12 @@
 | 任务类型 | 附件 | 路由要求 |
 | --- | --- | --- |
 | 个人日结 | 一张中英文 PNG，不附带重复文字气泡 | iMessage、RCS 或 SMS/MMS |
-| 员工区间结算 | 摘要 PNG，再发送逐笔多页 PDF | PNG 可走 iMessage、RCS 或 SMS/MMS；PDF 只走 iMessage 或 RCS |
+| 员工区间结算 | 顶部三张汇总卡＋完整逐笔明细 | 所有会话统一只发送一张专门排版的 JPEG 长图，不生成 PDF、独立摘要图或分页拼接图 |
 
 - 代理不开放入站端口，只向 API 发起出站 HTTPS 请求；NAS 不需要连接或控制 Mac。
 - 固定 Mac 必须保持对应 macOS 用户登录。锁屏不影响运行，退出该用户会停止 LaunchAgent。
 - 代理不模拟键盘、不使用剪贴板或相册、不激活“信息”窗口，也不读写聊天数据库。
-- AppleScript 返回只表示“信息”接受了发送指令，不等于运营商已经送达；结果不明确时不得自动重发。
+- AppleScript 返回只表示“信息”接受了发送指令，不等于运营商已经送达；结果不明确时不得自动重发。真实验收以 Messages 送达状态为准。
 
 ## 安装前准备
 
@@ -52,7 +52,7 @@ tail -n 50 "$HOME/Library/Application Support/Massage Note Messages Agent/agent-
 
 ## 附件暂存与重试
 
-代理先把附件以 `0600` 权限写入 `~/Library/Application Support/Massage Note Messages Agent/outbox`。暂存 App 验证源路径、任务 UUID、固定文件名和 PNG/PDF 文件头，再写入：
+代理先把附件以 `0600` 权限写入 `~/Library/Application Support/Massage Note Messages Agent/outbox`。暂存 App 验证源路径、任务 UUID、固定文件名和 PNG/JPEG 文件头，再写入：
 
 ```text
 ~/Library/Messages/Attachments/MassageNote/<前两位>/<任务 UUID>/
@@ -60,14 +60,17 @@ tail -n 50 "$HOME/Library/Application Support/Massage Note Messages Agent/agent-
 
 同一任务已有不同内容时拒绝覆盖。App 只在 `stager-results/<任务 UUID>.json` 返回成功或失败；代理读取后立即删除结果文件，并核对返回路径必须精确等于该任务目标。没有明确成功结果时绝不调用“信息”。
 
-区间结算的 PNG 与 PDF 分别记录完成检查点，重试只发送未完成的附件。代理串行处理队列，发送脚本额外保留 15 秒让“信息”接管附件；源 outbox 保留 30 分钟后清理，正式附件交由“信息”管理。
+区间结算只记录单张长图的完成检查点。长图顶部放置店名、员工、结算区间和三张汇总卡，下面按营业日分组；每笔记工使用独立卡片，每天最后一张为“当日总结”。项目名称、付款拆分和混合付款提示按卡片宽度自动折行，不允许用省略号隐藏内容。同一天记工超过一行时自动换到下一行；渲染器会根据总天数和记录密度在 1080、1440、1680 像素源画布与 2～4 列之间选择布局，再在不超过 4 MB 的前提下压缩输出。图片不含独立封面、分页页眉或页码。
+
+容量回归测试必须至少覆盖“单日 18 笔”和“31 天、每天 12 笔”。长图最大源高度为 32,760 像素；若在保持完整文字和可读字号的前提下仍超限，明确要求缩短结算日期区间，不能继续压缩行高或裁掉记录。代理串行处理队列，发送脚本额外保留 15 秒让“信息”接管附件；源 outbox 保留 30 分钟后清理，正式附件交由“信息”管理。
 
 ## 路由规则
 
 数据库、权限和审计始终保存 E.164 号码。对 `+1` 号码，交给“信息”时转换为十位本地号码：
 
 - PNG 优先交给已连接的 SMS 账户，由配对 iPhone 升级为 RCS 或发送 SMS/MMS；没有 SMS 时再回退到 RCS/iMessage。
-- PDF 只使用 iMessage 或 RCS 数据通道，不走 SMS/MMS。
+- 结算长图优先沿用该号码已经存在的一对一会话，使 Messages 保留实际可用的 iMessage 或 RCS 路由；找不到会话时再按 SMS/RCS/iMessage 账户顺序寻址。
+- 结算流程不再交给 Messages 任何文档附件，避免运营商把文档降级为随后失败的 SMS。
 - “本机有 iMessage 账号”不代表收件号码已注册 iMessage，不能据此单独判断路由。
 - 真实设备日志出现 `RCS Relay received message delivered` 才是 RCS 送达回执。
 
@@ -82,7 +85,7 @@ tail -n 50 "$HOME/Library/Application Support/Massage Note Messages Agent/agent-
 | macOS 26 账户枚举报 `-10000` | 逐账户读取 `service type` 时必须各自包在 `try` 内，忽略无法转换的额外账户类型 |
 | PNG 显示 `0 KB / 原大小`，或出现 `fileTransfer rejected error 30`、`IMFileTransfer error 15` | 确认交给 AppleScript 的路径位于 Messages 专用附件目录，再运行暂存程序 `--diagnose` |
 | 非 Apple 号码图片失败 | iPhone 短信转发、运营商 MMS/RCS 和已连接 SMS 账户 |
-| PDF 无法发送 | 收件人是否可通过 iMessage 或 RCS 接收；PDF 不回退 SMS/MMS |
+| 结算长图无法发送 | 确认代理为 `0.12.44` 或更高，并检查图片是否超过 32,760 像素或 4 MB；超限时缩短结算区间 |
 
 遇到附件读取问题时，不要改用模拟键盘、剪贴板粘贴、相册最近项、复制私有 `com.apple.macl` 属性，或操作 Messages/Photos 数据库。正式代理不需要“辅助功能”权限。
 

@@ -10,13 +10,18 @@ export function messagesPhoneHandle(phoneE164: string) {
 
 export const messagesAttachmentScript = `on run argv
 set phoneNumber to item 1 of argv
-set filePath to item 2 of argv
+set phoneE164 to item 2 of argv
+set filePath to item 3 of argv
 set attachmentKind to "IMAGE"
-if (count of argv) is greater than 2 then set attachmentKind to item 3 of argv
+if (count of argv) is greater than 3 then set attachmentKind to item 4 of argv
+if attachmentKind is "CONVERSATION_IMAGE" then
+  set serviceUsed to sendToExistingChat(phoneE164, filePath)
+  if serviceUsed is not "" then
+    delay 15
+    return serviceUsed
+  end if
+end if
 set requestedTypes to {"SMS", "RCS", "iMessage"}
--- Carrier SMS/MMS accepts images but rejects PDF documents asynchronously.
--- Documents therefore use data messaging only, preferring iMessage for Apple recipients.
-if attachmentKind is "DOCUMENT" then set requestedTypes to {"iMessage", "RCS"}
 set serviceUsed to ""
 repeat with requestedType in requestedTypes
   if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, requestedType as text)
@@ -25,6 +30,19 @@ if serviceUsed is "" then error "No enabled Messages account can address this ph
 delay 15
 return serviceUsed
 end run
+
+on sendToExistingChat(phoneE164, filePath)
+tell application "Messages"
+  try
+    set targetChat to chat id ("any;-;" & phoneE164)
+    if not (exists targetChat) then return ""
+    send POSIX file filePath to targetChat
+    return "existing conversation"
+  on error
+    return ""
+  end try
+end tell
+end sendToExistingChat
 
 on sendWithType(phoneNumber, filePath, requestedType)
 tell application "Messages"
@@ -69,12 +87,12 @@ end tell`;
 export async function sendMessagesAttachment(
   phoneE164: string,
   attachmentPath: string,
-  attachmentKind: "IMAGE" | "DOCUMENT" = "IMAGE",
+  attachmentKind: "IMAGE" | "CONVERSATION_IMAGE" = "IMAGE",
 ): Promise<string> {
   const phoneHandle = messagesPhoneHandle(phoneE164);
   const { stdout } = await execFileAsync(
     "/usr/bin/osascript",
-    ["-e", messagesAttachmentScript, "--", phoneHandle, attachmentPath, attachmentKind],
+    ["-e", messagesAttachmentScript, "--", phoneHandle, phoneE164, attachmentPath, attachmentKind],
     { timeout: 45_000 },
   );
   return stdout.trim();

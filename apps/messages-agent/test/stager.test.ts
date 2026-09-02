@@ -59,18 +59,18 @@ describe("Messages attachment stager", () => {
     await expect(messagesStagerReady()).rejects.toThrow("Full Disk Access denied");
   });
 
-  it("严格接受区间结算 PDF 的固定 Messages 路径", async () => {
+  it("严格接受区间结算长图的固定 Messages 路径", async () => {
     const jobId = "ab48f3d5-8a80-4260-98ae-e8b4fd603d14";
-    const validPath = join(process.env.HOME!, "Library", "Messages", "Attachments", "MassageNote", "ab", jobId, "settlement-details.pdf");
+    const validPath = join(process.env.HOME!, "Library", "Messages", "Attachments", "MassageNote", "ab", jobId, "settlement-details.jpg");
     await prepareOpenMock({ ok: true, path: validPath });
-    await expect(stageMessagesAttachment("/source/details.pdf", jobId, "settlement-details.pdf")).resolves.toBe(validPath);
+    await expect(stageMessagesAttachment("/source/details.jpg", jobId, "settlement-details.jpg", true)).resolves.toBe(validPath);
   });
 
-  it("PDF 重试要求暂存程序复用同任务已经校验的文档", async () => {
+  it("长图重试要求暂存程序复用同任务已经校验的附件", async () => {
     const jobId = "ab48f3d5-8a80-4260-98ae-e8b4fd603d14";
-    const validPath = join(process.env.HOME!, "Library", "Messages", "Attachments", "MassageNote", "ab", jobId, "settlement-details.pdf");
+    const validPath = join(process.env.HOME!, "Library", "Messages", "Attachments", "MassageNote", "ab", jobId, "settlement-details.jpg");
     const { log } = await prepareOpenMock({ ok: true, path: validPath });
-    await stageMessagesAttachment("/source/details.pdf", jobId, "settlement-details.pdf", true);
+    await stageMessagesAttachment("/source/details.jpg", jobId, "settlement-details.jpg", true);
     expect(await readFile(log, "utf8")).toContain("--reuse-existing");
   });
 

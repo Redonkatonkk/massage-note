@@ -149,8 +149,11 @@ describe("bilingual UI translation", () => {
   it("translates employee range settlement controls and delivery progress", () => {
     expect(translateText("员工结算区", "en-US")).toBe("Employee settlement");
     expect(translateText("刷卡＋礼物卡", "en-US")).toBe("Card + gift card");
-    expect(translateText("短信发送摘要图＋PDF", "en-US")).toBe("Send summary image + PDF");
-    expect(translateText("摘要已发 · PDF 待发送", "en-US")).toBe("Summary sent · PDF pending");
+    expect(translateText("按日记工", "en-US")).toBe("Records by day");
+    expect(translateText("当日总结", "en-US")).toBe("Daily summary");
+    expect(translateText("本日合计", "en-US")).toBe("Daily total");
+    expect(translateText("短信发送长图", "en-US")).toBe("Send long image");
+    expect(translateText("长图待发送", "en-US")).toBe("Long image pending");
   });
 
   it("explains that highlighted cards use only the yellow card background", () => {

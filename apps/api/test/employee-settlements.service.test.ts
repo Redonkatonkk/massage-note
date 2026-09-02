@@ -77,8 +77,8 @@ describe("EmployeeSettlementsService preview", () => {
   });
 });
 
-describe("EmployeeSettlementsService PDF redelivery", () => {
-  it("只清除 PDF 完成时间并保留摘要完成时间", async () => {
+describe("EmployeeSettlementsService long-image redelivery", () => {
+  it("重发单张长图不依赖旧摘要检查点", async () => {
     const prisma = {
       closingDeliveryAgent: {
         findUnique: vi.fn().mockResolvedValue({
@@ -102,7 +102,6 @@ describe("EmployeeSettlementsService PDF redelivery", () => {
         id: "50000000-0000-4000-8000-000000000001",
         storeId,
         status: { in: ["SENT", "FAILED"] },
-        summarySentAt: { not: null },
       },
       data: expect.objectContaining({
         status: "QUEUED",
@@ -110,7 +109,6 @@ describe("EmployeeSettlementsService PDF redelivery", () => {
         sentAt: null,
       }),
     });
-    expect(prisma.employeeSettlementDelivery.updateMany.mock.calls[0]?.[0]?.data).not.toHaveProperty("summarySentAt");
     expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "employee_settlement.delivery_detail_retried" }) }));
   });
 });

@@ -1,6 +1,6 @@
 # Massage note
 
-当前版本：`0.12.37`
+当前版本：`0.12.45`
 
 面向美国按摩店的中英文记工与财务管理 Web 应用，支持手机、iPad 和电脑。系统覆盖多店成员、今日记工、礼物卡、提成、确定性财务、日结、现金与工资结算、审计、实时同步和带确认预览的 AI 助手。
 
@@ -55,6 +55,8 @@ pnpm dev
 ```
 
 打开 `http://localhost:3000`；API 就绪检查为 `http://localhost:4000/api/v1/health/ready`。本地无 Firebase 时可以显式启用开发登录，生产环境绝不能开启。
+
+需要固定演示数据时运行 `pnpm demo:seed`，然后使用 `+1 (770) 575-0450` 和登录页的“使用此号码直接进入”。脚本会创建 `本地演示店` 及最近一周的多种付款与结算场景；详细说明见 [`docs/engineering/DEVELOPMENT.md`](docs/engineering/DEVELOPMENT.md#固定本地演示数据)。
 
 ## 验证
 

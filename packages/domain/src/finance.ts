@@ -78,10 +78,13 @@ export interface StoreSettlementInput {
   managerWorkerIncomeCents: Cents;
   giftCardSalesAmountCents: Cents;
   giftCardRedemptionCents: Cents;
+  nonHighlightedCardAmountCents: Cents;
+  highlightedCardPaymentCount: number;
 }
 
 export interface StoreSettlement {
   giftCardNetIncomeCents: bigint;
+  creditCardFeeCents: Cents;
   totalIncomeCents: bigint;
 }
 
@@ -98,25 +101,36 @@ export function calculateDailyTurnover(input: DailyTurnoverInput): bigint {
 }
 
 /**
- * 店铺总结算按界面列出的项目直接相加。礼物卡收入为卖卡实收减核销支出，
- * 因而礼物卡净收入和最终总收入都允许为负数。
+ * 店铺总结算先相加四项收入，再扣除信用卡手续费。普通记工按刷卡金额的
+ * 2.5% 收费，高亮且含刷卡付款的记工按每笔 3 美元收费。
  */
 export function calculateStoreSettlement(
   input: StoreSettlementInput,
 ): StoreSettlement {
   const ownerWorkerIncomeCents = cents(input.ownerWorkerIncomeCents);
   const managerWorkerIncomeCents = cents(input.managerWorkerIncomeCents);
+  if (
+    !Number.isSafeInteger(input.highlightedCardPaymentCount) ||
+    input.highlightedCardPaymentCount < 0
+  ) {
+    throw new RangeError("高亮刷卡记工数量必须是非负整数");
+  }
   const giftCardNetIncomeCents =
     cents(input.giftCardSalesAmountCents) -
     cents(input.giftCardRedemptionCents);
+  const creditCardFeeCents =
+    multiplyByBps(cents(input.nonHighlightedCardAmountCents), 250) +
+    BigInt(input.highlightedCardPaymentCount) * 300n;
 
   return {
     giftCardNetIncomeCents,
+    creditCardFeeCents,
     totalIncomeCents:
       input.storeIncomeCents +
       ownerWorkerIncomeCents +
       managerWorkerIncomeCents +
-      giftCardNetIncomeCents,
+      giftCardNetIncomeCents -
+      creditCardFeeCents,
   };
 }
 

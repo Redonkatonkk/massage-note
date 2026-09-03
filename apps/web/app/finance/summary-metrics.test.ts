@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { financeSummaryGroups, financeSummaryMetrics } from "./summary-metrics";
 
 describe("财务汇总指标说明", () => {
-  it("保留 24 个汇总指标并为每项提供解释与计算方法", () => {
-    expect(financeSummaryMetrics).toHaveLength(24);
-    expect(new Set(financeSummaryMetrics.map((metric) => metric.key)).size).toBe(24);
+  it("保留 25 个汇总指标并为每项提供解释与计算方法", () => {
+    expect(financeSummaryMetrics).toHaveLength(25);
+    expect(new Set(financeSummaryMetrics.map((metric) => metric.key)).size).toBe(25);
     expect(financeSummaryMetrics.map((metric) => metric.label)).not.toContain("老板尚欠");
     expect(financeSummaryMetrics.map((metric) => metric.label)).not.toContain("本期工资结算");
     expect(financeSummaryMetrics.map((metric) => metric.label)).not.toContain("客人总付款");
@@ -24,6 +24,7 @@ describe("财务汇总指标说明", () => {
     expect(financeSummaryGroups.at(-1)).toMatchObject({
       key: "store-settlement",
       title: "店铺总结算",
+      metricKeys: ["storeIncomeCents", "ownerWorkerIncomeCents", "managerWorkerIncomeCents", "giftCardNetIncomeCents", "creditCardFeeCents", "totalIncomeCents"],
     });
   });
 });

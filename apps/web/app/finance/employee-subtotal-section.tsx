@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
-import { formatEffectiveCommissionRate } from "../../lib/employee-subtotal";
+import { formatCommissionRate } from "../../lib/employee-subtotal";
 import { formatUsdPrecise } from "../../lib/money";
 import type { EmployeeSettlementDelivery, EmployeeSettlementDeliveryList, FinanceSummaryResponse } from "../../lib/types";
 
@@ -92,10 +92,11 @@ function EmployeeSubtotalCard({ row, onViewDetails }: { row: EmployeeSubtotal; o
         {amount(row.grossFeeBaseCents, "大费基数", true)}
       </div>
       <div className="employee-subtotal-equation employee-subtotal-equation--wage">
-        {amount(row.grossFeeBaseCents, "大费基数")}
-        <b aria-hidden="true">×</b>
-        <div className="employee-subtotal-rate"><small>综合分成比例</small><strong>{formatEffectiveCommissionRate(row.grossFeeBaseCents, row.totalLargeFeeWageCents)}</strong></div>
-        <b aria-hidden="true">＝</b>
+        <div className="employee-subtotal-rate">
+          <small>提成比例</small>
+          <strong>{formatCommissionRate(row.defaultCommissionBps)}</strong>
+          {row.hasDifferentItemCommission && <em>部分项目比例不同</em>}
+        </div>
         {amount(row.totalLargeFeeWageCents, "大费工资", true)}
       </div>
       <div className="employee-subtotal-equation employee-subtotal-equation--income">
@@ -182,7 +183,7 @@ export function EmployeeSubtotalSection({
       <div className="finance-report-heading employee-subtotal-heading">
         <div>
           <h2>员工小计</h2>
-          <p>{summary.filters.dateFrom} 至 {summary.filters.dateTo} · {paymentLabel(summary.filters.paymentMethod)} · {amountLabel(summary.filters.amountType)}。金额保留到美分；综合分成比例自动兼容小数。</p>
+          <p>{summary.filters.dateFrom} 至 {summary.filters.dateTo} · {paymentLabel(summary.filters.paymentMethod)} · {amountLabel(summary.filters.amountType)}。金额保留到美分；提成比例显示员工当前设置。</p>
         </div>
         {canSend && <div className="employee-subtotal-send-panel">
           <label>接收号码<input type="tel" inputMode="tel" autoComplete="tel" placeholder="例如 +16465551234" value={recipientPhone} onChange={(event) => { setRecipientPhone(event.target.value); setSendMessage(""); }} /></label>

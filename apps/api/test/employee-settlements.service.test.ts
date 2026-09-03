@@ -133,7 +133,7 @@ describe("EmployeeSettlementsService employee-summary delivery", () => {
     const financeQueries = {
       summary: vi.fn().mockResolvedValue({
         filters: { dateFrom: "2026-09-01", dateTo: "2026-09-02", membershipIds: [member.id], paymentMethod: "ALL", amountType: "ALL", highlightFilter: "ALL" },
-        employees: [{ membershipId: member.id, displayName: "Amy", role: "EMPLOYEE", recordCount: 2, mainServiceAmountCents: 10_050n, addonTotalCents: 1_025n, grossFeeBaseCents: 11_075n, totalTipCents: 2_055n, totalLargeFeeWageCents: 6_701n, employeeIncomeCents: 8_756n }],
+        employees: [{ membershipId: member.id, displayName: "Amy", role: "EMPLOYEE", defaultCommissionBps: 6_000, hasDifferentItemCommission: true, recordCount: 2, mainServiceAmountCents: 10_050n, addonTotalCents: 1_025n, grossFeeBaseCents: 11_075n, totalTipCents: 2_055n, totalLargeFeeWageCents: 6_701n, employeeIncomeCents: 8_756n }],
       }),
     };
     const value = new EmployeeSettlementsService(prisma as never, access as never, financeQueries as never);
@@ -149,7 +149,7 @@ describe("EmployeeSettlementsService employee-summary delivery", () => {
         recipientPhoneE164: "+16465551234",
         snapshotJson: expect.objectContaining({
           documentType: "EMPLOYEE_SUMMARY",
-          employees: [expect.objectContaining({ mainServiceAmountCents: 10_050, addonTotalCents: 1_025, totalLargeFeeWageCents: 6_701, employeeIncomeCents: 8_756 })],
+          employees: [expect.objectContaining({ defaultCommissionBps: 6_000, hasDifferentItemCommission: true, mainServiceAmountCents: 10_050, addonTotalCents: 1_025, totalLargeFeeWageCents: 6_701, employeeIncomeCents: 8_756 })],
         }),
       }),
     });

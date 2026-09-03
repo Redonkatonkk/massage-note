@@ -44,10 +44,13 @@ describe("店铺总结算", () => {
         managerWorkerIncomeCents: 12_000n,
         giftCardSalesAmountCents: 9_500n,
         giftCardRedemptionCents: 2_500n,
+        nonHighlightedCardAmountCents: 12_345n,
+        highlightedCardPaymentCount: 2,
       }),
     ).toEqual({
       giftCardNetIncomeCents: 7_000n,
-      totalIncomeCents: 42_000n,
+      creditCardFeeCents: 909n,
+      totalIncomeCents: 41_091n,
     });
   });
 
@@ -59,11 +62,28 @@ describe("店铺总结算", () => {
         managerWorkerIncomeCents: 500n,
         giftCardSalesAmountCents: 0n,
         giftCardRedemptionCents: 1_000n,
+        nonHighlightedCardAmountCents: 0n,
+        highlightedCardPaymentCount: 0,
       }),
     ).toEqual({
       giftCardNetIncomeCents: -1_000n,
+      creditCardFeeCents: 0n,
       totalIncomeCents: -1_100n,
     });
+  });
+
+  it("高亮记工仅在实际包含刷卡付款时按每笔三美元收费", () => {
+    expect(
+      calculateStoreSettlement({
+        storeIncomeCents: 10_000n,
+        ownerWorkerIncomeCents: 0n,
+        managerWorkerIncomeCents: 0n,
+        giftCardSalesAmountCents: 0n,
+        giftCardRedemptionCents: 0n,
+        nonHighlightedCardAmountCents: 0n,
+        highlightedCardPaymentCount: 3,
+      }),
+    ).toMatchObject({ creditCardFeeCents: 900n, totalIncomeCents: 9_100n });
   });
 });
 

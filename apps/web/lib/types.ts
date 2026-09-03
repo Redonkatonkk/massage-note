@@ -502,6 +502,7 @@ export interface FinanceSummaryResponse {
     ownerWorkerIncomeCents: number;
     managerWorkerIncomeCents: number;
     giftCardNetIncomeCents: number;
+    creditCardFeeCents: number;
     totalIncomeCents: number;
     payrollPaidWithinRangeCents: number;
     settledCashAcquiredWithinRangeCents: number;
@@ -513,6 +514,8 @@ export interface FinanceSummaryResponse {
       membershipId: string;
       displayName: string;
       role: StoreRole;
+      defaultCommissionBps: number | null;
+      hasDifferentItemCommission: boolean;
     }
   >;
   days: Array<FinanceTotals & { businessDate: string; dailyTurnoverCents: number }>;

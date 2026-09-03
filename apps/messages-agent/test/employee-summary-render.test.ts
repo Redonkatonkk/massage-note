@@ -17,6 +17,8 @@ const snapshot: EmployeeSummarySnapshot = {
     membershipId: "10000000-0000-4000-8000-000000000001",
     displayName: "Amy",
     role: "EMPLOYEE",
+    defaultCommissionBps: 6_000,
+    hasDifferentItemCommission: true,
     recordCount: 2,
     mainServiceAmountCents: 10_050,
     addonTotalCents: 1_025,
@@ -38,10 +40,33 @@ describe.skipIf(process.platform !== "darwin")("employee summary image", () => {
       expect((await readFile(output)).subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
       const svg = await readFile(join(directory, "employee-summary.svg"), "utf8");
       expect(svg).toContain("US$100.50");
-      expect(svg).toContain("60.5056%");
+      expect(svg).toContain("提成比例 60% · 部分项目比例不同");
       expect(svg).toContain("阶段总收入");
-      expect(svg).toContain("综合分成比例兼容小数");
+      expect(svg).toContain("显示当前提成设置");
+      expect(svg).not.toContain("US$110.75 ×");
       expect(svg).not.toContain("折扣");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("旧版排队快照缺少提成设置时仍能生成可读图片", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "employee-summary-legacy-"));
+    try {
+      const employee: EmployeeSummarySnapshot["employees"][number] = {
+        ...snapshot.employees[0],
+      };
+      delete employee.defaultCommissionBps;
+      delete employee.hasDifferentItemCommission;
+      await renderEmployeeSummaryImage(
+        { ...snapshot, employees: [employee] },
+        "zh_CN",
+        directory,
+        join(directory, "summary.jpg"),
+      );
+      const svg = await readFile(join(directory, "employee-summary.svg"), "utf8");
+      expect(svg).toContain("提成比例 跟随项目/店铺");
+      expect(svg).not.toContain("NaN%");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

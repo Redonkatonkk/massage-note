@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { formatEffectiveCommissionRate } from "./employee-subtotal";
+import { formatCommissionRate } from "./employee-subtotal";
 
-describe("formatEffectiveCommissionRate", () => {
-  it("兼容带小数的综合分成比例", () => {
-    expect(formatEffectiveCommissionRate(10_100, 6_063)).toBe("60.0297%");
+describe("formatCommissionRate", () => {
+  it("直接格式化员工默认提成并保留基点精度", () => {
+    expect(formatCommissionRate(6_055)).toBe("60.55%");
+    expect(formatCommissionRate(6_000)).toBe("60%");
   });
 
-  it("没有大费基数时不显示虚假的比例", () => {
-    expect(formatEffectiveCommissionRate(0, 0)).toBe("—");
+  it("没有员工默认提成时说明沿用项目或店铺设置", () => {
+    expect(formatCommissionRate(null)).toBe("跟随项目/店铺");
+    expect(formatCommissionRate(null, "en-US")).toBe("Uses item/store rate");
   });
 });

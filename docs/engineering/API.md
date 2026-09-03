@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`0.12.47`
+> 适用版本：`0.12.48`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -199,7 +199,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 - `dateFrom`、`dateTo`：营业日范围，均包含端点。
 - `membershipIds`：逗号分隔的成员 ID；普通员工即使传入其他人也只会得到本人数据。
-- `paymentMethod`：`CASH`、`CARD`、`GIFT_CARD` 或 `ALL`，省略时默认 `ALL`。
+- `paymentMethod`：`CASH`、`NON_CASH` 或 `ALL`，省略时默认 `ALL`；`NON_CASH` 表示刷卡与礼物卡。
 - `amountType`：`SERVICE`、`TIP` 或 `ALL`。
 - `highlightFilter`：`ALL`、`ONLY_HIGHLIGHTED` 或 `EXCLUDE_HIGHLIGHTED`。
 
@@ -213,9 +213,10 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 - `ownerWorkerIncomeCents`：`OWNER` 角色作为工人的大费工资与小费；
 - `managerWorkerIncomeCents`：所有 `MANAGER` 角色作为工人的大费工资与小费合计；
 - `giftCardNetIncomeCents = giftCardSalesAmountCents - giftCardRedemptionCents`；
-- `totalIncomeCents = storeIncomeCents + ownerWorkerIncomeCents + managerWorkerIncomeCents + giftCardNetIncomeCents`。
+- `creditCardFeeCents`：未高亮记工的所选刷卡大费与刷卡小费合计按 `2.5%` 四舍五入到美分，再加上每条含所选刷卡金额的高亮记工 `$3.00`；部分刷卡仍按一笔，高亮但没有刷卡金额不收费，礼物卡付款和卖卡刷卡不计入；
+- `totalIncomeCents = storeIncomeCents + ownerWorkerIncomeCents + managerWorkerIncomeCents + giftCardNetIncomeCents - creditCardFeeCents`。
 
-这些字段采用当前日期、员工、付款方式、金额类型和高亮筛选口径。Web 的每日小计位于员工小计之前，日期后显示按当前界面语言本地化的星期；员工范围使用复选框多选，空选择表示全部员工。
+这些字段采用当前日期、员工、付款方式、金额类型和高亮筛选口径。`finance/summary.employees[]` 还返回员工当前 `defaultCommissionBps` 和是否存在不同项目专属设置的 `hasDifferentItemCommission`；Web 与员工小计短信直接显示该设置，不再用筛选后的工资反推比例。Web 的每日小计位于员工小计之前，日期后显示按当前界面语言本地化的星期；员工范围使用复选框多选，空选择表示全部员工。
 
 工资结算列表支持日期、成员和 `includeDeleted=true`。审计列表支持 `dateFrom`、`dateTo`、`entityType`、`action`、`actorUserId` 与游标分页。
 

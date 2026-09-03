@@ -17,6 +17,8 @@ export interface EmployeeSummarySnapshot {
     membershipId: string;
     displayName: string;
     role: "OWNER" | "MANAGER" | "EMPLOYEE";
+    defaultCommissionBps?: number | null;
+    hasDifferentItemCommission?: boolean;
     recordCount: number;
     mainServiceAmountCents: number;
     addonTotalCents: number;
@@ -33,9 +35,9 @@ const MAX_BYTES = 4 * 1024 * 1024;
 const escapeXml = (value: unknown) => String(value).replace(/[<>&"']/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[character]!);
 const localeName = (locale: Locale) => locale === "zh_CN" ? "zh-CN" : "en-US";
 const money = (cents: number, locale: Locale) => new Intl.NumberFormat(localeName(locale), { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
-const percentage = (baseCents: number, wageCents: number, locale: Locale) => baseCents === 0
-  ? "—"
-  : `${new Intl.NumberFormat(localeName(locale), { minimumFractionDigits: 0, maximumFractionDigits: 4 }).format((wageCents * 100) / baseCents)}%`;
+const percentage = (commissionBps: number | null | undefined, locale: Locale) => typeof commissionBps !== "number"
+  ? locale === "en_US" ? "Uses item/store rate" : "跟随项目/店铺"
+  : `${new Intl.NumberFormat(localeName(locale), { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(commissionBps / 100)}%`;
 
 function scopeText(snapshot: EmployeeSummarySnapshot, locale: Locale) {
   const en = locale === "en_US";
@@ -62,7 +64,10 @@ function layout(employeeCount: number) {
 
 function employeeCard(snapshot: EmployeeSummarySnapshot, employee: EmployeeSummarySnapshot["employees"][number], index: number, x: number, y: number, width: number, locale: Locale) {
   const en = locale === "en_US";
-  const rate = percentage(employee.grossFeeBaseCents, employee.totalLargeFeeWageCents, locale);
+  const rate = percentage(employee.defaultCommissionBps, locale);
+  const variation = employee.hasDifferentItemCommission
+    ? en ? " · some items differ" : " · 部分项目比例不同"
+    : "";
   const valueFont = width < 400 ? 17 : 19;
   const formulaFont = width < 400 ? 14 : 16;
   const role = en
@@ -79,7 +84,7 @@ function employeeCard(snapshot: EmployeeSummarySnapshot, employee: EmployeeSumma
     `<text x="${x + width - 22}" y="${y + 95}" text-anchor="end" style="font-size:${valueFont}px" class="amount">${escapeXml(money(employee.addonTotalCents, locale))}</text>`,
     `<rect x="${x + 18}" y="${y + 111}" width="${width - 36}" height="42" rx="12" fill="#fbf1eb"/>`,
     `<text x="${x + width / 2}" y="${y + 138}" text-anchor="middle" style="font-size:${formulaFont}px" class="formula">${escapeXml(`= ${en ? "Fee base" : "大费基数"} ${money(employee.grossFeeBaseCents, locale)}`)}</text>`,
-    `<text x="${x + width / 2}" y="${y + 181}" text-anchor="middle" style="font-size:${formulaFont}px" class="formula">${escapeXml(`${money(employee.grossFeeBaseCents, locale)} × ${rate} = ${en ? "Service wage" : "大费工资"} ${money(employee.totalLargeFeeWageCents, locale)}`)}</text>`,
+    `<text x="${x + width / 2}" y="${y + 181}" text-anchor="middle" style="font-size:${formulaFont}px" class="formula">${escapeXml(`${en ? "Commission" : "提成比例"} ${rate}${variation} · ${en ? "Service wage" : "大费工资"} ${money(employee.totalLargeFeeWageCents, locale)}`)}</text>`,
     `<line x1="${x + 20}" y1="${y + 198}" x2="${x + width - 20}" y2="${y + 198}" stroke="#eadbd0"/>`,
     `<text x="${x + width / 2}" y="${y + 229}" text-anchor="middle" style="font-size:${formulaFont}px" class="total">${escapeXml(`${money(employee.totalLargeFeeWageCents, locale)} ＋ ${en ? "Tips" : "小费工资"} ${money(employee.totalTipCents, locale)} = ${en ? "Period income" : "阶段总收入"} ${money(employee.employeeIncomeCents, locale)}`)}</text>`,
     `<text x="${x + 22}" y="${y + 246}" class="index">${String(index + 1).padStart(2, "0")}</text>`,
@@ -101,14 +106,14 @@ function buildSvg(snapshot: EmployeeSummarySnapshot, locale: Locale) {
     `<text x="${margin}" y="101" class="title">${escapeXml(en ? "Employee subtotals" : "员工小计")}</text>`,
     `<text x="${margin}" y="139" class="meta">${escapeXml(`${snapshot.dateFrom} — ${snapshot.dateTo} · ${scopeText(snapshot, locale)}`)}</text>`,
     `<rect x="${margin}" y="158" width="${width - margin * 2}" height="36" rx="18" fill="#8e3e2f"/>`,
-    `<text x="${margin + 18}" y="182" class="scope">${escapeXml(en ? `${snapshot.employees.length} employees · amounts retain cents · effective rates may include decimals` : `${snapshot.employees.length} 位员工 · 金额保留美分 · 综合分成比例兼容小数`)}</text>`,
+    `<text x="${margin + 18}" y="182" class="scope">${escapeXml(en ? `${snapshot.employees.length} employees · amounts retain cents · current commission settings shown` : `${snapshot.employees.length} 位员工 · 金额保留美分 · 显示当前提成设置`)}</text>`,
   ];
   snapshot.employees.forEach((employee, index) => {
     const column = index % columns;
     const row = Math.floor(index / columns);
     parts.push(employeeCard(snapshot, employee, index, margin + column * (cardWidth + gap), headerHeight + row * (252 + gap), cardWidth, locale));
   });
-  parts.push(`<text x="${width - margin}" y="${height - 9}" text-anchor="end" class="footer">${escapeXml(en ? "Fee base × effective rate = service wage; service wage + tips = period income" : "大费基数 × 综合分成比例 = 大费工资；大费工资 ＋ 小费工资 = 阶段总收入")}</text>`);
+  parts.push(`<text x="${width - margin}" y="${height - 9}" text-anchor="end" class="footer">${escapeXml(en ? "Commission shows the employee setting; service wage + tips = period income" : "提成比例显示员工设置；大费工资 ＋ 小费工资 = 阶段总收入")}</text>`);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fffaf3"/><stop offset="1" stop-color="#f2d7cb"/></linearGradient><filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#7a4432" flood-opacity=".10"/></filter><style>text{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;fill:#211d18}.eyebrow{font-size:23px;font-weight:750;fill:#8e3e2f}.title{font-size:48px;font-weight:900}.meta{font-size:21px;font-weight:650;fill:#6b635a}.scope{font-size:17px;font-weight:750;fill:#fff}.name{font-size:25px;font-weight:900}.badge{font-size:14px;font-weight:800;fill:#8e3e2f}.label{font-size:14px;font-weight:750;fill:#756b62}.operator{font-size:19px;font-weight:900;fill:#a28f82}.amount{font-weight:900}.formula{font-weight:850}.total{font-weight:900;fill:#8e3e2f}.index{font-size:10px;font-weight:800;fill:#b9aaa0}.footer{font-size:13px;font-weight:650;fill:#756b62}</style></defs><rect width="${width}" height="${height}" fill="url(#bg)"/>${parts.join("")}</svg>`;
   return { svg, width, height };
 }

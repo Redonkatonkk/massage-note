@@ -87,6 +87,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
           role: "EMPLOYEE",
           displayName: "财务员工",
           displayNameNormalized: "财务员工",
+          defaultCommissionBps: 6_000,
         },
       ],
     });
@@ -123,6 +124,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       await prisma.idempotencyRequest.deleteMany({ where: { storeId } });
       await prisma.auditLog.deleteMany({ where: { storeId } });
       await prisma.domainOutbox.deleteMany({ where: { storeId } });
+      await prisma.employeeItemCommission.deleteMany({ where: { storeId } });
       await prisma.serviceItem.deleteMany({ where: { storeId } });
       await prisma.store.updateMany({
         where: { id: storeId },
@@ -613,6 +615,17 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
   });
 
   it("财务汇总按员工权限返回小计、日计和累计余额", async () => {
+    await prisma.employeeItemCommission.create({
+      data: {
+        storeId,
+        membershipId: employeeMembershipId,
+        itemType: "SERVICE",
+        itemId: serviceItemId,
+        commissionBps: 5_500,
+        effectiveFrom: new Date(),
+        createdBy: managerId,
+      },
+    });
     const summary = await finance.summary(actor(managerId), storeId, {
       dateFrom: businessDate,
       dateTo: businessDate,
@@ -633,12 +646,17 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       ownerWorkerIncomeCents: 0n,
       managerWorkerIncomeCents: 0n,
       giftCardNetIncomeCents: 0n,
-      totalIncomeCents: 4_000n,
+      creditCardFeeCents: 300n,
+      totalIncomeCents: 3_700n,
       settledCashAcquiredWithinRangeCents: 3_400n,
       employerOwesCents: 0n,
       overpaidCents: 400n,
     });
     expect(summary.employees).toHaveLength(1);
+    expect(summary.employees[0]).toMatchObject({
+      defaultCommissionBps: 6_000,
+      hasDifferentItemCommission: true,
+    });
     expect(summary.days).toHaveLength(1);
     const cashSummary = await finance.summary(actor(managerId), storeId, {
       dateFrom: businessDate,
@@ -659,7 +677,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       amountType: "ALL",
       highlightFilter: "ALL",
     });
-    expect(nonCashSummary.totals).toMatchObject({ totalLargeFeeWageCents: 3_600n, totalTipCents: 2_000n, employeeIncomeCents: 5_600n, storeIncomeCents: 6_400n, settledCashAcquiredWithinRangeCents: 0n });
+    expect(nonCashSummary.totals).toMatchObject({ totalLargeFeeWageCents: 3_600n, totalTipCents: 2_000n, employeeIncomeCents: 5_600n, storeIncomeCents: 6_400n, creditCardFeeCents: 300n, totalIncomeCents: 6_100n, settledCashAcquiredWithinRangeCents: 0n });
     expect(nonCashSummary.employees[0]).toMatchObject({ totalLargeFeeWageCents: 3_600n, totalTipCents: 2_000n, employeeIncomeCents: 5_600n });
     expect(nonCashSummary.days[0]).toMatchObject({ totalLargeFeeWageCents: 3_600n, totalTipCents: 2_000n, employeeIncomeCents: 5_600n });
     const nonCashDetails = await finance.details(actor(managerId), storeId, {
@@ -684,7 +702,8 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       ownerWorkerIncomeCents: 0n,
       managerWorkerIncomeCents: 6_000n,
       giftCardNetIncomeCents: 0n,
-      totalIncomeCents: 14_000n,
+      creditCardFeeCents: 550n,
+      totalIncomeCents: 13_450n,
     });
     const payrollLedger = await payroll.list(actor(managerId), storeId, { includeDeleted: true });
     expect(payrollLedger.find((item) => item.id === payrollId)).toMatchObject({ historyChangedAfterSettlement: true });
@@ -720,6 +739,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       highlightFilter: "ONLY_HIGHLIGHTED",
     });
     expect(highlighted.totals.recordCount).toBe(1);
+    expect(highlighted.totals.creditCardFeeCents).toBe(300n);
     const withoutHighlighted = await finance.summary(actor(managerId), storeId, {
       dateFrom: businessDate,
       dateTo: businessDate,
@@ -729,6 +749,10 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       highlightFilter: "EXCLUDE_HIGHLIGHTED",
     });
     expect(withoutHighlighted.totals.recordCount).toBe(0);
+    expect(withoutHighlighted.totals.creditCardFeeCents).toBe(0n);
+    await prisma.employeeItemCommission.deleteMany({
+      where: { storeId, membershipId: employeeMembershipId },
+    });
     await expect(
       finance.summary(actor(employeeId), storeId, {
         dateFrom: businessDate,

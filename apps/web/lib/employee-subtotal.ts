@@ -1,11 +1,12 @@
-export function formatEffectiveCommissionRate(
-  grossFeeBaseCents: number,
-  totalLargeFeeWageCents: number,
+export function formatCommissionRate(
+  commissionBps: number | null,
   locale: "zh-CN" | "en-US" = "zh-CN",
 ) {
-  if (grossFeeBaseCents === 0) return "—";
+  if (commissionBps === null) {
+    return locale === "en-US" ? "Uses item/store rate" : "跟随项目/店铺";
+  }
   return `${new Intl.NumberFormat(locale, {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
-  }).format((totalLargeFeeWageCents * 100) / grossFeeBaseCents)}%`;
+    maximumFractionDigits: 2,
+  }).format(commissionBps / 100)}%`;
 }

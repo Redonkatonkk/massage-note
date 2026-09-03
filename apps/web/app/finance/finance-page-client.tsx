@@ -494,7 +494,8 @@ export function FinancePageClient() {
                 ownerWorkerIncomeCents: { value: money(summary.totals.ownerWorkerIncomeCents), caption: "店长作为工人的收入" },
                 managerWorkerIncomeCents: { value: money(summary.totals.managerWorkerIncomeCents), caption: "所有经理作为工人的收入" },
                 giftCardNetIncomeCents: { value: money(summary.totals.giftCardNetIncomeCents), caption: "礼物卡销售－礼物卡核销支出" },
-                totalIncomeCents: { value: money(summary.totals.totalIncomeCents), caption: "前四项直接相加" },
+                creditCardFeeCents: { value: money(summary.totals.creditCardFeeCents), caption: "普通刷卡 2.5%＋高亮刷卡每笔 $3" },
+                totalIncomeCents: { value: money(summary.totals.totalIncomeCents), caption: "前四项相加－信用卡手续费" },
               };
               const metricByKey = new Map(financeSummaryMetrics.map((metric) => [metric.key, metric]));
               return financeSummaryGroups.map((group) => <section className={`finance-metric-group${group.emphasis ? " finance-metric-group--emphasis" : ""}`} key={group.key}><header><div><h2>{group.title}</h2><p>{group.description}</p></div></header><div className="finance-cards">{group.metricKeys.map((key) => { const metric = metricByKey.get(key)!; return <FinanceSummaryCard key={key} label={metric.label} explanation={metric.explanation} calculation={metric.calculation} {...values[key]} onViewDetails={() => void run(async () => { setDetailsTitle(metric.label); setDetails(null); await loadDetails(); })} />; })}</div></section>);

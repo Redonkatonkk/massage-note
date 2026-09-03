@@ -2386,7 +2386,7 @@ h2 {
 .employee-subtotal-equation:last-child { border-bottom: 0; }
 .employee-subtotal-equation > b { display: grid; place-items: center; color: #a18e82; font-size: 1rem; }
 .employee-subtotal-equation--base { background: #fff; }
-.employee-subtotal-equation--wage { background: #fdf8f4; }
+.employee-subtotal-equation--wage { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; background: #fdf8f4; }
 .employee-subtotal-equation--income { background: #fff8ef; }
 .employee-subtotal-value, .employee-subtotal-rate { display: grid; min-width: 0; align-content: center; gap: 5px; padding: 9px 7px; border: 0; border-radius: 11px; background: transparent; color: var(--ink); font: inherit; text-align: left; }
 button.employee-subtotal-value { cursor: pointer; }
@@ -2397,6 +2397,7 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 .employee-subtotal-equation--income .employee-subtotal-value.is-emphasis { background: var(--brand); color: #fff; }
 .employee-subtotal-equation--income .employee-subtotal-value.is-emphasis small { color: rgba(255,255,255,.75); }
 .employee-subtotal-rate { background: #fff; }
+.employee-subtotal-rate em { color: #8a5a20; font-size: .58rem; font-style: normal; font-weight: 850; line-height: 1.25; }
 .table-title { margin-top: 12px; font-size: 1.2rem; }
 .table-scroll { max-width: 100%; min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); box-shadow: var(--shadow); }
 .data-table { width: 100%; border-collapse: collapse; white-space: nowrap; }
@@ -2683,6 +2684,7 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
   .employee-subtotal-section { padding: 12px; border-radius: 17px; }
   .employee-subtotal-send-panel { width: 100%; flex-basis: auto; }
   .employee-subtotal-equation { grid-template-columns: minmax(0,1fr) 12px minmax(0,1fr) 12px minmax(0,1.12fr); gap: 1px; padding-inline: 7px; }
+  .employee-subtotal-equation--wage { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
   .employee-subtotal-value, .employee-subtotal-rate { padding-inline: 4px; }
   .employee-subtotal-value strong, .employee-subtotal-rate strong { font-size: .77rem; }
   .filter-panel__heading .export-link { width: 100%; }

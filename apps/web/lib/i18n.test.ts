@@ -185,6 +185,7 @@ describe("bilingual UI translation", () => {
     expect(translateText("店长总收入", "en-US")).toBe("Owner worker income");
     expect(translateText("经理总收入", "en-US")).toBe("Manager worker income");
     expect(translateText("礼物卡收入", "en-US")).toBe("Gift card net income");
+    expect(translateText("信用卡手续费", "en-US")).toBe("Credit card fee");
     expect(translateText("选择员工", "en-US")).toBe("Select employees");
     expect(translateText("已选 3 人", "en-US")).toBe("3 selected");
   });

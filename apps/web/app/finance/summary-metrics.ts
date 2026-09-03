@@ -138,10 +138,16 @@ export const financeSummaryMetrics = [
     calculation: "礼物卡收入 = 礼物卡销售收入 − 礼物卡核销支出。",
   },
   {
+    key: "creditCardFeeCents",
+    label: "信用卡手续费",
+    explanation: "当前筛选范围内记工产生的刷卡手续费；不包含礼物卡付款或卖卡刷卡收款。",
+    calculation: "信用卡手续费 = 未高亮记工刷卡金额 × 2.5% + 含刷卡付款的高亮记工数量 × $3。部分刷卡也按一笔计算。",
+  },
+  {
     key: "totalIncomeCents",
     label: "总收入",
-    explanation: "店铺总结算中前四项收入的直接合计。",
-    calculation: "总收入 = 店铺收入 + 店长总收入 + 经理总收入 + 礼物卡收入。",
+    explanation: "店铺总结算中前四项收入相加，再扣除信用卡手续费。",
+    calculation: "总收入 = 店铺收入 + 店长总收入 + 经理总收入 + 礼物卡收入 − 信用卡手续费。",
   },
 ] as const;
 
@@ -182,7 +188,7 @@ export const financeSummaryGroups: ReadonlyArray<{
   {
     key: "store-settlement",
     title: "店铺总结算",
-    description: "汇总店铺经营、店长与经理作为工人的收入，以及礼物卡净收支。",
-    metricKeys: ["storeIncomeCents", "ownerWorkerIncomeCents", "managerWorkerIncomeCents", "giftCardNetIncomeCents", "totalIncomeCents"],
+    description: "汇总店铺经营、店长与经理作为工人的收入、礼物卡净收支和信用卡手续费。",
+    metricKeys: ["storeIncomeCents", "ownerWorkerIncomeCents", "managerWorkerIncomeCents", "giftCardNetIncomeCents", "creditCardFeeCents", "totalIncomeCents"],
   },
 ];

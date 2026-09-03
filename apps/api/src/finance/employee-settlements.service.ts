@@ -137,6 +137,8 @@ export class EmployeeSettlementsService {
         membershipId: employee.membershipId,
         displayName: employee.displayName,
         role: employee.role,
+        defaultCommissionBps: employee.defaultCommissionBps,
+        hasDifferentItemCommission: employee.hasDifferentItemCommission,
         recordCount: employee.recordCount,
         mainServiceAmountCents: this.safeNumber(employee.mainServiceAmountCents),
         addonTotalCents: this.safeNumber(employee.addonTotalCents),

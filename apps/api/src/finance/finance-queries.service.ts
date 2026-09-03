@@ -58,22 +58,53 @@ export class FinanceQueriesService {
 
   async summary(actor: User, storeId: string, query: FinanceQuery) {
     const context = await this.resolveQueryContext(actor, storeId, query);
-    const [records, giftCardSales] = await Promise.all([
+    const [records, giftCardSales, commissionProfiles] = await Promise.all([
       this.findRecords(storeId, context),
       this.findGiftCardSales(storeId, context),
+      this.prisma.storeMembership.findMany({
+        where: { storeId, id: { in: context.membershipIds } },
+        select: {
+          id: true,
+          defaultCommissionBps: true,
+          employeeItemCommissions: {
+            where: { effectiveFrom: { lte: new Date() }, effectiveTo: null },
+            select: { commissionBps: true },
+          },
+        },
+      }),
     ]);
+    const commissionProfileByMembershipId = new Map(
+      commissionProfiles.map((profile) => [profile.id, profile]),
+    );
     const total = this.emptyTotals();
     const employees = new Map<
       string,
-      FinanceTotals & { membershipId: string; displayName: string; role: string }
+      FinanceTotals & {
+        membershipId: string;
+        displayName: string;
+        role: string;
+        defaultCommissionBps: number | null;
+        hasDifferentItemCommission: boolean;
+      }
     >();
     const days = new Map<string, FinanceTotals & { businessDate: string }>();
     for (const record of records) {
       this.addRecord(total, record, context.query);
+      const profile = commissionProfileByMembershipId.get(
+        record.employeeMembershipId,
+      );
+      const defaultCommissionBps = profile?.defaultCommissionBps ?? null;
       const employee = employees.get(record.employeeMembershipId) ?? {
         membershipId: record.employeeMembershipId,
         displayName: record.employee.displayName,
         role: record.employee.role,
+        defaultCommissionBps,
+        hasDifferentItemCommission:
+          profile?.employeeItemCommissions.some(
+            (item) =>
+              defaultCommissionBps === null ||
+              item.commissionBps !== defaultCommissionBps,
+          ) ?? false,
         ...this.emptyTotals(),
       };
       this.addRecord(employee, record, context.query);
@@ -144,12 +175,31 @@ export class FinanceQueriesService {
     const managerWorkerIncomeCents = [...employees.values()]
       .filter((employee) => employee.role === "MANAGER")
       .reduce((sum, employee) => sum + employee.employeeIncomeCents, 0n);
+    let nonHighlightedCardAmountCents = 0n;
+    let highlightedCardPaymentCount = 0;
+    if (context.query.paymentMethod !== "CASH") {
+      const includeService = context.query.amountType !== "TIP";
+      const includeTip = context.query.amountType !== "SERVICE";
+      for (const record of records) {
+        const cardAmountCents =
+          (includeService ? record.cardServiceCents ?? 0n : 0n) +
+          (includeTip ? record.cardTipCents ?? 0n : 0n);
+        if (cardAmountCents === 0n) continue;
+        if (record.isHighlighted) {
+          highlightedCardPaymentCount += 1;
+        } else {
+          nonHighlightedCardAmountCents += cardAmountCents;
+        }
+      }
+    }
     const storeSettlement = calculateStoreSettlement({
       storeIncomeCents: total.storeIncomeCents,
       ownerWorkerIncomeCents,
       managerWorkerIncomeCents,
       giftCardSalesAmountCents: total.giftCardSalesAmountCents,
       giftCardRedemptionCents: total.giftCardRedemptionCents,
+      nonHighlightedCardAmountCents,
+      highlightedCardPaymentCount,
     });
     return {
       filters: {

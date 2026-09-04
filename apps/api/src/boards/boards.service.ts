@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { Prisma, type StoreMembership, type User } from "@massage-note/database";
 import type {
@@ -22,6 +23,7 @@ import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
+import { DispatchService } from "./dispatch.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 
@@ -47,6 +49,7 @@ export class BoardsService {
     private readonly prisma: PrismaService,
     private readonly access: StoreAccessService,
     private readonly idempotency: IdempotencyService,
+    @Optional() private readonly dispatch?: DispatchService,
   ) {}
 
   async currentBusinessDay(actor: User, storeId: string) {
@@ -144,6 +147,7 @@ export class BoardsService {
                 displayName: true,
                 role: true,
                 isServiceProvider: true,
+                employmentType: true,
                 status: true,
               },
             },
@@ -233,6 +237,11 @@ export class BoardsService {
       statistics.giftCardSalesAmountCents += sale.amountCents;
     }
     statistics.storeIncomeCents = calculateStoreIncome(statistics);
+    const dispatch = personalHistoryMembershipId
+      ? { enabled: false, rankedAt: null, next: null, pendingIntents: [], events: [], rowStates: {} }
+      : this.dispatch
+        ? await this.dispatch.getState(storeId, businessDate)
+        : { enabled: false, rankedAt: null, next: null, pendingIntents: [], events: [], rowStates: {} };
     return {
       id: board?.id ?? null,
       storeId,
@@ -249,6 +258,7 @@ export class BoardsService {
       ),
       nextGiftCardSerialNumber: String(store.nextGiftCardSerialNumber),
       statistics,
+      dispatch,
     };
   }
 

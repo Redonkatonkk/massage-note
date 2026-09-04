@@ -26,6 +26,7 @@ function storeSnapshot(store: {
   giftCardAutoDiscountThresholdCents: bigint;
   giftCardAutoDiscountBps: number;
   closingDefaultLocale: string;
+  automaticDispatchEnabled: boolean;
   ownerMembershipId: string | null;
   status: string;
   version: number;
@@ -47,6 +48,7 @@ function storeSnapshot(store: {
       store.giftCardAutoDiscountThresholdCents.toString(),
     giftCardAutoDiscountBps: store.giftCardAutoDiscountBps,
     closingDefaultLocale: store.closingDefaultLocale,
+    automaticDispatchEnabled: store.automaticDispatchEnabled,
     ownerMembershipId: store.ownerMembershipId,
     status: store.status,
     version: store.version,
@@ -101,6 +103,23 @@ export class StoreManagementService {
           where: { id: storeId, status: "ACTIVE", deletedAt: null },
         });
         if (!current) this.throwStoreNotFound();
+        if (input.automaticDispatchEnabled === true) {
+          const unconfiguredProviders = await transaction.storeMembership.count({
+            where: {
+              storeId,
+              status: "ACTIVE",
+              deletedAt: null,
+              isServiceProvider: true,
+              employmentType: null,
+            },
+          });
+          if (unconfiguredProviders > 0) {
+            throw new ConflictException({
+              code: "DISPATCH_EMPLOYMENT_TYPE_REQUIRED",
+              messageZh: "请先为所有参与记工的在职成员设置全职或兼职",
+            });
+          }
+        }
         const changed = await transaction.store.updateMany({
           where: {
             id: storeId,
@@ -140,6 +159,9 @@ export class StoreManagementService {
             ...(input.closingDefaultLocale === undefined
               ? {}
               : { closingDefaultLocale: input.closingDefaultLocale }),
+            ...(input.automaticDispatchEnabled === undefined
+              ? {}
+              : { automaticDispatchEnabled: input.automaticDispatchEnabled }),
             version: { increment: 1 },
           },
         });

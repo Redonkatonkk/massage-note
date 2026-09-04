@@ -321,6 +321,7 @@ export function FinancePageClient() {
               role: selected.role,
               displayName: selected.displayName,
               isServiceProvider: selected.isServiceProvider,
+              employmentType: null,
               status: "ACTIVE",
               version: 1,
               defaultCommissionBps: null,

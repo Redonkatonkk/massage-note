@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import type { StoreMembership, User } from "@massage-note/database";
 import { Prisma } from "@massage-note/database";
@@ -28,6 +29,7 @@ import { PrismaService } from "../database/prisma.service.js";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
+import { DispatchService } from "../boards/dispatch.service.js";
 
 interface StoreBusinessSettings {
   id: string;
@@ -105,6 +107,7 @@ export class WorkRecordsService {
     private readonly prisma: PrismaService,
     private readonly access: StoreAccessService,
     private readonly idempotency: IdempotencyService,
+    @Optional() private readonly dispatch?: DispatchService,
   ) {}
 
   async create(
@@ -138,6 +141,7 @@ export class WorkRecordsService {
           mondayThursdayAutoDiscountEnabled: true,
           mondayThursdayAutoDiscountThresholdCents: true,
           mondayThursdayAutoDiscountAmountCents: true,
+          automaticDispatchEnabled: true,
         },
       });
       if (!store) this.throwStoreNotFound();
@@ -170,6 +174,24 @@ export class WorkRecordsService {
         store,
         businessDate,
       );
+
+      const isCurrentBusinessDay = businessDate === businessDateFor({
+        startAt: new Date(),
+        timezone: store.timezone,
+        cutoffLocal: store.businessCutoffLocal,
+      });
+      if (store.automaticDispatchEnabled && isCurrentBusinessDay && !input.dispatchIntentId) {
+        throw new ConflictException({
+          code: "DISPATCH_INTENT_REQUIRED",
+          messageZh: "自动排工已开启，请先从今日排工选择普通、点名或店里指定",
+        });
+      }
+      const dispatchIntent = input.dispatchIntentId
+        ? await this.dispatch?.validateIntent(transaction, storeId, businessDate, employee.id, input.dispatchIntentId)
+        : null;
+      if (input.dispatchIntentId && !dispatchIntent) {
+        throw new ConflictException({ code: "DISPATCH_INTENT_REQUIRED", messageZh: "派工已经变化，请重新派工" });
+      }
 
       const employeeDefaultBps = await this.resolveEmployeeDefaultCommission(
         transaction,
@@ -262,6 +284,7 @@ export class WorkRecordsService {
           actualDurationMinutes: durationMinutes,
           status: "PENDING_PAYMENT",
           isHighlighted: input.isHighlighted ?? false,
+          ...(dispatchIntent ? { dispatchKind: dispatchIntent.kind } : {}),
           mainServiceAmountCents: amountCents,
           addonTotalCents: 0n,
           grossFeeBaseCents: amountCents,
@@ -295,6 +318,9 @@ export class WorkRecordsService {
         },
         include: recordInclude,
       });
+      if (dispatchIntent && this.dispatch) {
+        await this.dispatch.consumeIntent(transaction, dispatchIntent.id, record.id);
+      }
       await this.reopenCashSettlements(
         transaction,
         storeId,
@@ -325,6 +351,7 @@ export class WorkRecordsService {
             commissionBps,
             commissionSource,
             isHighlighted: record.isHighlighted,
+            dispatchKind: record.dispatchKind,
             status: record.status,
             version: record.version,
           },
@@ -429,6 +456,12 @@ export class WorkRecordsService {
             throw new ConflictException({
               code: "SERVICE_SNAPSHOT_MISSING",
               messageZh: "记工缺少主要项目快照，无法修改",
+            });
+          }
+          if (record.dispatchKind && input.employeeMembershipId && input.employeeMembershipId !== record.employeeMembershipId) {
+            throw new ConflictException({
+              code: "DISPATCHED_RECORD_EMPLOYEE_IMMUTABLE",
+              messageZh: "已关联排工的记工不能直接更换员工；请删除后按正确员工重新派工",
             });
           }
           const store = await transaction.store.findFirst({
@@ -848,6 +881,9 @@ export class WorkRecordsService {
           where: { id: recordId },
           include: recordInclude,
         });
+        if (this.dispatch) {
+          await this.dispatch.returnDeletedRecordTurn(transaction, actor, record);
+        }
         await this.reopenCashSettlements(
           transaction,
           storeId,
@@ -956,6 +992,9 @@ export class WorkRecordsService {
           where: { id: recordId },
           include: recordInclude,
         });
+        if (this.dispatch) {
+          await this.dispatch.reverseReturnedTurnForRestore(transaction, actor, record);
+        }
         await this.reopenCashSettlements(
           transaction,
           storeId,

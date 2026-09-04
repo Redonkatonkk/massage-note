@@ -9,6 +9,7 @@ export interface StoreSummary {
   globalCommissionBps?: number;
   status: string;
   version?: number;
+  automaticDispatchEnabled?: boolean;
 }
 
 export interface MembershipSummary {
@@ -35,6 +36,7 @@ export interface StoreMember {
   role: StoreRole;
   displayName: string;
   isServiceProvider: boolean;
+  employmentType: "FULL_TIME" | "PART_TIME" | null;
   status: string;
   version: number;
   defaultCommissionBps: number | null;
@@ -57,6 +59,7 @@ export interface StoreDetails extends StoreSummary {
   version: number;
   ownerMembershipId: string | null;
   ownerMembership: null | { id: string; displayName: string; userId: string };
+  automaticDispatchEnabled: boolean;
 }
 
 export type ClosingDeliveryStatus = "QUEUED" | "CLAIMED" | "SENT" | "FAILED" | "CANCELLED";
@@ -322,6 +325,7 @@ export interface WorkRecord {
   largeFeeSettledManualFlag: boolean;
   automaticDiscountSuppressed: boolean;
   isHighlighted: boolean;
+  dispatchKind: "REGULAR" | "CLIENT_REQUESTED" | "STORE_ASSIGNED" | null;
   note: string;
   version: number;
   deletedAt: string | null;
@@ -418,9 +422,12 @@ export interface BoardRow {
   position: string | number;
   isHidden: boolean;
   version: number;
+  normalTurnsProcessed: number;
+  crossedTurns: number;
+  rotationRankedAt: string | null;
   membership: Pick<
     StoreMember,
-    "id" | "displayName" | "role" | "isServiceProvider" | "status"
+    "id" | "displayName" | "role" | "isServiceProvider" | "status" | "employmentType"
   >;
   shifts: Shift[];
   workRecords: WorkRecord[];
@@ -437,6 +444,28 @@ export interface BoardResponse {
   giftCardSales: GiftCardSale[];
   nextGiftCardSerialNumber: string;
   statistics: BoardStatistics;
+  dispatch: {
+    enabled: boolean;
+    rankedAt: string | null;
+    next: null | { membershipId: string; displayName: string; source: "NORMAL" | "MAKEUP" };
+    pendingIntents: Array<{
+      id: string;
+      employeeMembershipId: string;
+      kind: "REGULAR" | "CLIENT_REQUESTED" | "STORE_ASSIGNED";
+      status: "PENDING";
+      version: number;
+      sequence: number;
+    }>;
+    events: Array<{
+      id: string;
+      employeeMembershipId: string | null;
+      kind: string;
+      detailJson: unknown;
+      sequence: number;
+      createdAt: string;
+    }>;
+    rowStates: Record<string, { normalTurnsProcessed: number; crossedTurns: number; makeupTurns: number }>;
+  };
 }
 
 export interface CurrentBusinessDay {

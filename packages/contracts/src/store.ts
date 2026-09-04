@@ -28,6 +28,7 @@ export const businessCutoffSchema = z
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "营业日截止时间必须使用 HH:mm 格式");
 
 export const closingImageLocaleSchema = z.enum(["zh_CN", "en_US"]);
+export const employmentTypeSchema = z.enum(["FULL_TIME", "PART_TIME"]);
 export const optionalE164PhoneSchema = z
   .string()
   .trim()
@@ -60,6 +61,7 @@ export const updateStoreSchema = z
     giftCardAutoDiscountThresholdCents: moneyCentsSchema.optional(),
     giftCardAutoDiscountBps: commissionBpsSchema.optional(),
     closingDefaultLocale: closingImageLocaleSchema.optional(),
+    automaticDispatchEnabled: z.boolean().optional(),
   })
   .superRefine((value, context) => {
     const fields = [
@@ -162,6 +164,7 @@ export const updateStoreSchema = z
       value.globalCommissionBps !== undefined ||
       value.mondayThursdayAutoDiscountEnabled !== undefined ||
       value.giftCardAutoDiscountEnabled !== undefined ||
+      value.automaticDispatchEnabled !== undefined ||
       value.closingDefaultLocale !== undefined,
     "至少需要修改一个店铺字段",
   );
@@ -184,10 +187,12 @@ export const approveJoinRequestSchema = z.object({
   version: versionSchema,
   role: assignableRoleSchema.default("EMPLOYEE"),
   isServiceProvider: z.boolean().default(true),
+  employmentType: employmentTypeSchema.optional(),
 });
 
 export const createEmployeeSchema = z.object({
   name: z.string().trim().min(1, "员工名字不能为空").max(80),
+  employmentType: employmentTypeSchema.optional(),
 });
 
 export const rejectJoinRequestSchema = z.object({
@@ -201,6 +206,7 @@ export const updateMembershipSchema = z
     displayName: z.string().trim().min(1, "店内显示名称不能为空").max(80).optional(),
     role: assignableRoleSchema.optional(),
     isServiceProvider: z.boolean().optional(),
+    employmentType: employmentTypeSchema.nullable().optional(),
     defaultCommissionBps: commissionBpsSchema.nullable().optional(),
     closingDeliveryEnabled: z.boolean().optional(),
     closingDeliveryPhoneE164: optionalE164PhoneSchema.optional(),
@@ -211,6 +217,7 @@ export const updateMembershipSchema = z
       value.displayName !== undefined ||
       value.role !== undefined ||
       value.isServiceProvider !== undefined ||
+      value.employmentType !== undefined ||
       value.defaultCommissionBps !== undefined ||
       value.closingDeliveryEnabled !== undefined ||
       value.closingDeliveryPhoneE164 !== undefined ||
@@ -228,6 +235,7 @@ export const restoreMembershipSchema = z.object({
   displayName: z.string().trim().min(1, "店内显示名称不能为空").max(80).optional(),
   role: assignableRoleSchema.optional(),
   isServiceProvider: z.boolean().optional(),
+  employmentType: employmentTypeSchema.nullable().optional(),
 });
 
 export type CreateStoreInput = z.input<typeof createStoreSchema>;

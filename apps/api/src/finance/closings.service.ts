@@ -217,6 +217,11 @@ export class ClosingsService {
             closedBy: actor.id,
           },
         });
+        const board = await transaction.dailyBoard.findUnique({ where: { storeId_businessDate: { storeId, businessDate: dateAtUtc(businessDate) } } });
+        if (board) {
+          await transaction.dispatchMakeupTurn.updateMany({ where: { boardId: board.id, status: "PENDING" }, data: { status: "EXPIRED" } });
+          await transaction.dispatchIntent.updateMany({ where: { boardId: board.id, status: "PENDING" }, data: { status: "CANCELLED", cancelledAt: new Date(), version: { increment: 1 } } });
+        }
         await transaction.auditLog.create({
           data: {
             storeId,

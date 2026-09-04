@@ -27,6 +27,7 @@ function membershipSnapshot(membership: StoreMembership) {
     role: membership.role,
     displayName: membership.displayName,
     isServiceProvider: membership.isServiceProvider,
+    employmentType: membership.employmentType,
     defaultCommissionBps: membership.defaultCommissionBps,
     closingDeliveryEnabled: membership.closingDeliveryEnabled,
     closingDeliveryPhoneE164: membership.closingDeliveryPhoneE164,
@@ -90,6 +91,7 @@ export class MembershipsService {
             displayName: input.name,
             displayNameNormalized: normalizeDisplayName(input.name),
             isServiceProvider: true,
+            ...(input.employmentType === undefined ? {} : { employmentType: input.employmentType }),
           },
         });
         await transaction.auditLog.create({
@@ -168,6 +170,7 @@ export class MembershipsService {
                 displayName: joinRequest.requestedDisplayName,
                 displayNameNormalized: normalizedName,
                 isServiceProvider: input.isServiceProvider,
+                ...(input.employmentType === undefined ? {} : { employmentType: input.employmentType }),
                 status: "ACTIVE",
                 joinedAt: new Date(),
                 leftAt: null,
@@ -185,6 +188,7 @@ export class MembershipsService {
                 displayName: joinRequest.requestedDisplayName,
                 displayNameNormalized: normalizedName,
                 isServiceProvider: input.isServiceProvider,
+                ...(input.employmentType === undefined ? {} : { employmentType: input.employmentType }),
               },
             });
 
@@ -336,6 +340,9 @@ export class MembershipsService {
             ...(input.isServiceProvider === undefined
               ? {}
               : { isServiceProvider: input.isServiceProvider }),
+            ...(input.employmentType === undefined
+              ? {}
+              : { employmentType: input.employmentType }),
             ...(input.defaultCommissionBps === undefined
               ? {}
               : { defaultCommissionBps: input.defaultCommissionBps }),
@@ -488,6 +495,10 @@ export class MembershipsService {
             displayNameNormalized: normalizeDisplayName(displayName),
             isServiceProvider:
               input.isServiceProvider ?? current.isServiceProvider,
+            employmentType:
+              input.employmentType === undefined
+                ? current.employmentType
+                : input.employmentType,
             joinedAt: new Date(),
             leftAt: null,
             deletedAt: null,

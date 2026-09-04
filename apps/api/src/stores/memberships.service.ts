@@ -83,6 +83,11 @@ export class MembershipsService {
     );
     try {
       return await this.prisma.$transaction(async (transaction) => {
+        await this.assertDailyRankingEmploymentType(transaction, storeId, {
+          isActive: true,
+          isServiceProvider: true,
+          employmentType: input.employmentType ?? null,
+        });
         const membership = await transaction.storeMembership.create({
           data: {
             storeId,
@@ -162,6 +167,12 @@ export class MembershipsService {
         const normalizedName = normalizeDisplayName(
           joinRequest.requestedDisplayName,
         );
+        await this.assertDailyRankingEmploymentType(transaction, storeId, {
+          isActive: true,
+          isServiceProvider: input.isServiceProvider,
+          employmentType:
+            input.employmentType ?? existing?.employmentType ?? null,
+        });
         const membership = existing
           ? await transaction.storeMembership.update({
               where: { id: existing.id },
@@ -326,6 +337,15 @@ export class MembershipsService {
             });
           }
         }
+        await this.assertDailyRankingEmploymentType(transaction, storeId, {
+          isActive: current.status === "ACTIVE" && current.deletedAt === null,
+          isServiceProvider:
+            input.isServiceProvider ?? current.isServiceProvider,
+          employmentType:
+            input.employmentType === undefined
+              ? current.employmentType
+              : input.employmentType,
+        });
 
         const changed = await transaction.storeMembership.updateMany({
           where: { id: membershipId, storeId, version: input.version },
@@ -486,6 +506,15 @@ export class MembershipsService {
         }
 
         const displayName = input.displayName ?? current.displayName;
+        await this.assertDailyRankingEmploymentType(transaction, storeId, {
+          isActive: true,
+          isServiceProvider:
+            input.isServiceProvider ?? current.isServiceProvider,
+          employmentType:
+            input.employmentType === undefined
+              ? current.employmentType
+              : input.employmentType,
+        });
         const changed = await transaction.storeMembership.updateMany({
           where: { id: membershipId, storeId, version: input.version },
           data: {
@@ -533,6 +562,35 @@ export class MembershipsService {
       });
     } catch (error) {
       this.rethrowDisplayNameConflict(error);
+    }
+  }
+
+  private async assertDailyRankingEmploymentType(
+    transaction: Prisma.TransactionClient,
+    storeId: string,
+    membership: {
+      isActive: boolean;
+      isServiceProvider: boolean;
+      employmentType: "FULL_TIME" | "PART_TIME" | null;
+    },
+  ) {
+    await transaction.$queryRaw`
+      SELECT id FROM stores WHERE id = ${storeId}::uuid FOR UPDATE
+    `;
+    if (
+      !membership.isActive ||
+      !membership.isServiceProvider ||
+      membership.employmentType
+    ) return;
+    const store = await transaction.store.findFirst({
+      where: { id: storeId, status: "ACTIVE", deletedAt: null },
+      select: { automaticDispatchEnabled: true },
+    });
+    if (store?.automaticDispatchEnabled) {
+      throw new ConflictException({
+        code: "DAILY_RANKING_EMPLOYMENT_TYPE_REQUIRED",
+        messageZh: "每日开门排位已开启，参与记工的在职成员必须设置全职或兼职",
+      });
     }
   }
 

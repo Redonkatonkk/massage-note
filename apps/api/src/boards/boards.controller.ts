@@ -20,9 +20,6 @@ import {
   reorderBoardSchema,
   updateBoardRowSchema,
   rankBoardSchema,
-  createDispatchIntentSchema,
-  skipDispatchTurnSchema,
-  cancelDispatchIntentSchema,
   removeBoardRowSchema,
   uuidSchema,
 } from "@massage-note/contracts";
@@ -32,12 +29,15 @@ import { SessionAuthGuard } from "../auth/session-auth.guard.js";
 import type { AuthenticatedUser } from "../auth/auth.types.js";
 import { parseRequest } from "../common/zod-request.js";
 import { BoardsService } from "./boards.service.js";
-import { DispatchService } from "./dispatch.service.js";
+import { DailyRankingService } from "./daily-ranking.service.js";
 
 @Controller("stores/:storeId")
 @UseGuards(SessionAuthGuard)
 export class BoardsController {
-  constructor(private readonly boards: BoardsService, private readonly dispatch: DispatchService) {}
+  constructor(
+    private readonly boards: BoardsService,
+    private readonly dailyRanking: DailyRankingService,
+  ) {}
 
   @Get("business-days/current")
   currentBusinessDay(
@@ -177,44 +177,14 @@ export class BoardsController {
     @Body() body: unknown,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.dispatch.rank(user, parseRequest(uuidSchema, storeId), parseRequest(boardDateSchema, businessDate), parseRequest(rankBoardSchema, body), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
-  }
-
-  @Post("boards/:businessDate/dispatch-intents")
-  createDispatchIntent(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param("storeId") storeId: string,
-    @Param("businessDate") businessDate: string,
-    @Headers("idempotency-key") key: string | undefined,
-    @Body() body: unknown,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    return this.dispatch.createIntent(user, parseRequest(uuidSchema, storeId), parseRequest(boardDateSchema, businessDate), parseRequest(createDispatchIntentSchema, body), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
-  }
-
-  @Post("boards/:businessDate/dispatch-skip")
-  skipDispatchTurn(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param("storeId") storeId: string,
-    @Param("businessDate") businessDate: string,
-    @Headers("idempotency-key") key: string | undefined,
-    @Body() body: unknown,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    return this.dispatch.skip(user, parseRequest(uuidSchema, storeId), parseRequest(boardDateSchema, businessDate), parseRequest(skipDispatchTurnSchema, body), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
-  }
-
-  @Post("boards/:businessDate/dispatch-intents/:intentId/cancel")
-  cancelDispatchIntent(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param("storeId") storeId: string,
-    @Param("businessDate") businessDate: string,
-    @Param("intentId") intentId: string,
-    @Headers("idempotency-key") key: string | undefined,
-    @Body() body: unknown,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    return this.dispatch.cancelIntent(user, parseRequest(uuidSchema, storeId), parseRequest(boardDateSchema, businessDate), parseRequest(uuidSchema, intentId), parseRequest(cancelDispatchIntentSchema, body), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
+    return this.dailyRanking.rank(
+      user,
+      parseRequest(uuidSchema, storeId),
+      parseRequest(boardDateSchema, businessDate),
+      parseRequest(rankBoardSchema, body),
+      parseRequest(idempotencyKeySchema, key),
+      response.locals.requestId as string,
+    );
   }
 
   @Post("boards/:businessDate/rows/:rowId/remove")
@@ -227,6 +197,14 @@ export class BoardsController {
     @Body() body: unknown,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return this.dispatch.removeRow(user, parseRequest(uuidSchema, storeId), parseRequest(boardDateSchema, businessDate), parseRequest(uuidSchema, rowId), parseRequest(removeBoardRowSchema, body), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
+    return this.boards.removeRow(
+      user,
+      parseRequest(uuidSchema, storeId),
+      parseRequest(boardDateSchema, businessDate),
+      parseRequest(uuidSchema, rowId),
+      parseRequest(removeBoardRowSchema, body),
+      parseRequest(idempotencyKeySchema, key),
+      response.locals.requestId as string,
+    );
   }
 }

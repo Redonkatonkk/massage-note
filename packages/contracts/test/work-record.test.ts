@@ -141,6 +141,17 @@ describe("记工项目来源契约", () => {
     ).toEqual({ version: 2, isHighlighted: false });
   });
 
+  it("快速记工拒绝已经废弃的逐工派工字段", () => {
+    expect(
+      createWorkRecordSchema.safeParse({
+        employeeMembershipId: membershipId,
+        startAt: "2026-08-04T14:00:00-04:00",
+        serviceItemId: itemId,
+        dispatchIntentId: "5d83e0da-ec7c-405d-950f-08ea1768f505",
+      }).success,
+    ).toBe(false);
+  });
+
   it("修改主要项目时不能同时选择预设和自定义项目", () => {
     expect(
       updateWorkRecordSchema.safeParse({

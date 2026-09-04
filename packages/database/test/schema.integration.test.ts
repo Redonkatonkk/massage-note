@@ -179,4 +179,45 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
       "work_records_non_negative_money",
     ]);
   });
+
+  it("1.0.1 只保留每日排位结构并清除逐工状态", async () => {
+    const rankingColumns = await prisma.$queryRaw<Array<{ table_name: string; column_name: string }>>`
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND (table_name, column_name) IN (
+          ('stores', 'automatic_dispatch_enabled'),
+          ('store_memberships', 'employment_type'),
+          ('daily_boards', 'ranked_at')
+        )
+      ORDER BY table_name, column_name
+    `;
+    expect(rankingColumns).toEqual([
+      { table_name: "daily_boards", column_name: "ranked_at" },
+      { table_name: "store_memberships", column_name: "employment_type" },
+      { table_name: "stores", column_name: "automatic_dispatch_enabled" },
+    ]);
+
+    const removedTables = await prisma.$queryRaw<Array<{ table_name: string }>>`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name IN ('dispatch_intents', 'dispatch_makeup_turns', 'dispatch_events')
+    `;
+    expect(removedTables).toEqual([]);
+
+    const removedColumns = await prisma.$queryRaw<Array<{ table_name: string; column_name: string }>>`
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND (table_name, column_name) IN (
+          ('daily_boards', 'dispatch_sequence'),
+          ('daily_employee_rows', 'normal_turns_processed'),
+          ('daily_employee_rows', 'crossed_turns'),
+          ('daily_employee_rows', 'rotation_ranked_at'),
+          ('work_records', 'dispatch_kind')
+        )
+    `;
+    expect(removedColumns).toEqual([]);
+  });
 });

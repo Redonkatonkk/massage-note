@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.0.0`
+> 适用版本：`1.0.1`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -53,14 +53,11 @@
 | GET | `/stores/:storeId/boards/:businessDate` | 今日或历史记工表；包含该日有效礼物卡销售和店铺销售汇总；普通员工查看历史时仅返回本人行、班次、记工和本人统计，不返回全店卖卡记录 |
 | POST | `/stores/:storeId/shifts/clock-in`、`shifts/:shiftId/clock-out` | 上下班；当前 Web 只向符合条件的普通员工显示“上班” |
 | POST | `/stores/:storeId/boards/:businessDate/rows` | 新增每日员工行 |
-| PATCH | `/stores/:storeId/boards/:businessDate/rows/:rowId` | 更新每日员工行；店主和经理可在日结后调整显示状态 |
+| PATCH | `/stores/:storeId/boards/:businessDate/rows/:rowId` | 更新每日员工行；日结后必须先取消日结 |
 | POST | `/stores/:storeId/boards/:businessDate/reorder` | 原子调整每日员工行顺序 |
-| POST | `/stores/:storeId/boards/:businessDate/rank` | 按最近历史名次自动排位并保留当天轮次状态 |
-| POST | `/stores/:storeId/boards/:businessDate/dispatch-intents` | 创建普通、点名或店里指定的待记工派工 |
-| POST | `/stores/:storeId/boards/:businessDate/dispatch-skip` | 按原因画叉或保留当前轮次 |
-| POST | `/stores/:storeId/boards/:businessDate/dispatch-intents/:intentId/cancel` | 取消待记工派工并按类型退回轮次 |
+| POST | `/stores/:storeId/boards/:businessDate/rank` | 店长或经理按最近一次可见出勤名次生成当前营业日员工顺序；使用营业日锁、表格版本和幂等键 |
 | POST | `/stores/:storeId/boards/:businessDate/rows/:rowId/remove` | 移除尚无当天活动的误加员工 |
-| POST | `/stores/:storeId/work-records` | 快速创建预设或自定义记工；自动排工开启后的当前营业日需提交 `dispatchIntentId`；`isHighlighted` 与排工类型独立 |
+| POST | `/stores/:storeId/work-records` | 快速创建预设或自定义记工；每日排位不会增加记工字段或限制记工入口 |
 | GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改高亮及其他字段与软删除 |
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡/礼物卡大费和小费拆分；使用礼物卡时同时提交序列号 |
 | GET | `/stores/:storeId/work-records/deleted` | 记工回收站 |

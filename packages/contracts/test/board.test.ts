@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   boardDateSchema,
   clockInSchema,
-  createDispatchIntentSchema,
+  rankBoardSchema,
   reorderBoardSchema,
 } from "../src/index.js";
 
@@ -12,11 +12,9 @@ describe("打卡与今日表格契约", () => {
     expect(clockInSchema.safeParse({ membershipId: "伪造" }).success).toBe(false);
   });
 
-  it("validates dispatch intent kinds and selected employees", () => {
-    const membershipId = "123e4567-e89b-42d3-a456-426614174000";
-    expect(createDispatchIntentSchema.safeParse({ version: 1, kind: "REGULAR" }).success).toBe(true);
-    expect(createDispatchIntentSchema.safeParse({ version: 1, kind: "CLIENT_REQUESTED" }).success).toBe(false);
-    expect(createDispatchIntentSchema.safeParse({ version: 1, kind: "STORE_ASSIGNED", membershipId }).success).toBe(true);
+  it("每日排位只接受表格版本", () => {
+    expect(rankBoardSchema.safeParse({ version: 1 }).success).toBe(true);
+    expect(rankBoardSchema.safeParse({ version: 1, kind: "REGULAR" }).success).toBe(false);
   });
 
   it("营业日和排序列表必须有效", () => {

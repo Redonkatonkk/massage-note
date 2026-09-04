@@ -438,16 +438,17 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
       (row) => row.membershipId === employeeMembershipId,
     );
     if (!hiddenEmployeeRow) throw new Error("缺少已隐藏员工行");
-    const restored = await boards.updateRow(
-      actor(ownerId),
-      storeId,
-      historicalBusinessDate,
-      hiddenEmployeeRow.id,
-      { version: hiddenEmployeeRow.version, isHidden: false },
-      "restore-hidden-closed-row-0001",
-      "restore-hidden-closed-row",
-    );
-    expect(restored.row.isHidden).toBe(false);
+    await expect(
+      boards.updateRow(
+        actor(ownerId),
+        storeId,
+        historicalBusinessDate,
+        hiddenEmployeeRow.id,
+        { version: hiddenEmployeeRow.version, isHidden: false },
+        "restore-hidden-closed-row-0001",
+        "restore-hidden-closed-row",
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
     await expect(
       prisma.businessDayClosing.findFirstOrThrow({
         where: { storeId, businessDate: date, status: "CLOSED" },

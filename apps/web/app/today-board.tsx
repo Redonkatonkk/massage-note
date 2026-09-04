@@ -10,6 +10,11 @@ import {
   recordPaymentDisplay,
 } from "../lib/board";
 import { homeClosingAction } from "../lib/closing";
+import {
+  canGenerateDailyRanking,
+  dailyRankingActionLabel,
+  employmentTypeLabel,
+} from "../lib/daily-ranking";
 import { financeClosingHref } from "../lib/navigation";
 import { formatUsd } from "../lib/money";
 import { hasConfirmedPaymentMismatch } from "../lib/record-payment";
@@ -101,9 +106,6 @@ export function TodayBoard({
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [quickEmployeeId, setQuickEmployeeId] = useState<string | null>(null);
-  const [quickDispatchKind, setQuickDispatchKind] = useState<"REGULAR" | "CLIENT_REQUESTED" | "STORE_ASSIGNED">("REGULAR");
-  const [quickDispatchIntentId, setQuickDispatchIntentId] = useState<string | null>(null);
-  const [skipReason, setSkipReason] = useState<"BUSY" | "LATE" | "REFUSED" | "INELIGIBLE" | "CUSTOMER_DECLINED" | "STORE_RESTRICTION">("REFUSED");
   const initialService = catalog.serviceItems.find(
     (item) => item.isEnabled && !item.deletedAt && item.priceOptions.length > 0,
   );
@@ -222,6 +224,14 @@ export function TodayBoard({
     () => canManage ? board.rows.filter((row) => row.isHidden) : [],
     [board.rows, canManage],
   );
+  const activeRowCount = board.rows.filter((row) => !row.isHidden).length;
+  const canGenerateRanking = canGenerateDailyRanking({
+    canManage,
+    enabled: board.ranking.enabled,
+    isCurrentBusinessDay,
+    isClosed: board.isClosed,
+    activeRowCount,
+  });
   const availableMembers = members.filter(
     (member) =>
       member.status === "ACTIVE" &&
@@ -316,15 +326,7 @@ export function TodayBoard({
 
   async function setRowHidden(row: BoardResponse["rows"][number], isHidden: boolean) {
     const path = `/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}`;
-    try {
-      await apiRequest(path, { method: "PATCH", idempotent: true, body: { version: row.version, isHidden } });
-    } catch (caught) {
-      const latest = caught instanceof ApiError && caught.code === "BOARD_ROW_VERSION_CONFLICT"
-        ? caught.latestResource as { version?: unknown } | undefined
-        : undefined;
-      if (typeof latest?.version !== "number") throw caught;
-      await apiRequest(path, { method: "PATCH", idempotent: true, body: { version: latest.version, isHidden } });
-    }
+    await apiRequest(path, { method: "PATCH", idempotent: true, body: { version: row.version, isHidden } });
     setNotice(isHidden ? `已隐藏 ${row.membership.displayName}` : `已恢复 ${row.membership.displayName}`);
     await onReload();
   }
@@ -375,16 +377,6 @@ export function TodayBoard({
         },
       };
     }
-    let dispatchIntentId = quickDispatchIntentId;
-    if (board.dispatch.enabled && !dispatchIntentId) {
-      if (!canManage) throw new Error("请先让店长或经理完成派工");
-      const intent = await apiRequest<{ id: string }>(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/dispatch-intents`, {
-        method: "POST",
-        idempotent: true,
-        body: { version: board.version, kind: quickDispatchKind, membershipId: quickEmployeeId },
-      });
-      dispatchIntentId = intent.id;
-    }
     await apiRequest(`/stores/${membership.store.id}/work-records`, {
       method: "POST",
       idempotent: true,
@@ -397,13 +389,10 @@ export function TodayBoard({
           currentDay.businessCutoffLocal,
         ),
         isHighlighted: quickHighlighted,
-        ...(dispatchIntentId ? { dispatchIntentId } : {}),
         ...serviceSelection,
       },
     });
     setQuickEmployeeId(null);
-    setQuickDispatchIntentId(null);
-    setQuickDispatchKind("REGULAR");
     setQuickMode("PRESET");
     setQuickHighlighted(false);
     setCustomServiceName("");
@@ -416,35 +405,7 @@ export function TodayBoard({
 
   async function rankBoard() {
     await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rank`, { method: "POST", idempotent: true, body: { version: board.version } });
-    setNotice("已按历史名次完成自动排位");
-    await onReload();
-  }
-
-  async function openNextRegular() {
-    const intent = await apiRequest<{ id: string; employeeMembershipId: string }>(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/dispatch-intents`, {
-      method: "POST",
-      idempotent: true,
-      body: { version: board.version, kind: "REGULAR" },
-    });
-    setQuickDispatchKind("REGULAR");
-    setQuickDispatchIntentId(intent.id);
-    setQuickEmployeeId(intent.employeeMembershipId);
-  }
-
-  async function skipNextTurn() {
-    if (!board.dispatch.next) throw new Error("目前没有下一位可处理的员工");
-    await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/dispatch-skip`, {
-      method: "POST",
-      idempotent: true,
-      body: { version: board.version, membershipId: board.dispatch.next.membershipId, reason: skipReason },
-    });
-    setNotice(skipReason === "REFUSED" || skipReason === "LATE" ? "该轮次已画叉" : "该轮次已保留为欠位");
-    await onReload();
-  }
-
-  async function cancelIntent(intent: BoardResponse["dispatch"]["pendingIntents"][number]) {
-    await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/dispatch-intents/${intent.id}/cancel`, { method: "POST", idempotent: true, body: { version: intent.version } });
-    setNotice("待记工派工已取消，轮次已退回");
+    setNotice("已按历史名次生成今日顺序");
     await onReload();
   }
 
@@ -501,23 +462,16 @@ export function TodayBoard({
           {canManage && (board.isClosed
             ? <><button className="primary-action board-closing-action" type="button" disabled={busy || deliveryList?.batchAllowed === false} title={deliveryList?.batchBlockedReason ?? undefined} onClick={() => run(queueEmployeeClosings)}>{deliveryList?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button><button className="secondary-action board-closing-action" type="button" disabled={busy} onClick={() => run(cancelBusinessDayClosing)}>取消日结</button></>
             : <button className="primary-action board-closing-action" type="button" disabled={busy} onClick={() => run(closeBusinessDay)}>日结</button>)}
-          {canManage && board.dispatch.enabled && !board.isClosed && <><button className="secondary-action" type="button" disabled={busy || board.rows.length === 0} onClick={() => run(rankBoard)}>自动排位</button><button className="primary-action" type="button" disabled={busy || !board.dispatch.rankedAt} onClick={() => run(openNextRegular)}>下一位普通客</button></>}
+          {canGenerateRanking && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(rankBoard)}>{dailyRankingActionLabel(board.ranking.rankedAt)}</button>}
         </div>
       </section>
 
-      {board.dispatch.enabled && <section className="dispatch-panel" aria-label="今日排工">
-        <header><div><p className="eyebrow">今日排工</p><h2>{board.dispatch.rankedAt ? board.dispatch.next ? `下一位：${board.dispatch.next.displayName}` : "暂无可派员工" : "等待自动排位"}</h2></div>{board.dispatch.next?.source === "MAKEUP" && <span className="status-chip warning">优先补位</span>}</header>
-        {canManage && board.dispatch.rankedAt && !board.isClosed && <div className="inline-controls"><label>跳过原因<select value={skipReason} onChange={(event) => setSkipReason(event.target.value as typeof skipReason)}><option value="REFUSED">员工主动拒绝（画叉）</option><option value="LATE">员工未到（画叉）</option><option value="BUSY">正在服务（保留欠位）</option><option value="INELIGIBLE">资质不符（保留欠位）</option><option value="CUSTOMER_DECLINED">顾客临时拒绝（保留欠位）</option><option value="STORE_RESTRICTION">店方限制（保留欠位）</option></select></label><button className="secondary-action compact" type="button" disabled={busy || !board.dispatch.next} onClick={() => run(skipNextTurn)}>处理当前轮次</button></div>}
-        {board.dispatch.pendingIntents.length > 0 && <div className="dispatch-intents"><strong>待填写记工</strong>{board.dispatch.pendingIntents.map((intent) => { const employee = members.find((item) => item.id === intent.employeeMembershipId); return <article key={intent.id}><span>{employee?.displayName ?? "员工"} · {intent.kind === "REGULAR" ? "普通排工" : intent.kind === "CLIENT_REQUESTED" ? "客人点名" : "店里指定"}</span><div><button type="button" className="primary-action compact" disabled={busy} onClick={() => { setQuickDispatchKind(intent.kind); setQuickDispatchIntentId(intent.id); setQuickEmployeeId(intent.employeeMembershipId); }}>填写记工</button>{canManage && <button type="button" className="secondary-action compact" disabled={busy} onClick={() => run(() => cancelIntent(intent))}>取消</button>}</div></article>; })}</div>}
-        {canManage && board.dispatch.events.length > 0 && <details><summary>查看排工记录</summary><ol className="dispatch-events">{board.dispatch.events.map((event) => <li key={event.id}><span>#{event.sequence}</span> {event.employeeMembershipId ? members.find((item) => item.id === event.employeeMembershipId)?.displayName ?? "员工" : "全店"} · {event.kind}</li>)}</ol></details>}
-      </section>}
-
       {hiddenRows.length > 0 && <section className="hidden-rows-panel" aria-label="已隐藏员工管理">
         <header><div><strong>已隐藏员工 · {hiddenRows.length}</strong><p>隐藏只影响表格显示，不会删除记工。可在这里直接恢复。</p></div><button className="secondary-action compact" type="button" onClick={() => setShowHidden((value) => !value)}>{showHidden ? "收起隐藏内容" : "查看隐藏内容"}</button></header>
-        <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{row.workRecords.length} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
+        <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{row.workRecords.length} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy || board.isClosed} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
       </section>}
 
-      {board.isClosed && <p className="closed-banner" role="status">这个营业日已经日结。记工和结算内容只读；店长或经理仍可调整员工行显示，如需修改其他内容请先取消日结。</p>}
+      {board.isClosed && <p className="closed-banner" role="status">这个营业日已经日结。记工、员工顺序和显示状态均为只读；如需修改请先取消日结。</p>}
       {canManage && board.isClosed && deliveryList && <ClosingDeliveryQueue value={deliveryList} busy={busy} onCancel={(delivery) => void run(() => cancelEmployeeClosingDelivery(delivery))} />}
       {notice && <p className="success-banner" role="status">✓ {notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -539,8 +493,7 @@ export function TodayBoard({
             viewerMembershipId: membership.id,
             rowMembershipId: row.membershipId,
           });
-          const dispatchState = board.dispatch.rowStates[row.membershipId];
-          const officialPosition = board.rows.findIndex((candidate) => candidate.id === row.id) + 1;
+          const officialPosition = board.rows.filter((candidate) => !candidate.isHidden).findIndex((candidate) => candidate.id === row.id) + 1;
           return (
             <article className={`employee-row${row.isHidden && canManage ? " employee-row--hidden" : ""}${draggingRowId === row.id ? " employee-row--dragging" : ""}`} key={row.id} onDragOver={canManage && !board.isClosed ? (event) => event.preventDefault() : undefined} onDrop={canManage && !board.isClosed ? () => void run(() => dropRow(row.id)) : undefined}>
               <header className="employee-header">
@@ -552,9 +505,9 @@ export function TodayBoard({
                 >
                   <span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span>
                   <span>
-                    <strong>{board.dispatch.enabled && <span className="dispatch-rank">{officialPosition}</span>}{row.membership.displayName}</strong>
+                    <strong>{board.ranking.enabled && !row.isHidden && <span className="ranking-number">{officialPosition}</span>}{row.membership.displayName}</strong>
                     <small className={activeRecord ? "on-duty" : "off-duty"}>{workStatus}</small>
-                    {board.dispatch.enabled && <small>{row.membership.employmentType === "FULL_TIME" ? "全职" : row.membership.employmentType === "PART_TIME" ? "兼职" : "未设置排工类型"}{dispatchState ? ` · 已轮 ${dispatchState.normalTurnsProcessed} · 画叉 ${dispatchState.crossedTurns} · 欠位 ${dispatchState.makeupTurns}` : ""}</small>}
+                    {board.ranking.enabled && <small>{employmentTypeLabel(row.membership.employmentType)}</small>}
                   </span>
                   {row.isHidden && canManage && <em className="hidden-badge">已隐藏</em>}
                   <span className="chevron" aria-hidden="true">{isCollapsed ? "展开" : "收起"}</span>
@@ -563,8 +516,8 @@ export function TodayBoard({
                   <div className="row-tools">
                     {canManage && <>
                       {!board.isClosed && <><span className="drag-handle" draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDraggingRowId(row.id); }} onDragEnd={() => setDraggingRowId(null)} title="按住并拖动整行排序">拖动排序</span><button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button><button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button></>}
-                      {board.dispatch.enabled && !board.isClosed && <button type="button" disabled={busy} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}/remove`, { method: "POST", idempotent: true, body: { version: row.version } }); setNotice(`已移除 ${row.membership.displayName}`); await onReload(); })}>移除</button>}
-                      <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>
+                      {board.ranking.enabled && !board.isClosed && <button type="button" disabled={busy} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}/remove`, { method: "POST", idempotent: true, body: { version: row.version } }); setNotice(`已移除 ${row.membership.displayName}`); await onReload(); })}>移除</button>}
+                      {!board.isClosed && <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>}
                     </>}
                     {(canManage || row.membershipId === membership.id) && <button className="row-closing-action" type="button" onClick={() => setClosingEmployee({ id: row.membershipId, displayName: row.membership.displayName })}>个人日结</button>}
                   </div>
@@ -620,8 +573,8 @@ export function TodayBoard({
                       </button>
                       );
                     })}
-                    {!board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage) && (!board.dispatch.enabled || canManage) && (
-                      <button className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickDispatchIntentId(null); setQuickDispatchKind("REGULAR"); setQuickEmployeeId(row.membershipId); }}>
+                    {!board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage) && (
+                      <button className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickEmployeeId(row.membershipId); }}>
                         <span aria-hidden="true">＋</span>新增记工
                       </button>
                     )}
@@ -679,7 +632,6 @@ export function TodayBoard({
             </div>
             <label className="field-label" htmlFor="start-time">开始时间</label>
             <input className="time-input" id="start-time" type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} />
-            {board.dispatch.enabled && <label className="field-label">排工类型<select disabled={Boolean(quickDispatchIntentId) || !canManage} value={quickDispatchKind} onChange={(event) => setQuickDispatchKind(event.target.value as typeof quickDispatchKind)}><option value="REGULAR">普通排工</option><option value="CLIENT_REQUESTED">客人点名</option><option value="STORE_ASSIGNED">店里指定</option></select></label>}
             <div className="quick-mode-switch" role="group" aria-label="项目类型">
               <button className={quickMode === "PRESET" ? "active" : ""} type="button" onClick={() => setQuickMode("PRESET")}>预设项目</button>
               <button className={quickMode === "CUSTOM" ? "active" : ""} type="button" onClick={() => setQuickMode("CUSTOM")}>＋ 自定义项目</button>

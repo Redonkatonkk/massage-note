@@ -99,12 +99,15 @@ export class StoreManagementService {
         responseCode: 200,
       },
       async (transaction) => {
+        await transaction.$queryRaw`
+          SELECT id FROM stores WHERE id = ${storeId}::uuid FOR UPDATE
+        `;
         const current = await transaction.store.findFirst({
           where: { id: storeId, status: "ACTIVE", deletedAt: null },
         });
         if (!current) this.throwStoreNotFound();
         if (input.automaticDispatchEnabled === true) {
-          const unconfiguredProviders = await transaction.storeMembership.count({
+          const unconfiguredProviders = await transaction.storeMembership.findMany({
             where: {
               storeId,
               status: "ACTIVE",
@@ -112,11 +115,15 @@ export class StoreManagementService {
               isServiceProvider: true,
               employmentType: null,
             },
+            orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
+            select: { displayName: true },
           });
-          if (unconfiguredProviders > 0) {
+          if (unconfiguredProviders.length > 0) {
             throw new ConflictException({
-              code: "DISPATCH_EMPLOYMENT_TYPE_REQUIRED",
-              messageZh: "请先为所有参与记工的在职成员设置全职或兼职",
+              code: "DAILY_RANKING_EMPLOYMENT_TYPE_REQUIRED",
+              messageZh: `请先设置全职或兼职：${unconfiguredProviders
+                .map((membership) => membership.displayName)
+                .join("、")}`,
             });
           }
         }

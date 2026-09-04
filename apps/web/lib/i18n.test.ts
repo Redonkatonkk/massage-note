@@ -58,6 +58,8 @@ describe("bilingual UI translation", () => {
     expect(translateText("仅查看高亮记工", "en-US"))
       .toBe("Highlighted records only");
     expect(translateText("高亮标记", "en-US")).toBe("Highlight");
+    expect(translateText("每日开门排位", "en-US")).toBe("Daily opening order");
+    expect(translateText("重新生成今日顺序", "en-US")).toBe("Regenerate today's order");
     expect(translateText("礼卡", "en-US")).toBe("Gift card");
     expect(translateText("刷卡 30 美元", "en-US")).toBe("Card 30 dollars");
     expect(translateText("现金 50 美元", "en-US")).toBe("Cash 50 dollars");

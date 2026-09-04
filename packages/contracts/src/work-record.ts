@@ -66,8 +66,7 @@ export const createWorkRecordSchema = z.object({
     })
     .optional(),
   isHighlighted: z.boolean().optional(),
-  dispatchIntentId: uuidSchema.optional(),
-}).refine((value) => Boolean(value.serviceItemId) !== Boolean(value.customService), {
+}).strict().refine((value) => Boolean(value.serviceItemId) !== Boolean(value.customService), {
   message: "预设项目和自定义项目必须且只能选择一种",
   path: ["serviceItemId"],
 }).refine((value) => value.serviceItemId || value.serviceDurationMinutes === undefined, {

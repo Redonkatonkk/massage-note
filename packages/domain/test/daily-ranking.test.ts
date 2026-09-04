@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  initialProcessedTurnsForLateArrival,
-  rankRotationCandidates,
-  sortNormalTurnCandidates,
-} from "../src/dispatch.js";
+import { rankRotationCandidates } from "../src/daily-ranking.js";
 
 const candidate = (
   membershipId: string,
@@ -12,7 +8,7 @@ const candidate = (
   lastBusinessDate = "2026-09-03",
 ) => ({ membershipId, lastPosition, employmentType, lastBusinessDate, addedAt: membershipId });
 
-describe("dispatch rotation", () => {
+describe("daily opening ranking", () => {
   it("rotates a complete A B C D list to B C D A", () => {
     expect(rankRotationCandidates([
       candidate("A", 1), candidate("B", 2), candidate("C", 3), candidate("D", 4),
@@ -36,16 +32,16 @@ describe("dispatch rotation", () => {
     ])).toEqual(["former-first", "new"]);
   });
 
-  it("orders normal turns by processed count and official position", () => {
-    expect(sortNormalTurnCandidates([
-      { membershipId: "B", normalTurnsProcessed: 0, position: 2 },
-      { membershipId: "A", normalTurnsProcessed: 1, position: 1 },
-      { membershipId: "C", normalTurnsProcessed: 0, position: 3 },
-    ]).map((item) => item.membershipId)).toEqual(["B", "C", "A"]);
+  it("compresses positions when the number of employees changes", () => {
+    expect(rankRotationCandidates([
+      candidate("A", 1), candidate("C", 3), candidate("D", 4),
+    ])).toEqual(["C", "D", "A"]);
   });
 
-  it("crosses a late arrival only when its slot has already passed", () => {
-    expect(initialProcessedTurnsForLateArrival({ nextNormalPosition: 3, newPosition: 2, minimumProcessedTurns: 1 })).toBe(2);
-    expect(initialProcessedTurnsForLateArrival({ nextNormalPosition: 3, newPosition: 4, minimumProcessedTurns: 1 })).toBe(1);
+  it("uses stable arrival and membership ordering for new employees", () => {
+    expect(rankRotationCandidates([
+      { ...candidate("later", null), addedAt: "2026-09-04T09:01:00Z" },
+      { ...candidate("earlier", null), addedAt: "2026-09-04T09:00:00Z" },
+    ])).toEqual(["earlier", "later"]);
   });
 });

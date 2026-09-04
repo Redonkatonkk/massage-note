@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.0.0` 代码结构核对。
+> 状态：与 `1.0.1` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -82,7 +82,7 @@ packages/contracts  只依赖 Zod
 | `auth` | Firebase ID token、密码、CSRF、会话 Cookie 与撤销 |
 | `users` | 当前用户资料与密码更新 |
 | `stores` | 店铺、成员、加入申请、目录、提成和店铺访问检查 |
-| `boards` | 营业日、班次、每日表格行、自动排位、派工意向、轮次与欠位 |
+| `boards` | 营业日、班次、每日表格行和每日开门排位 |
 | `work-records` | 记工快照、付款确认、软删除与恢复 |
 | `gift-cards` | 卖卡、序列号、折扣快照和使用台账 |
 | `finance` | 财务查询、日结、现金结算和工资账本 |

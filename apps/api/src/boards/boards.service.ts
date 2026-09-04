@@ -4,13 +4,13 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  Optional,
 } from "@nestjs/common";
 import { Prisma, type StoreMembership, type User } from "@massage-note/database";
 import type {
   AddBoardRowInput,
   CalendarDateRangeQuery,
   ClockOutInput,
+  RemoveBoardRowInput,
   ReorderBoardInput,
   UpdateBoardRowInput,
 } from "@massage-note/contracts";
@@ -23,7 +23,6 @@ import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
-import { DispatchService } from "./dispatch.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 
@@ -49,7 +48,6 @@ export class BoardsService {
     private readonly prisma: PrismaService,
     private readonly access: StoreAccessService,
     private readonly idempotency: IdempotencyService,
-    @Optional() private readonly dispatch?: DispatchService,
   ) {}
 
   async currentBusinessDay(actor: User, storeId: string) {
@@ -237,11 +235,6 @@ export class BoardsService {
       statistics.giftCardSalesAmountCents += sale.amountCents;
     }
     statistics.storeIncomeCents = calculateStoreIncome(statistics);
-    const dispatch = personalHistoryMembershipId
-      ? { enabled: false, rankedAt: null, next: null, pendingIntents: [], events: [], rowStates: {} }
-      : this.dispatch
-        ? await this.dispatch.getState(storeId, businessDate)
-        : { enabled: false, rankedAt: null, next: null, pendingIntents: [], events: [], rowStates: {} };
     return {
       id: board?.id ?? null,
       storeId,
@@ -258,7 +251,12 @@ export class BoardsService {
       ),
       nextGiftCardSerialNumber: String(store.nextGiftCardSerialNumber),
       statistics,
-      dispatch,
+      ranking: {
+        enabled: personalHistoryMembershipId
+          ? false
+          : store.automaticDispatchEnabled,
+        rankedAt: personalHistoryMembershipId ? null : board?.rankedAt ?? null,
+      },
     };
   }
 
@@ -310,6 +308,12 @@ export class BoardsService {
             throw new ForbiddenException({
               code: "ACTIVE_MEMBERSHIP_REQUIRED",
               messageZh: "你不是这家店的在职记工成员",
+            });
+          }
+          if (store.automaticDispatchEnabled && !membership.employmentType) {
+            throw new ConflictException({
+              code: "DAILY_RANKING_EMPLOYMENT_TYPE_REQUIRED",
+              messageZh: "请先让店长为你设置全职或兼职",
             });
           }
           const openShift = await transaction.shift.findFirst({
@@ -527,6 +531,13 @@ export class BoardsService {
             messageZh: "没有找到该店的在职服务人员",
           });
         }
+        const store = await this.findStore(transaction, storeId);
+        if (store.automaticDispatchEnabled && !member.employmentType) {
+          throw new ConflictException({
+            code: "DAILY_RANKING_EMPLOYMENT_TYPE_REQUIRED",
+            messageZh: `请先设置全职或兼职：${member.displayName}`,
+          });
+        }
         const result = await this.ensureBoardRow(
           transaction,
           storeId,
@@ -581,7 +592,7 @@ export class BoardsService {
         responseCode: 200,
       },
       async (transaction) => {
-        await lockBusinessDay(transaction, storeId, businessDate);
+        await this.assertDayOpen(transaction, storeId, businessDate);
         const row = await transaction.dailyEmployeeRow.findFirst({
           where: {
             id: rowId,
@@ -624,6 +635,117 @@ export class BoardsService {
           },
         });
         return { row: updated, board };
+      },
+    );
+  }
+
+  async removeRow(
+    actor: User,
+    storeId: string,
+    businessDate: string,
+    rowId: string,
+    input: RemoveBoardRowInput,
+    idempotencyKey: string,
+    requestId: string,
+  ) {
+    const manager = await this.access.requireCapability(
+      actor.id,
+      storeId,
+      "MEMBERSHIP_MANAGE",
+    );
+    return this.idempotency.execute(
+      {
+        storeId,
+        userId: actor.id,
+        key: idempotencyKey,
+        route: "/api/v1/stores/:storeId/boards/:date/rows/:rowId/remove",
+        payload: { businessDate, rowId, input },
+        responseCode: 200,
+      },
+      async (transaction) => {
+        await this.assertDayOpen(transaction, storeId, businessDate);
+        const store = await this.findStore(transaction, storeId);
+        if (!store.automaticDispatchEnabled) {
+          throw new ConflictException({
+            code: "DAILY_RANKING_DISABLED",
+            messageZh: "每日开门排位尚未开启",
+          });
+        }
+        const row = await transaction.dailyEmployeeRow.findFirst({
+          where: {
+            id: rowId,
+            storeId,
+            board: { businessDate: dateAtUtc(businessDate) },
+          },
+        });
+        if (!row) this.throwRowNotFound();
+        if (row.version !== input.version) {
+          await this.throwRowConflict(transaction, rowId, storeId);
+        }
+        const [shiftCount, workRecordCount] = await Promise.all([
+          transaction.shift.count({
+            where: {
+              storeId,
+              membershipId: row.membershipId,
+              businessDate: dateAtUtc(businessDate),
+            },
+          }),
+          transaction.workRecord.count({
+            where: {
+              storeId,
+              employeeMembershipId: row.membershipId,
+              businessDate: dateAtUtc(businessDate),
+            },
+          }),
+        ]);
+        if (shiftCount + workRecordCount > 0) {
+          throw new ConflictException({
+            code: "BOARD_ROW_HAS_ACTIVITY",
+            messageZh: "该员工今天已有打卡或记工，不能移除；可以改为隐藏",
+          });
+        }
+        const board = await transaction.dailyBoard.findUniqueOrThrow({
+          where: { id: row.boardId },
+          include: {
+            rows: {
+              where: { id: { not: row.id } },
+              orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+            },
+          },
+        });
+        await transaction.dailyEmployeeRow.delete({ where: { id: row.id } });
+        for (const [index, remaining] of board.rows.entries()) {
+          await transaction.dailyEmployeeRow.update({
+            where: { id: remaining.id },
+            data: {
+              position: new Prisma.Decimal(index + 1),
+              version: { increment: 1 },
+            },
+          });
+        }
+        const updated = await transaction.dailyBoard.update({
+          where: { id: board.id },
+          data: { version: { increment: 1 } },
+        });
+        await transaction.auditLog.create({
+          data: {
+            storeId,
+            actorUserId: actor.id,
+            actorMembershipId: manager.id,
+            source: "api",
+            action: "board.row_removed",
+            entityType: "daily_employee_row",
+            entityId: row.id,
+            businessDate: dateAtUtc(businessDate),
+            beforeJson: {
+              membershipId: row.membershipId,
+              version: row.version,
+            },
+            afterJson: { boardVersion: updated.version },
+            requestId,
+          },
+        });
+        return updated;
       },
     );
   }
@@ -845,6 +967,7 @@ export class BoardsService {
         id: true,
         timezone: true,
         businessCutoffLocal: true,
+        automaticDispatchEnabled: true,
         nextGiftCardSerialNumber: true,
       },
     });

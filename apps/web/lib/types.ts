@@ -325,7 +325,6 @@ export interface WorkRecord {
   largeFeeSettledManualFlag: boolean;
   automaticDiscountSuppressed: boolean;
   isHighlighted: boolean;
-  dispatchKind: "REGULAR" | "CLIENT_REQUESTED" | "STORE_ASSIGNED" | null;
   note: string;
   version: number;
   deletedAt: string | null;
@@ -422,9 +421,6 @@ export interface BoardRow {
   position: string | number;
   isHidden: boolean;
   version: number;
-  normalTurnsProcessed: number;
-  crossedTurns: number;
-  rotationRankedAt: string | null;
   membership: Pick<
     StoreMember,
     "id" | "displayName" | "role" | "isServiceProvider" | "status" | "employmentType"
@@ -444,27 +440,9 @@ export interface BoardResponse {
   giftCardSales: GiftCardSale[];
   nextGiftCardSerialNumber: string;
   statistics: BoardStatistics;
-  dispatch: {
+  ranking: {
     enabled: boolean;
     rankedAt: string | null;
-    next: null | { membershipId: string; displayName: string; source: "NORMAL" | "MAKEUP" };
-    pendingIntents: Array<{
-      id: string;
-      employeeMembershipId: string;
-      kind: "REGULAR" | "CLIENT_REQUESTED" | "STORE_ASSIGNED";
-      status: "PENDING";
-      version: number;
-      sequence: number;
-    }>;
-    events: Array<{
-      id: string;
-      employeeMembershipId: string | null;
-      kind: string;
-      detailJson: unknown;
-      sequence: number;
-      createdAt: string;
-    }>;
-    rowStates: Record<string, { normalTurnsProcessed: number; crossedTurns: number; makeupTurns: number }>;
   };
 }
 

@@ -36,24 +36,6 @@ enum EmploymentType {
   PART_TIME
 }
 
-enum DispatchKind {
-  REGULAR
-  CLIENT_REQUESTED
-  STORE_ASSIGNED
-}
-
-enum DispatchIntentStatus {
-  PENDING
-  CONSUMED
-  CANCELLED
-}
-
-enum DispatchMakeupStatus {
-  PENDING
-  CONSUMED
-  EXPIRED
-}
-
 enum JoinRequestStatus {
   PENDING
   APPROVED
@@ -182,9 +164,6 @@ model Store {
   aiConversations      AiConversation[]
   aiQueryLogs          AiQueryLog[]
   aiChangePreviews     AiChangePreview[]
-  dispatchIntents      DispatchIntent[]
-  dispatchMakeups      DispatchMakeupTurn[]
-  dispatchEvents       DispatchEvent[]
 
   @@index([status])
   @@map("stores")
@@ -226,9 +205,6 @@ model StoreMembership {
   payrollSettlements    PayrollSettlement[]
   closingDeliveries     EmployeeClosingDelivery[]
   settlementDeliveries  EmployeeSettlementDelivery[]
-  dispatchIntents       DispatchIntent[]
-  dispatchMakeups       DispatchMakeupTurn[]
-  dispatchEvents        DispatchEvent[]
 
   @@unique([storeId, userId])
   @@index([storeId, status])
@@ -284,15 +260,11 @@ model DailyBoard {
   businessDate DateTime @map("business_date") @db.Date
   version      Int      @default(1)
   rankedAt     DateTime? @map("ranked_at") @db.Timestamptz(3)
-  dispatchSequence Int  @default(0) @map("dispatch_sequence")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   store Store @relation(fields: [storeId], references: [id])
   rows  DailyEmployeeRow[]
-  dispatchIntents DispatchIntent[]
-  dispatchMakeups DispatchMakeupTurn[]
-  dispatchEvents  DispatchEvent[]
 
   @@unique([storeId, businessDate])
   @@map("daily_boards")
@@ -305,9 +277,6 @@ model DailyEmployeeRow {
   membershipId String   @map("membership_id") @db.Uuid
   position     Decimal  @db.Decimal(20, 10)
   isHidden     Boolean  @default(false) @map("is_hidden")
-  normalTurnsProcessed Int @default(0) @map("normal_turns_processed")
-  crossedTurns Int @default(0) @map("crossed_turns")
-  rotationRankedAt DateTime? @map("rotation_ranked_at") @db.Timestamptz(3)
   addedBy      String   @map("added_by") @db.Uuid
   version      Int      @default(1)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -319,77 +288,6 @@ model DailyEmployeeRow {
   @@unique([boardId, membershipId])
   @@index([storeId, position])
   @@map("daily_employee_rows")
-}
-
-model DispatchIntent {
-  id                   String               @id @default(uuid()) @db.Uuid
-  boardId              String               @map("board_id") @db.Uuid
-  storeId              String               @map("store_id") @db.Uuid
-  employeeMembershipId String               @map("employee_membership_id") @db.Uuid
-  kind                 DispatchKind
-  status               DispatchIntentStatus @default(PENDING)
-  sequence             Int
-  boardVersion         Int                  @map("board_version")
-  workRecordId         String?              @unique @map("work_record_id") @db.Uuid
-  consumedMakeupTurnId String?              @unique @map("consumed_makeup_turn_id") @db.Uuid
-  createdBy            String               @map("created_by") @db.Uuid
-  consumedAt           DateTime?            @map("consumed_at") @db.Timestamptz(3)
-  cancelledAt          DateTime?            @map("cancelled_at") @db.Timestamptz(3)
-  version              Int                  @default(1)
-  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-
-  board      DailyBoard      @relation(fields: [boardId], references: [id])
-  store      Store           @relation(fields: [storeId], references: [id])
-  employee   StoreMembership @relation(fields: [employeeMembershipId], references: [id])
-  workRecord WorkRecord?     @relation(fields: [workRecordId], references: [id])
-
-  @@index([boardId, status, sequence])
-  @@index([storeId, employeeMembershipId, status])
-  @@map("dispatch_intents")
-}
-
-model DispatchMakeupTurn {
-  id                   String               @id @default(uuid()) @db.Uuid
-  boardId              String               @map("board_id") @db.Uuid
-  storeId              String               @map("store_id") @db.Uuid
-  employeeMembershipId String               @map("employee_membership_id") @db.Uuid
-  status               DispatchMakeupStatus @default(PENDING)
-  reason               String
-  sequence             Int
-  sourceWorkRecordId   String?              @map("source_work_record_id") @db.Uuid
-  consumedWorkRecordId String?              @map("consumed_work_record_id") @db.Uuid
-  consumedAt           DateTime?            @map("consumed_at") @db.Timestamptz(3)
-  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-
-  board      DailyBoard      @relation(fields: [boardId], references: [id])
-  store      Store           @relation(fields: [storeId], references: [id])
-  employee   StoreMembership @relation(fields: [employeeMembershipId], references: [id])
-
-  @@index([boardId, status, sequence])
-  @@index([employeeMembershipId, status])
-  @@map("dispatch_makeup_turns")
-}
-
-model DispatchEvent {
-  id                   String   @id @default(uuid()) @db.Uuid
-  boardId              String   @map("board_id") @db.Uuid
-  storeId              String   @map("store_id") @db.Uuid
-  employeeMembershipId String?  @map("employee_membership_id") @db.Uuid
-  sequence             Int
-  kind                 String
-  detailJson           Json?    @map("detail_json")
-  workRecordId         String?  @map("work_record_id") @db.Uuid
-  actorUserId          String   @map("actor_user_id") @db.Uuid
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-
-  board    DailyBoard       @relation(fields: [boardId], references: [id])
-  store    Store            @relation(fields: [storeId], references: [id])
-  employee StoreMembership? @relation(fields: [employeeMembershipId], references: [id])
-
-  @@unique([boardId, sequence])
-  @@index([storeId, createdAt])
-  @@map("dispatch_events")
 }
 
 model ServiceItem {
@@ -548,7 +446,6 @@ model WorkRecord {
   largeFeeSettledManualFlag       Boolean          @default(false) @map("large_fee_settled_manual_flag")
   automaticDiscountSuppressed     Boolean          @default(false) @map("automatic_discount_suppressed")
   isHighlighted                   Boolean          @default(false) @map("is_highlighted")
-  dispatchKind                    DispatchKind?    @map("dispatch_kind")
   manualPriceFlag                 Boolean          @default(false) @map("manual_price_flag")
   note                            String           @default("")
   version                         Int              @default(1)
@@ -566,7 +463,6 @@ model WorkRecord {
   addonSnapshots  WorkRecordAddonSnapshot[]
   discountSnapshots WorkRecordDiscountSnapshot[]
   payment         PaymentBreakdown?
-  dispatchIntent  DispatchIntent?
 
   @@index([storeId, businessDate, startAt])
   @@index([storeId, employeeMembershipId, businessDate])

@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`1.0.0`
+> 适用版本：`1.0.1`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 

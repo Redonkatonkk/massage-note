@@ -9,9 +9,9 @@ export interface RotationCandidate {
 }
 
 /**
- * Produces the official daily order. Historical position is an ordering value:
- * second advances to first, third to second, and first moves behind everyone
- * with a non-first history. Members without history always start at the end.
+ * Produces the opening order from each employee's most recent visible day.
+ * Historical positions advance by one, the previous first moves behind other
+ * historical employees, and employees without history remain at the end.
  */
 export function rankRotationCandidates(
   candidates: RotationCandidate[],
@@ -26,8 +26,9 @@ export function rankRotationCandidates(
         if (position === null) return Number.POSITIVE_INFINITY;
         return position <= 1 ? Number.MAX_SAFE_INTEGER : position - 1;
       };
-      const targetDifference = target(left.lastPosition) - target(right.lastPosition);
-      if (targetDifference !== 0) return targetDifference;
+      const leftTarget = target(left.lastPosition);
+      const rightTarget = target(right.lastPosition);
+      if (leftTarget !== rightTarget) return leftTarget < rightTarget ? -1 : 1;
 
       if (left.employmentType !== right.employmentType) {
         return left.employmentType === "FULL_TIME" ? -1 : 1;
@@ -43,31 +44,4 @@ export function rankRotationCandidates(
       return left.membershipId.localeCompare(right.membershipId);
     })
     .map((candidate) => candidate.membershipId);
-}
-
-export interface NormalTurnCandidate {
-  membershipId: string;
-  normalTurnsProcessed: number;
-  position: number;
-}
-
-export function sortNormalTurnCandidates<T extends NormalTurnCandidate>(
-  candidates: T[],
-): T[] {
-  return [...candidates].sort(
-    (left, right) =>
-      left.normalTurnsProcessed - right.normalTurnsProcessed ||
-      left.position - right.position ||
-      left.membershipId.localeCompare(right.membershipId),
-  );
-}
-
-export function initialProcessedTurnsForLateArrival(input: {
-  nextNormalPosition: number | null;
-  newPosition: number;
-  minimumProcessedTurns: number;
-}): number {
-  if (input.nextNormalPosition === null) return 0;
-  return input.minimumProcessedTurns +
-    (input.newPosition < input.nextNormalPosition ? 1 : 0);
 }

@@ -4,7 +4,7 @@ metadata:
   author: walton
   name: massage-note-work-bot
   repository: https://massagenote.waltonjin.com/
-  version: 1.0.2
+  version: 1.0.4
   description:
     en_US: A restricted WeChat work-record bridge for Massage Note.
     zh_Hans: 仅用于微信群上工、下工和身份绑定的 Massage Note 记工桥接插件。
@@ -30,18 +30,18 @@ spec:
         en_US: Integration token
         zh_Hans: 集成令牌
       description:
-        en_US: Prefer the MASSAGE_NOTE_WORK_TOKEN environment variable in production.
-        zh_Hans: 生产环境建议改用 MASSAGE_NOTE_WORK_TOKEN 环境变量。
-      required: false
+        en_US: Required. Set this in the plugin configuration; isolated plugin workers do not inherit the Runtime container environment.
+        zh_Hans: 必填。请在插件配置中填写；隔离的插件进程不会继承 Runtime 容器环境变量。
+      required: true
     - name: bot
       type: bot-selector
       label:
         en_US: Work bot
         zh_Hans: 记工机器人
       description:
-        en_US: Only group messages routed through this bot are handled. Empty handles every bot.
-        zh_Hans: 只接管这个机器人的群消息；留空时接管全部机器人。
-      required: false
+        en_US: Only group messages routed through this dedicated bot are handled.
+        zh_Hans: 只接管通过这个专用机器人进入的群消息。
+      required: true
     - name: model
       type: llm-model-selector
       label:

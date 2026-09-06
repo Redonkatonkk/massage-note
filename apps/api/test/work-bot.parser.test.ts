@@ -8,6 +8,9 @@ describe("记工机器人固定语法", () => {
     ["@记工助手 我上工了，一小时身体", { kind: "START", serviceAlias: "一小时身体" }],
     ["上工，大力", { kind: "START", serviceAlias: "大力" }],
     ["开始大力90", { kind: "START", serviceAlias: "大力90" }],
+    ["大力 90", { kind: "START", serviceAlias: "大力", durationMinutes: 90 }],
+    ["Jessie 脚 30", { kind: "START", serviceAlias: "脚", durationMinutes: 30, memberName: "Jessie" }],
+    ["上工 Jessie 脚 30分钟", { kind: "START", serviceAlias: "脚", durationMinutes: 30, memberName: "Jessie" }],
     ["我下了，80 20 现金", { kind: "FINISH", serviceAmount: "80", tipAmount: "20", paymentMethod: "CASH" }],
     ["下工 80 10 卡", { kind: "FINISH", serviceAmount: "80", tipAmount: "10", paymentMethod: "CARD" }],
   ])("解析 %s", (message, expected) => {
@@ -22,5 +25,7 @@ describe("记工机器人固定语法", () => {
   it("拒绝模型补写原文不存在的金额和付款方式", () => {
     expect(parsedIntentAppearsInRawText({ kind: "FINISH", serviceAmount: "80", tipAmount: "20", paymentMethod: "CARD" }, "我下了 80 20 现金")).toBe(false);
     expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "大力90" }, "我上工了，大力")).toBe(false);
+    expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "脚", durationMinutes: 60, memberName: "Jessie" }, "Jessie 脚 30")).toBe(false);
+    expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "脚", durationMinutes: 30, memberName: "Amy" }, "Jessie 脚 30")).toBe(false);
   });
 });

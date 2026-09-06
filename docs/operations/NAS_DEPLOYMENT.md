@@ -1,6 +1,6 @@
 # GitHub → GHCR → 群晖部署
 
-> 当前版本：`1.0.2` · 镜像：`ghcr.io/redonkatonkk/massage-note`
+> 当前版本：`1.0.4` · 镜像：`ghcr.io/redonkatonkk/massage-note`
 > 历史版本变化统一查看 [`CHANGELOG.md`](../../CHANGELOG.md)，不在本手册重复累积。
 
 标准发布链路：
@@ -169,7 +169,16 @@ cd /volume1/docker/massage-note-v2
 docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
   | gzip > backup-before-upgrade.sql.gz
 gzip -t backup-before-upgrade.sql.gz
+sha256sum backup-before-upgrade.sql.gz > backup-before-upgrade.sql.gz.sha256
 ```
+
+通过 DSM Task Scheduler 远程执行备份时，使用一次性“用户定义的脚本”任务，并以 `root` 运行：
+
+1. 任务脚本依次执行 `pg_dump`、非空检查、`gzip -t` 和 SHA-256 生成。
+2. 手动运行后读取任务历史，只有 `exit_type=normal` 且 `exit_code=0` 才算成功。
+3. 删除一次性任务，但保留 `.sql.gz` 和 `.sha256` 文件。
+
+管理员账号拥有最高权限并不代表任意 API 会话都能创建 root 任务。DSM 7 对管理员从公网新设备登录可能触发 Adaptive MFA：普通 API 登录、项目查询和 `PasswordConfirm` 都可能成功，而 root Task Scheduler 仍返回 `105`。不要关闭安全保护或跳过备份；先在同一台部署电脑的 DSM 页面完成二次验证/设备信任，再重试一次性任务。若仍返回 `105`，停止发布并人工检查 DSM 的登录保护与任务计划权限。
 
 生产还应按 [`OPERATIONS.md`](OPERATIONS.md) 定期执行加密逻辑备份和独立恢复演练；临时升级备份不能代替恢复演练。
 
@@ -191,8 +200,11 @@ Container Manager UI 的等价操作是打开 `mn` → 编辑 Compose/环境 →
 - 每次按项目名 `mn` 查询当前 ID，不永久记录临时 UUID。
 - 当前 Compose 响应包含生产秘密，只能写入权限 `0600` 的临时文件，禁止完整输出。
 - 只替换应用镜像标签，不用仓库示例覆盖生产密码、域名、卷或环境。
-- update 返回的 task ID 不代表完成；继续等待 build stream 到明确成功或失败。
+- `Project.update` 可能只保存 Compose，不会自动替换正在运行的容器；update 成功后必须调用项目 build，并等待 build stream 到明确成功或失败。
+- Compose 文本显示目标标签不等于部署完成；从项目容器详情读取 `Config.Image`，确认 `app`、`migrate`、`harden` 的实际镜像均为目标版本。
 - 无论结果如何都退出 API 会话并清理临时文件。
+
+诊断输出使用字段白名单，只允许输出项目/服务名、镜像标签、状态、健康状态、退出码和环境变量键名。生产 Compose 的 `environment`、`command`、healthcheck、URL 和 API 异常响应都可能携带秘密；禁止输出完整 Compose 后再依赖正则遮盖。临时 Compose 与响应文件权限设为 `0600`，完成后立即删除，剪贴板中的凭据也要清空。
 
 正常状态：`postgres`、`redis`、`app` 为 running/healthy；`migrate`、`harden` 为 exited (0)。Container Manager 可能把一次性容器正常退出汇总成 WARNING，应以退出码和长期容器健康为准。
 
@@ -258,5 +270,6 @@ shasum -a 256 -c "artifacts/massage-note-$release_version-linux-amd64.tar.sha256
 | 空 `DOCKER_CONFIG` 找不到 `buildx` | 匿名检查使用 `docker manifest inspect` |
 | CI 本机通过、GitHub 失败 | 干净 runner 缺生成物或环境；修复 pre-hook/service，不上传 `.env` |
 | Container Manager 显示 WARNING | 先确认 `migrate`/`harden` 是否 exited (0) |
-| 更新请求返回但线上仍旧版 | DSM 是异步任务，继续等 build stream 并核对实际镜像 |
+| root Task Scheduler 返回 105 | 管理员公网新设备会话可能被 Adaptive MFA 限制；先在 DSM 页面完成二次验证/设备信任，再重试，不要跳过备份 |
+| 更新请求返回但线上仍旧版 | `Project.update` 可能只保存 Compose；继续执行 build、等待 stream，并核对容器 `Config.Image` |
 | 上线后像数据丢失 | 先核对项目名与卷名；不要删除任何卷 |

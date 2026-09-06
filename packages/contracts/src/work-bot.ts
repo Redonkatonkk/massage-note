@@ -6,7 +6,12 @@ const externalIdSchema = z.string().trim().min(1).max(255);
 export const workBotParsedIntentSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("BIND_STORE"), storeCode: z.string().regex(/^\d{6}$/) }),
   z.object({ kind: z.literal("BIND_MEMBER"), memberName: z.string().trim().min(1).max(80) }),
-  z.object({ kind: z.literal("START"), serviceAlias: z.string().trim().min(1).max(80) }),
+  z.object({
+    kind: z.literal("START"),
+    serviceAlias: z.string().trim().min(1).max(80),
+    durationMinutes: z.number().int().min(1).max(720).optional(),
+    memberName: z.string().trim().min(1).max(80).optional(),
+  }),
   z.object({
     kind: z.literal("FINISH"),
     serviceAmount: z.string().regex(/^\d+(?:\.\d{1,2})?$/),

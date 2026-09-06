@@ -19,7 +19,28 @@ HELP_KIND = {"kind": "HELP"}
 ALLOWED_KINDS = {"BIND_STORE", "BIND_MEMBER", "START", "FINISH", "HELP"}
 
 
-def deterministic_intent(raw_text: str) -> dict[str, str] | None:
+def start_intent(value: str, *, require_duration: bool) -> dict[str, Any] | None:
+    operand = value.strip(" \t，,。！？!?：:、;；")
+    if not operand:
+        return HELP_KIND
+    tokens = [item for item in re.split(r"[\s，,。！？!?：:、;；]+", operand) if item]
+    duration_match = re.fullmatch(r"(\d{1,3})(?:分钟)?", tokens[-1] if tokens else "")
+    if duration_match is None:
+        return HELP_KIND if require_duration else {"kind": "START", "serviceAlias": operand}
+    duration = int(duration_match.group(1))
+    if not 1 <= duration <= 720 or len(tokens) < 2:
+        return HELP_KIND
+    result: dict[str, Any] = {
+        "kind": "START",
+        "serviceAlias": tokens[-2],
+        "durationMinutes": duration,
+    }
+    if len(tokens) > 2:
+        result["memberName"] = " ".join(tokens[:-2])
+    return result
+
+
+def deterministic_intent(raw_text: str) -> dict[str, Any] | None:
     text = re.sub(r"[@＠][^\s，,。！？!?：:]+", " ", raw_text).strip()
     store = re.search(r"(?:^|[\s，,。！？!?：:、;；])绑定店铺\s*(\d{6})(?:$|[\s，,。！？!?、;；])", text)
     if store:
@@ -37,9 +58,9 @@ def deterministic_intent(raw_text: str) -> dict[str, str] | None:
         return HELP_KIND
     start = re.search(r"(?:我)?(?:上工(?:了)?|开工(?:了)?|开始(?:了)?)", text)
     if start:
-        alias = text[start.end() :].strip(" \t，,。！？!?：:、;；")
-        return {"kind": "START", "serviceAlias": alias} if alias else HELP_KIND
-    return None
+        return start_intent(text[start.end() :], require_duration=False)
+    compact = start_intent(text, require_duration=True)
+    return None if compact == HELP_KIND else compact
 
 
 def message_content_text(message: Message) -> str:
@@ -94,7 +115,18 @@ def parse_llm_json(value: str) -> dict[str, Any] | None:
     if kind == "BIND_MEMBER" and isinstance(result.get("memberName"), str) and result["memberName"].strip():
         return {"kind": kind, "memberName": result["memberName"].strip()[:80]}
     if kind == "START" and isinstance(result.get("serviceAlias"), str) and result["serviceAlias"].strip():
-        return {"kind": kind, "serviceAlias": result["serviceAlias"].strip()[:80]}
+        parsed_start: dict[str, Any] = {"kind": kind, "serviceAlias": result["serviceAlias"].strip()[:80]}
+        duration = result.get("durationMinutes")
+        member_name = result.get("memberName")
+        if duration is not None:
+            if isinstance(duration, bool) or not isinstance(duration, int) or not 1 <= duration <= 720:
+                return None
+            parsed_start["durationMinutes"] = duration
+        if member_name is not None:
+            if not isinstance(member_name, str) or not member_name.strip():
+                return None
+            parsed_start["memberName"] = member_name.strip()[:80]
+        return parsed_start
     if kind == "FINISH":
         service_amount = result.get("serviceAmount")
         tip_amount = result.get("tipAmount")
@@ -170,6 +202,7 @@ class MassageNoteWorkBotListener(EventListener):
             "你是记工指令解析器，只输出一个 JSON 对象，不要解释。"
             "kind 只能是 BIND_STORE、BIND_MEMBER、START、FINISH、HELP。"
             "绑定店铺输出 storeCode；绑定员工输出 memberName；上工输出 serviceAlias；"
+            "上工原文包含明确分钟数时输出整数 durationMinutes；原文明确指定其他员工时同时输出 memberName；"
             "下工必须从原文逐字提取 serviceAmount、tipAmount，金额字段必须是字符串，并把付款方式输出为 CASH 或 CARD。"
             "不得补充原文没有的姓名、项目、数字或付款方式；缺任何必填字段就输出 {\"kind\":\"HELP\"}。"
         )
@@ -197,8 +230,12 @@ class MassageNoteWorkBotListener(EventListener):
             method="POST",
             headers={
                 "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
                 "Content-Type": "application/json",
                 "Idempotency-Key": f"wechatpad:{payload['botId']}:{payload['messageId']}",
+                # Cloudflare rejects Python's default urllib user agent with
+                # error 1010 before the request reaches Massage Note.
+                "User-Agent": "MassageNote-LangBot/1.0",
             },
         )
 

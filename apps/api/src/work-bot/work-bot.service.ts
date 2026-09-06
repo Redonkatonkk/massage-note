@@ -49,7 +49,7 @@ interface StoreSettings {
   mondayThursdayAutoDiscountAmountCents: bigint;
 }
 
-const HELP_REPLY = "我只处理记工：绑定店铺 123456、绑定 张三、上工 大力、下工 80 20 现金（或卡）。信息不完整时不会写账。";
+const HELP_REPLY = "我只处理记工：绑定店铺 123456、绑定 张三、大力 90、Jessie 脚 30、下工 80 20 现金（或卡）。信息不完整时不会写账。";
 const AUTO_DISCOUNT_NAME = "周一至周四自动折扣";
 
 @Injectable()
@@ -332,7 +332,33 @@ export class WorkBotService {
   private async startWork(transaction: Prisma.TransactionClient, secret: string, input: WorkBotEventInput, intent: Extract<WorkBotParsedIntent, { kind: "START" }>, requestId: string) {
     const context = await this.requireBoundMember(transaction, input, intent);
     if ("reply" in context) return context.reply;
-    const { group, binding } = context;
+    const { group, binding: actorBinding } = context;
+    let binding = actorBinding;
+    if (intent.memberName) {
+      const members = await transaction.storeMembership.findMany({ where: {
+        storeId: group.storeId, status: "ACTIVE", deletedAt: null, isServiceProvider: true,
+      }, orderBy: { displayName: "asc" } });
+      const targetName = normalizeDisplayName(intent.memberName);
+      const exact = members.filter((member) => member.displayNameNormalized === targetName);
+      const fuzzy = exact.length ? exact : members.filter((member) => member.displayNameNormalized.includes(targetName) || targetName.includes(member.displayNameNormalized));
+      if (fuzzy.length !== 1) {
+        const list = (fuzzy.length ? fuzzy : members).slice(0, 8).map((member) => member.displayName).join("、");
+        return this.persistReply(transaction, input, intent, {
+          outcome: "TARGET_MEMBER_AMBIGUOUS",
+          reply: fuzzy.length > 1 ? `员工姓名不唯一，请输入完整姓名：${list}` : `没有唯一匹配的在职员工。可选：${list || "暂无"}`,
+        }, group);
+      }
+      const targetBinding = await transaction.workBotMemberBinding.findUnique({ where: {
+        groupBindingId_membershipId: { groupBindingId: group.id, membershipId: fuzzy[0]!.id },
+      } });
+      if (!targetBinding) {
+        return this.persistReply(transaction, input, intent, {
+          outcome: "TARGET_MEMBER_NOT_BOUND",
+          reply: `${fuzzy[0]!.displayName} 还没有在本群绑定微信，请先让本人发送“绑定 ${fuzzy[0]!.displayName}”。`,
+        }, group);
+      }
+      binding = targetBinding;
+    }
     if (binding.activeWorkRecordId) return this.persistReply(transaction, input, intent, { outcome: "WORK_ALREADY_ACTIVE", reply: "你已经有一条进行中的机器人记工，请先下工。", recordId: binding.activeWorkRecordId }, group);
     const activeInAnotherGroup = await transaction.workBotMemberBinding.findFirst({
       where: { membershipId: binding.membershipId, activeWorkRecordId: { not: null } },
@@ -349,9 +375,13 @@ export class WorkBotService {
       where: { storeId_aliasNormalized: { storeId: group.storeId, aliasNormalized: normalizeWorkBotValue(intent.serviceAlias) } },
       include: { serviceItem: { include: { priceOptions: true } } },
     });
-    const option = alias?.serviceItem.priceOptions.find((candidate) => candidate.durationMinutes === alias.durationMinutes);
-    if (!alias || !alias.isEnabled || !alias.serviceItem.isEnabled || alias.serviceItem.deletedAt || !option) {
+    if (!alias || !alias.isEnabled || !alias.serviceItem.isEnabled || alias.serviceItem.deletedAt) {
       return this.persistReply(transaction, input, intent, { outcome: "SERVICE_ALIAS_UNKNOWN", reply: `没有配置“${intent.serviceAlias}”这个记工黑话，请让店主或经理到网页添加。` }, group);
+    }
+    const durationMinutes = intent.durationMinutes ?? alias.durationMinutes;
+    const option = alias.serviceItem.priceOptions.find((candidate) => candidate.durationMinutes === durationMinutes);
+    if (!option) {
+      return this.persistReply(transaction, input, intent, { outcome: "SERVICE_DURATION_UNKNOWN", reply: `${alias.serviceItem.shortName} 没有 ${durationMinutes} 分钟这个价格档，请检查项目设置。` }, group);
     }
     const store = await this.requireStoreSettings(transaction, group.storeId);
     const startAt = new Date(input.occurredAt);
@@ -365,7 +395,7 @@ export class WorkBotService {
     const discounts = this.automaticDiscounts(store, businessDate, option.priceCents);
     const discountTotal = discounts.reduce((sum, discount) => sum + discount.amountCents, 0n);
     const wage = multiplyByBps(option.priceCents, commission.bps);
-    const endAt = new Date(startAt.getTime() + alias.durationMinutes * 60_000);
+    const endAt = new Date(startAt.getTime() + durationMinutes * 60_000);
     const actorId = this.integrationActorId(secret);
     const record = await transaction.workRecord.create({ data: {
       storeId: store.id, employeeMembershipId: employee.id,
@@ -377,7 +407,7 @@ export class WorkBotService {
       addonWageCents: 0n, totalLargeFeeWageCents: wage, createdBy: actorId, updatedBy: actorId,
       serviceSnapshot: { create: {
         sourceServiceItemId: alias.serviceItem.id, isCustom: false, name: alias.serviceItem.fullName,
-        shortName: alias.serviceItem.shortName, amountCents: option.priceCents, durationMinutes: alias.durationMinutes,
+        shortName: alias.serviceItem.shortName, amountCents: option.priceCents, durationMinutes,
         commissionBps: commission.bps, commissionSource: commission.source, wageCents: wage,
       } },
       ...(discounts.length ? { discountSnapshots: { create: discounts } } : {}),
@@ -399,10 +429,10 @@ export class WorkBotService {
     await transaction.auditLog.create({ data: {
       storeId: store.id, actorUserId: null, actorMembershipId: employee.id, source: "langbot",
       action: "work_bot.work_started", entityType: "work_record", entityId: record.id,
-      businessDate: record.businessDate, afterJson: { employeeMembershipId: employee.id, alias: alias.alias, serviceItemId: alias.serviceItem.id, durationMinutes: alias.durationMinutes, startAt: startAt.toISOString(), endAt: endAt.toISOString(), amountCents: option.priceCents.toString(), status: record.status }, requestId,
+      businessDate: record.businessDate, afterJson: { employeeMembershipId: employee.id, requestedByMembershipId: actorBinding.membershipId, alias: alias.alias, serviceItemId: alias.serviceItem.id, durationMinutes, startAt: startAt.toISOString(), endAt: endAt.toISOString(), amountCents: option.priceCents.toString(), status: record.status }, requestId,
     } });
     return this.persistReply(transaction, input, intent, {
-      outcome: "WORK_STARTED", reply: `✅ ${employee.displayName} 已上工：${alias.serviceItem.shortName} ${alias.durationMinutes} 分钟，开始 ${this.formatTime(startAt, store.timezone)}，预计 ${this.formatTime(endAt, store.timezone)}。`,
+      outcome: "WORK_STARTED", reply: `✅ ${employee.displayName} 已上工：${alias.serviceItem.shortName} ${durationMinutes} 分钟，开始 ${this.formatTime(startAt, store.timezone)}，预计 ${this.formatTime(endAt, store.timezone)}。`,
       recordId: record.id, businessDate,
     }, group);
   }

@@ -6,7 +6,7 @@
 
 - LangBot 插件位于 `integrations/langbot-plugin`，可构建为 `.lbpkg` 后通过 LangBot 的本地插件安装功能导入。
 - 插件使用一个指定 WeChatPad 机器人和一个指定解析模型。固定语法先由本地规则解析，只有无法识别的说法才调用模型。
-- 模型只能输出 `BIND_STORE`、`BIND_MEMBER`、`START`、`FINISH` 或 `HELP` 的限定 JSON。Massage Note 会再次确认姓名、别名、金额和付款方式均来自原消息。
+- 模型只能输出 `BIND_STORE`、`BIND_MEMBER`、`START`、`FINISH` 或 `HELP` 的限定 JSON。Massage Note 会再次确认姓名、别名、显式时长、金额和付款方式均来自原消息。
 - 插件只能调用 `POST /api/v1/integrations/langbot/work-events`；独立令牌不能访问普通店铺、财务、员工或删除接口。
 - 微信消息编号同时作为幂等依据。超时不代表失败或成功，重试同一条消息不会重复记账。
 
@@ -51,7 +51,7 @@ Content-Type: application/json
 }
 ```
 
-后端不会直接信任 `parsedIntent`：姓名、别名、金额和付款方式必须能从 `rawText` 验证，员工和项目必须属于已绑定店铺。成功响应只包含记工结果、群回复、可选记工 ID 和营业日。
+后端不会直接信任 `parsedIntent`：姓名、别名、显式时长、金额和付款方式必须能从 `rawText` 验证，员工和项目必须属于已绑定店铺。成功响应只包含记工结果、群回复、可选记工 ID 和营业日。
 
 ## Massage Note 配置
 
@@ -65,23 +65,18 @@ LANGBOT_WORK_TOKEN=mnw_<随机高强度字符串>
 
 登录 Massage Note 后，Owner 或 Manager 在“管理 → 记工机器人”中：
 
-1. 为每个黑话选择一个已启用的主要项目和现有时长档位。
-2. 至少创建实际会使用的别名，例如“大力”对应 Deep Tissue 60 分钟、“大力90”对应 Deep Tissue 90 分钟。
+1. 为每个黑话选择一个已启用的主要项目和默认时长档位。
+2. 至少创建实际会使用的别名，例如“大力”对应 Deep Tissue、默认 60 分钟，“脚”对应 Foot Massage、默认 30 分钟。群消息“大力 90”会改用 Deep Tissue 已存在的 90 分钟价格档，无需再创建“大力90”。
 3. 查看或解除群绑定和员工微信绑定，并查看最近 100 条机器人处理结果。
 
-别名不会自动猜测或从知识库读取。“一小时身体”必须由管理员明确选择店铺中的真实项目和 60 分钟档位。
+别名不会自动猜测或从知识库读取。“脚”必须由管理员明确选择店铺中的真实 Foot Massage 项目和默认时长；消息中显式写出的其他分钟数也必须是该项目已有的价格档。
 
 ## LangBot 配置
 
 1. 构建或使用 `integrations/langbot-plugin/dist/` 下的 `.lbpkg`，通过“插件 → 本地安装”导入。
-2. 给插件运行时设置：
+2. 打开已安装插件的配置页面，填写 `API 地址`、`集成令牌`、`记工机器人`和可选的`黑话解析模型`。集成令牌必须与 Massage Note API 的 `LANGBOT_WORK_TOKEN` 完全一致。
 
-   ```dotenv
-   MASSAGE_NOTE_API_URL=https://massagenote.waltonjin.com/api/v1
-   MASSAGE_NOTE_WORK_TOKEN=<与 API 完全相同的令牌>
-   MASSAGE_NOTE_WORK_BOT_UUID=<WeChatPad 机器人 UUID>
-   MASSAGE_NOTE_WORK_MODEL_UUID=<DeepSeek 模型 UUID>
-   ```
+   不要只把 `MASSAGE_NOTE_*` 变量放进 `langbot_plugin_runtime` 容器。当前隔离插件进程使用最小环境，不会继承 Runtime 容器的自定义变量；这会使插件已初始化却在收到消息后报告“插件尚未配置集成令牌”。插件配置接口会遮蔽令牌，真实值不要写入 Git、镜像、日志或 `.lbpkg`。
 
 3. “记工助手”流水线的群响应规则只开启“被艾特”，清空前缀、正则和随机触发。
 4. 流水线只启用 `walton/massage-note-work-bot` 插件，关闭其他插件、MCP 服务、知识库和技能。
@@ -100,14 +95,36 @@ LANGBOT_WORK_TOKEN=mnw_<随机高强度字符串>
 
 ```text
 @记工助手 上工，大力
-@记工助手 开始大力90
+@记工助手 大力 90
+@记工助手 Jessie 脚 30
 @记工助手 我下了，80 20 现金
 @记工助手 下工 80 10 卡
 ```
 
-下工的第一个金额是大费/业绩和服务实收，第二个金额是小费。首版只接受全部现金或全部信用卡；金额、付款方式、员工绑定或项目别名任何一项不明确时都不会写账。错账和历史修改统一在 Massage Note 网页完成。
+“大力 90”给发送者自己上工；“Jessie 脚 30”由发送者为 Jessie 上工。发送者和目标员工都必须已在同一个记工群绑定，姓名必须唯一匹配。下工仍由目标员工自己的微信发送；第一个金额是大费/业绩和服务实收，第二个金额是小费。首版只接受全部现金或全部信用卡；金额、付款方式、员工绑定或项目别名任何一项不明确时都不会写账。错账和历史修改统一在 Massage Note 网页完成。
 
 ## 上线验收
+
+先验证后端链路，再把插件绑定到流水线。可用空 JSON 做无写入探针：
+
+```bash
+# 不带凭据：预期 403
+curl -o /dev/null -w '%{http_code}\n' \
+  -X POST -H 'Content-Type: application/json' \
+  'https://<production-domain>/api/v1/integrations/langbot/work-events' \
+  -d '{}'
+
+# 带正确集成令牌：预期 400 VALIDATION_FAILED
+curl -o /dev/null -w '%{http_code}\n' \
+  -X POST -H "Authorization: Bearer $MASSAGE_NOTE_WORK_TOKEN" \
+  -H 'Content-Type: application/json' \
+  'https://<production-domain>/api/v1/integrations/langbot/work-events' \
+  -d '{}'
+```
+
+第二个响应为 400 表示请求已经通过反向代理、CSRF 集成例外和 Bearer 鉴权，并到达事件契约校验。空对象不是合法事件，不会写入绑定或记工。若返回 404，先核对生产容器实际镜像；若正确令牌仍返回 `CSRF_ORIGIN_REJECTED`，不要通过伪造 `Origin` 绕过，先确认实际运行版本包含记工接口例外。
+
+只有上述探针通过，才在“记工助手”流水线中启用插件。绑定后再次检查：插件状态为 `initialized`、流水线只绑定 `walton/massage-note-work-bot`、WeChatPad 机器人固定使用该流水线，且插件运行时没有初始化错误。
 
 先在测试店铺完成一次“绑定店铺 → 绑定员工 → 上工 → 下工 → 网页核账”，并确认：
 

@@ -33,7 +33,7 @@ services:
     networks: [backend]
 
   migrate:
-    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-1.0.1}
+    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-1.0.2}
     command: ["migrate"]
     environment:
       DATABASE_URL: postgresql://massage_note_admin:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/massage_note
@@ -42,7 +42,7 @@ services:
     networks: [backend]
 
   harden:
-    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-1.0.1}
+    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-1.0.2}
     command: ["harden"]
     environment:
       ADMIN_DATABASE_URL: postgresql://massage_note_admin:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/massage_note
@@ -52,7 +52,7 @@ services:
     networks: [backend]
 
   app:
-    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-1.0.1}
+    image: ghcr.io/redonkatonkk/massage-note:${MASSAGE_NOTE_IMAGE_TAG:-1.0.2}
     command: ["app"]
     restart: unless-stopped
     environment:
@@ -68,6 +68,7 @@ services:
       FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
       FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:-}
       DEV_AUTH_ENABLED: "false"
+      LANGBOT_WORK_TOKEN: ${LANGBOT_WORK_TOKEN}
       MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
       MINIMAX_API_BASE_URL: ${MINIMAX_API_BASE_URL:-https://api.minimaxi.com}
       MINIMAX_MODEL: ${MINIMAX_MODEL:-MiniMax-M3}

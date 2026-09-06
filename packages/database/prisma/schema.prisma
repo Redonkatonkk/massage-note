@@ -164,6 +164,9 @@ model Store {
   aiConversations      AiConversation[]
   aiQueryLogs          AiQueryLog[]
   aiChangePreviews     AiChangePreview[]
+  workBotGroupBindings WorkBotGroupBinding[]
+  workBotAliases       WorkBotAlias[]
+  workBotOperations    WorkBotOperation[]
 
   @@index([status])
   @@map("stores")
@@ -205,6 +208,7 @@ model StoreMembership {
   payrollSettlements    PayrollSettlement[]
   closingDeliveries     EmployeeClosingDelivery[]
   settlementDeliveries  EmployeeSettlementDelivery[]
+  workBotBindings       WorkBotMemberBinding[]
 
   @@unique([storeId, userId])
   @@index([storeId, status])
@@ -309,6 +313,7 @@ model ServiceItem {
 
   store Store @relation(fields: [storeId], references: [id])
   priceOptions ServiceItemPriceOption[]
+  workBotAliases WorkBotAlias[]
 
   @@index([storeId, isEnabled, position])
   @@map("service_items")
@@ -463,12 +468,103 @@ model WorkRecord {
   addonSnapshots  WorkRecordAddonSnapshot[]
   discountSnapshots WorkRecordDiscountSnapshot[]
   payment         PaymentBreakdown?
+  workBotActiveBinding WorkBotMemberBinding? @relation("WorkBotActiveRecord")
+  workBotOperations WorkBotOperation[]
 
   @@index([storeId, businessDate, startAt])
   @@index([storeId, employeeMembershipId, businessDate])
   @@index([storeId, isHighlighted, businessDate])
   @@index([storeId, status])
   @@map("work_records")
+}
+
+model WorkBotGroupBinding {
+  id        String   @id @default(uuid()) @db.Uuid
+  platform  String   @db.VarChar(32)
+  botId     String   @map("bot_id") @db.VarChar(255)
+  groupId   String   @map("group_id") @db.VarChar(255)
+  storeId   String   @map("store_id") @db.Uuid
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store          Store                  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  memberBindings WorkBotMemberBinding[]
+  operations     WorkBotOperation[]
+
+  @@unique([platform, botId, groupId])
+  @@index([storeId, updatedAt])
+  @@map("work_bot_group_bindings")
+}
+
+model WorkBotMemberBinding {
+  /// A partial unique index from migration 20260906154000 allows only one non-null activeWorkRecordId per membership.
+  id                 String   @id @default(uuid()) @db.Uuid
+  groupBindingId     String   @map("group_binding_id") @db.Uuid
+  senderId           String   @map("sender_id") @db.VarChar(255)
+  membershipId       String   @map("membership_id") @db.Uuid
+  activeWorkRecordId String?  @unique @map("active_work_record_id") @db.Uuid
+  version            Int      @default(1)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  groupBinding    WorkBotGroupBinding @relation(fields: [groupBindingId], references: [id], onDelete: Cascade)
+  membership      StoreMembership     @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  activeWorkRecord WorkRecord?        @relation("WorkBotActiveRecord", fields: [activeWorkRecordId], references: [id], onDelete: SetNull)
+
+  @@unique([groupBindingId, senderId])
+  @@unique([groupBindingId, membershipId])
+  @@index([membershipId])
+  @@map("work_bot_member_bindings")
+}
+
+model WorkBotAlias {
+  id              String   @id @default(uuid()) @db.Uuid
+  storeId         String   @map("store_id") @db.Uuid
+  alias           String   @db.VarChar(80)
+  aliasNormalized String   @map("alias_normalized") @db.VarChar(80)
+  serviceItemId   String   @map("service_item_id") @db.Uuid
+  durationMinutes Int      @map("duration_minutes")
+  isEnabled       Boolean  @default(true) @map("is_enabled")
+  version         Int      @default(1)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store       Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  serviceItem ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, aliasNormalized])
+  @@index([storeId, isEnabled])
+  @@map("work_bot_aliases")
+}
+
+model WorkBotOperation {
+  id             String    @id @default(uuid()) @db.Uuid
+  platform       String    @db.VarChar(32)
+  botId          String    @map("bot_id") @db.VarChar(255)
+  groupId        String    @map("group_id") @db.VarChar(255)
+  senderId       String    @map("sender_id") @db.VarChar(255)
+  messageId      String    @map("message_id") @db.VarChar(255)
+  groupBindingId String?   @map("group_binding_id") @db.Uuid
+  storeId        String?   @map("store_id") @db.Uuid
+  workRecordId   String?   @map("work_record_id") @db.Uuid
+  intent         String    @db.VarChar(32)
+  outcome        String    @db.VarChar(48)
+  rawText        String    @map("raw_text") @db.VarChar(1000)
+  parsedJson     Json?     @map("parsed_json")
+  reply          String    @db.VarChar(1000)
+  errorCode      String?   @map("error_code") @db.VarChar(100)
+  occurredAt     DateTime  @map("occurred_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  groupBinding WorkBotGroupBinding? @relation(fields: [groupBindingId], references: [id], onDelete: SetNull)
+  store        Store?                @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  workRecord   WorkRecord?           @relation(fields: [workRecordId], references: [id], onDelete: SetNull)
+
+  @@unique([platform, botId, groupId, messageId])
+  @@index([storeId, createdAt])
+  @@index([groupBindingId, senderId, createdAt])
+  @@map("work_bot_operations")
 }
 
 model WorkRecordServiceSnapshot {

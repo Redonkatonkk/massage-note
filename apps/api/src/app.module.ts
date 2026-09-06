@@ -15,6 +15,7 @@ import { RealtimeModule } from "./realtime/realtime.module.js";
 import { AiModule } from "./ai/ai.module.js";
 import { RateLimitService } from "./common/rate-limit.service.js";
 import { GiftCardsModule } from "./gift-cards/gift-cards.module.js";
+import { WorkBotModule } from "./work-bot/work-bot.module.js";
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { GiftCardsModule } from "./gift-cards/gift-cards.module.js";
     AuditModule,
     RealtimeModule,
     AiModule,
+    WorkBotModule,
   ],
   controllers: [HealthController],
   providers: [

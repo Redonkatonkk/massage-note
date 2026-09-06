@@ -37,8 +37,9 @@ async function bootstrap(): Promise<void> {
     if (!unsafeMethods.has(request.method)) return next();
     const isSessionBootstrap = request.path === "/api/v1/auth/session" || request.path === "/api/v1/auth/dev-session";
     const isClosingDeliveryAgent = (request.path.startsWith("/api/v1/closing-delivery-agent/") || request.path.startsWith("/api/v1/employee-settlement-delivery-agent/")) && request.header("authorization")?.startsWith("Bearer mna_");
+    const isLangBotWorkEvent = request.path === "/api/v1/integrations/langbot/work-events" && request.header("authorization")?.startsWith("Bearer mnw_");
     const origin = request.header("origin");
-    if (!isSessionBootstrap && !isClosingDeliveryAgent && origin !== webOrigin) {
+    if (!isSessionBootstrap && !isClosingDeliveryAgent && !isLangBotWorkEvent && origin !== webOrigin) {
       return response.status(403).json({ code: "CSRF_ORIGIN_REJECTED", messageZh: "请求来源不受信任，请刷新页面后重试", requestId: response.locals.requestId });
     }
     next();

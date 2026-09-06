@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Plugin
+metadata:
+  author: walton
+  name: massage-note-work-bot
+  repository: https://massagenote.waltonjin.com/
+  version: 1.0.2
+  description:
+    en_US: A restricted WeChat work-record bridge for Massage Note.
+    zh_Hans: 仅用于微信群上工、下工和身份绑定的 Massage Note 记工桥接插件。
+  label:
+    en_US: Massage Note Work Bot
+    zh_Hans: Massage Note 记工助手
+  icon: assets/icon.svg
+spec:
+  config:
+    - name: api_base_url
+      type: string
+      label:
+        en_US: Massage Note API URL
+        zh_Hans: Massage Note API 地址
+      description:
+        en_US: HTTPS origin and API prefix for Massage Note.
+        zh_Hans: Massage Note 的 HTTPS 地址及 API 前缀。
+      default: https://massagenote.waltonjin.com/api/v1
+      required: true
+    - name: integration_token
+      type: string
+      label:
+        en_US: Integration token
+        zh_Hans: 集成令牌
+      description:
+        en_US: Prefer the MASSAGE_NOTE_WORK_TOKEN environment variable in production.
+        zh_Hans: 生产环境建议改用 MASSAGE_NOTE_WORK_TOKEN 环境变量。
+      required: false
+    - name: bot
+      type: bot-selector
+      label:
+        en_US: Work bot
+        zh_Hans: 记工机器人
+      description:
+        en_US: Only group messages routed through this bot are handled. Empty handles every bot.
+        zh_Hans: 只接管这个机器人的群消息；留空时接管全部机器人。
+      required: false
+    - name: model
+      type: llm-model-selector
+      label:
+        en_US: Parser model
+        zh_Hans: 黑话解析模型
+      description:
+        en_US: Used only when deterministic parsing cannot understand the instruction.
+        zh_Hans: 仅在固定解析无法理解指令时使用。
+      required: false
+  components:
+    EventListener:
+      fromDirs:
+        - path: components/events/
+          maxDepth: 1
+execution:
+  python:
+    path: main.py
+    attr: MassageNoteWorkBotPlugin

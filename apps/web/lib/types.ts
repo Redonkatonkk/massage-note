@@ -708,3 +708,61 @@ export interface PayrollSettlement {
   deleteReason: string | null;
   membership: Pick<StoreMember, "id" | "displayName" | "role" | "status">;
 }
+
+export interface WorkBotAlias {
+  id: string;
+  alias: string;
+  aliasNormalized: string;
+  serviceItemId: string;
+  durationMinutes: number;
+  isEnabled: boolean;
+  version: number;
+  serviceItem: {
+    id: string;
+    fullName: string;
+    shortName: string;
+    isEnabled: boolean;
+    deletedAt: string | null;
+    priceOptions: Array<{ id: string; durationMinutes: number; priceCents: number }>;
+  };
+}
+
+export interface WorkBotMemberBinding {
+  id: string;
+  senderId: string;
+  membershipId: string;
+  activeWorkRecordId: string | null;
+  version: number;
+  updatedAt: string;
+  membership: { id: string; displayName: string; status: string };
+  activeWorkRecord: null | { id: string; startAt: string; endAt: string | null; status: string };
+}
+
+export interface WorkBotGroupBinding {
+  id: string;
+  platform: string;
+  botId: string;
+  groupId: string;
+  version: number;
+  updatedAt: string;
+  memberBindings: WorkBotMemberBinding[];
+}
+
+export interface WorkBotOperation {
+  id: string;
+  senderId: string;
+  intent: string;
+  outcome: string;
+  rawText: string;
+  reply: string;
+  errorCode: string | null;
+  occurredAt: string;
+  createdAt: string;
+  workRecord: null | { id: string; businessDate: string };
+}
+
+export interface WorkBotSettings {
+  groups: WorkBotGroupBinding[];
+  aliases: WorkBotAlias[];
+  operations: WorkBotOperation[];
+}

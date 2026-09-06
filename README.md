@@ -1,6 +1,6 @@
 # Massage note
 
-当前版本：`1.0.1`
+当前版本：`1.0.2`
 
 面向美国按摩店的中英文记工与财务管理 Web 应用，支持手机、iPad 和电脑。系统覆盖多店成员、今日记工、礼物卡、提成、确定性财务、日结、现金与工资结算、审计、实时同步和带确认预览的 AI 助手。
 
@@ -77,6 +77,7 @@ pnpm build
 - 群晖 Container Manager：[`docs/operations/NAS_DEPLOYMENT.md`](docs/operations/NAS_DEPLOYMENT.md)
 - 备份、恢复和排障：[`docs/operations/OPERATIONS.md`](docs/operations/OPERATIONS.md)
 - Mac“信息”发送代理：[`docs/operations/MESSAGES_AGENT.md`](docs/operations/MESSAGES_AGENT.md)
+- LangBot 微信记工机器人：[`docs/operations/LANGBOT_WORK_BOT.md`](docs/operations/LANGBOT_WORK_BOT.md)
 - 安全边界：[`docs/operations/SECURITY.md`](docs/operations/SECURITY.md)
 - 发布检查：[`docs/operations/RELEASE_CHECKLIST.md`](docs/operations/RELEASE_CHECKLIST.md)
 - 版本记录：[`CHANGELOG.md`](CHANGELOG.md)

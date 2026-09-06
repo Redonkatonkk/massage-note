@@ -11,3 +11,4 @@ export * from "./gift-card.js";
 export * from "./store.js";
 export * from "./user.js";
 export * from "./work-record.js";
+export * from "./work-bot.js";

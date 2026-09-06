@@ -23,12 +23,14 @@ import type {
   ServiceItem,
   StoreDetails,
   StoreMember,
+  WorkBotSettings,
 } from "../../lib/types";
 import { useStoreRealtime } from "../../lib/realtime";
 import { AppNav } from "../app-nav";
 import { useLanguage } from "../language-provider";
+import { WorkBotPanel } from "./work-bot-panel";
 
-type ManageTab = "store" | "members" | "catalog" | "recovery" | "audit";
+type ManageTab = "store" | "members" | "catalog" | "work-bot" | "recovery" | "audit";
 type CatalogKind = "SERVICE" | "ADDON" | "DISCOUNT";
 
 const roleText = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工" } as const;
@@ -93,6 +95,15 @@ const actionText: Record<string, string> = {
   "payroll_settlement.deleted": "删除工资结算",
   "payroll_settlement.restored": "恢复工资结算",
   "ai.preview_consumed": "确认并执行 AI 预览",
+  "work_bot.group_bound": "绑定记工群",
+  "work_bot.group_unbound": "解除记工群",
+  "work_bot.member_bound": "绑定群成员",
+  "work_bot.member_unbound": "解除群成员",
+  "work_bot.alias_created": "新增记工黑话",
+  "work_bot.alias_updated": "修改记工黑话",
+  "work_bot.alias_deleted": "删除记工黑话",
+  "work_bot.work_started": "机器人上工",
+  "work_bot.work_finished": "机器人下工",
 };
 
 const entityText: Record<string, string> = {
@@ -114,6 +125,9 @@ const entityText: Record<string, string> = {
   closing_delivery_agent: "Mac 信息代理",
   payroll_settlement: "工资结算",
   ai_change_preview: "AI 变更预览",
+  work_bot_group_binding: "记工群绑定",
+  work_bot_member_binding: "记工员工绑定",
+  work_bot_alias: "记工黑话",
 };
 
 function money(cents: number) {
@@ -146,6 +160,7 @@ export function ManagePageClient() {
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [deletedRecords, setDeletedRecords] = useState<DeletedWorkRecord[]>([]);
   const [deletedGiftCardSales, setDeletedGiftCardSales] = useState<DeletedGiftCardSale[]>([]);
+  const [workBot, setWorkBot] = useState<WorkBotSettings | null>(null);
   const [tab, setTab] = useState<ManageTab>("store");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -172,16 +187,18 @@ export function ManagePageClient() {
     setStore(storeResult);
     setCatalog(catalogResult);
     if (selected.role !== "EMPLOYEE") {
-      const [memberResult, requestResult, deletedResult, deletedGiftCardResult] = await Promise.all([
+      const [memberResult, requestResult, deletedResult, deletedGiftCardResult, workBotResult] = await Promise.all([
         apiRequest<StoreMember[]>(`/stores/${selected.store.id}/members`),
         apiRequest<JoinRequest[]>(`/stores/${selected.store.id}/join-requests`),
         apiRequest<DeletedWorkRecord[]>(`/stores/${selected.store.id}/work-records/deleted`),
         apiRequest<DeletedGiftCardSale[]>(`/stores/${selected.store.id}/gift-card-sales/deleted`),
+        apiRequest<WorkBotSettings>(`/stores/${selected.store.id}/work-bot`),
       ]);
       setMembers(memberResult);
       setRequests(requestResult);
       setDeletedRecords(deletedResult);
       setDeletedGiftCardSales(deletedGiftCardResult);
+      setWorkBot(workBotResult);
     }
   }, []);
 
@@ -204,7 +221,7 @@ export function ManagePageClient() {
   }
 
   const tabs: Array<[ManageTab, string]> = canManage
-    ? [["store", "店铺设置"], ["members", "成员管理"], ["catalog", "项目与提成"], ["recovery", "业务回收站"], ["audit", "审计记录"]]
+    ? [["store", "店铺设置"], ["members", "成员管理"], ["catalog", "项目与提成"], ["work-bot", "记工机器人"], ["recovery", "业务回收站"], ["audit", "审计记录"]]
     : [["store", "店铺信息"], ["catalog", "项目说明"]];
 
   return (
@@ -218,6 +235,7 @@ export function ManagePageClient() {
       {tab === "store" && <StorePanel store={store} membership={membership} members={members} busy={busy} run={run} reload={loadAll} />}
       {tab === "members" && canManage && <MembersPanel storeId={store.id} dailyRankingEnabled={store.automaticDispatchEnabled} currentRole={membership.role} members={members} requests={requests} catalog={catalog} busy={busy} run={run} reload={loadAll} />}
       {tab === "catalog" && <CatalogPanel storeId={store.id} canManage={canManage} catalog={catalog} busy={busy} run={run} reload={loadAll} />}
+      {tab === "work-bot" && canManage && workBot && <WorkBotPanel storeId={store.id} catalog={catalog} settings={workBot} busy={busy} run={run} reload={loadAll} />}
       {tab === "recovery" && canManage && <RecoveryPanel storeId={store.id} records={deletedRecords} giftCardSales={deletedGiftCardSales} busy={busy} run={run} reload={loadAll} />}
       {tab === "audit" && canManage && <AuditPanel storeId={store.id} members={members} />}
       <AppNav active="manage" storeId={store.id} />

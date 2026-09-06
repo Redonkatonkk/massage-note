@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Massage Note Work Bot">
+  <rect width="64" height="64" rx="14" fill="#1677ff"/>
+  <path d="M18 14h28v36H18z" rx="4" fill="#fff"/>
+  <path d="M24 24h16M24 31h16M24 38h10" stroke="#1677ff" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="43" cy="44" r="9" fill="#22c55e"/>
+  <path d="m39 44 3 3 5-6" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

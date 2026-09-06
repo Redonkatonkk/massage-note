@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.0.1` 代码结构核对。
+> 状态：与 `1.0.2` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -10,6 +10,8 @@ Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web
 ```mermaid
 flowchart LR
     Browser["响应式 Web<br/>手机、iPad、电脑"] --> Web["Next.js Web<br/>apps/web"]
+    WeChat["微信群 @记工助手"] --> LangBot["LangBot 受限插件"]
+    LangBot --> API
     Web --> API["NestJS API<br/>apps/api · /api/v1"]
     API --> Auth["Firebase Auth"]
     API --> AI["MiniMax 文本与转写"]
@@ -31,6 +33,7 @@ flowchart LR
 | `apps/web` | Next.js App Router、响应式中英文 UI、API 客户端和本地草稿 | 最终权限判断、最终财务计算 |
 | `apps/api` | REST、认证、授权、事务、领域编排、审计、outbox、SSE 和 AI 网关 | 浏览器展示状态、任意 SQL AI 工具 |
 | `apps/messages-agent` | 固定 Mac 上领取个人日结和员工区间结算任务、渲染附件、受限暂存并调用 Messages AppleScript | 入站端口、聊天数据库读写、键盘/窗口自动化 |
+| `integrations/langbot-plugin` | 拦截指定微信群记工消息、受限解析意图并调用专用记工接口 | 直接读取数据库、决定价格/员工、调用其他业务接口 |
 | `packages/domain` | 无框架依赖的营业日、权限、提成、金额与财务纯函数 | Prisma、HTTP、React、环境变量 |
 | `packages/contracts` | 前后端共享的 Zod 请求契约和类型 | 数据库访问、业务副作用 |
 | `packages/database` | Prisma schema、生成客户端、向前迁移和数据库约束测试 | HTTP 或 UI 逻辑 |

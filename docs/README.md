@@ -23,6 +23,7 @@ docs/
 | 群晖发布或升级 | [`NAS_DEPLOYMENT.md`](operations/NAS_DEPLOYMENT.md) | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md) |
 | 监控、数据库备份或恢复 | [`OPERATIONS.md`](operations/OPERATIONS.md) | [`SECURITY.md`](operations/SECURITY.md) |
 | 安装或排查 Mac“信息”代理 | [`MESSAGES_AGENT.md`](operations/MESSAGES_AGENT.md) | [`SECURITY.md`](operations/SECURITY.md) |
+| 安装或排查微信记工机器人 | [`LANGBOT_WORK_BOT.md`](operations/LANGBOT_WORK_BOT.md) | [`SECURITY.md`](operations/SECURITY.md)、[`API.md`](engineering/API.md) |
 | 准备正式发布 | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md) | 根目录 [`CHANGELOG.md`](../CHANGELOG.md) |
 | 让 AI 接管维护 | [`AI_HANDOFF.md`](engineering/AI_HANDOFF.md) | 按具体任务选择上面的文档 |
 
@@ -45,6 +46,7 @@ docs/
 - [`operations/NAS_DEPLOYMENT.md`](operations/NAS_DEPLOYMENT.md)：GitHub Actions、GHCR 与群晖 Container Manager 的发布和升级。
 - [`operations/OPERATIONS.md`](operations/OPERATIONS.md)：服务监控、数据库备份、恢复演练和通用故障处理。
 - [`operations/MESSAGES_AGENT.md`](operations/MESSAGES_AGENT.md)：固定 Mac“信息”代理的安装、权限、路由和专项排障。
+- [`operations/LANGBOT_WORK_BOT.md`](operations/LANGBOT_WORK_BOT.md)：LangBot 插件、微信群绑定、黑话配置和上线验收。
 - [`operations/SECURITY.md`](operations/SECURITY.md)：已实施控制、租户隔离、部署责任和已知边界。
 - [`operations/RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md)：发布前、业务验收和上线后检查。
 - 根目录 [`CHANGELOG.md`](../CHANGELOG.md)：按版本记录已经交付的变化。

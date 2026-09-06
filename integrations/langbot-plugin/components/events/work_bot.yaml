@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: EventListener
+metadata:
+  name: massage_note_work_bot
+  label:
+    en_US: Massage Note Work Bot Listener
+    zh_Hans: Massage Note 记工消息监听器
+  description:
+    en_US: Intercepts mentioned group messages and forwards only validated work-record intents.
+    zh_Hans: 接管群聊艾特消息，只转发经过约束的记工意图。
+spec:
+execution:
+  python:
+    path: work_bot.py
+    attr: MassageNoteWorkBotListener

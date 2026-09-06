@@ -1,0 +1,26 @@
+import { describe, expect, it } from "vitest";
+import { parseWorkBotMessage, parsedIntentAppearsInRawText } from "../src/work-bot/work-bot.parser.js";
+
+describe("记工机器人固定语法", () => {
+  it.each([
+    ["@记工助手 绑定店铺 123456", { kind: "BIND_STORE", storeCode: "123456" }],
+    ["@记工助手 绑定 张三", { kind: "BIND_MEMBER", memberName: "张三" }],
+    ["@记工助手 我上工了，一小时身体", { kind: "START", serviceAlias: "一小时身体" }],
+    ["上工，大力", { kind: "START", serviceAlias: "大力" }],
+    ["开始大力90", { kind: "START", serviceAlias: "大力90" }],
+    ["我下了，80 20 现金", { kind: "FINISH", serviceAmount: "80", tipAmount: "20", paymentMethod: "CASH" }],
+    ["下工 80 10 卡", { kind: "FINISH", serviceAmount: "80", tipAmount: "10", paymentMethod: "CARD" }],
+  ])("解析 %s", (message, expected) => {
+    expect(parseWorkBotMessage(message)).toEqual(expected);
+  });
+
+  it("付款字段不完整或普通聊天时不产生可写意图", () => {
+    expect(parseWorkBotMessage("我下了，80 现金")).toEqual({ kind: "HELP" });
+    expect(parseWorkBotMessage("帮我删除昨天的账")).toEqual({ kind: "HELP" });
+  });
+
+  it("拒绝模型补写原文不存在的金额和付款方式", () => {
+    expect(parsedIntentAppearsInRawText({ kind: "FINISH", serviceAmount: "80", tipAmount: "20", paymentMethod: "CARD" }, "我下了 80 20 现金")).toBe(false);
+    expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "大力90" }, "我上工了，大力")).toBe(false);
+  });
+});

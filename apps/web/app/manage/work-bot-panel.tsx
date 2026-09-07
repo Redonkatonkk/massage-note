@@ -46,7 +46,7 @@ export function WorkBotPanel({ storeId, catalog, settings, busy, run, reload }: 
 
     <section className="manage-card">
       <div className="manage-heading"><div><p className="eyebrow">结构化词典</p><h2>记工黑话</h2></div><span className="status-chip">{settings.aliases.length} 条</span></div>
-      <p className="field-help">黑话明确对应一个项目；这里选择的时长是默认值。群消息可写“大力 90”改用该项目已有的 90 分钟价格档，机器人不会从知识库或模型中猜项目或价格。</p>
+      <p className="field-help">黑话明确对应一个项目；这里选择的时长是默认值。群消息可写“大力 90”改用已有的 90 分钟价格档，也可写“Jessie 脚 30”为唯一匹配的在职员工代记，目标员工无需先绑定微信。机器人不会从知识库或模型中猜项目或价格。</p>
       <form className="manage-form-grid" onSubmit={(event) => { event.preventDefault(); void run(async () => {
         await apiRequest(`/stores/${storeId}/work-bot/aliases`, { method: "POST", body: { alias, serviceItemId: serviceId, durationMinutes: Number(duration) } });
         setAlias(""); await reload();

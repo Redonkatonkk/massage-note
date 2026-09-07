@@ -158,24 +158,28 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     expect(await prisma.workRecord.count({ where: { storeId } })).toBe(before);
   });
 
-  it("支持省略上工前缀、显式时长，并允许已绑定群员给另一名已绑定员工上工", async () => {
+  it("支持省略上工前缀、显式时长，并允许已绑定群员给尚未绑定微信的员工上工", async () => {
     const startAt = new Date(Date.now() + 4 * 60 * 60_000);
     const delegatedSender = "jessie-wxid-test";
-    await expect(workBot.handleEvent(
-      `Bearer ${token}`,
-      `wechatpad:${baseEvent.botId}:bind-jessie`,
-      { ...baseEvent, senderId: delegatedSender, messageId: "bind-jessie", rawText: "绑定 Jessie", occurredAt: startAt.toISOString() },
-      "bind-jessie-request",
-    )).resolves.toMatchObject({ outcome: "MEMBER_BOUND" });
-
     const started = await workBot.handleEvent(`Bearer ${token}`, key("delegated-start"), event("delegated-start", "Jessie 脚 30", startAt), "delegated-start-request");
     expect(started).toMatchObject({ outcome: "WORK_STARTED" });
     if (!started.recordId) throw new Error("代记上工没有返回记工编号");
     await expect(prisma.workRecord.findUniqueOrThrow({ where: { id: started.recordId }, include: { serviceSnapshot: true } })).resolves.toMatchObject({
       employeeMembershipId: delegatedEmployeeId,
       status: "PENDING_PAYMENT",
+      actualDurationMinutes: 30,
       serviceSnapshot: { sourceServiceItemId: footServiceItemId, durationMinutes: 30, amountCents: 6_000n },
     });
+    await expect(prisma.workBotMemberBinding.findUniqueOrThrow({
+      where: { groupBindingId_membershipId: { groupBindingId: (await prisma.workBotGroupBinding.findFirstOrThrow({ where: { storeId } })).id, membershipId: delegatedEmployeeId } },
+    })).resolves.toMatchObject({ activeWorkRecordId: started.recordId });
+
+    await expect(workBot.handleEvent(
+      `Bearer ${token}`,
+      `wechatpad:${baseEvent.botId}:bind-jessie`,
+      { ...baseEvent, senderId: delegatedSender, messageId: "bind-jessie", rawText: "绑定 Jessie", occurredAt: startAt.toISOString() },
+      "bind-jessie-request",
+    )).resolves.toMatchObject({ outcome: "MEMBER_BOUND" });
 
     const finishAt = new Date(startAt.getTime() + 30 * 60_000);
     await expect(workBot.handleEvent(

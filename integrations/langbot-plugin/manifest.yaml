@@ -4,7 +4,7 @@ metadata:
   author: walton
   name: massage-note-work-bot
   repository: https://massagenote.waltonjin.com/
-  version: 1.0.4
+  version: 1.0.5
   description:
     en_US: A restricted WeChat work-record bridge for Massage Note.
     zh_Hans: 仅用于微信群上工、下工和身份绑定的 Massage Note 记工桥接插件。

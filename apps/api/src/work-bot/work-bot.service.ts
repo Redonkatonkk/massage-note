@@ -51,6 +51,7 @@ interface StoreSettings {
 
 const HELP_REPLY = "我只处理记工：绑定店铺 123456、绑定 张三、大力 90、Jessie 脚 30、下工 80 20 现金（或卡）。信息不完整时不会写账。";
 const AUTO_DISCOUNT_NAME = "周一至周四自动折扣";
+const DELEGATED_SENDER_PREFIX = "__massage_note_delegated__:";
 
 @Injectable()
 export class WorkBotService {
@@ -310,20 +311,30 @@ export class WorkBotService {
     const occupied = await transaction.workBotMemberBinding.findFirst({ where: {
       groupBindingId: group.id, membershipId: target.id, NOT: { senderId: input.senderId },
     } });
-    if (occupied) return this.persistReply(transaction, input, intent, { outcome: "MEMBER_ALREADY_CLAIMED", reply: `${target.displayName} 已经绑定其他微信，请联系店主或经理在网页解除原绑定。` }, group);
+    const delegatedPlaceholder = occupied?.senderId.startsWith(DELEGATED_SENDER_PREFIX) ? occupied : null;
+    if (occupied && !delegatedPlaceholder) return this.persistReply(transaction, input, intent, { outcome: "MEMBER_ALREADY_CLAIMED", reply: `${target.displayName} 已经绑定其他微信，请联系店主或经理在网页解除原绑定。` }, group);
     const current = await transaction.workBotMemberBinding.findUnique({ where: {
       groupBindingId_senderId: { groupBindingId: group.id, senderId: input.senderId },
     } });
     if (current?.activeWorkRecordId && current.membershipId !== target.id) {
       return this.persistReply(transaction, input, intent, { outcome: "ACTIVE_RECORD_BLOCKS_REBIND", reply: "你还有一条进行中的记工，请先下工后再重新绑定。" }, group);
     }
-    const binding = current
-      ? await transaction.workBotMemberBinding.update({ where: { id: current.id }, data: { membershipId: target.id, version: { increment: 1 } } })
-      : await transaction.workBotMemberBinding.create({ data: { groupBindingId: group.id, senderId: input.senderId, membershipId: target.id } });
+    if (delegatedPlaceholder && current && current.id !== delegatedPlaceholder.id) {
+      return this.persistReply(transaction, input, intent, { outcome: "MEMBER_ALREADY_BOUND", reply: "这个微信已经代表另一名员工，请先下工并由管理员解除原绑定。" }, group);
+    }
+    const binding = delegatedPlaceholder
+      ? await transaction.workBotMemberBinding.update({ where: { id: delegatedPlaceholder.id }, data: { senderId: input.senderId, version: { increment: 1 } } })
+      : current
+        ? await transaction.workBotMemberBinding.update({ where: { id: current.id }, data: { membershipId: target.id, version: { increment: 1 } } })
+        : await transaction.workBotMemberBinding.create({ data: { groupBindingId: group.id, senderId: input.senderId, membershipId: target.id } });
     await transaction.auditLog.create({ data: {
       storeId: group.storeId, actorUserId: null, actorMembershipId: target.id, source: "langbot",
       action: "work_bot.member_bound", entityType: "work_bot_member_binding", entityId: binding.id,
-      beforeJson: current ? { membershipId: current.membershipId, senderId: current.senderId } : Prisma.DbNull,
+      beforeJson: delegatedPlaceholder
+        ? { membershipId: delegatedPlaceholder.membershipId, senderId: "delegated-placeholder" }
+        : current
+          ? { membershipId: current.membershipId, senderId: current.senderId }
+          : Prisma.DbNull,
       afterJson: { membershipId: target.id, displayName: target.displayName, senderId: input.senderId }, requestId,
     } });
     return this.persistReply(transaction, input, intent, { outcome: "MEMBER_BOUND", reply: `✅ 绑定成功：这个微信现在代表 ${target.displayName}。` }, group);
@@ -333,7 +344,10 @@ export class WorkBotService {
     const context = await this.requireBoundMember(transaction, input, intent);
     if ("reply" in context) return context.reply;
     const { group, binding: actorBinding } = context;
-    let binding = actorBinding;
+    let targetMembershipId = actorBinding.membershipId;
+    let targetBindingId: string | null = actorBinding.id;
+    let targetBindingVersion: number | null = actorBinding.version;
+    let targetActiveWorkRecordId = actorBinding.activeWorkRecordId;
     if (intent.memberName) {
       const members = await transaction.storeMembership.findMany({ where: {
         storeId: group.storeId, status: "ACTIVE", deletedAt: null, isServiceProvider: true,
@@ -348,20 +362,17 @@ export class WorkBotService {
           reply: fuzzy.length > 1 ? `员工姓名不唯一，请输入完整姓名：${list}` : `没有唯一匹配的在职员工。可选：${list || "暂无"}`,
         }, group);
       }
+      targetMembershipId = fuzzy[0]!.id;
       const targetBinding = await transaction.workBotMemberBinding.findUnique({ where: {
         groupBindingId_membershipId: { groupBindingId: group.id, membershipId: fuzzy[0]!.id },
       } });
-      if (!targetBinding) {
-        return this.persistReply(transaction, input, intent, {
-          outcome: "TARGET_MEMBER_NOT_BOUND",
-          reply: `${fuzzy[0]!.displayName} 还没有在本群绑定微信，请先让本人发送“绑定 ${fuzzy[0]!.displayName}”。`,
-        }, group);
-      }
-      binding = targetBinding;
+      targetBindingId = targetBinding?.id ?? null;
+      targetBindingVersion = targetBinding?.version ?? null;
+      targetActiveWorkRecordId = targetBinding?.activeWorkRecordId ?? null;
     }
-    if (binding.activeWorkRecordId) return this.persistReply(transaction, input, intent, { outcome: "WORK_ALREADY_ACTIVE", reply: "你已经有一条进行中的机器人记工，请先下工。", recordId: binding.activeWorkRecordId }, group);
+    if (targetActiveWorkRecordId) return this.persistReply(transaction, input, intent, { outcome: "WORK_ALREADY_ACTIVE", reply: intent.memberName ? "该员工已经有一条进行中的机器人记工，请先下工。" : "你已经有一条进行中的机器人记工，请先下工。", recordId: targetActiveWorkRecordId }, group);
     const activeInAnotherGroup = await transaction.workBotMemberBinding.findFirst({
-      where: { membershipId: binding.membershipId, activeWorkRecordId: { not: null } },
+      where: { membershipId: targetMembershipId, activeWorkRecordId: { not: null } },
       select: { activeWorkRecordId: true },
     });
     if (activeInAnotherGroup?.activeWorkRecordId) {
@@ -387,7 +398,7 @@ export class WorkBotService {
     const startAt = new Date(input.occurredAt);
     const businessDate = businessDateFor({ startAt, timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
     await this.assertBusinessDayOpen(transaction, store, businessDate);
-    const employee = await transaction.storeMembership.findFirst({ where: { id: binding.membershipId, storeId: store.id, status: "ACTIVE", deletedAt: null, isServiceProvider: true } });
+    const employee = await transaction.storeMembership.findFirst({ where: { id: targetMembershipId, storeId: store.id, status: "ACTIVE", deletedAt: null, isServiceProvider: true } });
     if (!employee) return this.persistReply(transaction, input, intent, { outcome: "MEMBER_INACTIVE", reply: "绑定的员工已停用，请联系管理员处理。" }, group);
     const employeeDefaultBps = await this.resolveEmployeeDefaultCommission(transaction, store.id, employee.id, employee.defaultCommissionBps, startAt);
     const employeeItemBps = await this.resolveEmployeeItemCommission(transaction, store.id, employee.id, alias.serviceItem.id, startAt);
@@ -400,7 +411,7 @@ export class WorkBotService {
     const record = await transaction.workRecord.create({ data: {
       storeId: store.id, employeeMembershipId: employee.id,
       businessDate: new Date(`${businessDate}T00:00:00.000Z`), storeTimezoneSnapshot: store.timezone,
-      businessCutoffSnapshot: store.businessCutoffLocal, startAt, endAt, actualDurationMinutes: alias.durationMinutes,
+      businessCutoffSnapshot: store.businessCutoffLocal, startAt, endAt, actualDurationMinutes: durationMinutes,
       status: "PENDING_PAYMENT", mainServiceAmountCents: option.priceCents, addonTotalCents: 0n,
       grossFeeBaseCents: option.priceCents, discountTotalCents: discountTotal,
       discountedFeePerformanceCents: option.priceCents - discountTotal, mainServiceWageCents: wage,
@@ -412,10 +423,19 @@ export class WorkBotService {
       } },
       ...(discounts.length ? { discountSnapshots: { create: discounts } } : {}),
     } });
+    if (!targetBindingId || targetBindingVersion === null) {
+      const placeholder = await transaction.workBotMemberBinding.create({ data: {
+        groupBindingId: group.id,
+        senderId: `${DELEGATED_SENDER_PREFIX}${targetMembershipId}`,
+        membershipId: targetMembershipId,
+      } });
+      targetBindingId = placeholder.id;
+      targetBindingVersion = placeholder.version;
+    }
     let claimed: { count: number };
     try {
       claimed = await transaction.workBotMemberBinding.updateMany({
-        where: { id: binding.id, activeWorkRecordId: null, version: binding.version },
+        where: { id: targetBindingId, activeWorkRecordId: null, version: targetBindingVersion },
         data: { activeWorkRecordId: record.id, version: { increment: 1 } },
       });
     } catch (error) {

@@ -96,9 +96,63 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
 
   it("绑定店铺和员工，并阻止群内改绑店铺", async () => {
     const now = new Date();
+    await expect(workBot.getIntegrationContext(`Bearer ${token}`, baseEvent)).resolves.toEqual({
+      status: "UNBOUND", storeName: null, actorName: null, aliases: [], members: [],
+    });
     await expect(workBot.handleEvent(`Bearer ${token}`, key("bind-store"), event("bind-store", `绑定店铺 ${storeCode}`, now), "bind-store-request")).resolves.toMatchObject({ outcome: "STORE_BOUND" });
     await expect(workBot.handleEvent(`Bearer ${token}`, key("bind-member"), event("bind-member", "绑定 小王", now), "bind-member-request")).resolves.toMatchObject({ outcome: "MEMBER_BOUND" });
+    await expect(workBot.getIntegrationContext(`Bearer ${token}`, baseEvent)).resolves.toMatchObject({
+      status: "BOUND",
+      storeName: "机器人测试店",
+      actorName: "小王",
+      aliases: expect.arrayContaining([
+        {
+          alias: "脚",
+          serviceName: "Foot Massage",
+          serviceShortName: "足疗",
+          defaultDurationMinutes: 30,
+          availableDurationMinutes: [30, 60],
+        },
+      ]),
+      members: expect.arrayContaining(["小王", "Jessie"]),
+    });
     await expect(workBot.handleEvent(`Bearer ${token}`, key("rebind-store"), event("rebind-store", "绑定店铺 000000", now), "rebind-store-request")).resolves.toMatchObject({ outcome: "STORE_REBIND_FORBIDDEN" });
+  });
+
+  it("接受 AI 以原话证据映射到已配置黑话", async () => {
+    const startAt = new Date(Date.now() + 30 * 60_000);
+    const finishAt = new Date(startAt.getTime() + 60 * 60_000);
+    const started = await workBot.handleEvent(
+      `Bearer ${token}`,
+      key("semantic-start"),
+      {
+        ...event("semantic-start", "给我做 deep tissue 一小时", startAt),
+        parsedIntent: {
+          kind: "START",
+          serviceAlias: "大力",
+          serviceMention: "deep tissue",
+          durationMinutes: 60,
+          durationMention: "一小时",
+        },
+      },
+      "semantic-start-request",
+    );
+    expect(started).toMatchObject({ outcome: "WORK_STARTED" });
+    await expect(workBot.handleEvent(
+      `Bearer ${token}`,
+      key("semantic-finish"),
+      {
+        ...event("semantic-finish", "结束，收了 80，小费 10，走 visa", finishAt),
+        parsedIntent: {
+          kind: "FINISH",
+          serviceAmount: "80",
+          tipAmount: "10",
+          paymentMethod: "CARD",
+          paymentMention: "visa",
+        },
+      },
+      "semantic-finish-request",
+    )).resolves.toMatchObject({ outcome: "WORK_FINISHED", recordId: started.recordId });
   });
 
   it("拒绝不明确姓名和抢占员工，同时允许本人重复绑定", async () => {

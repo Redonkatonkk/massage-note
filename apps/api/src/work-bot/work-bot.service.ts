@@ -11,6 +11,7 @@ import { Prisma, type User } from "@massage-note/database";
 import type {
   CreateWorkBotAliasInput,
   UpdateWorkBotAliasInput,
+  WorkBotContextRequest,
   WorkBotEventInput,
   WorkBotParsedIntent,
 } from "@massage-note/contracts";
@@ -59,6 +60,77 @@ export class WorkBotService {
     private readonly prisma: PrismaService,
     private readonly access: StoreAccessService,
   ) {}
+
+  async getIntegrationContext(authorization: string | undefined, input: WorkBotContextRequest) {
+    this.requireIntegrationSecret(authorization);
+    const group = await this.prisma.workBotGroupBinding.findUnique({
+      where: {
+        platform_botId_groupId: {
+          platform: input.platform,
+          botId: input.botId,
+          groupId: input.groupId,
+        },
+      },
+      include: {
+        store: { select: { name: true } },
+        memberBindings: {
+          where: { senderId: input.senderId },
+          select: { membership: { select: { displayName: true } } },
+          take: 1,
+        },
+      },
+    });
+    if (!group) {
+      return { status: "UNBOUND" as const, storeName: null, actorName: null, aliases: [], members: [] };
+    }
+    const [aliases, members] = await Promise.all([
+      this.prisma.workBotAlias.findMany({
+        where: {
+          storeId: group.storeId,
+          isEnabled: true,
+          serviceItem: { isEnabled: true, deletedAt: null },
+        },
+        select: {
+          alias: true,
+          durationMinutes: true,
+          serviceItem: {
+            select: {
+              fullName: true,
+              shortName: true,
+              priceOptions: {
+                select: { durationMinutes: true },
+                orderBy: [{ position: "asc" }, { durationMinutes: "asc" }],
+              },
+            },
+          },
+        },
+        orderBy: [{ aliasNormalized: "asc" }],
+      }),
+      this.prisma.storeMembership.findMany({
+        where: {
+          storeId: group.storeId,
+          status: "ACTIVE",
+          deletedAt: null,
+          isServiceProvider: true,
+        },
+        select: { displayName: true },
+        orderBy: [{ displayNameNormalized: "asc" }],
+      }),
+    ]);
+    return {
+      status: "BOUND" as const,
+      storeName: group.store.name,
+      actorName: group.memberBindings[0]?.membership.displayName ?? null,
+      aliases: aliases.map((item) => ({
+        alias: item.alias,
+        serviceName: item.serviceItem.fullName,
+        serviceShortName: item.serviceItem.shortName,
+        defaultDurationMinutes: item.durationMinutes,
+        availableDurationMinutes: item.serviceItem.priceOptions.map((option) => option.durationMinutes),
+      })),
+      members: members.map((item) => item.displayName),
+    };
+  }
 
   async handleEvent(
     authorization: string | undefined,

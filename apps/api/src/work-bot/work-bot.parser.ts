@@ -78,16 +78,18 @@ export function parsedIntentAppearsInRawText(intent: WorkBotParsedIntent, rawTex
     case "BIND_STORE":
       return normalizedRaw.includes(intent.storeCode);
     case "BIND_MEMBER":
-      return normalizedRaw.includes(normalizeWorkBotValue(intent.memberName));
+      return normalizedRaw.includes(normalizeWorkBotValue(intent.memberMention ?? intent.memberName));
     case "START":
-      return normalizedRaw.includes(normalizeWorkBotValue(intent.serviceAlias))
-        && (intent.durationMinutes === undefined || normalizedRaw.includes(String(intent.durationMinutes)))
-        && (intent.memberName === undefined || normalizedRaw.includes(normalizeWorkBotValue(intent.memberName)));
+      return normalizedRaw.includes(normalizeWorkBotValue(intent.serviceMention ?? intent.serviceAlias))
+        && (intent.durationMinutes === undefined || normalizedRaw.includes(normalizeWorkBotValue(intent.durationMention ?? String(intent.durationMinutes))))
+        && (intent.memberName === undefined || normalizedRaw.includes(normalizeWorkBotValue(intent.memberMention ?? intent.memberName)));
     case "FINISH": {
       const amountTokens = [...rawText.normalize("NFKC").matchAll(/(?<![\d.])(\d+(?:\.\d{1,2})?)(?![\d.])/gu)].map((match) => match[1]);
-      const methodPresent = intent.paymentMethod === "CASH"
-        ? /(?:现金|cash)/iu.test(rawText)
-        : /(?:信用卡|刷卡|银行卡|card|(?:^|[\s，,])卡(?:$|[\s，,。]))/iu.test(rawText);
+      const methodPresent = intent.paymentMention
+        ? normalizedRaw.includes(normalizeWorkBotValue(intent.paymentMention))
+        : intent.paymentMethod === "CASH"
+          ? /(?:现金|cash)/iu.test(rawText)
+          : /(?:信用卡|刷卡|银行卡|card|(?:^|[\s，,])卡(?:$|[\s，,。]))/iu.test(rawText);
       return amountTokens.includes(intent.serviceAmount) && amountTokens.includes(intent.tipAmount) && methodPresent;
     }
     case "HELP":

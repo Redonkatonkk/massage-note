@@ -1,16 +1,16 @@
 # Massage Note Work Bot
 
-Restricted LangBot event-listener plugin for WeChat group work records. It intercepts group messages that already passed LangBot's mention trigger, optionally uses a configured LLM only for structured intent extraction, and sends the raw message plus the extracted intent to Massage Note for authoritative validation and atomic accounting.
+Restricted LangBot event-listener plugin for WeChat group work records. It intercepts group messages that already passed LangBot's mention trigger, loads the bound store's live alias-and-employee skill from Massage Note, and requires the configured LLM to interpret every message before authoritative validation and atomic accounting.
 
 Configure these fields on the installed plugin in LangBot:
 
 - `integration_token`: the same `mnw_...` secret configured as `LANGBOT_WORK_TOKEN` on the Massage Note API.
 - `api_base_url`: defaults to `https://massagenote.waltonjin.com/api/v1`.
 - `bot`: the dedicated WeChat work bot.
-- `model`: optional; DeepSeek or another model used only for fallback parsing.
+- `model`: required; DeepSeek or another model used to interpret every message with the live store skill.
 
 Do not rely on environment variables set only on the Plugin Runtime container. Current isolated plugin workers receive a minimal environment and do not inherit custom `MASSAGE_NOTE_*` variables. LangBot masks `integration_token` when returning plugin configuration through its management API.
 
 The bot never calls general Massage Note APIs and does not handle private messages.
 
-Compact start commands are deterministic: `大力 90` starts the sender on the service mapped by `大力` using that service's existing 90-minute price option. `Jessie 脚 30` starts the uniquely matched, already-bound Jessie on the service mapped by `脚` using its existing 30-minute option. The configured alias duration remains the default when a duration is omitted. The optional LLM is only a fallback parser and cannot invent employees, aliases, durations, or prices.
+Before every model call the plugin loads enabled aliases, their mapped service names, default and available durations, and active employee names. The model may use general language knowledge to map an unlisted colloquial expression such as `deep tissue` to the uniquely appropriate configured canonical alias, but it must quote the original evidence span. Canonical employees and aliases must still come from the live skill, while prices and accounting remain server-controlled.

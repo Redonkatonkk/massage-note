@@ -5,9 +5,9 @@
 ## 组件与安全边界
 
 - LangBot 插件位于 `integrations/langbot-plugin`，可构建为 `.lbpkg` 后通过 LangBot 的本地插件安装功能导入。
-- 插件使用一个指定 WeChatPad 机器人和一个指定解析模型。固定语法先由本地规则解析，只有无法识别的说法才调用模型。
-- 模型只能输出 `BIND_STORE`、`BIND_MEMBER`、`START`、`FINISH` 或 `HELP` 的限定 JSON。Massage Note 会再次确认姓名、别名、显式时长、金额和付款方式均来自原消息。
-- 插件只能调用 `POST /api/v1/integrations/langbot/work-events`；独立令牌不能访问普通店铺、财务、员工或删除接口。
+- 插件使用一个指定 WeChatPad 机器人和一个必选解析模型。每条消息都会先读取当前群的实时黑话技能，再由模型理解，没有固定规则绕过 AI。
+- 黑话技能包含启用黑话、对应项目含义、默认/可用时长和在职员工。模型只能输出 `BIND_STORE`、`BIND_MEMBER`、`START`、`FINISH` 或 `HELP` 的限定 JSON，并为语义映射返回原文证据。
+- 插件只能调用只读的 `POST /api/v1/integrations/langbot/work-context` 和写入事件入口 `POST /api/v1/integrations/langbot/work-events`；独立令牌不能访问普通店铺、财务、员工或删除接口。
 - 微信消息编号同时作为幂等依据。超时不代表失败或成功，重试同一条消息不会重复记账。
 
 ## 实现位置
@@ -16,15 +16,25 @@
 | --- | --- | --- |
 | HTTP 与管理接口 | `apps/api/src/work-bot/work-bot.controller.ts` | 专用事件入口和 Owner/Manager 管理端点 |
 | 业务事务 | `apps/api/src/work-bot/work-bot.service.ts` | 绑定、别名校验、上下工、财务重算、幂等与审计 |
-| 固定语法与模型防补写 | `apps/api/src/work-bot/work-bot.parser.ts` | 解析常见说法，并核对候选字段能否在原消息中找到 |
+| 模型证据核验 | `apps/api/src/work-bot/work-bot.parser.ts` | 核对模型引用的项目、员工、时长和付款方式证据能否在原消息中找到 |
 | 共享请求契约 | `packages/contracts/src/work-bot.ts` | Zod 请求和管理表单 schema |
 | 数据模型 | `packages/database/prisma/schema.prisma` | 群、员工、别名和操作记录关系 |
 | 数据库迁移 | `packages/database/prisma/migrations/20260905190000_work_bot_integration` | 新建机器人表、索引和外键 |
 | 跨群进行中约束 | `packages/database/prisma/migrations/20260906154000_work_bot_one_active_per_employee` | 每名员工最多一条机器人进行中记录的部分唯一索引 |
 | 管理页面 | `apps/web/app/manage/work-bot-panel.tsx` | 群/员工解绑、别名管理和最近操作 |
-| LangBot 插件 | `integrations/langbot-plugin` | 群消息拦截、DeepSeek 后备解析和受限 API 调用 |
+| LangBot 插件 | `integrations/langbot-plugin` | 群消息拦截、实时技能注入、全程 AI 理解和受限 API 提交 |
 
 ## 专用接口契约
+
+插件先读取当前群可见的实时技能：
+
+```http
+POST /api/v1/integrations/langbot/work-context
+Authorization: Bearer <integration-token>
+Content-Type: application/json
+```
+
+该接口只返回当前群绑定店铺的项目黑话、项目名称、可用时长、在职员工和当前发送者绑定姓名，不返回价格、提成或财务数据。
 
 ```http
 POST /api/v1/integrations/langbot/work-events
@@ -51,7 +61,7 @@ Content-Type: application/json
 }
 ```
 
-后端不会直接信任 `parsedIntent`：姓名、别名、显式时长、金额和付款方式必须能从 `rawText` 验证，员工和项目必须属于已绑定店铺。成功响应只包含记工结果、群回复、可选记工 ID 和营业日。
+后端不会直接信任 `parsedIntent`：模型输出的标准黑话和标准员工必须来自实时技能，项目、员工和价格必须属于已绑定店铺；模型还必须提交原文中的项目、员工、时长与付款方式证据。成功响应只包含记工结果、群回复、可选记工 ID 和营业日。
 
 ## Massage Note 配置
 
@@ -69,17 +79,17 @@ LANGBOT_WORK_TOKEN=mnw_<随机高强度字符串>
 2. 至少创建实际会使用的别名，例如“大力”对应 Deep Tissue、默认 60 分钟，“脚”对应 Foot Massage、默认 30 分钟。群消息“大力 90”会改用 Deep Tissue 已存在的 90 分钟价格档，无需再创建“大力90”。
 3. 查看或解除群绑定和员工微信绑定，并查看最近 100 条机器人处理结果。
 
-别名不会自动猜测或从知识库读取。“脚”必须由管理员明确选择店铺中的真实 Foot Massage 项目和默认时长；消息中显式写出的其他分钟数也必须是该项目已有的价格档。
+黑话列表是模型的标准技能词表和安全边界。“脚”仍须由管理员明确映射到店铺中的真实 Foot Massage 项目；但模型可以根据项目名称和一般语言知识，把员工说的“feet”“足部”等未登记近义表达理解为标准黑话“脚”。存在多个合理项目时不会猜测，消息中显式写出的其他时长也必须是该项目已有的价格档。
 
 ## LangBot 配置
 
 1. 构建或使用 `integrations/langbot-plugin/dist/` 下的 `.lbpkg`，通过“插件 → 本地安装”导入。
-2. 打开已安装插件的配置页面，填写 `API 地址`、`集成令牌`、`记工机器人`和可选的`黑话解析模型`。集成令牌必须与 Massage Note API 的 `LANGBOT_WORK_TOKEN` 完全一致。
+2. 打开已安装插件的配置页面，填写 `API 地址`、`集成令牌`、`记工机器人`和必填的`黑话解析模型`。集成令牌必须与 Massage Note API 的 `LANGBOT_WORK_TOKEN` 完全一致。
 
    不要只把 `MASSAGE_NOTE_*` 变量放进 `langbot_plugin_runtime` 容器。当前隔离插件进程使用最小环境，不会继承 Runtime 容器的自定义变量；这会使插件已初始化却在收到消息后报告“插件尚未配置集成令牌”。插件配置接口会遮蔽令牌，真实值不要写入 Git、镜像、日志或 `.lbpkg`。
 
 3. “记工助手”流水线的群响应规则只开启“被艾特”，清空前缀、正则和随机触发。
-4. 流水线只启用 `walton/massage-note-work-bot` 插件，关闭其他插件、MCP 服务、知识库和技能。
+4. 流水线只启用 `walton/massage-note-work-bot` 插件，关闭其他插件、MCP 服务和知识库；记工技能由插件从 Massage Note 动态加载，无需在 LangBot 中另建一份容易过期的静态技能。
 5. 将 WeChatPad 机器人固定路由到“记工助手”流水线；如使用会话白名单，把实际微信群加入白名单。
 
 ## 群内使用

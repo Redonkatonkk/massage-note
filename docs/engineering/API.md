@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.0.5`
+> 适用版本：`1.0.6`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -102,6 +102,8 @@
 | POST | `/integrations/langbot/work-events` | LangBot 使用独立 Bearer 令牌和精确微信消息幂等键提交受限记工事件 |
 | GET | `/stores/:storeId/work-bot` | Owner/Manager 查看群绑定、员工绑定、项目黑话和最近机器人操作 |
 | POST/PATCH/DELETE | `/stores/:storeId/work-bot/aliases...` | Owner/Manager 管理店铺级项目黑话及其项目、时长映射 |
+| POST | `/integrations/langbot/work-context` | 使用专用 Bearer 令牌读取当前群的实时黑话技能供模型理解 |
+| POST | `/integrations/langbot/work-events` | 使用专用 Bearer 令牌提交模型解析后的受限记工事件 |
 | DELETE | `/stores/:storeId/work-bot/groups/:bindingId`、`members/:bindingId` | Owner/Manager 解除群或员工微信绑定；有机器人进行中记录时拒绝解除 |
 
 Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直接打开指定营业日的全店日结；在日结异常列表点击单据时，财务页原地读取 `GET /work-records/:recordId` 并打开单笔记工弹窗，不离开当前页面。`/?store=<storeId>&date=<businessDate>&record=<recordId>` 深链接仍可用于从外部直接打开今日页的指定记工。读取不会自动执行日结或修改记录。

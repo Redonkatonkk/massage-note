@@ -28,4 +28,21 @@ describe("记工机器人固定语法", () => {
     expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "脚", durationMinutes: 60, memberName: "Jessie" }, "Jessie 脚 30")).toBe(false);
     expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "脚", durationMinutes: 30, memberName: "Amy" }, "Jessie 脚 30")).toBe(false);
   });
+
+  it("允许 AI 用逐字证据把自然语言映射为技能中的标准黑话和员工", () => {
+    expect(parsedIntentAppearsInRawText({
+      kind: "START",
+      serviceAlias: "脚",
+      serviceMention: "feet",
+      durationMinutes: 60,
+      durationMention: "一小时",
+      memberName: "Jessie",
+      memberMention: "小J",
+    }, "小J 做 feet 一小时")).toBe(true);
+    expect(parsedIntentAppearsInRawText({
+      kind: "START",
+      serviceAlias: "脚",
+      serviceMention: "feet",
+    }, "做全身一小时")).toBe(false);
+  });
 });

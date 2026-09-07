@@ -16,6 +16,7 @@ import {
   idempotencyKeySchema,
   updateWorkBotAliasSchema,
   uuidSchema,
+  workBotContextRequestSchema,
   workBotEventSchema,
 } from "@massage-note/contracts";
 import type { Response } from "express";
@@ -28,6 +29,17 @@ import { WorkBotService } from "./work-bot.service.js";
 @Controller("integrations/langbot")
 export class WorkBotIntegrationController {
   constructor(private readonly workBot: WorkBotService) {}
+
+  @Post("work-context")
+  context(
+    @Headers("authorization") authorization: string | undefined,
+    @Body() body: unknown,
+  ) {
+    return this.workBot.getIntegrationContext(
+      authorization,
+      parseRequest(workBotContextRequestSchema, body),
+    );
+  }
 
   @Post("work-events")
   handle(

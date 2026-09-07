@@ -4,7 +4,7 @@ metadata:
   author: walton
   name: massage-note-work-bot
   repository: https://massagenote.waltonjin.com/
-  version: 1.0.5
+  version: 1.0.6
   description:
     en_US: A restricted WeChat work-record bridge for Massage Note.
     zh_Hans: 仅用于微信群上工、下工和身份绑定的 Massage Note 记工桥接插件。
@@ -48,9 +48,9 @@ spec:
         en_US: Parser model
         zh_Hans: 黑话解析模型
       description:
-        en_US: Used only when deterministic parsing cannot understand the instruction.
-        zh_Hans: 仅在固定解析无法理解指令时使用。
-      required: false
+        en_US: Required for every message. The live store alias skill is supplied to this model for semantic understanding.
+        zh_Hans: 每条消息都必须使用；当前店铺的实时黑话技能会提供给该模型进行语义理解。
+      required: true
   components:
     EventListener:
       fromDirs:

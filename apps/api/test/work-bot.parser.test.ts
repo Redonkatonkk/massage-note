@@ -2,6 +2,23 @@ import { describe, expect, it } from "vitest";
 import { parseWorkBotMessage, parsedIntentAppearsInRawText } from "../src/work-bot/work-bot.parser.js";
 
 describe("记工机器人固定语法", () => {
+  it("时长必须匹配完整数字而不是子串", () => {
+    expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "脚", durationMinutes: 60 }, "脚160分钟")).toBe(false);
+    expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "脚", durationMinutes: 60, durationMention: "" }, "脚160分钟")).toBe(false);
+    expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "脚", durationMinutes: 60 }, "脚60分钟")).toBe(true);
+    expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "脚", durationMinutes: 60, durationMention: "160分钟" }, "脚160分钟")).toBe(false);
+    expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "脚", durationMinutes: 60, durationMention: "1小时" }, "脚1小时")).toBe(true);
+  });
+
+  it.each(["下工 -80 20现金", "下工 80.123 20现金", "下工 80 20现金刷卡", "下工 80 20礼物卡"])("拒绝不明确的付款 %s", (text) => {
+    expect(parseWorkBotMessage(text)).toEqual({ kind: "HELP" });
+    expect(parsedIntentAppearsInRawText({ kind: "FINISH", serviceAmount: "80", tipAmount: "20", paymentMethod: "CASH" }, text)).toBe(false);
+  });
+
+  it("不能交换或重复使用原文金额", () => {
+    expect(parsedIntentAppearsInRawText({ kind: "FINISH", serviceAmount: "20", tipAmount: "80", paymentMethod: "CASH" }, "下工80 20现金")).toBe(false);
+    expect(parsedIntentAppearsInRawText({ kind: "FINISH", serviceAmount: "80", tipAmount: "80", paymentMethod: "CASH" }, "下工80现金")).toBe(false);
+  });
   it.each([
     ["@记工助手 绑定店铺 123456", { kind: "BIND_STORE", storeCode: "123456" }],
     ["@记工助手 绑定 张三", { kind: "BIND_MEMBER", memberName: "张三" }],
@@ -12,6 +29,7 @@ describe("记工机器人固定语法", () => {
     ["Jessie 脚 30", { kind: "START", serviceAlias: "脚", durationMinutes: 30, memberName: "Jessie" }],
     ["上工 Jessie 脚 30分钟", { kind: "START", serviceAlias: "脚", durationMinutes: 30, memberName: "Jessie" }],
     ["我下了，80 20 现金", { kind: "FINISH", serviceAmount: "80", tipAmount: "20", paymentMethod: "CASH" }],
+    ["lily 下了，收 75/15卡，评论", { kind: "FINISH", memberName: "lily", serviceAmount: "75", tipAmount: "15", paymentMethod: "CARD", discounts: [{ name: "评论", mention: "评论" }] }],
     ["下工 80 10 卡", { kind: "FINISH", serviceAmount: "80", tipAmount: "10", paymentMethod: "CARD" }],
   ])("解析 %s", (message, expected) => {
     expect(parseWorkBotMessage(message)).toEqual(expected);

@@ -45,7 +45,7 @@ export async function apiRequest<T>(
   if (typeof document !== "undefined" && isAppLocale(document.documentElement.lang)) {
     headers.set("Accept-Language", document.documentElement.lang);
   }
-  if (idempotent) headers.set("Idempotency-Key", crypto.randomUUID());
+  if (idempotent && !headers.has("Idempotency-Key")) headers.set("Idempotency-Key", crypto.randomUUID());
   const response = await fetch(`${apiBase}${path}`, {
     ...requestOptions,
     headers,

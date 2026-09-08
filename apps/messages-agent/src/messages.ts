@@ -36,11 +36,12 @@ tell application "Messages"
   try
     set targetChat to chat id ("any;-;" & phoneE164)
     if not (exists targetChat) then return ""
-    send POSIX file filePath to targetChat
-    return "existing conversation"
   on error
     return ""
   end try
+  -- Once send starts, propagate errors: Messages may already have accepted it.
+  send POSIX file filePath to targetChat
+  return "existing conversation"
 end tell
 end sendToExistingChat
 
@@ -55,14 +56,17 @@ tell application "Messages"
       -- dictionary cannot convert. Ignore only that account and continue.
     end try
     if accountType is requestedType and enabled of targetAccount is true then
+      set targetParticipant to missing value
       try
         set targetParticipant to participant phoneNumber of targetAccount
+        if not (exists targetParticipant) then set targetParticipant to missing value
+      on error
+        set targetParticipant to missing value
+      end try
+      if targetParticipant is not missing value then
         send POSIX file filePath to targetParticipant
         return requestedType
-      on error
-        -- An enabled account may not be able to address this recipient;
-        -- continue so RCS/iMessage fallback can be attempted.
-      end try
+      end if
     end if
   end repeat
 end tell

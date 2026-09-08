@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.0.6`
+> 适用版本：`1.0.7`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -59,6 +59,7 @@
 | POST | `/stores/:storeId/boards/:businessDate/rows/:rowId/remove` | 移除尚无当天活动的误加员工 |
 | POST | `/stores/:storeId/work-records` | 快速创建预设或自定义记工；每日排位不会增加记工字段或限制记工入口 |
 | GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改高亮及其他字段与软删除 |
+| POST | `/stores/:storeId/work-records/:recordId/save` | 详情与付款原子保存；body 为 `{ details, payment }`，两者必须带相同基准 `version`，需幂等键 |
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡/礼物卡大费和小费拆分；使用礼物卡时同时提交序列号 |
 | GET | `/stores/:storeId/work-records/deleted` | 记工回收站 |
 | POST | `/stores/:storeId/work-records/:recordId/restore` | 恢复软删除记工 |
@@ -105,6 +106,8 @@
 | POST | `/integrations/langbot/work-context` | 使用专用 Bearer 令牌读取当前群的实时黑话技能供模型理解 |
 | POST | `/integrations/langbot/work-events` | 使用专用 Bearer 令牌提交模型解析后的受限记工事件 |
 | DELETE | `/stores/:storeId/work-bot/groups/:bindingId`、`members/:bindingId` | Owner/Manager 解除群或员工微信绑定；有机器人进行中记录时拒绝解除 |
+
+LangBot 的 `work-context` 同时返回启用的 `discounts`、`addons` 名称和简称。`FINISH` 支持 `memberName/memberMention` 指定员工，以及 `discounts/addons: [{ name, mention }]`；新增 `ADJUST` 使用相同可选字段单独添加折扣或加项。操作按同店在职员工唯一待付款记录定位，包含人工记工；多条匹配不写账，预设金额和提成由服务端读取。
 
 Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直接打开指定营业日的全店日结；在日结异常列表点击单据时，财务页原地读取 `GET /work-records/:recordId` 并打开单笔记工弹窗，不离开当前页面。`/?store=<storeId>&date=<businessDate>&record=<recordId>` 深链接仍可用于从外部直接打开今日页的指定记工。读取不会自动执行日结或修改记录。
 
@@ -238,3 +241,18 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 - `429`：登录、加入、AI、导出或写入频率过高。
 
 响应头 `X-Request-Id` 与错误体 `requestId` 可用于关联服务日志和审计。接口字段的唯一事实来源是 `packages/contracts/src` 中的 Zod 契约；修改接口时应同步更新契约测试和本文。
+
+### 记工机器人自然语言说明
+
+`GET /stores/:storeId/work-bot` 返回 `instructions` 和 `instructionsVersion`。
+`PATCH /stores/:storeId/work-bot/instructions` 接受 `{ instructions, version }`，需要店铺设置管理权限，最多 12,000 字；版本冲突返回 409。保存记录审计日志。
+
+`work-context` 提供自然语言 `instructions`；兼容字段 `aliases` 现在来自所有启用的项目目录，`alias` 为项目 UUID。AI 根据说明选择项目 UUID，服务端仍检查店铺、启用状态和可用价格档。说明明确约定的默认时长可使用 `durationSource: "SKILL"`，显式时长继续提供原文 `durationMention`。旧 aliases 接口仅用于兼容已有接入。
+
+### 事务、实时同步与发送重试
+
+- 网页一次“保存”涉及详情和付款时调用 `/work-records/:recordId/save`，任一步失败均回滚；单独修改详情仍可 PATCH。409 后应重新读取并核对，不得自动采用新版本重发旧字段。
+- AI 确认的创建、详情、付款、审计和预览消费处于同一事务；并发确认返回 `AI_PREVIEW_EXECUTING`。AI UPDATE 中省略的付款项保留，切换方式必须显式将原方式置零；原有礼物卡金额和序列号保留。
+- SSE 每轮重新验证成员及账号状态，慢轮询不会被取消。除增量事件外，每 30 秒发出不带事件 ID 的 `store.changed`（`reason: resync`），覆盖时间游标之前延迟提交的事务；浏览器在重连时也重新读取 REST。
+- 发送代理的授权、检查点、完成和失败回写均检查未过期租约及当前令牌；租约失效返回 `DELIVERY_LEASE_INVALID`。
+- 员工小计发送的幂等内容包含日期、员工列表、付款方式、金额类型、高亮筛选及接收号码；相同键更换筛选返回 `IDEMPOTENCY_KEY_REUSED`。

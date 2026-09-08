@@ -762,6 +762,8 @@ export interface WorkBotOperation {
 }
 
 export interface WorkBotSettings {
+  instructions: string;
+  instructionsVersion: number;
   groups: WorkBotGroupBinding[];
   aliases: WorkBotAlias[];
   operations: WorkBotOperation[];

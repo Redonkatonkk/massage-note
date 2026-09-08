@@ -7,6 +7,7 @@ import {
   type ConfirmationResult,
 } from "firebase/auth";
 import { useEffect, useRef, useState } from "react";
+import { isExpiredLoginCredential, normalizeUsPhoneDigits } from "../../lib/login";
 import { firebaseAuth } from "../../lib/firebase-client";
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1";
@@ -18,10 +19,6 @@ class LoginApiError extends Error {
   constructor(readonly code: string, message: string) {
     super(message);
   }
-}
-
-function digitsOnly(value: string): string {
-  return value.replace(/\D/g, "").slice(0, 10);
 }
 
 function displayPhone(value: string): string {
@@ -68,7 +65,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 }
 
 export function LoginForm() {
-  const developmentLoginEnabled = process.env.NEXT_PUBLIC_DEV_AUTH_ENABLED === "true";
+  const developmentLoginEnabled = process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_DEV_AUTH_ENABLED === "true";
   const [phoneDigits, setPhoneDigits] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -110,10 +107,12 @@ export function LoginForm() {
     const auth = firebaseAuth();
     await auth.authStateReady();
     if (auth.currentUser?.phoneNumber !== `+1${phoneDigits}`) return false;
-    const idToken = await auth.currentUser.getIdToken();
+    let idToken = "";
     try {
+      idToken = await auth.currentUser.getIdToken();
       await bootstrapSession(idToken);
     } catch (caught) {
+      if (isExpiredLoginCredential(caught)) return false;
       if (caught instanceof LoginApiError && caught.code === "PASSWORD_SETUP_REQUIRED") {
         setVerifiedIdToken(idToken);
         setAccount({ exists: true, hasPassword: false });
@@ -322,7 +321,7 @@ export function LoginForm() {
 
       {step === "phone" && <>
         <label className="field-label" htmlFor="phone-number">美国手机号码</label>
-        <div className="phone-field"><span aria-hidden="true">+1</span><input id="phone-number" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="(470) 123-4567" value={displayPhone(phoneDigits)} onChange={(event) => { setPhoneDigits(digitsOnly(event.target.value)); setError(""); }} disabled={busy} /></div>
+        <div className="phone-field"><span aria-hidden="true">+1</span><input id="phone-number" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="(470) 123-4567" value={displayPhone(phoneDigits)} onChange={(event) => { setPhoneDigits(normalizeUsPhoneDigits(event.target.value)); setError(""); }} disabled={busy} /></div>
         <button className="save-record" type="button" disabled={busy} onClick={startLogin}>{busy ? "正在登录…" : "登录"}</button>
         {developmentLoginEnabled && <div className="dev-login-box"><strong>本地开发模式</strong><span>不会发送短信，只用于这台电脑上的功能验证。</span><button type="button" disabled={busy} onClick={developmentLogin}>使用此号码直接进入</button></div>}
       </>}
@@ -332,7 +331,7 @@ export function LoginForm() {
         <label className="field-label" htmlFor="login-password">密码<input id="login-password" type="password" autoComplete="current-password" minLength={8} maxLength={72} value={password} onChange={(event) => { setPassword(event.target.value); setError(""); }} disabled={busy || account?.hasPassword === false} /></label>
         {account?.hasPassword === false && <p className="login-notice">这个老账号还没有密码，请先使用验证码验证身份并设置密码。</p>}
         <button className="save-record" type="button" disabled={busy || account?.hasPassword === false} onClick={passwordLogin}>{busy ? "正在登录…" : "密码登录"}</button>
-        <div className="login-secondary-actions"><button type="button" onClick={resetPhone}>修改号码</button><button type="button" disabled={busy} onClick={sendCode}>使用验证码登录</button></div>
+        <div className="login-secondary-actions"><button type="button" disabled={busy} onClick={resetPhone}>修改号码</button><button type="button" disabled={busy} onClick={sendCode}>使用验证码登录</button></div>
       </>}
 
       {step === "code" && <>
@@ -340,7 +339,7 @@ export function LoginForm() {
         <label className="field-label" htmlFor="verification-code">6 位验证码</label>
         <input className="code-input" id="verification-code" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(event) => { setCode(event.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }} disabled={busy} />
         <button className="save-record" type="button" disabled={busy} onClick={verifyCode}>{busy ? "正在验证…" : "确认验证码"}</button>
-        <div className="login-secondary-actions"><button type="button" onClick={resetPhone}>修改号码</button><button type="button" disabled={countdown > 0 || busy} onClick={sendCode}>{countdown > 0 ? `${countdown} 秒后可重发` : "重新发送"}</button></div>
+        <div className="login-secondary-actions"><button type="button" disabled={busy} onClick={resetPhone}>修改号码</button><button type="button" disabled={countdown > 0 || busy} onClick={sendCode}>{countdown > 0 ? `${countdown} 秒后可重发` : "重新发送"}</button></div>
       </>}
 
       {(step === "register" || step === "setup-password") && <>

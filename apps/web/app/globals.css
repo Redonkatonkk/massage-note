@@ -2994,3 +2994,56 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
   .floating-ai-button > span { width: 40px; height: 40px; }
   .floating-ai-dialog { top: calc(var(--ai-visual-viewport-top, 0px) + 8px); right: 8px; bottom: auto; width: calc(100vw - 16px); height: min(650px, calc(var(--ai-visual-viewport-height, 100dvh) - 16px)); border-radius: 20px; }
 }
+
+/* Work bot settings: contain long chat messages at every grid boundary. */
+.work-bot-panel { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.work-bot-panel .manage-card { min-width: 0; }
+.work-bot-intro { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 8px 2px; }
+.work-bot-intro h2 { margin: 6px 0 10px; font-size: 1.65rem; letter-spacing: -.04em; }
+.work-bot-intro p { margin: 0; color: var(--muted); line-height: 1.7; }
+.work-bot-tag { flex-shrink: 0; padding: 5px 10px; border-radius: 8px; background: #f4f1ed; color: var(--muted); font-size: .78rem; }
+.work-bot-editor { display: grid; gap: 12px; margin-top: 22px; }
+.work-bot-editor label { font-size: .88rem; font-weight: 700; }
+.work-bot-editor textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: 260px; resize: vertical; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: #fcfbf9; color: var(--ink); font: inherit; font-size: .92rem; line-height: 1.9; }
+.work-bot-editor textarea:focus { outline: 2px solid #9a7257; outline-offset: 3px; }
+.work-bot-editor-footer, .work-bot-group-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.work-bot-editor-footer .field-help { margin: 0; }
+.work-bot-reference { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 18px; }
+.work-bot-panel summary { cursor: pointer; }
+.work-bot-reference summary { color: var(--muted); font-size: .85rem; }
+.work-bot-reference summary span { margin-left: 8px; }
+.work-bot-services { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 10px; }
+.work-bot-services > div { display: grid; gap: 5px; padding: 14px; border-radius: 10px; background: #f8f6f3; overflow-wrap: anywhere; }
+.work-bot-services span, .work-bot-services small { color: var(--muted); font-size: .8rem; }
+.work-bot-hint { padding: 14px 16px; background: #f8f6f3; border-radius: 12px; color: var(--muted); font-size: .85rem; line-height: 1.9; }
+.work-bot-hint strong { color: var(--ink); }
+.work-bot-groups { display: grid; gap: 12px; }
+.work-bot-group { border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+.work-bot-group > summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px; }
+.work-bot-group summary > span:first-child, .work-bot-member > div { display: grid; gap: 5px; min-width: 0; }
+.work-bot-group small { color: var(--muted); overflow-wrap: anywhere; }
+.work-bot-group-body { padding: 0 16px 16px; overflow-wrap: anywhere; }
+.work-bot-member { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 15px; padding: 14px 0; border-top: 1px solid var(--line); font-size: .85rem; }
+.work-bot-group-footer { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 10px; }
+.work-bot-operation { border-top: 1px solid var(--line); }
+.work-bot-operation > summary { display: grid; grid-template-columns: 155px minmax(0, 1fr) auto; align-items: center; gap: 20px; padding: 17px 0; list-style: none; }
+.work-bot-operation summary::-webkit-details-marker { display: none; }
+.work-bot-operation-meta { display: grid; gap: 5px; font-size: .85rem; }
+.work-bot-operation time { font-size: .75rem; color: var(--muted); }
+.work-bot-preview { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .88rem; }
+.work-bot-operation-result { font-size: .78rem; color: var(--muted); }
+.work-bot-operation-result::after { content: " ＋"; }
+.work-bot-operation[open] .work-bot-operation-result::after { content: " −"; }
+.work-bot-message { background: #f8f6f3; border-radius: 12px; padding: 16px; margin-bottom: 16px; overflow-wrap: anywhere; }
+.work-bot-message > span, .work-bot-message small { color: var(--muted); font-size: .75rem; }
+.work-bot-message p { white-space: pre-wrap; margin: 7px 0 18px; line-height: 1.7; font-size: .88rem; }
+@media (max-width: 640px) {
+  .work-bot-intro { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .work-bot-intro h2 { font-size: 1.4rem; }
+  .work-bot-editor textarea { padding: 12px; }
+  .work-bot-editor-footer { align-items: stretch; flex-direction: column; }
+  .work-bot-operation > summary { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+  .work-bot-operation-meta { gap: 8px; }
+  .work-bot-preview { grid-row: 2; grid-column: 1 / -1; }
+  .work-bot-member { gap: 10px; }
+}

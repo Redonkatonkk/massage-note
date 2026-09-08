@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { randomInt, randomUUID } from "node:crypto";
 import { Prisma, PrismaClient } from "../src/generated/client/index.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -220,4 +221,27 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
     `;
     expect(removedColumns).toEqual([]);
   });
+  it("历史看板修复只补缺失行，保留隐藏顺序并清理过期机器人指针", async () => {
+    const migration = await readFile(new URL("../prisma/migrations/20260908020000_repair_work_record_board_links/migration.sql", import.meta.url), "utf8");
+    await prisma.$transaction(async tx => {
+      // Temporary shadow tables isolate the backfill from all concurrent fixtures.
+      await tx.$executeRawUnsafe("CREATE TEMP TABLE work_records (id uuid, store_id uuid, business_date date, employee_membership_id uuid, created_by uuid, start_at timestamptz, deleted_at timestamptz, status text) ON COMMIT DROP");
+      await tx.$executeRawUnsafe("CREATE TEMP TABLE daily_boards (id uuid PRIMARY KEY, store_id uuid, business_date date, version int DEFAULT 1, updated_at timestamptz, UNIQUE(store_id,business_date)) ON COMMIT DROP");
+      await tx.$executeRawUnsafe("CREATE TEMP TABLE daily_employee_rows (id uuid, board_id uuid, store_id uuid, membership_id uuid, position numeric, is_hidden boolean DEFAULT false, added_by uuid, updated_at timestamptz, UNIQUE(board_id,membership_id)) ON COMMIT DROP");
+      await tx.$executeRawUnsafe("CREATE TEMP TABLE work_bot_member_bindings (id uuid, membership_id uuid, active_work_record_id uuid, version int DEFAULT 1, updated_at timestamptz) ON COMMIT DROP");
+      const boardId = randomUUID(), member1 = randomUUID(), member2 = randomUUID(), record1 = randomUUID(), record2 = randomUUID();
+      await tx.$executeRaw`INSERT INTO daily_boards (id,store_id,business_date) VALUES (${boardId}::uuid,${storeId}::uuid,'2026-09-01')`;
+      await tx.$executeRaw`INSERT INTO daily_employee_rows (id,board_id,store_id,membership_id,position,is_hidden,added_by) VALUES (gen_random_uuid(),${boardId}::uuid,${storeId}::uuid,${member1}::uuid,5,true,${ownerId}::uuid)`;
+      await tx.$executeRaw`INSERT INTO work_records (id,store_id,business_date,employee_membership_id,created_by,start_at,status) VALUES (${record1}::uuid,${storeId}::uuid,'2026-09-01',${member1}::uuid,${ownerId}::uuid,now(),'CONFIRMED'),(${record2}::uuid,${storeId}::uuid,'2026-09-01',${member2}::uuid,${ownerId}::uuid,now(),'PENDING_PAYMENT')`;
+      await tx.$executeRaw`INSERT INTO work_bot_member_bindings (id,membership_id,active_work_record_id) VALUES (gen_random_uuid(),${member1}::uuid,${record1}::uuid),(gen_random_uuid(),${member2}::uuid,${record2}::uuid)`;
+      for (let repeat = 0; repeat < 2; repeat++) {
+        for (const statement of migration.replace(/--[^\n]*/g, "").split(";").filter(part => part.trim())) await tx.$executeRawUnsafe(statement);
+      }
+      expect(await tx.$queryRaw`SELECT position::text, is_hidden FROM daily_employee_rows ORDER BY position`).toEqual([{ position: "5", is_hidden: true }, { position: "6", is_hidden: false }]);
+      expect(await tx.$queryRaw`SELECT version FROM daily_boards`).toEqual([{ version: 2 }]);
+      expect(await tx.$queryRaw`SELECT active_work_record_id FROM work_bot_member_bindings WHERE membership_id = ${member1}::uuid`).toEqual([{ active_work_record_id: null }]);
+      expect(await tx.$queryRaw`SELECT active_work_record_id FROM work_bot_member_bindings WHERE membership_id = ${member2}::uuid`).toEqual([{ active_work_record_id: record2 }]);
+    });
+  });
+
 });

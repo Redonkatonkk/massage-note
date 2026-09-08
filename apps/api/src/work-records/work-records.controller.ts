@@ -12,6 +12,7 @@ import {
 } from "@nestjs/common";
 import {
   confirmPaymentSchema,
+  saveWorkRecordSchema,
   createWorkRecordSchema,
   deleteWorkRecordSchema,
   idempotencyKeySchema,
@@ -89,6 +90,18 @@ export class WorkRecordsController {
       parseRequest(idempotencyKeySchema, idempotencyKey),
       response.locals.requestId as string,
     );
+  }
+
+  @Post(":recordId/save")
+  save(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("storeId") storeId: string,
+    @Param("recordId") recordId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.workRecords.save(user, parseRequest(uuidSchema, storeId), parseRequest(uuidSchema, recordId), parseRequest(saveWorkRecordSchema, body), parseRequest(idempotencyKeySchema, idempotencyKey), response.locals.requestId as string);
   }
 
   @Post(":recordId/confirm-payment")

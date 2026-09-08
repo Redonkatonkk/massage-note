@@ -14,3 +14,5 @@ Do not rely on environment variables set only on the Plugin Runtime container. C
 The bot never calls general Massage Note APIs and does not handle private messages.
 
 Before every model call the plugin loads enabled aliases, their mapped service names, default and available durations, and active employee names. The model may use general language knowledge to map an unlisted colloquial expression such as `deep tissue` to the uniquely appropriate configured canonical alias, but it must quote the original evidence span. Canonical employees and aliases must still come from the live skill, while prices and accounting remain server-controlled.
+
+支持人工创建的待付款记工；`Lily 下了，收 75/15卡，评论` 表示代下工、卡付大费 75 / 小费 15 并使用配置的评论折扣。`Lily 加评论折扣` / `Lily 加热石` 可单独更新待付款记工。折扣、加项由实时店铺配置提供，未知项目不写账；多条待付款记录要求到网页核对。需配套更新后的 Massage Note API。

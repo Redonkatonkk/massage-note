@@ -174,3 +174,12 @@ export type ConfirmPaymentInput = z.input<typeof confirmPaymentSchema>;
 export type ConfirmedPayment = z.output<typeof confirmPaymentSchema>;
 export type DeleteWorkRecordInput = z.input<typeof deleteWorkRecordSchema>;
 export type RestoreWorkRecordInput = z.input<typeof restoreWorkRecordSchema>;
+
+// Details and payment share a base version and commit together.
+export const saveWorkRecordSchema = z.object({
+  details: updateWorkRecordSchema,
+  payment: confirmPaymentSchema,
+}).refine(value => value.details.version === value.payment.version, {
+  message: "记工与付款必须使用同一版本", path: ["payment", "version"],
+});
+export type SaveWorkRecordInput = z.output<typeof saveWorkRecordSchema>;

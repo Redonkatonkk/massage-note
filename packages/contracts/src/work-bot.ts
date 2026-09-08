@@ -3,6 +3,13 @@ import { instantSchema, versionSchema } from "./common.js";
 
 const externalIdSchema = z.string().trim().min(1).max(255);
 
+const workAdjustments = {
+  memberName: z.string().trim().min(1).max(80).optional(),
+  memberMention: z.string().trim().min(1).max(80).optional(),
+  discounts: z.array(z.object({ name: z.string().trim().min(1).max(80), mention: z.string().trim().min(1).max(80) })).max(20).optional(),
+  addons: z.array(z.object({ name: z.string().trim().min(1).max(80), mention: z.string().trim().min(1).max(80) })).max(20).optional(),
+};
+
 export const workBotParsedIntentSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("BIND_STORE"), storeCode: z.string().regex(/^\d{6}$/) }),
   z.object({
@@ -16,16 +23,19 @@ export const workBotParsedIntentSchema = z.discriminatedUnion("kind", [
     serviceMention: z.string().trim().min(1).max(80).optional(),
     durationMinutes: z.number().int().min(1).max(720).optional(),
     durationMention: z.string().trim().min(1).max(80).optional(),
+    durationSource: z.literal("SKILL").optional(),
     memberName: z.string().trim().min(1).max(80).optional(),
     memberMention: z.string().trim().min(1).max(80).optional(),
   }),
   z.object({
     kind: z.literal("FINISH"),
+    ...workAdjustments,
     serviceAmount: z.string().regex(/^\d+(?:\.\d{1,2})?$/),
     tipAmount: z.string().regex(/^\d+(?:\.\d{1,2})?$/),
     paymentMethod: z.enum(["CASH", "CARD"]),
     paymentMention: z.string().trim().min(1).max(80).optional(),
   }),
+  z.object({ kind: z.literal("ADJUST"), ...workAdjustments }),
   z.object({ kind: z.literal("HELP") }),
 ]);
 
@@ -65,3 +75,5 @@ export type WorkBotEventInput = z.infer<typeof workBotEventSchema>;
 export type WorkBotContextRequest = z.infer<typeof workBotContextRequestSchema>;
 export type CreateWorkBotAliasInput = z.infer<typeof createWorkBotAliasSchema>;
 export type UpdateWorkBotAliasInput = z.infer<typeof updateWorkBotAliasSchema>;
+
+export const updateWorkBotInstructionsSchema = z.object({ instructions: z.string().trim().max(12000), version: versionSchema });

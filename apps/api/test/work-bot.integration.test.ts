@@ -1,3 +1,5 @@
+import { WorkRecordsService } from "../src/work-records/work-records.service.js";
+import { IdempotencyService } from "../src/common/idempotency.service.js";
 import { randomInt, randomUUID } from "node:crypto";
 import type { User } from "@massage-note/database";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -80,13 +82,19 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
       await prisma.workBotGroupBinding.deleteMany({ where: { storeId } });
       await prisma.workBotAlias.deleteMany({ where: { storeId } });
       await prisma.paymentBreakdown.deleteMany({ where: { workRecord: { storeId } } });
+      await prisma.workRecordAddonSnapshot.deleteMany({ where: { workRecord: { storeId } } });
+      await prisma.discountItem.deleteMany({ where: { storeId } });
+      await prisma.addonItem.deleteMany({ where: { storeId } });
       await prisma.workRecordDiscountSnapshot.deleteMany({ where: { workRecord: { storeId } } });
       await prisma.workRecordServiceSnapshot.deleteMany({ where: { workRecord: { storeId } } });
       await prisma.workRecord.deleteMany({ where: { storeId } });
+      await prisma.idempotencyRequest.deleteMany({ where: { storeId } });
       await prisma.auditLog.deleteMany({ where: { storeId } });
       await prisma.domainOutbox.deleteMany({ where: { storeId } });
       await prisma.serviceItem.deleteMany({ where: { storeId } });
       await prisma.store.update({ where: { id: storeId }, data: { ownerMembershipId: null } });
+      await prisma.dailyEmployeeRow.deleteMany({ where: { storeId } });
+      await prisma.dailyBoard.deleteMany({ where: { storeId } });
       await prisma.storeMembership.deleteMany({ where: { storeId } });
       await prisma.store.delete({ where: { id: storeId } });
       await prisma.user.delete({ where: { id: ownerId } });
@@ -107,7 +115,7 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
       actorName: "小王",
       aliases: expect.arrayContaining([
         {
-          alias: "脚",
+          alias: footServiceItemId,
           serviceName: "Foot Massage",
           serviceShortName: "足疗",
           defaultDurationMinutes: 30,
@@ -119,7 +127,31 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     await expect(workBot.handleEvent(`Bearer ${token}`, key("rebind-store"), event("rebind-store", "绑定店铺 000000", now), "rebind-store-request")).resolves.toMatchObject({ outcome: "STORE_REBIND_FORBIDDEN" });
   });
 
-  it("接受 AI 以原话证据映射到已配置黑话", async () => {
+  it("保存自然语言说明并实时提供给 AI，拒绝过期版本", async () => {
+    const settings = await workBot.getSettings(actor, storeId);
+    const instructions = "店里说 deep 时指 Deep Tissue；加石头指热石。";
+    await expect(workBot.updateInstructions(actor, storeId, { instructions, version: settings.instructionsVersion }, "skill-save")).resolves.toMatchObject({ instructions });
+    await expect(workBot.getIntegrationContext(`Bearer ${token}`, baseEvent)).resolves.toMatchObject({ instructions });
+    await expect(workBot.updateInstructions(actor, storeId, { instructions: "过期内容", version: settings.instructionsVersion }, "skill-stale")).rejects.toThrow();
+    await expect(workBot.getSettings(actor, storeId)).resolves.toMatchObject({ instructions });
+  });
+
+  it("自然语言默认时长可写账，目录外时长仍被拒绝", async () => {
+    const settings = await workBot.getSettings(actor, storeId);
+    await workBot.updateInstructions(actor, storeId, { instructions: "deep 是 Deep Tissue，默认 90 分钟。", version: settings.instructionsVersion }, "skill-default-save");
+    const startAt = new Date(Date.now() + 5 * 60_000);
+    const parsedIntent = { kind: "START" as const, serviceAlias: serviceItemId, serviceMention: "deep", durationMinutes: 120, durationSource: "SKILL" as const };
+    await expect(workBot.handleEvent(`Bearer ${token}`, key("skill-bad-duration"), { ...event("skill-bad-duration", "deep", startAt), parsedIntent }, "skill-bad-duration")).resolves.toMatchObject({ outcome: "SERVICE_DURATION_UNKNOWN" });
+    const started = await workBot.handleEvent(`Bearer ${token}`, key("skill-default-start"), { ...event("skill-default-start", "deep", startAt), parsedIntent: { ...parsedIntent, durationMinutes: 90 } }, "skill-default-start");
+    expect(started.outcome).toBe("WORK_STARTED");
+    if (!started.recordId) throw new Error("Expected a started record");
+    const record = await prisma.workRecord.findUniqueOrThrow({ where: { id: started.recordId } });
+    if (!record.endAt) throw new Error("Expected an estimated end time");
+    expect(record.endAt.getTime() - record.startAt.getTime()).toBe(90 * 60_000);
+    await expect(workBot.handleEvent(`Bearer ${token}`, key("skill-default-finish"), event("skill-default-finish", "下工 140/10卡", new Date(startAt.getTime() + 90 * 60_000)), "skill-default-finish")).resolves.toMatchObject({ outcome: "WORK_FINISHED" });
+  });
+
+  it("接受 AI 以原话证据映射到项目目录，无需黑话对应关系", async () => {
     const startAt = new Date(Date.now() + 30 * 60_000);
     const finishAt = new Date(startAt.getTime() + 60 * 60_000);
     const started = await workBot.handleEvent(
@@ -129,7 +161,7 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
         ...event("semantic-start", "给我做 deep tissue 一小时", startAt),
         parsedIntent: {
           kind: "START",
-          serviceAlias: "大力",
+          serviceAlias: serviceItemId,
           serviceMention: "deep tissue",
           durationMinutes: 60,
           durationMention: "一小时",
@@ -296,6 +328,47 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     await expect(workBot.handleEvent(`Bearer ${token}`, key("cross-group-primary-finish"), event("cross-group-primary-finish", "下工 80 10 卡", finishAt), "cross-group-primary-finish-request")).resolves.toMatchObject({ outcome: "WORK_FINISHED", recordId: started.recordId });
   });
 
+  it("人工创建的待付款记工支持代下工、评论折扣和加项，重试不重复", async () => {
+    const startAt = new Date(Date.now() + 8 * 60 * 60_000);
+    const finishedAt = new Date(startAt.getTime() + 60 * 60_000);
+    await prisma.discountItem.create({ data: { storeId, name: "评论折扣", shortName: "评论", amountCents: 500n, position: 0 } });
+    await prisma.addonItem.create({ data: { storeId, name: "热石", shortName: "热石", amountCents: 1000n, defaultCommissionBps: 3000, position: 0 } });
+    const template = await prisma.workRecord.findFirstOrThrow({ where: { storeId, status: "CONFIRMED" }, include: { serviceSnapshot: true } });
+    const { id: _id, serviceSnapshot, ...data } = template;
+    const { id: _snapshotId, workRecordId: _recordId, ...snapshot } = serviceSnapshot!;
+    const manual = await prisma.workRecord.create({ data: {
+      ...data, id: randomUUID(), employeeMembershipId: delegatedEmployeeId, startAt, endAt: finishedAt, status: "PENDING_PAYMENT", createdBy: ownerId, updatedBy: ownerId,
+      serviceSnapshot: { create: snapshot },
+    } });
+    const adjust = { ...event("manual-adjust", "Jessie 加热石", startAt), parsedIntent: { kind: "ADJUST" as const, memberName: "Jessie", addons: [{ name: "热石", mention: "热石" }] } };
+    await expect(workBot.handleEvent(`Bearer ${token}`, key("manual-adjust"), adjust, "manual-adjust")).resolves.toMatchObject({ outcome: "WORK_ADJUSTED", recordId: manual.id });
+    await expect(prisma.workRecord.findUniqueOrThrow({ where: { id: manual.id }, include: { addonSnapshots: true } })).resolves.toMatchObject({ status: "PENDING_PAYMENT", cashTipCents: null, cardServiceCents: null, addonTotalCents: 1000n, addonWageCents: 500n, addonSnapshots: [{ name: "热石", commissionBps: 5000 }] });
+    const finish = event("manual-finish", "Jessie 下了，收 75/15卡，评论", finishedAt);
+    const result = await workBot.handleEvent(`Bearer ${token}`, key("manual-finish"), finish, "manual-finish");
+    expect(result).toMatchObject({ outcome: "WORK_FINISHED", recordId: manual.id });
+    expect(result.reply).toContain("评论折扣");
+    expect(await workBot.handleEvent(`Bearer ${token}`, key("manual-finish"), finish, "manual-retry")).toEqual(result);
+    await expect(prisma.workRecord.findUniqueOrThrow({ where: { id: manual.id }, include: { discountSnapshots: true, addonSnapshots: true, payment: true } })).resolves.toMatchObject({
+      status: "CONFIRMED", mainServiceAmountCents: 7500n, addonTotalCents: 1000n, discountTotalCents: 500n,
+      cardServiceCents: 7500n, cardTipCents: 1500n, cashServiceCents: 0n,
+      discountSnapshots: [{ name: "评论折扣", amountCents: 500n }], addonSnapshots: [{ name: "热石" }], payment: { cardServiceCents: 7500n, cardTipCents: 1500n },
+    });
+  });
+
+  it("人工待付款记录有歧义时不猜记录，未知加项不部分写入折扣", async () => {
+    const now = new Date(Date.now() + 10 * 60 * 60_000);
+    const template = await prisma.workRecord.findFirstOrThrow({ where: { storeId, employeeMembershipId: delegatedEmployeeId, status: "CONFIRMED" }, include: { serviceSnapshot: true } });
+    const { id: _id, serviceSnapshot, ...data } = template;
+    const { id: _sid, workRecordId: _rid, ...snapshot } = serviceSnapshot!;
+    const records = [];
+    for (let i = 0; i < 2; i++) records.push(await prisma.workRecord.create({ data: { ...data, id: randomUUID(), startAt: now, endAt: now, status: "PENDING_PAYMENT", serviceSnapshot: { create: snapshot } } }));
+    await expect(workBot.handleEvent(`Bearer ${token}`, key("manual-ambiguous"), event("manual-ambiguous", "Jessie 下了 75 15 卡", now), "manual-ambiguous")).resolves.toMatchObject({ outcome: "ACTIVE_WORK_AMBIGUOUS" });
+    await prisma.workRecord.update({ where: { id: records[1]!.id }, data: { status: "CONFIRMED" } });
+    await expect(workBot.handleEvent(`Bearer ${token}`, key("manual-unknown"), { ...event("manual-unknown", "Jessie 加评论折扣和不存在", now), parsedIntent: { kind: "ADJUST", memberName: "Jessie", discounts: [{ name: "评论折扣", mention: "评论折扣" }], addons: [{ name: "不存在", mention: "不存在" }] } }, "manual-unknown")).resolves.toMatchObject({ outcome: "ADDON_UNKNOWN" });
+    expect(await prisma.workRecordDiscountSnapshot.count({ where: { workRecordId: records[0]!.id } })).toBe(0);
+    await prisma.workRecord.update({ where: { id: records[0]!.id }, data: { status: "CONFIRMED" } });
+  });
+
   it("并发上工只保留一条记录，失败事务不会留下半完成账目", async () => {
     const startAt = new Date(Date.now() + 7 * 60 * 60_000);
     const before = await prisma.workRecord.count({ where: { storeId } });
@@ -312,4 +385,26 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     const finishAt = new Date(startAt.getTime() + 60 * 60_000);
     await expect(workBot.handleEvent(`Bearer ${token}`, key("concurrent-cleanup"), event("concurrent-cleanup", "下工 80 10 卡", finishAt), "concurrent-cleanup-request")).resolves.toMatchObject({ outcome: "WORK_FINISHED", recordId: started.recordId });
   });
+  it("网页确认或删除机器人记录后可以再次上工", async () => {
+    const records = new WorkRecordsService(prisma, access, new IdempotencyService(prisma));
+    const started = await workBot.handleEvent(`Bearer ${token}`, key("web-confirm-start"), event("web-confirm-start", "上工 大力", new Date()), "web-confirm-start");
+    expect(started.outcome).toBe("WORK_STARTED");
+    const record = await prisma.workRecord.findUniqueOrThrow({ where: { id: started.recordId! } });
+    expect(await prisma.dailyEmployeeRow.findFirst({ where: { storeId, membershipId: record.employeeMembershipId, board: { businessDate: record.businessDate } } })).not.toBeNull();
+    await records.confirmPayment(actor, storeId, record.id, { version: record.version, cashServiceCents: 10000, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0 }, randomUUID(), "web-confirm");
+    expect(await prisma.workBotMemberBinding.count({ where: { activeWorkRecordId: record.id } })).toBe(0);
+    const next = await workBot.handleEvent(`Bearer ${token}`, key("web-delete-start"), event("web-delete-start", "上工 大力", new Date()), "web-delete-start");
+    expect(next.outcome).toBe("WORK_STARTED");
+    const nextRecord = await prisma.workRecord.findUniqueOrThrow({ where: { id: next.recordId! } });
+    await records.remove(actor, storeId, nextRecord.id, { version: nextRecord.version, reason: "test cleanup" }, randomUUID(), "web-delete");
+    expect(await prisma.workBotMemberBinding.count({ where: { activeWorkRecordId: nextRecord.id } })).toBe(0);
+  });
+
+  it("停用的绑定成员不能替其他员工写账", async () => {
+    await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { status: "INACTIVE" } });
+    try {
+      await expect(workBot.handleEvent(`Bearer ${token}`, key("inactive-delegate"), event("inactive-delegate", "Jessie 脚 30", new Date()), "inactive-delegate")).rejects.toMatchObject({ response: { code: "WORK_BOT_MEMBER_INACTIVE" } });
+    } finally { await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { status: "ACTIVE" } }); }
+  });
+
 });

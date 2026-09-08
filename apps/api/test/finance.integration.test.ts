@@ -130,6 +130,8 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
         where: { id: storeId },
         data: { ownerMembershipId: null },
       });
+      await prisma.dailyEmployeeRow.deleteMany({ where: { storeId } });
+      await prisma.dailyBoard.deleteMany({ where: { storeId } });
       await prisma.storeMembership.deleteMany({ where: { storeId } });
       await prisma.store.deleteMany({ where: { id: storeId } });
       await prisma.user.deleteMany({
@@ -652,6 +654,11 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       employerOwesCents: 0n,
       overpaidCents: 400n,
     });
+    const duplicateFilter = await finance.summary(actor(managerId), storeId, {
+      dateFrom: businessDate, dateTo: businessDate, membershipIds: [employeeMembershipId, employeeMembershipId],
+      paymentMethod: "ALL", amountType: "ALL", highlightFilter: "ALL",
+    });
+    expect(duplicateFilter.totals).toEqual(summary.totals);
     expect(summary.employees).toHaveLength(1);
     expect(summary.employees[0]).toMatchObject({
       defaultCommissionBps: 6_000,

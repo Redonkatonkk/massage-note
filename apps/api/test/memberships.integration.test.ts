@@ -416,6 +416,10 @@ describe.skipIf(!enabled).sequential("成员审批与跨店隔离", () => {
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
+    const unclaimed = await prisma.storeMembership.create({ data: { storeId, displayName: "未认领店主", displayNameNormalized: "未认领店主", role: "EMPLOYEE", userId: null } });
+    await expect(storeManagement.transferOwner(actor(ownerId), storeId, { version: 2, newOwnerMembershipId: unclaimed.id }, randomUUID(), "unclaimed-owner"))
+      .rejects.toMatchObject({ response: { code: "NEW_OWNER_ACCOUNT_REQUIRED" } });
+
     const transferred = await storeManagement.transferOwner(
       actor(ownerId),
       storeId,

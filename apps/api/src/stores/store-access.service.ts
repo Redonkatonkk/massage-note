@@ -1,17 +1,19 @@
 import { ForbiddenException, Injectable } from "@nestjs/common";
 import type { StoreCapability } from "@massage-note/domain";
 import { hasStoreCapability } from "@massage-note/domain";
+import type { Prisma } from "@massage-note/database";
 import { PrismaService } from "../database/prisma.service.js";
 
 @Injectable()
 export class StoreAccessService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async requireActiveMembership(userId: string, storeId: string) {
-    const membership = await this.prisma.storeMembership.findFirst({
+  async requireActiveMembership(userId: string, storeId: string, client: Prisma.TransactionClient = this.prisma) {
+    const membership = await client.storeMembership.findFirst({
       where: {
         storeId,
         userId,
+        user: { status: "ACTIVE" },
         status: "ACTIVE",
         deletedAt: null,
         store: { status: "ACTIVE", deletedAt: null },

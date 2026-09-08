@@ -10,8 +10,8 @@ import {
 } from "@massage-note/domain";
 
 /**
- * 财务计算的唯一应用服务入口。
- * Controller、AI 工具和结算任务都必须调用这里，不能各自重复公式。
+ * 无状态财务计算适配器。
+ * 唯一公式来源是 domain 包；业务服务和此适配器均复用领域函数。
  */
 @Injectable()
 export class FinanceCalculatorService {

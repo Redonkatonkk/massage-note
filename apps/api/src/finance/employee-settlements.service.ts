@@ -1,3 +1,5 @@
+import { idempotencyRequestHash } from "../common/idempotency.service.js";
+import { claimedDeliveryWhere, requireDeliveryLease } from "./delivery-lease.js";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import {
   BadRequestException,
@@ -92,96 +94,106 @@ export class EmployeeSettlementsService {
     requestId: string,
   ) {
     const manager = await this.access.requireCapability(actor.id, storeId, "PAYROLL_MANAGE");
-    const existing = await this.prisma.employeeSettlementDelivery.findUnique({
-      where: { storeId_requestKey: { storeId, requestKey } },
-    });
-    if (existing) {
-      const same = existing.documentType === "EMPLOYEE_SUMMARY"
-        && dateOnly(existing.periodStart) === input.dateFrom
-        && dateOnly(existing.periodEnd) === input.dateTo
-        && existing.paymentScope === input.paymentMethod
-        && existing.recipientPhoneE164 === input.recipientPhoneE164;
-      if (!same) throw new ConflictException({ code: "IDEMPOTENCY_KEY_REUSED", messageZh: "同一个请求键不能用于不同的员工小计发送任务" });
-      return existing;
-    }
-    if (!isE164Phone(input.recipientPhoneE164)) {
-      throw new BadRequestException({ code: "SUMMARY_DELIVERY_PHONE_INVALID", messageZh: "接收号码必须使用国际格式，例如 +16465551234" });
-    }
-    await this.assertAgentReady(storeId);
-    const [summary, store] = await Promise.all([
-      this.financeQueries.summary(actor, storeId, {
-        dateFrom: input.dateFrom,
-        dateTo: input.dateTo,
-        membershipIds: input.membershipIds,
-        paymentMethod: input.paymentMethod,
-        amountType: input.amountType,
-        highlightFilter: input.highlightFilter,
-      }),
-      this.prisma.store.findFirst({
-        where: { id: storeId, status: "ACTIVE", deletedAt: null },
-        select: { name: true, timezone: true, closingDefaultLocale: true },
-      }),
-    ]);
-    if (!store) throw new NotFoundException({ code: "STORE_NOT_FOUND", messageZh: "没有找到店铺" });
-    if (summary.employees.length === 0) throw new ConflictException({ code: "EMPLOYEE_SUMMARY_EMPTY", messageZh: "当前范围没有可发送的员工小计" });
-    const snapshot = {
-      documentType: "EMPLOYEE_SUMMARY" as const,
-      storeName: store.name,
-      storeTimezone: store.timezone,
-      dateFrom: summary.filters.dateFrom,
-      dateTo: summary.filters.dateTo,
-      paymentMethod: summary.filters.paymentMethod,
-      amountType: summary.filters.amountType,
-      highlightFilter: summary.filters.highlightFilter,
-      employees: summary.employees.map((employee) => ({
-        membershipId: employee.membershipId,
-        displayName: employee.displayName,
-        role: employee.role,
-        defaultCommissionBps: employee.defaultCommissionBps,
-        hasDifferentItemCommission: employee.hasDifferentItemCommission,
-        recordCount: employee.recordCount,
-        mainServiceAmountCents: this.safeNumber(employee.mainServiceAmountCents),
-        addonTotalCents: this.safeNumber(employee.addonTotalCents),
-        grossFeeBaseCents: this.safeNumber(employee.grossFeeBaseCents),
-        totalTipCents: this.safeNumber(employee.totalTipCents),
-        totalLargeFeeWageCents: this.safeNumber(employee.totalLargeFeeWageCents),
-        employeeIncomeCents: this.safeNumber(employee.employeeIncomeCents),
-      })),
-      generatedAt: new Date().toISOString(),
-    };
-    const delivery = await this.prisma.employeeSettlementDelivery.create({
-      data: {
-        storeId,
-        membershipId: null,
-        documentType: "EMPLOYEE_SUMMARY",
-        periodStart: dateAtUtc(input.dateFrom),
-        periodEnd: dateAtUtc(input.dateTo),
-        paymentScope: input.paymentMethod,
-        recipientPhoneE164: input.recipientPhoneE164,
-        locale: store.closingDefaultLocale,
-        snapshotJson: snapshot as unknown as Prisma.InputJsonValue,
-        queuedBy: actor.id,
-        requestKey,
-      },
-    });
-    await this.prisma.auditLog.create({
-      data: {
-        storeId, actorUserId: actor.id, actorMembershipId: manager.id,
-        source: "api", action: "finance.employee_summary_delivery_queued",
-        entityType: "employee_settlement_delivery", entityId: delivery.id,
-        afterJson: {
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtextextended(${`delivery:${storeId}:${requestKey}`}, 0))) AS held`;
+      const existing = await transaction.employeeSettlementDelivery.findUnique({
+        where: { storeId_requestKey: { storeId, requestKey } },
+      });
+      const requestHash = idempotencyRequestHash({ ...input, membershipIds: [...new Set(input.membershipIds)].sort() });
+      if (existing) {
+        const snapshot = existing.snapshotJson as Record<string, unknown>;
+        // Older jobs retain the original filters in the audit log.
+        const audit = snapshot.requestHash ? null : await transaction.auditLog.findFirst({ where: { storeId, entityId: existing.id, action: "finance.employee_summary_delivery_queued" }, select: { afterJson: true } });
+        const previous = audit?.afterJson as Record<string, unknown> | undefined;
+        const previousHash = snapshot.requestHash ?? (previous ? idempotencyRequestHash({ ...previous, membershipIds: [...new Set(previous.membershipIds as string[])].sort() }) : null);
+        const same = previousHash === requestHash && existing.documentType === "EMPLOYEE_SUMMARY"
+          && dateOnly(existing.periodStart) === input.dateFrom
+          && dateOnly(existing.periodEnd) === input.dateTo
+          && existing.paymentScope === input.paymentMethod
+          && existing.recipientPhoneE164 === input.recipientPhoneE164;
+        if (!same) throw new ConflictException({ code: "IDEMPOTENCY_KEY_REUSED", messageZh: "同一个请求键不能用于不同的员工小计发送任务" });
+        return existing;
+      }
+      if (!isE164Phone(input.recipientPhoneE164)) {
+        throw new BadRequestException({ code: "SUMMARY_DELIVERY_PHONE_INVALID", messageZh: "接收号码必须使用国际格式，例如 +16465551234" });
+      }
+      await this.assertAgentReady(storeId, transaction);
+      const [summary, store] = await Promise.all([
+        this.financeQueries.summary(actor, storeId, {
           dateFrom: input.dateFrom,
           dateTo: input.dateTo,
+          membershipIds: input.membershipIds,
           paymentMethod: input.paymentMethod,
           amountType: input.amountType,
           highlightFilter: input.highlightFilter,
-          membershipIds: input.membershipIds,
+        }, transaction),
+        transaction.store.findFirst({
+          where: { id: storeId, status: "ACTIVE", deletedAt: null },
+          select: { name: true, timezone: true, closingDefaultLocale: true },
+        }),
+      ]);
+      if (!store) throw new NotFoundException({ code: "STORE_NOT_FOUND", messageZh: "没有找到店铺" });
+      if (summary.employees.length === 0) throw new ConflictException({ code: "EMPLOYEE_SUMMARY_EMPTY", messageZh: "当前范围没有可发送的员工小计" });
+      const snapshot = {
+        documentType: "EMPLOYEE_SUMMARY" as const,
+        requestHash,
+        storeName: store.name,
+        storeTimezone: store.timezone,
+        dateFrom: summary.filters.dateFrom,
+        dateTo: summary.filters.dateTo,
+        paymentMethod: summary.filters.paymentMethod,
+        amountType: summary.filters.amountType,
+        highlightFilter: summary.filters.highlightFilter,
+        employees: summary.employees.map((employee) => ({
+          membershipId: employee.membershipId,
+          displayName: employee.displayName,
+          role: employee.role,
+          defaultCommissionBps: employee.defaultCommissionBps,
+          hasDifferentItemCommission: employee.hasDifferentItemCommission,
+          recordCount: employee.recordCount,
+          mainServiceAmountCents: this.safeNumber(employee.mainServiceAmountCents),
+          addonTotalCents: this.safeNumber(employee.addonTotalCents),
+          grossFeeBaseCents: this.safeNumber(employee.grossFeeBaseCents),
+          totalTipCents: this.safeNumber(employee.totalTipCents),
+          totalLargeFeeWageCents: this.safeNumber(employee.totalLargeFeeWageCents),
+          employeeIncomeCents: this.safeNumber(employee.employeeIncomeCents),
+        })),
+        generatedAt: new Date().toISOString(),
+      };
+      const delivery = await transaction.employeeSettlementDelivery.create({
+        data: {
+          storeId,
+          membershipId: null,
+          documentType: "EMPLOYEE_SUMMARY",
+          periodStart: dateAtUtc(input.dateFrom),
+          periodEnd: dateAtUtc(input.dateTo),
+          paymentScope: input.paymentMethod,
           recipientPhoneE164: input.recipientPhoneE164,
-        } as Prisma.InputJsonValue,
-        requestId,
-      },
-    });
-    return delivery;
+          locale: store.closingDefaultLocale,
+          snapshotJson: snapshot as unknown as Prisma.InputJsonValue,
+          queuedBy: actor.id,
+          requestKey,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          storeId, actorUserId: actor.id, actorMembershipId: manager.id,
+          source: "api", action: "finance.employee_summary_delivery_queued",
+          entityType: "employee_settlement_delivery", entityId: delivery.id,
+          afterJson: {
+            dateFrom: input.dateFrom,
+            dateTo: input.dateTo,
+            paymentMethod: input.paymentMethod,
+            amountType: input.amountType,
+            highlightFilter: input.highlightFilter,
+            membershipIds: input.membershipIds,
+            recipientPhoneE164: input.recipientPhoneE164,
+          } as Prisma.InputJsonValue,
+          requestId,
+        },
+      });
+      return delivery;
+    }, { timeout: 20_000 });
   }
 
   async queue(
@@ -192,114 +204,123 @@ export class EmployeeSettlementsService {
     requestId: string,
   ) {
     const manager = await this.access.requireCapability(actor.id, storeId, "PAYROLL_MANAGE");
-    const existing = await this.prisma.employeeSettlementDelivery.findUnique({
-      where: { storeId_requestKey: { storeId, requestKey } },
-    });
-    if (existing) {
-      const same = existing.documentType === "RANGE_SETTLEMENT"
-        && existing.membershipId === input.membershipId
-        && dateOnly(existing.periodStart) === input.dateFrom
-        && dateOnly(existing.periodEnd) === input.dateTo
-        && existing.paymentScope === input.paymentScope;
-      if (!same) throw new ConflictException({ code: "IDEMPOTENCY_KEY_REUSED", messageZh: "同一个请求键不能用于不同的员工结算范围" });
-      return existing;
-    }
-    const member = await this.prisma.storeMembership.findFirst({
-      where: { id: input.membershipId, storeId, status: "ACTIVE", deletedAt: null },
-      include: { user: { select: { phoneE164: true } }, store: { select: { closingDefaultLocale: true } } },
-    });
-    if (!member) throw new NotFoundException({ code: "SETTLEMENT_MEMBERSHIP_NOT_FOUND", messageZh: "没有找到可结算的在职成员" });
-    if (!member.closingDeliveryEnabled) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_DISABLED", messageZh: "这位员工尚未开启接收结算短信" });
-    const phone = member.closingDeliveryPhoneE164 ?? member.user?.phoneE164;
-    if (!isE164Phone(phone)) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_PHONE_MISSING", messageZh: "这位员工没有有效接收号码" });
-    await this.assertAgentReady(storeId);
-    const snapshot = await this.buildPreview(storeId, input);
-    if (snapshot.records.length === 0) throw new ConflictException({ code: "SETTLEMENT_HAS_NO_RECORDS", messageZh: "当前范围没有可发送的已确认记工" });
-    const delivery = await this.prisma.employeeSettlementDelivery.create({
-      data: {
-        storeId,
-        membershipId: input.membershipId,
-        documentType: "RANGE_SETTLEMENT",
-        periodStart: dateAtUtc(input.dateFrom),
-        periodEnd: dateAtUtc(input.dateTo),
-        paymentScope: input.paymentScope,
-        recipientPhoneE164: phone,
-        locale: member.closingImageLocale ?? member.store.closingDefaultLocale,
-        snapshotJson: snapshot as unknown as Prisma.InputJsonValue,
-        queuedBy: actor.id,
-        requestKey,
-      },
-    });
-    await this.prisma.auditLog.create({
-      data: {
-        storeId, actorUserId: actor.id, actorMembershipId: manager.id,
-        source: "api", action: "employee_settlement.delivery_queued",
-        entityType: "employee_settlement_delivery", entityId: delivery.id,
-        afterJson: { membershipId: input.membershipId, dateFrom: input.dateFrom, dateTo: input.dateTo, paymentScope: input.paymentScope } as Prisma.InputJsonValue,
-        requestId,
-      },
-    });
-    return delivery;
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtextextended(${`delivery:${storeId}:${requestKey}`}, 0))) AS held`;
+      const existing = await transaction.employeeSettlementDelivery.findUnique({
+        where: { storeId_requestKey: { storeId, requestKey } },
+      });
+      if (existing) {
+        const same = existing.documentType === "RANGE_SETTLEMENT"
+          && existing.membershipId === input.membershipId
+          && dateOnly(existing.periodStart) === input.dateFrom
+          && dateOnly(existing.periodEnd) === input.dateTo
+          && existing.paymentScope === input.paymentScope;
+        if (!same) throw new ConflictException({ code: "IDEMPOTENCY_KEY_REUSED", messageZh: "同一个请求键不能用于不同的员工结算范围" });
+        return existing;
+      }
+      const member = await transaction.storeMembership.findFirst({
+        where: { id: input.membershipId, storeId, status: "ACTIVE", deletedAt: null },
+        include: { user: { select: { phoneE164: true } }, store: { select: { closingDefaultLocale: true } } },
+      });
+      if (!member) throw new NotFoundException({ code: "SETTLEMENT_MEMBERSHIP_NOT_FOUND", messageZh: "没有找到可结算的在职成员" });
+      if (!member.closingDeliveryEnabled) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_DISABLED", messageZh: "这位员工尚未开启接收结算短信" });
+      const phone = member.closingDeliveryPhoneE164 ?? member.user?.phoneE164;
+      if (!isE164Phone(phone)) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_PHONE_MISSING", messageZh: "这位员工没有有效接收号码" });
+      await this.assertAgentReady(storeId, transaction);
+      const snapshot = await this.buildPreview(storeId, input, transaction);
+      if (snapshot.records.length === 0) throw new ConflictException({ code: "SETTLEMENT_HAS_NO_RECORDS", messageZh: "当前范围没有可发送的已确认记工" });
+      const delivery = await transaction.employeeSettlementDelivery.create({
+        data: {
+          storeId,
+          membershipId: input.membershipId,
+          documentType: "RANGE_SETTLEMENT",
+          periodStart: dateAtUtc(input.dateFrom),
+          periodEnd: dateAtUtc(input.dateTo),
+          paymentScope: input.paymentScope,
+          recipientPhoneE164: phone,
+          locale: member.closingImageLocale ?? member.store.closingDefaultLocale,
+          snapshotJson: snapshot as unknown as Prisma.InputJsonValue,
+          queuedBy: actor.id,
+          requestKey,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          storeId, actorUserId: actor.id, actorMembershipId: manager.id,
+          source: "api", action: "employee_settlement.delivery_queued",
+          entityType: "employee_settlement_delivery", entityId: delivery.id,
+          afterJson: { membershipId: input.membershipId, dateFrom: input.dateFrom, dateTo: input.dateTo, paymentScope: input.paymentScope } as Prisma.InputJsonValue,
+          requestId,
+        },
+      });
+      return delivery;
+    }, { timeout: 20_000 });
   }
 
   async cancel(actor: User, storeId: string, deliveryId: string, requestId: string) {
     const manager = await this.access.requireCapability(actor.id, storeId, "PAYROLL_MANAGE");
-    const changed = await this.prisma.employeeSettlementDelivery.updateMany({
-      where: { id: deliveryId, storeId, status: "QUEUED" },
-      data: { status: "CANCELLED", lastErrorCode: "CANCELLED_BY_MANAGER", lastError: "店主或经理已取消发送" },
+    return this.prisma.$transaction(async (transaction) => {
+      const changed = await transaction.employeeSettlementDelivery.updateMany({
+        where: { id: deliveryId, storeId, status: "QUEUED" },
+        data: { status: "CANCELLED", lastErrorCode: "CANCELLED_BY_MANAGER", lastError: "店主或经理已取消发送" },
+      });
+      if (changed.count !== 1) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_NOT_CANCELLABLE", messageZh: "只有尚未交给信息 App 的排队任务可以取消" });
+      await transaction.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: manager.id, source: "api", action: "employee_settlement.delivery_cancelled", entityType: "employee_settlement_delivery", entityId: deliveryId, requestId } });
+      return transaction.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: deliveryId } });
     });
-    if (changed.count !== 1) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_NOT_CANCELLABLE", messageZh: "只有尚未交给信息 App 的排队任务可以取消" });
-    await this.prisma.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: manager.id, source: "api", action: "employee_settlement.delivery_cancelled", entityType: "employee_settlement_delivery", entityId: deliveryId, requestId } });
-    return this.prisma.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: deliveryId } });
   }
 
   async retry(actor: User, storeId: string, deliveryId: string, requestId: string) {
     const manager = await this.access.requireCapability(actor.id, storeId, "PAYROLL_MANAGE");
     await this.assertAgentReady(storeId);
-    const changed = await this.prisma.employeeSettlementDelivery.updateMany({
-      where: { id: deliveryId, storeId, status: "FAILED" },
-      data: { status: "QUEUED", nextAttemptAt: new Date(), lastError: null, lastErrorCode: null, leaseToken: null, leaseExpiresAt: null },
+    return this.prisma.$transaction(async (transaction) => {
+      const changed = await transaction.employeeSettlementDelivery.updateMany({
+        where: { id: deliveryId, storeId, status: "FAILED" },
+        data: { status: "QUEUED", nextAttemptAt: new Date(), lastError: null, lastErrorCode: null, leaseToken: null, leaseExpiresAt: null },
+      });
+      if (changed.count !== 1) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_NOT_RETRYABLE", messageZh: "只有失败的结算短信任务可以重试" });
+      await transaction.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: manager.id, source: "api", action: "employee_settlement.delivery_retried", entityType: "employee_settlement_delivery", entityId: deliveryId, requestId } });
+      return transaction.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: deliveryId } });
     });
-    if (changed.count !== 1) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_NOT_RETRYABLE", messageZh: "只有失败的结算短信任务可以重试" });
-    await this.prisma.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: manager.id, source: "api", action: "employee_settlement.delivery_retried", entityType: "employee_settlement_delivery", entityId: deliveryId, requestId } });
-    return this.prisma.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: deliveryId } });
   }
 
   async retryDetail(actor: User, storeId: string, deliveryId: string, requestId: string) {
     const manager = await this.access.requireCapability(actor.id, storeId, "PAYROLL_MANAGE");
     await this.assertAgentReady(storeId);
-    const changed = await this.prisma.employeeSettlementDelivery.updateMany({
-      where: {
-        id: deliveryId,
-        storeId,
-        status: { in: ["SENT", "FAILED"] },
-      },
-      data: {
-        status: "QUEUED",
-        detailSentAt: null,
-        sentAt: null,
-        nextAttemptAt: new Date(),
-        lastError: null,
-        lastErrorCode: null,
-        leaseToken: null,
-        leaseExpiresAt: null,
-      },
+    return this.prisma.$transaction(async (transaction) => {
+      const changed = await transaction.employeeSettlementDelivery.updateMany({
+        where: {
+          id: deliveryId,
+          storeId,
+          status: { in: ["SENT", "FAILED"] },
+        },
+        data: {
+          status: "QUEUED",
+          detailSentAt: null,
+          sentAt: null,
+          nextAttemptAt: new Date(),
+          lastError: null,
+          lastErrorCode: null,
+          leaseToken: null,
+          leaseExpiresAt: null,
+        },
+      });
+      if (changed.count !== 1) throw new ConflictException({ code: "SETTLEMENT_DETAIL_NOT_RETRYABLE", messageZh: "只有已完成或失败的结算任务可以重发长图" });
+      await transaction.auditLog.create({
+        data: {
+          storeId,
+          actorUserId: actor.id,
+          actorMembershipId: manager.id,
+          source: "api",
+          action: "employee_settlement.delivery_detail_retried",
+          entityType: "employee_settlement_delivery",
+          entityId: deliveryId,
+          afterJson: { attachment: "DETAIL", reason: "manager_requested_redelivery" },
+          requestId,
+        },
+      });
+      return transaction.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: deliveryId } });
     });
-    if (changed.count !== 1) throw new ConflictException({ code: "SETTLEMENT_DETAIL_NOT_RETRYABLE", messageZh: "只有已完成或失败的结算任务可以重发长图" });
-    await this.prisma.auditLog.create({
-      data: {
-        storeId,
-        actorUserId: actor.id,
-        actorMembershipId: manager.id,
-        source: "api",
-        action: "employee_settlement.delivery_detail_retried",
-        entityType: "employee_settlement_delivery",
-        entityId: deliveryId,
-        afterJson: { attachment: "DETAIL", reason: "manager_requested_redelivery" },
-        requestId,
-      },
-    });
-    return this.prisma.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: deliveryId } });
   }
 
   async claim(authorization: string | undefined) {
@@ -335,10 +356,10 @@ export class EmployeeSettlementsService {
     const agent = await this.authenticateAgent(authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
     const sentAt = new Date();
-    await this.prisma.employeeSettlementDelivery.update({
-      where: { id: job.id },
+    requireDeliveryLease(await this.prisma.employeeSettlementDelivery.updateMany({
+      where: claimedDeliveryWhere(agent.storeId, job.id, leaseToken),
       data: attachment === "SUMMARY" ? { summarySentAt: job.summarySentAt ?? sentAt } : { detailSentAt: job.detailSentAt ?? sentAt },
-    });
+    }));
     return { recorded: true, attachment, sentAt };
   }
 
@@ -347,10 +368,10 @@ export class EmployeeSettlementsService {
     const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
     if (!job.detailSentAt) throw new ConflictException({ code: "SETTLEMENT_ATTACHMENTS_INCOMPLETE", messageZh: "结算长图发送后才能完成任务" });
     const sentAt = new Date();
-    await this.prisma.$transaction([
-      this.prisma.employeeSettlementDelivery.update({ where: { id: job.id }, data: { status: "SENT", sentAt, leaseToken: null, leaseExpiresAt: null, lastError: null, lastErrorCode: null } }),
-      this.prisma.auditLog.create({ data: { storeId: job.storeId, actorUserId: null, actorMembershipId: null, source: "messages_agent", action: "employee_settlement.delivery_sent", entityType: "employee_settlement_delivery", entityId: job.id, afterJson: { membershipId: job.membershipId, sentAt: sentAt.toISOString() }, requestId: `agent:settlement:${job.id}` } }),
-    ]);
+    await this.prisma.$transaction(async (transaction) => {
+      requireDeliveryLease(await transaction.employeeSettlementDelivery.updateMany({ where: claimedDeliveryWhere(agent.storeId, job.id, leaseToken), data: { status: "SENT", sentAt, leaseToken: null, leaseExpiresAt: null, lastError: null, lastErrorCode: null } }));
+      await transaction.auditLog.create({ data: { storeId: job.storeId, actorUserId: null, actorMembershipId: null, source: "messages_agent", action: "employee_settlement.delivery_sent", entityType: "employee_settlement_delivery", entityId: job.id, afterJson: { membershipId: job.membershipId, sentAt: sentAt.toISOString() }, requestId: `agent:settlement:${job.id}` } });
+    });
     return { sent: true, sentAt };
   }
 
@@ -358,20 +379,20 @@ export class EmployeeSettlementsService {
     const agent = await this.authenticateAgent(authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, input.leaseToken);
     const retry = input.retryable && job.attemptCount < 3;
-    await this.prisma.employeeSettlementDelivery.update({
-      where: { id: job.id },
+    requireDeliveryLease(await this.prisma.employeeSettlementDelivery.updateMany({
+      where: claimedDeliveryWhere(agent.storeId, job.id, input.leaseToken),
       data: { status: retry ? "QUEUED" : "FAILED", leaseToken: null, leaseExpiresAt: null, nextAttemptAt: retry ? new Date(Date.now() + 30_000 * job.attemptCount) : new Date(), lastErrorCode: input.code, lastError: input.message },
-    });
+    }));
     return { retryScheduled: retry };
   }
 
-  private async buildPreview(storeId: string, query: EmployeeSettlementQuery) {
-    const member = await this.prisma.storeMembership.findFirst({
+  private async buildPreview(storeId: string, query: EmployeeSettlementQuery, client: Prisma.TransactionClient = this.prisma) {
+    const member = await client.storeMembership.findFirst({
       where: { id: query.membershipId, storeId, status: "ACTIVE", deletedAt: null },
       include: { store: { select: { name: true, timezone: true } } },
     });
     if (!member) throw new NotFoundException({ code: "SETTLEMENT_MEMBERSHIP_NOT_FOUND", messageZh: "没有找到可结算的在职成员" });
-    const rows = await this.prisma.workRecord.findMany({
+    const rows = await client.workRecord.findMany({
       where: { storeId, employeeMembershipId: member.id, businessDate: { gte: dateAtUtc(query.dateFrom), lte: dateAtUtc(query.dateTo) }, status: "CONFIRMED", deletedAt: null },
       orderBy: [{ businessDate: "asc" }, { startAt: "asc" }, { id: "asc" }],
       include: { serviceSnapshot: { select: { name: true, shortName: true } }, addonSnapshots: { orderBy: { position: "asc" }, select: { name: true, shortName: true } } },
@@ -401,7 +422,7 @@ export class EmployeeSettlementsService {
       };
     }).filter((record) => this.includeRecord(record, query.paymentScope));
     if (records.length > 999) throw new BadRequestException({ code: "RECORD_LIMIT_EXCEEDED", messageZh: `当前范围有 ${records.length} 笔已确认记工，最多支持 999 笔，请缩短日期区间`, latestResource: { recordCount: records.length, limit: 999 } });
-    const sum = (key: keyof (typeof records)[number]) => records.reduce((total, record) => total + (typeof record[key] === "number" ? record[key] as number : 0), 0);
+    const sum = (key: keyof (typeof records)[number]) => this.safeNumber(records.reduce((total, record) => total + (typeof record[key] === "number" ? BigInt(record[key]) : 0n), 0n));
     return {
       storeId, storeName: member.store.name, storeTimezone: member.store.timezone,
       dateFrom: query.dateFrom, dateTo: query.dateTo, paymentScope: query.paymentScope,
@@ -435,8 +456,8 @@ export class EmployeeSettlementsService {
     return number;
   }
 
-  private async assertAgentReady(storeId: string) {
-    const agent = await this.prisma.closingDeliveryAgent.findUnique({ where: { storeId } });
+  private async assertAgentReady(storeId: string, client: Prisma.TransactionClient = this.prisma) {
+    const agent = await client.closingDeliveryAgent.findUnique({ where: { storeId } });
     const status = agent?.lastStatusJson as { messagesAvailable?: boolean } | null;
     if (!agent || agent.revokedAt || !agent.lastSeenAt || Date.now() - agent.lastSeenAt.getTime() > 120_000) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_AGENT_OFFLINE", messageZh: "Mac 信息发送代理离线，请启动代理后重试" });
     if (!status?.messagesAvailable) throw new ConflictException({ code: "SETTLEMENT_MESSAGES_UNAVAILABLE", messageZh: "Mac 信息 App 当前没有可用的短信、RCS 或 iMessage 服务" });
@@ -446,14 +467,14 @@ export class EmployeeSettlementsService {
     const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
     const prefix = token?.match(/^mna_([a-f0-9]{10})_/)?.[1];
     if (!token || !prefix) throw new UnauthorizedException({ code: "DELIVERY_AGENT_TOKEN_REQUIRED", messageZh: "发送代理凭证无效" });
-    const agent = await this.prisma.closingDeliveryAgent.findUnique({ where: { tokenPrefix: prefix } });
+    const agent = await this.prisma.closingDeliveryAgent.findUnique({ where: { tokenPrefix: prefix }, include: { store: { select: { status: true, deletedAt: true } } } });
     const presentedHash = tokenHash(token);
-    if (!agent || agent.revokedAt || agent.tokenHash.length !== presentedHash.length || !timingSafeEqual(Buffer.from(agent.tokenHash), Buffer.from(presentedHash))) throw new UnauthorizedException({ code: "DELIVERY_AGENT_TOKEN_INVALID", messageZh: "发送代理凭证无效或已撤销" });
+    if (!agent || agent.revokedAt || agent.store.status !== "ACTIVE" || agent.store.deletedAt || agent.tokenHash.length !== presentedHash.length || !timingSafeEqual(Buffer.from(agent.tokenHash), Buffer.from(presentedHash))) throw new UnauthorizedException({ code: "DELIVERY_AGENT_TOKEN_INVALID", messageZh: "发送代理凭证无效或已撤销" });
     return agent;
   }
 
   private async findClaimed(storeId: string, deliveryId: string, leaseToken: string) {
-    const job = await this.prisma.employeeSettlementDelivery.findFirst({ where: { id: deliveryId, storeId, status: "CLAIMED", leaseToken } });
+    const job = await this.prisma.employeeSettlementDelivery.findFirst({ where: claimedDeliveryWhere(storeId, deliveryId, leaseToken) });
     if (!job) throw new ForbiddenException({ code: "DELIVERY_LEASE_INVALID", messageZh: "发送任务租约无效或已经过期" });
     return job;
   }

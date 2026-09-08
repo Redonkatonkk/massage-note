@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { User } from "@massage-note/database";
+import type { Prisma, User } from "@massage-note/database";
 import type { FinanceQuery } from "@massage-note/contracts";
 import {
   businessDateFor,
@@ -56,12 +56,12 @@ export class FinanceQueriesService {
     private readonly access: StoreAccessService,
   ) {}
 
-  async summary(actor: User, storeId: string, query: FinanceQuery) {
-    const context = await this.resolveQueryContext(actor, storeId, query);
+  async summary(actor: User, storeId: string, query: FinanceQuery, client: Prisma.TransactionClient = this.prisma) {
+    const context = await this.resolveQueryContext(actor, storeId, query, client);
     const [records, giftCardSales, commissionProfiles] = await Promise.all([
-      this.findRecords(storeId, context),
-      this.findGiftCardSales(storeId, context),
-      this.prisma.storeMembership.findMany({
+      this.findRecords(storeId, context, client),
+      this.findGiftCardSales(storeId, context, client),
+      client.storeMembership.findMany({
         where: { storeId, id: { in: context.membershipIds } },
         select: {
           id: true,
@@ -129,11 +129,11 @@ export class FinanceQueriesService {
     }
     const balances = await Promise.all(
       context.membershipIds.map((membershipId) =>
-        this.calculateMembershipBalance(storeId, membershipId),
+        this.calculateMembershipBalance(storeId, membershipId, client),
       ),
     );
     const [payrollWithinRange, settledCashWithinRange] = await Promise.all([
-      this.prisma.payrollSettlement.aggregate({
+      client.payrollSettlement.aggregate({
         where: {
           storeId,
           membershipId: { in: context.membershipIds },
@@ -145,7 +145,7 @@ export class FinanceQueriesService {
         },
         _sum: { totalPaidCents: true },
       }),
-      this.prisma.dailyCashSettlement.aggregate({
+      client.dailyCashSettlement.aggregate({
         where: {
           storeId,
           membershipId: { in: context.membershipIds },
@@ -277,7 +277,7 @@ export class FinanceQueriesService {
     const cents = (value: bigint | null) => ((value ?? 0n) / 100n).toString() + "." + ((value ?? 0n) % 100n).toString().padStart(2, "0");
     const cell = (value: unknown) => {
       let text = value === null || value === undefined ? "" : String(value);
-      if (/^[=+\-@]/.test(text)) text = `'${text}`;
+      if (/^(?:[\t\r\n]|\s*[=+\-@])/.test(text)) text = `'${text}`;
       return `"${text.replaceAll('"', '""')}"`;
     };
     const workRows = result.records.map((record) => [
@@ -349,12 +349,14 @@ export class FinanceQueriesService {
     actor: User,
     storeId: string,
     query: FinanceQuery,
+    client: Prisma.TransactionClient = this.prisma,
   ) {
     const actorMembership = await this.access.requireActiveMembership(
       actor.id,
       storeId,
+      client,
     );
-    const store = await this.prisma.store.findFirst({
+    const store = await client.store.findFirst({
       where: { id: storeId, status: "ACTIVE", deletedAt: null },
       select: { timezone: true, businessCutoffLocal: true },
     });
@@ -385,9 +387,9 @@ export class FinanceQueriesService {
     );
     const membershipIds = mayReadAll
       ? query.membershipIds.length > 0
-        ? query.membershipIds
+        ? [...new Set(query.membershipIds)]
         : (
-            await this.prisma.storeMembership.findMany({
+            await client.storeMembership.findMany({
               where: { storeId },
               select: { id: true },
             })
@@ -399,7 +401,7 @@ export class FinanceQueriesService {
         messageZh: "普通员工只能查看自己的财务",
       });
     }
-    const validCount = await this.prisma.storeMembership.count({
+    const validCount = await client.storeMembership.count({
       where: { storeId, id: { in: membershipIds } },
     });
     if (validCount !== new Set(membershipIds).size) {
@@ -426,8 +428,9 @@ export class FinanceQueriesService {
       membershipIds: string[];
       query: FinanceQuery;
     },
+    client: Prisma.TransactionClient = this.prisma,
   ) {
-    const records = await this.prisma.workRecord.findMany({
+    const records = await client.workRecord.findMany({
       where: {
         storeId,
         employeeMembershipId: { in: context.membershipIds },
@@ -462,6 +465,7 @@ export class FinanceQueriesService {
       query: FinanceQuery;
       includeStoreLevelGiftCardSales: boolean;
     },
+    client: Prisma.TransactionClient = this.prisma,
   ) {
     if (
       !context.includeStoreLevelGiftCardSales ||
@@ -470,7 +474,7 @@ export class FinanceQueriesService {
     ) {
       return [];
     }
-    return this.prisma.giftCardSale.findMany({
+    return client.giftCardSale.findMany({
       where: {
         storeId,
         businessDate: {
@@ -664,12 +668,13 @@ export class FinanceQueriesService {
   private async calculateMembershipBalance(
     storeId: string,
     membershipId: string,
+    client: Prisma.TransactionClient = this.prisma,
   ) {
-    const store = await this.prisma.store.findFirst({
+    const store = await client.store.findFirst({
       where: { id: storeId },
       select: { ownerMembershipId: true },
     });
-    const membership = await this.prisma.storeMembership.findFirst({
+    const membership = await client.storeMembership.findFirst({
       where: { id: membershipId, storeId },
       select: { id: true, displayName: true, role: true },
     });
@@ -694,7 +699,7 @@ export class FinanceQueriesService {
       };
     }
     const [income, cash, payroll] = await Promise.all([
-      this.prisma.workRecord.aggregate({
+      client.workRecord.aggregate({
         where: {
           storeId,
           employeeMembershipId: membershipId,
@@ -703,7 +708,7 @@ export class FinanceQueriesService {
         },
         _sum: { employeeTotalIncomeCents: true },
       }),
-      this.prisma.dailyCashSettlement.aggregate({
+      client.dailyCashSettlement.aggregate({
         where: {
           storeId,
           membershipId,
@@ -715,7 +720,7 @@ export class FinanceQueriesService {
           cashTipCents: true,
         },
       }),
-      this.prisma.payrollSettlement.aggregate({
+      client.payrollSettlement.aggregate({
         where: { storeId, membershipId, deletedAt: null },
         _sum: { totalPaidCents: true },
       }),

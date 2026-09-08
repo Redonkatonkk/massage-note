@@ -42,10 +42,11 @@ export class IdempotencyService {
   async execute<T>(
     options: IdempotencyOptions,
     operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+    parentTransaction?: Prisma.TransactionClient,
   ): Promise<T> {
     const requestHash = idempotencyRequestHash(options.payload);
     try {
-      return await this.prisma.$transaction(async (transaction) => {
+      const execute = async (transaction: Prisma.TransactionClient) => {
         const existing = await transaction.idempotencyRequest.findUnique({
           where: {
             storeId_userId_key_route: {
@@ -80,10 +81,11 @@ export class IdempotencyService {
           },
         });
         return result;
-      });
+      };
+      return parentTransaction ? await execute(parentTransaction) : await this.prisma.$transaction(execute);
     } catch (error) {
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
+        !parentTransaction && error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
       ) {
         const existing = await this.prisma.idempotencyRequest.findUnique({

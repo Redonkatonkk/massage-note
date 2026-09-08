@@ -43,6 +43,7 @@ export function useAiVoiceInput({
   const onTextRef = useRef(onText);
   const onErrorRef = useRef(onError);
   const mountedRef = useRef(true);
+  const startingRef = useRef(false);
 
   enabledRef.current = enabled;
   storeIdRef.current = storeId;
@@ -75,7 +76,9 @@ export function useAiVoiceInput({
     cancelRecording();
   }, [enabled, storeId]);
 
-  useEffect(() => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
     mountedRef.current = false;
     discardRef.current = true;
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -84,6 +87,7 @@ export function useAiVoiceInput({
     if (recorder) recorder.onstop = null;
     if (recorder?.state === "recording") recorder.stop();
     streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
   }, []);
 
   async function transcribe(blob: Blob) {
@@ -108,7 +112,7 @@ export function useAiVoiceInput({
   }
 
   async function startRecording() {
-    if (!enabled || !storeId || recording || transcribing) return;
+    if (!enabled || !storeId || recording || transcribing || startingRef.current) return;
     onErrorRef.current("");
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       onErrorRef.current("当前浏览器不支持录音，请使用文字输入或手机键盘听写");
@@ -120,6 +124,7 @@ export function useAiVoiceInput({
       return;
     }
 
+    startingRef.current = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
@@ -156,6 +161,8 @@ export function useAiVoiceInput({
       onErrorRef.current(caught instanceof DOMException && caught.name === "NotAllowedError"
         ? "没有获得麦克风权限，请在浏览器设置中允许后重试"
         : errorMessage(caught));
+    } finally {
+      startingRef.current = false;
     }
   }
 

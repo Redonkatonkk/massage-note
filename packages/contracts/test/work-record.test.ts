@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addonInputSchema,
   confirmPaymentSchema,
+  saveWorkRecordSchema,
   createWorkRecordSchema,
   updateWorkRecordSchema,
 } from "../src/index.js";
@@ -215,4 +216,9 @@ describe("记工项目来源契约", () => {
       }).success,
     ).toBe(false);
   });
+});
+
+it("详情和付款原子保存必须引用同一版本", () => {
+  expect(saveWorkRecordSchema.safeParse({ details: { version: 1, note: "test" }, payment: { version: 2, cashServiceCents: 100 } }).success).toBe(false);
+  expect(saveWorkRecordSchema.safeParse({ details: { version: 1, note: "test" }, payment: { version: 1, cashServiceCents: 100 } }).success).toBe(true);
 });

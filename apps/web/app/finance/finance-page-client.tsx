@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { browserStorage } from "../../lib/browser-storage";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { LatestRequest } from "../../lib/latest-request";
 import { apiBase, apiRequest, errorMessage } from "../../lib/api";
 import { hasBlockingClosingWarnings } from "../../lib/closing";
 import { formatMoneyInput, formatUsd } from "../../lib/money";
@@ -182,14 +185,26 @@ export function FinancePageClient() {
     return params;
   }, [paymentMethod, amountType, highlightFilter, dateFrom, dateTo, memberIds]);
 
-  const loadSummary = useCallback(async (override: FinanceRangeOverride = {}) => {
+  const summaryRequests = useRef(new LatestRequest()).current;
+  const detailRequests = useRef(new LatestRequest()).current;
+  const cashRequests = useRef(new LatestRequest()).current;
+  const closingRequests = useRef(new LatestRequest()).current;
+  const financeScope = `${membership?.store.id}:${financeParams()}`;
+  summaryRequests.setScope(financeScope);
+  detailRequests.setScope(financeScope);
+  cashRequests.setScope(`${membership?.store.id}:${cashDate}`);
+  closingRequests.setScope(`${membership?.store.id}:${cashDate}`);
+
+  const loadSummary = useCallback(async (override: FinanceRangeOverride = {}, background = false) => {
     if (!membership) return;
+    const isCurrent = summaryRequests.begin();
     const params = financeParams(override);
     const result = await apiRequest<FinanceSummaryResponse>(
       `/stores/${membership.store.id}/finance/summary?${params}`,
     );
+    if (!isCurrent()) return;
     setSummary(result);
-    setDetails(null);
+    if (!background) setDetails(null);
     setDateFrom(result.filters.dateFrom);
     setDateTo(result.filters.dateTo);
   }, [membership, financeParams]);
@@ -200,34 +215,35 @@ export function FinancePageClient() {
 
   const loadDetails = useCallback(async (override: FinanceRangeOverride = {}) => {
     if (!membership) return;
-    setDetails(await apiRequest<FinanceDetailsResponse>(`/stores/${membership.store.id}/finance/details?${financeParams(override)}`));
+    const isCurrent = detailRequests.begin();
+    const result = await apiRequest<FinanceDetailsResponse>(`/stores/${membership.store.id}/finance/details?${financeParams(override)}`);
+    if (isCurrent()) setDetails(result);
   }, [membership, financeParams]);
 
   const loadCash = useCallback(async () => {
     if (!membership || !cashDate) return;
-    setCashData(
-      await apiRequest<CashSettlementResponse>(
-        `/stores/${membership.store.id}/cash-settlements/${cashDate}`,
-      ),
-    );
+    const isCurrent = cashRequests.begin();
+    const result = await apiRequest<CashSettlementResponse>(`/stores/${membership.store.id}/cash-settlements/${cashDate}`);
+    if (isCurrent()) setCashData(result);
   }, [membership, cashDate]);
 
   const loadClosing = useCallback(async () => {
     if (!membership || !cashDate) return;
+    const isCurrent = closingRequests.begin();
     if (canManage) {
       setClosing(null);
       const result = await apiRequest<ClosingPreview>(`/stores/${membership.store.id}/closings/${cashDate}/preview`);
+      const deliveries = result.isClosed ? await apiRequest<ClosingDeliveryList>(`/stores/${membership.store.id}/closings/${cashDate}/deliveries`) : null;
+      if (!isCurrent()) return;
       setClosing(result);
-      setClosingDeliveries(result.isClosed ? await apiRequest<ClosingDeliveryList>(`/stores/${membership.store.id}/closings/${cashDate}/deliveries`) : null);
+      setClosingDeliveries(deliveries);
       setMyClosing(null);
       return;
     }
     setMyClosing(null);
-    setMyClosing(
-      await apiRequest<EmployeeClosingPreview>(
-        `/stores/${membership.store.id}/closings/${cashDate}/members/${membership.id}/preview`,
-      ),
-    );
+    const personal = await apiRequest<EmployeeClosingPreview>(`/stores/${membership.store.id}/closings/${cashDate}/members/${membership.id}/preview`);
+    if (!isCurrent()) return;
+    setMyClosing(personal);
     setClosing(null);
   }, [membership, cashDate, canManage]);
 
@@ -246,9 +262,10 @@ export function FinancePageClient() {
 
   useEffect(() => {
     if (!membership || !canManage || tab !== "closing" || !closing?.isClosed || !cashDate) return;
-    const load = () => void apiRequest<ClosingDeliveryList>(`/stores/${membership.store.id}/closings/${cashDate}/deliveries`).then(setClosingDeliveries).catch(() => undefined);
+    let cancelled = false;
+    const load = () => void apiRequest<ClosingDeliveryList>(`/stores/${membership.store.id}/closings/${cashDate}/deliveries`).then(result => { if (!cancelled) setClosingDeliveries(result); }).catch(() => undefined);
     const timer = window.setInterval(load, 15_000);
-    return () => window.clearInterval(timer);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [membership, canManage, tab, closing?.isClosed, cashDate]);
 
   const loadPayroll = useCallback(async () => {
@@ -271,7 +288,7 @@ export function FinancePageClient() {
   }, [membership, canManage]);
 
   const realtimeState = useStoreRealtime(membership?.store.id, async () => {
-    await Promise.all([loadSummary(), loadCash(), loadPayroll(), loadClosing(), loadGiftCards()]);
+    await Promise.all([loadSummary({}, true), loadCash(), loadPayroll(), loadClosing(), loadGiftCards()]);
   });
 
   useEffect(() => {
@@ -282,7 +299,7 @@ export function FinancePageClient() {
         const selected =
           profile.memberships.find((item) => item.store.id === requestedStore) ??
           profile.memberships.find(
-            (item) => item.store.id === window.localStorage.getItem("massage_note_store_id"),
+            (item) => item.store.id === browserStorage.getItem("massage_note_store_id"),
           ) ??
           profile.memberships[0];
         if (!selected) {
@@ -353,6 +370,7 @@ export function FinancePageClient() {
 
   useEffect(() => {
     if (!cashDate || !membership) return;
+    setCashData(null);
     void loadCash().catch((caught) => setError(errorMessage(caught)));
     void loadClosing().catch((caught) => setError(errorMessage(caught)));
   }, [cashDate, membership, canManage, loadCash, loadClosing]);
@@ -555,7 +573,7 @@ export function FinancePageClient() {
         <PayrollPanel storeId={membership.store.id} businessDate={day.businessDate} canManage={canManage} members={members} settlements={payroll} busy={busy} run={run} reload={async () => { await loadPayroll(); await loadSummary(); }} />
       )}
 
-      <FloatingAiAssistant storeId={membership.store.id} type="finance" />
+      <FloatingAiAssistant storeId={membership.store.id} timezone={membership.store.timezone} type="finance" />
       {details && <FinanceDetailsDialog details={details} title={detailsTitle} onClose={() => setDetails(null)} />}
       {editingRecord && catalog && storeDetails && (
         <RecordEditor

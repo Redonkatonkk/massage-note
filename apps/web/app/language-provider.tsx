@@ -1,5 +1,7 @@
 "use client";
 
+import { browserStorage } from "../lib/browser-storage";
+
 import {
   createContext,
   type ReactNode,
@@ -112,7 +114,7 @@ export function LanguageProvider({
   }, [locale]);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+    const stored = browserStorage.getItem(LOCALE_STORAGE_KEY);
     if (isAppLocale(stored) && stored !== locale) {
       setLocaleState(stored);
       document.cookie = `${LOCALE_COOKIE}=${stored}; Max-Age=31536000; Path=/; SameSite=Lax`;
@@ -137,7 +139,7 @@ export function LanguageProvider({
 
   function setLocale(next: AppLocale) {
     setLocaleState(next);
-    window.localStorage.setItem(LOCALE_STORAGE_KEY, next);
+    browserStorage.setItem(LOCALE_STORAGE_KEY, next);
     document.cookie = `${LOCALE_COOKIE}=${next}; Max-Age=31536000; Path=/; SameSite=Lax`;
   }
 

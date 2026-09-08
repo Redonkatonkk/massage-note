@@ -18,6 +18,7 @@ docs/
 | 确认角色、流程或金额口径 | [`PRODUCT.md`](product/PRODUCT.md) | 对应领域测试 |
 | 定位模块、路由或写入链路 | [`ARCHITECTURE.md`](engineering/ARCHITECTURE.md) | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.md) |
 | 修改代码或数据库 | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.md) | [`ARCHITECTURE.md`](engineering/ARCHITECTURE.md)、对应测试 |
+| 查看本轮审查与修复结果 | [`CODE_REVIEW_2026-09-08.md`](engineering/CODE_REVIEW_2026-09-08.md) | 根目录 [`CHANGELOG.md`](../CHANGELOG.md) |
 | 调用或修改 HTTP 接口 | [`API.md`](engineering/API.md) | 共享契约、Controller 和集成测试 |
 | 普通 Linux 生产部署 | [`DEPLOYMENT.md`](operations/DEPLOYMENT.md) | [`SECURITY.md`](operations/SECURITY.md) |
 | 群晖发布或升级 | [`NAS_DEPLOYMENT.md`](operations/NAS_DEPLOYMENT.md) | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md) |

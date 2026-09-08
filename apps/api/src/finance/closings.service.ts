@@ -52,10 +52,12 @@ export class ClosingsService {
     storeId: string,
     businessDate: string,
     targetMembershipId: string,
+    client: Prisma.TransactionClient = this.prisma,
   ) {
     const actorMembership = await this.access.requireActiveMembership(
       actor.id,
       storeId,
+      client,
     );
     if (
       !canReadEmployeeFinance({
@@ -69,7 +71,7 @@ export class ClosingsService {
         messageZh: "员工只能查看自己的日结信息",
       });
     }
-    const target = await this.prisma.storeMembership.findFirst({
+    const target = await client.storeMembership.findFirst({
       where: {
         id: targetMembershipId,
         storeId,
@@ -85,7 +87,7 @@ export class ClosingsService {
       });
     }
     const preview = await this.buildPreview(
-      this.prisma,
+      client,
       storeId,
       businessDate,
       targetMembershipId,
@@ -120,9 +122,9 @@ export class ClosingsService {
         }
       : null;
     const confirmedLargeFeeWageCents =
-      employee.cashLargeFeeDividendCents + employee.cardLargeFeeDividendCents;
+      this.safeNumber(BigInt(employee.cashLargeFeeDividendCents) + BigInt(employee.cardLargeFeeDividendCents));
     const confirmedTipWageCents =
-      employee.cashTipDividendCents + employee.cardTipDividendCents;
+      this.safeNumber(BigInt(employee.cashTipDividendCents) + BigInt(employee.cardTipDividendCents));
     return {
       storeId,
       storeName: target.store.name,
@@ -138,7 +140,7 @@ export class ClosingsService {
         confirmedLargeFeeWageCents,
         confirmedTipWageCents,
         confirmedIncomeCents:
-          confirmedLargeFeeWageCents + confirmedTipWageCents,
+          this.safeNumber(BigInt(confirmedLargeFeeWageCents) + BigInt(confirmedTipWageCents)),
       },
       records: preview.personalRecords ?? [],
     };
@@ -572,7 +574,7 @@ export class ClosingsService {
         });
       },
     );
-    const workRecordTotals = employees.reduce(
+    const workRecordTotals = this.safeTotals([...employeeMap.values()].reduce(
       (total, item) => ({
         recordCount: total.recordCount + item.recordCount,
         grossFeeBaseCents: total.grossFeeBaseCents + item.grossFeeBaseCents,
@@ -591,16 +593,16 @@ export class ClosingsService {
       }),
       {
         recordCount: 0,
-        grossFeeBaseCents: 0,
-        discountTotalCents: 0,
-        discountedFeePerformanceCents: 0,
-        totalTipCents: 0,
-        customerTotalPaidCents: 0,
-        totalLargeFeeWageCents: 0,
-        employeeIncomeCents: 0,
+        grossFeeBaseCents: 0n,
+        discountTotalCents: 0n,
+        discountedFeePerformanceCents: 0n,
+        totalTipCents: 0n,
+        customerTotalPaidCents: 0n,
+        totalLargeFeeWageCents: 0n,
+        employeeIncomeCents: 0n,
         incompleteRecordCount: 0,
       },
-    );
+    ));
     const giftCardSaleTotals = giftCardSales.reduce(
       (total, sale) => ({
         giftCardSaleCount: total.giftCardSaleCount + 1,
@@ -685,8 +687,8 @@ export class ClosingsService {
       itemCount:
         workRecordTotals.recordCount + safeGiftCardSaleTotals.giftCardSaleCount,
       customerTotalPaidCents:
-        workRecordTotals.customerTotalPaidCents +
-        safeGiftCardSaleTotals.giftCardSalesAmountCents,
+        this.safeNumber(BigInt(workRecordTotals.customerTotalPaidCents) +
+        giftCardSaleTotals.giftCardSalesAmountCents),
       giftCardRedemptionCents,
       storeIncomeCents: this.safeNumber(
         calculateStoreIncome({

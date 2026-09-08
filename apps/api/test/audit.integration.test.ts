@@ -57,6 +57,8 @@ describe.skipIf(!enabled).sequential("审计查询与店铺隔离", () => {
       await prisma.auditLog.deleteMany({ where: { storeId } });
       await prisma.domainOutbox.deleteMany({ where: { storeId } });
       await prisma.store.update({ where: { id: storeId }, data: { ownerMembershipId: null } });
+      await prisma.dailyEmployeeRow.deleteMany({ where: { storeId } });
+      await prisma.dailyBoard.deleteMany({ where: { storeId } });
       await prisma.storeMembership.deleteMany({ where: { storeId } });
       await prisma.store.delete({ where: { id: storeId } });
       await prisma.user.deleteMany({ where: { id: { in: [ownerId, employeeId] } } });

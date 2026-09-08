@@ -1,3 +1,5 @@
+import { lockBusinessDay } from "../common/business-day-lock.js";
+import { claimedDeliveryWhere, requireDeliveryLease } from "./delivery-lease.js";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import {
   ConflictException,
@@ -100,6 +102,9 @@ export class ClosingDeliveriesService {
       return [{ member, phone, locale: member.closingImageLocale ?? member.store.closingDefaultLocale }];
     });
     const created = await this.prisma.$transaction(async (transaction) => {
+      await lockBusinessDay(transaction, storeId, businessDate);
+      const stillClosed = await transaction.businessDayClosing.findFirst({ where: { id: closing.id, storeId, status: "CLOSED" } });
+      if (!stillClosed) throw new ConflictException({ code: "CLOSING_REQUIRED_FOR_DELIVERY", messageZh: "日结状态已变化，请刷新后重试" });
       const rows = [];
       for (const item of eligible) {
         const existing = await transaction.employeeClosingDelivery.findFirst({
@@ -116,7 +121,7 @@ export class ClosingDeliveriesService {
           }
           continue;
         }
-        const snapshot = await this.closings.previewMember(actor, storeId, businessDate, item.member.id);
+        const snapshot = await this.closings.previewMember(actor, storeId, businessDate, item.member.id, transaction);
         const delivery = await transaction.employeeClosingDelivery.upsert({
           where: { storeId_closingId_membershipId_kind_requestKey: { storeId, closingId: closing.id, membershipId: item.member.id, kind: "INITIAL", requestKey: "initial" } },
           update: {},
@@ -139,7 +144,7 @@ export class ClosingDeliveriesService {
         rows.push(delivery);
       }
       return rows;
-    });
+    }, { timeout: 20_000 });
     return { queuedCount: created.length, skippedCount: skipped.length, skipped, deliveries: created };
   }
 
@@ -154,39 +159,44 @@ export class ClosingDeliveriesService {
     if (!member.closingDeliveryEnabled) throw new ConflictException({ code: "CLOSING_DELIVERY_DISABLED", messageZh: "这位员工尚未开启接收个人日结" });
     const phone = member.closingDeliveryPhoneE164 ?? member.user?.phoneE164;
     if (!isE164Phone(phone)) throw new ConflictException({ code: "CLOSING_DELIVERY_PHONE_MISSING", messageZh: "这位员工没有有效接收号码" });
-    const existing = await this.prisma.employeeClosingDelivery.findFirst({
-      where: { storeId, closingId: closing.id, membershipId, kind: "RESEND", requestKey },
-    });
-    if (existing) {
-      if (existing.status === "QUEUED" && !isE164Phone(existing.recipientPhoneE164)) {
-        return this.prisma.employeeClosingDelivery.update({
-          where: { id: existing.id },
-          data: { recipientPhoneE164: phone, lastErrorCode: null, lastError: null },
-        });
+    return this.prisma.$transaction(async (transaction) => {
+      await lockBusinessDay(transaction, storeId, businessDate);
+      const stillClosed = await transaction.businessDayClosing.findFirst({ where: { id: closing.id, storeId, status: "CLOSED" } });
+      if (!stillClosed) throw new ConflictException({ code: "CLOSING_REQUIRED_FOR_DELIVERY", messageZh: "日结状态已变化，请刷新后重试" });
+      const existing = await transaction.employeeClosingDelivery.findFirst({
+        where: { storeId, closingId: closing.id, membershipId, kind: "RESEND", requestKey },
+      });
+      if (existing) {
+        if (existing.status === "QUEUED" && !isE164Phone(existing.recipientPhoneE164)) {
+          return transaction.employeeClosingDelivery.update({
+            where: { id: existing.id },
+            data: { recipientPhoneE164: phone, lastErrorCode: null, lastError: null },
+          });
+        }
+        return existing;
       }
-      return existing;
-    }
-    const snapshot = await this.closings.previewMember(actor, storeId, businessDate, membershipId);
-    const delivery = await this.prisma.employeeClosingDelivery.upsert({
-      where: { storeId_closingId_membershipId_kind_requestKey: { storeId, closingId: closing.id, membershipId, kind: "RESEND", requestKey } },
-      update: {},
-      create: {
-        storeId, closingId: closing.id, membershipId, kind: "RESEND",
-        recipientPhoneE164: phone,
-        locale: member.closingImageLocale ?? member.store.closingDefaultLocale,
-        snapshotJson: snapshot as unknown as Prisma.InputJsonValue,
-        queuedBy: actor.id, requestKey,
-      },
-    });
-    await this.prisma.auditLog.create({
-      data: {
-        storeId, actorUserId: actor.id, actorMembershipId: actorMembership.id,
-        source: "api", action: "employee_closing.delivery_queued", entityType: "employee_closing_delivery",
-        entityId: delivery.id, businessDate: closing.businessDate,
-        afterJson: { membershipId, closingId: closing.id, kind: "RESEND", locale: delivery.locale }, requestId,
-      },
-    });
-    return delivery;
+      const snapshot = await this.closings.previewMember(actor, storeId, businessDate, membershipId, transaction);
+      const delivery = await transaction.employeeClosingDelivery.upsert({
+        where: { storeId_closingId_membershipId_kind_requestKey: { storeId, closingId: closing.id, membershipId, kind: "RESEND", requestKey } },
+        update: {},
+        create: {
+          storeId, closingId: closing.id, membershipId, kind: "RESEND",
+          recipientPhoneE164: phone,
+          locale: member.closingImageLocale ?? member.store.closingDefaultLocale,
+          snapshotJson: snapshot as unknown as Prisma.InputJsonValue,
+          queuedBy: actor.id, requestKey,
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          storeId, actorUserId: actor.id, actorMembershipId: actorMembership.id,
+          source: "api", action: "employee_closing.delivery_queued", entityType: "employee_closing_delivery",
+          entityId: delivery.id, businessDate: closing.businessDate,
+          afterJson: { membershipId, closingId: closing.id, kind: "RESEND", locale: delivery.locale }, requestId,
+        },
+      });
+      return delivery;
+    }, { timeout: 20_000 });
   }
 
   async cancel(actor: User, storeId: string, businessDate: string, deliveryId: string, requestId: string) {
@@ -211,40 +221,42 @@ export class ClosingDeliveriesService {
         messageZh: "只有仍在排队、尚未交给信息 App 的任务可以取消",
       });
     }
-    const cancelled = await this.prisma.employeeClosingDelivery.updateMany({
-      where: { id: delivery.id, status: "QUEUED" },
-      data: {
-        status: "CANCELLED",
-        leaseToken: null,
-        leaseExpiresAt: null,
-        lastErrorCode: "CANCELLED_BY_MANAGER",
-        lastError: "店主或经理已取消发送",
-      },
-    });
-    if (cancelled.count !== 1) {
-      throw new ConflictException({
-        code: "CLOSING_DELIVERY_NOT_CANCELLABLE",
-        messageZh: "任务状态刚刚发生变化，请刷新后再检查",
+    return this.prisma.$transaction(async (transaction) => {
+      const cancelled = await transaction.employeeClosingDelivery.updateMany({
+        where: { id: delivery.id, status: "QUEUED" },
+        data: {
+          status: "CANCELLED",
+          leaseToken: null,
+          leaseExpiresAt: null,
+          lastErrorCode: "CANCELLED_BY_MANAGER",
+          lastError: "店主或经理已取消发送",
+        },
       });
-    }
-    const updated = await this.prisma.employeeClosingDelivery.findUniqueOrThrow({
-      where: { id: delivery.id },
+      if (cancelled.count !== 1) {
+        throw new ConflictException({
+          code: "CLOSING_DELIVERY_NOT_CANCELLABLE",
+          messageZh: "任务状态刚刚发生变化，请刷新后再检查",
+        });
+      }
+      const updated = await transaction.employeeClosingDelivery.findUniqueOrThrow({
+        where: { id: delivery.id },
+      });
+      await transaction.auditLog.create({
+        data: {
+          storeId,
+          actorUserId: actor.id,
+          actorMembershipId: actorMembership.id,
+          source: "api",
+          action: "employee_closing.delivery_cancelled",
+          entityType: "employee_closing_delivery",
+          entityId: delivery.id,
+          businessDate: delivery.closing.businessDate,
+          afterJson: { membershipId: delivery.membershipId, status: "CANCELLED" },
+          requestId,
+        },
+      });
+      return updated;
     });
-    await this.prisma.auditLog.create({
-      data: {
-        storeId,
-        actorUserId: actor.id,
-        actorMembershipId: actorMembership.id,
-        source: "api",
-        action: "employee_closing.delivery_cancelled",
-        entityType: "employee_closing_delivery",
-        entityId: delivery.id,
-        businessDate: delivery.closing.businessDate,
-        afterJson: { membershipId: delivery.membershipId, status: "CANCELLED" },
-        requestId,
-      },
-    });
-    return updated;
   }
 
   async rotateAgentCredential(actor: User, storeId: string, requestId: string) {
@@ -344,7 +356,7 @@ export class ClosingDeliveriesService {
     const agent = await this.authenticateAgent(authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
     if (job.closing.status !== "CLOSED") {
-      await this.prisma.employeeClosingDelivery.update({ where: { id: job.id }, data: { status: "CANCELLED", leaseToken: null, leaseExpiresAt: null } });
+      await this.prisma.employeeClosingDelivery.updateMany({ where: claimedDeliveryWhere(agent.storeId, job.id, leaseToken), data: { status: "CANCELLED", leaseToken: null, leaseExpiresAt: null } });
       return { authorized: false };
     }
     return { authorized: true };
@@ -354,10 +366,10 @@ export class ClosingDeliveriesService {
     const agent = await this.authenticateAgent(authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
     const sentAt = new Date();
-    await this.prisma.$transaction([
-      this.prisma.employeeClosingDelivery.update({ where: { id: job.id }, data: { status: "SENT", sentAt, leaseToken: null, leaseExpiresAt: null, lastError: null, lastErrorCode: null } }),
-      this.prisma.auditLog.create({ data: { storeId: job.storeId, actorUserId: null, actorMembershipId: null, source: "messages_agent", action: "employee_closing.delivery_sent", entityType: "employee_closing_delivery", entityId: job.id, businessDate: job.closing.businessDate, afterJson: { membershipId: job.membershipId, sentAt: sentAt.toISOString() }, requestId: `agent:${job.id}` } }),
-    ]);
+    await this.prisma.$transaction(async (transaction) => {
+      requireDeliveryLease(await transaction.employeeClosingDelivery.updateMany({ where: claimedDeliveryWhere(agent.storeId, job.id, leaseToken), data: { status: "SENT", sentAt, leaseToken: null, leaseExpiresAt: null, lastError: null, lastErrorCode: null } }));
+      await transaction.auditLog.create({ data: { storeId: job.storeId, actorUserId: null, actorMembershipId: null, source: "messages_agent", action: "employee_closing.delivery_sent", entityType: "employee_closing_delivery", entityId: job.id, businessDate: job.closing.businessDate, afterJson: { membershipId: job.membershipId, sentAt: sentAt.toISOString() }, requestId: `agent:${job.id}` } });
+    });
     return { sent: true, sentAt };
   }
 
@@ -365,14 +377,14 @@ export class ClosingDeliveriesService {
     const agent = await this.authenticateAgent(authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, input.leaseToken);
     const retry = input.retryable && job.attemptCount < 3;
-    await this.prisma.employeeClosingDelivery.update({
-      where: { id: job.id },
+    requireDeliveryLease(await this.prisma.employeeClosingDelivery.updateMany({
+      where: claimedDeliveryWhere(agent.storeId, job.id, input.leaseToken),
       data: {
         status: retry ? "QUEUED" : "FAILED", leaseToken: null, leaseExpiresAt: null,
         nextAttemptAt: retry ? new Date(Date.now() + 30_000 * job.attemptCount) : new Date(),
         lastErrorCode: input.code, lastError: input.message,
       },
-    });
+    }));
     return { retryScheduled: retry };
   }
 
@@ -393,14 +405,14 @@ export class ClosingDeliveriesService {
     const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
     const prefix = token?.match(/^mna_([a-f0-9]{10})_/)?.[1];
     if (!token || !prefix) throw new UnauthorizedException({ code: "DELIVERY_AGENT_TOKEN_REQUIRED", messageZh: "发送代理凭证无效" });
-    const agent = await this.prisma.closingDeliveryAgent.findUnique({ where: { tokenPrefix: prefix } });
+    const agent = await this.prisma.closingDeliveryAgent.findUnique({ where: { tokenPrefix: prefix }, include: { store: { select: { status: true, deletedAt: true } } } });
     const presentedHash = tokenHash(token);
-    if (!agent || agent.revokedAt || agent.tokenHash.length !== presentedHash.length || !timingSafeEqual(Buffer.from(agent.tokenHash), Buffer.from(presentedHash))) throw new UnauthorizedException({ code: "DELIVERY_AGENT_TOKEN_INVALID", messageZh: "发送代理凭证无效或已撤销" });
+    if (!agent || agent.revokedAt || agent.store.status !== "ACTIVE" || agent.store.deletedAt || agent.tokenHash.length !== presentedHash.length || !timingSafeEqual(Buffer.from(agent.tokenHash), Buffer.from(presentedHash))) throw new UnauthorizedException({ code: "DELIVERY_AGENT_TOKEN_INVALID", messageZh: "发送代理凭证无效或已撤销" });
     return agent;
   }
 
   private async findClaimed(storeId: string, deliveryId: string, leaseToken: string) {
-    const job = await this.prisma.employeeClosingDelivery.findFirst({ where: { id: deliveryId, storeId, status: "CLAIMED", leaseToken }, include: { closing: true } });
+    const job = await this.prisma.employeeClosingDelivery.findFirst({ where: claimedDeliveryWhere(storeId, deliveryId, leaseToken), include: { closing: true } });
     if (!job) throw new ForbiddenException({ code: "DELIVERY_LEASE_INVALID", messageZh: "发送任务租约无效或已经过期" });
     return job;
   }

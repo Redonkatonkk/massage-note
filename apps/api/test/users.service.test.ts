@@ -21,7 +21,7 @@ function serviceFor(passwordHash: string | null, verifies = true) {
   const prisma = {
     user: {
       findUniqueOrThrow: vi.fn().mockResolvedValue({ passwordHash }),
-      update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
   };
   const passwords = {
@@ -39,6 +39,12 @@ function serviceFor(passwordHash: string | null, verifies = true) {
 }
 
 describe("个人密码", () => {
+  it("拒绝覆盖并发更新后的密码", async () => {
+    const { service, prisma } = serviceFor("old-hash");
+    prisma.user.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.updatePassword(user, { currentPassword: "old-pass-123", newPassword: "new-pass-123" }))
+      .rejects.toMatchObject({ response: { code: "PASSWORD_CHANGED" } });
+  });
   it("个人资料只返回仍然有效的店铺成员关系", async () => {
     const { service, prisma } = serviceFor(null);
 
@@ -66,8 +72,8 @@ describe("个人密码", () => {
       .resolves.toEqual({ hasPassword: true });
     expect(passwords.verify).not.toHaveBeenCalled();
     expect(passwords.hash).toHaveBeenCalledWith("new-pass-123");
-    expect(prisma.user.update).toHaveBeenCalledWith({
-      where: { id: user.id },
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { id: user.id, passwordHash: null },
       data: { passwordHash: "new-hash" },
     });
   });
@@ -81,7 +87,7 @@ describe("个人密码", () => {
     })).rejects.toBeInstanceOf(UnauthorizedException);
     expect(passwords.verify).toHaveBeenCalledWith("wrong-pass", "old-hash");
     expect(passwords.hash).not.toHaveBeenCalled();
-    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
   });
 
   it("已有密码且验证通过时更新密码", async () => {
@@ -91,8 +97,8 @@ describe("个人密码", () => {
       currentPassword: "old-pass-123",
       newPassword: "new-pass-123",
     })).resolves.toEqual({ hasPassword: true });
-    expect(prisma.user.update).toHaveBeenCalledWith({
-      where: { id: user.id },
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { id: user.id, passwordHash: "old-hash" },
       data: { passwordHash: "new-hash" },
     });
   });

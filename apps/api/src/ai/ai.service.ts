@@ -106,7 +106,14 @@ export class AiService {
       if (mentionsCash && (/(结清|应交|保留)/u.test(input.text) || /\b(?:settled?|submit|keep|retain)\b/i.test(input.text))) {
         cashContext = await this.cash.list(actor, storeId, dates.dateTo!);
       }
-      const safeContext = toJsonSafe({ summary, cash: cashContext });
+      const dailyDiscountedFees = /每天|每日|逐日|按天|\bdaily\b|\beach day\b|\bper day\b/i.test(input.text)
+        && /折后大费|折后.*大费|大费.*折后|service fees? after discounts?|discounted service fees?/i.test(input.text);
+      const dailyAnswer = dailyDiscountedFees ? this.dailyDiscountedFeesAnswer(summary, locale) : "";
+      const safeContext = toJsonSafe({
+        summary,
+        cash: cashContext,
+        dateRange: { ...dates, basis: "store business date", includesCurrentBusinessDate: true },
+      });
       let answer: string;
       let provider = "deterministic";
       let model = "finance-engine";
@@ -115,7 +122,7 @@ export class AiService {
           system: locale === "en-US"
             ? "You are a massage-store finance explanation assistant. Use only the supplied deterministic statistics. Do not calculate independently, guess, request, or expose data from other stores. Answer in English and state the date range, employee scope, and payment scope. Use U.S. dollars and display every amount as a whole dollar without a decimal point."
             : "你是按摩店财务解释助手。只能依据提供的确定性统计上下文回答，不自行计算、不猜测、不得要求或暴露其他店铺数据。回答必须用中文，注明日期范围、员工范围和付款口径。金额使用美元，并统一显示为不带小数点的整美元。",
-          user: `用户问题：${input.text}\n\n后端确定性统计上下文：${JSON.stringify(safeContext)}`,
+          user: `用户问题：${input.text}\n日期范围以 summary.filters 为准，使用店铺营业日，含首尾两天；不得自行用系统日期重新推算。${dailyAnswer ? "后端会在你的回答后附上完整逐日折后大费清单；你只需概述，不重复逐日数据。未列入 summary.days 的日期表示当前筛选下无记录，不表示未查询。" : ""}\n\n后端确定性统计上下文：${JSON.stringify(safeContext)}`,
         });
         answer = normalizeWholeUsdText(result.content);
         provider = result.provider;
@@ -140,6 +147,7 @@ export class AiService {
               : ` 尚未结清现金：${unsettled.map((row) => `${row.displayName}（应提交店铺 ${money(row.cashToSubmitToStoreCents)}，应保留 ${money(row.cashRetainedCents)}）`).join("；")}。`;
         }
       }
+      if (dailyAnswer) answer += `\n\n${dailyAnswer}`;
       await this.logQuery(conversation.id, storeId, actor.id, provider, model, input.text, { query }, safeContext, "SUCCESS", Date.now() - started);
       return { conversationId: conversation.id, answer, context: { filters: summary.filters, totals: summary.totals }, providerConfigured: this.model.isConfigured() };
     } catch (error) {
@@ -161,8 +169,8 @@ export class AiService {
     if (this.model.isConfigured()) {
       const result = await this.model.complete({
         system: locale === "en-US"
-          ? `You are a massage-store work-record assistant. Select only from the supplied employees, main services and duration/price options, add-ons, discounts, and today's records; never invent IDs. Creating or changing a main service requires both serviceName and serviceDurationMinutes. Ask a clarifying question without calling a tool if information is incomplete or ambiguous. Convert every amount to integer cents. When addons or discounts are present in an edit, they must be the complete updated list and must retain existing items the user did not ask to remove. Deletion requires an explicit reason. The current user is “${membership.displayName}”. Respond in English.`
-          : `你是中文按摩店记工助手。只能从给定员工、主要项目及其时长价格、额外项目、折扣和今日记录中选择，不得编造 ID。新增或更换主要项目时必须同时提供 serviceName 和 serviceDurationMinutes；信息不完整或有歧义时直接追问，不调用工具。所有金额参数必须换算为整数美分。修改记录时 addons 和 discounts 若出现，必须表示修改后的完整列表；结合记录上下文保留用户没有要求删除的原有项目。删除必须有明确原因。当前调用者是“${membership.displayName}”。`,
+          ? `You are a massage-store work-record assistant. Select only from the supplied employees, main services and duration/price options, add-ons, discounts, and today's records; never invent IDs. Creating or changing a main service requires both serviceName and serviceDurationMinutes. Ask a clarifying question without calling a tool if information is incomplete or ambiguous. Convert every amount to integer cents. When addons or discounts are present in an edit, they must be the complete updated list and must retain existing items the user did not ask to remove. Payment fields in an edit change only the supplied fields; explicitly set the previous method to zero when switching payment methods. Deletion requires an explicit reason. The current user is “${membership.displayName}”. Respond in English.`
+          : `你是中文按摩店记工助手。只能从给定员工、主要项目及其时长价格、额外项目、折扣和今日记录中选择，不得编造 ID。新增或更换主要项目时必须同时提供 serviceName 和 serviceDurationMinutes；信息不完整或有歧义时直接追问，不调用工具。所有金额参数必须换算为整数美分。修改记录时 addons 和 discounts 若出现，必须表示修改后的完整列表；结合记录上下文保留用户没有要求删除的原有项目。付款字段只修改明确提供的项；切换付款方式时，必须显式把原付款方式金额设为 0。删除必须有明确原因。当前调用者是“${membership.displayName}”。`,
         user: `用户输入：${input.text}\n可选员工、项目和今日记录：${JSON.stringify(toJsonSafe(context))}`,
         tools: [{ type: "function", function: { name: "prepare_work_change", description: "只生成记工变更预览，不直接写入", parameters: workChangeToolParameters } }],
       });
@@ -211,51 +219,46 @@ export class AiService {
       throw new ConflictException({ code: "AI_PREVIEW_EXPIRED", messageZh: "预览已过期，请重新生成" });
     }
     if (preview.consumedAt) throw new ConflictException({ code: "AI_PREVIEW_ALREADY_CONSUMED", messageZh: "该预览已经执行，不能重复提交" });
-    const claimed = await this.prisma.aiChangePreview.updateMany({
-      where: { id: preview.id, storeId, userId: actor.id, status: "PENDING", consumedAt: null },
-      data: { status: "CONFIRMED", confirmedAt: new Date() },
-    });
-    if (claimed.count !== 1) {
-      const latest = await this.findPreview(actor.id, storeId, previewId);
-      if (latest.consumedAt) throw new ConflictException({ code: "AI_PREVIEW_ALREADY_CONSUMED", messageZh: "该预览已经执行，不能重复提交" });
-      if (latest.status === "CONFIRMED") throw new ConflictException({ code: "AI_PREVIEW_EXECUTING", messageZh: "该预览正在执行，请勿重复提交" });
-      throw new ConflictException({ code: "AI_PREVIEW_NOT_CONFIRMABLE", messageZh: "该预览不能执行" });
-    }
+    return this.prisma.$transaction(async (transaction) => {
+      const [lock] = await transaction.$queryRaw<Array<{ acquired: boolean }>>`
+        SELECT pg_try_advisory_xact_lock(hashtextextended(${`ai-preview:${preview.id}`}, 0)) AS acquired
+      `;
+      if (!lock?.acquired) throw new ConflictException({ code: "AI_PREVIEW_EXECUTING", messageZh: "该预览正在执行，请勿重复提交" });
+      const claimed = await transaction.aiChangePreview.updateMany({
+        where: { id: preview.id, storeId, userId: actor.id, status: "PENDING", consumedAt: null, expiresAt: { gt: new Date() } },
+        data: { status: "CONFIRMED", confirmedAt: new Date() },
+      });
+      if (claimed.count !== 1) {
+        const latest = await transaction.aiChangePreview.findUniqueOrThrow({ where: { id: previewId } });
+        if (latest.consumedAt) throw new ConflictException({ code: "AI_PREVIEW_ALREADY_CONSUMED", messageZh: "该预览已经执行，不能重复提交" });
+        if (latest.status === "CONFIRMED") throw new ConflictException({ code: "AI_PREVIEW_EXECUTING", messageZh: "该预览正在执行，请勿重复提交" });
+        throw new ConflictException({ code: "AI_PREVIEW_NOT_CONFIRMABLE", messageZh: "该预览不能执行" });
+      }
 
-    try {
       const payload = preview.canonicalPayloadJson as Record<string, unknown>;
       let result: unknown;
       if (preview.operation === "CREATE_WORK_RECORD") {
-        let record = await this.workRecords.create(actor, storeId, payload.create as never, `ai-${preview.id}-create`, requestId);
-        if (payload.updateAfterCreate) record = await this.workRecords.update(actor, storeId, record.id, { version: record.version, ...(payload.updateAfterCreate as object) } as never, `ai-${preview.id}-update`, requestId);
-        if (payload.payment) record = await this.workRecords.confirmPayment(actor, storeId, record.id, { version: record.version, ...(payload.payment as object) } as never, `ai-${preview.id}-payment`, requestId);
+        let record = await this.workRecords.create(actor, storeId, payload.create as never, `ai-${preview.id}-create`, requestId, transaction);
+        if (payload.updateAfterCreate) record = await this.workRecords.update(actor, storeId, record.id, { version: record.version, ...(payload.updateAfterCreate as object) } as never, `ai-${preview.id}-update`, requestId, transaction);
+        if (payload.payment) record = await this.workRecords.confirmPayment(actor, storeId, record.id, { version: record.version, ...(payload.payment as object) } as never, `ai-${preview.id}-payment`, requestId, transaction);
         result = record;
       } else if (preview.operation === "UPDATE_WORK_RECORD") {
         const recordId = String(payload.recordId);
         const baseVersion = Number((preview.baseVersionsJson as Record<string, unknown>).workRecord);
-        let record: Awaited<ReturnType<WorkRecordsService["update"]>> = await this.workRecords.get(actor, storeId, recordId);
-        if (payload.update) record = await this.workRecords.update(actor, storeId, recordId, payload.update as never, `ai-${preview.id}-update`, requestId);
-        if (payload.payment) record = await this.workRecords.confirmPayment(actor, storeId, recordId, { version: payload.update ? record.version : baseVersion, ...(payload.payment as object) } as never, `ai-${preview.id}-payment`, requestId);
+        let record: Awaited<ReturnType<WorkRecordsService["update"]>> = await this.workRecords.get(actor, storeId, recordId, transaction);
+        if (payload.update) record = await this.workRecords.update(actor, storeId, recordId, payload.update as never, `ai-${preview.id}-update`, requestId, transaction);
+        if (payload.payment) record = await this.workRecords.confirmPayment(actor, storeId, recordId, { version: payload.update ? record.version : baseVersion, ...(payload.payment as object) } as never, `ai-${preview.id}-payment`, requestId, transaction);
         result = record;
       } else if (preview.operation === "DELETE_WORK_RECORD") {
-        result = await this.workRecords.remove(actor, storeId, String(payload.recordId), payload.delete as never, `ai-${preview.id}-delete`, requestId);
+        result = await this.workRecords.remove(actor, storeId, String(payload.recordId), payload.delete as never, `ai-${preview.id}-delete`, requestId, transaction);
       } else {
         throw new BadRequestException({ code: "AI_OPERATION_UNSUPPORTED", messageZh: "该 AI 操作暂不支持" });
       }
-      await this.prisma.$transaction(async (transaction) => {
-        const consumed = await transaction.aiChangePreview.updateMany({ where: { id: preview.id, status: "CONFIRMED", consumedAt: null }, data: { consumedAt: new Date() } });
-        if (consumed.count !== 1) throw new ConflictException({ code: "AI_PREVIEW_ALREADY_CONSUMED", messageZh: "该预览已经执行，不能重复提交" });
-        await transaction.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: actorMembership.id, source: "ai", action: "ai.preview_consumed", entityType: "ai_change_preview", entityId: preview.id, afterJson: { operation: preview.operation }, requestId } });
-      });
+      const consumed = await transaction.aiChangePreview.updateMany({ where: { id: preview.id, status: "CONFIRMED", consumedAt: null }, data: { consumedAt: new Date() } });
+      if (consumed.count !== 1) throw new ConflictException({ code: "AI_PREVIEW_ALREADY_CONSUMED", messageZh: "该预览已经执行，不能重复提交" });
+      await transaction.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: actorMembership.id, source: "ai", action: "ai.preview_consumed", entityType: "ai_change_preview", entityId: preview.id, afterJson: { operation: preview.operation }, requestId } });
       return { previewId, status: "CONSUMED", result };
-    } catch (error) {
-      // 业务写入自身带有固定幂等键；执行失败后释放预览，安全重试会读取既有结果而不会重复入账。
-      await this.prisma.aiChangePreview.updateMany({
-        where: { id: preview.id, status: "CONFIRMED", consumedAt: null },
-        data: { status: "PENDING", confirmedAt: null },
-      });
-      throw error;
-    }
+    }, { timeout: 20_000 });
   }
 
   private async preparePreview(actor: User, storeId: string, args: AiWorkToolArguments, context: Awaited<ReturnType<AiService["workContext"]>>) {
@@ -286,7 +289,7 @@ export class AiService {
       const stored = await this.prisma.aiChangePreview.create({ data: { storeId, userId: actor.id, operation: "DELETE_WORK_RECORD", canonicalPayloadJson: this.json({ recordId: record.id, delete: { version: record.version, reason: args.reason } }), baseVersionsJson: { workRecord: record.version }, warningsJson: ["删除后记录进入回收站，必须再次确认"], expiresAt } });
       return { previewId: stored.id, operation: stored.operation, expiresAt: stored.expiresAt, target: record, before: record, after: { deleted: true, reason: args.reason }, warnings: stored.warningsJson };
     }
-    const payment = this.paymentFrom(args);
+    const payment = this.paymentFrom(args, record);
     const employee = args.employeeName ? this.uniqueMatch(context.members, args.employeeName, "员工") : null;
     const service = args.serviceName ? this.uniqueMatch(context.services, args.serviceName, "项目", ["shortName", "fullName"]) : null;
     const serviceOption = service ? this.serviceOption(service, args.serviceDurationMinutes) : null;
@@ -318,7 +321,7 @@ export class AiService {
       this.prisma.serviceItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, fullName: true, shortName: true, priceOptions: { select: { durationMinutes: true, priceCents: true }, orderBy: [{ position: "asc" }, { durationMinutes: "asc" }] } } }),
       this.prisma.addonItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, name: true, shortName: true, amountCents: true, durationMinutes: true } }),
       this.prisma.discountItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, name: true, shortName: true, amountCents: true } }),
-      this.prisma.workRecord.findMany({ where: { storeId, businessDate: new Date(`${businessDate}T00:00:00.000Z`), deletedAt: null }, select: { id: true, employeeMembershipId: true, startAt: true, endAt: true, status: true, mainServiceAmountCents: true, grossFeeBaseCents: true, cashServiceCents: true, cardServiceCents: true, cashTipCents: true, cardTipCents: true, note: true, version: true, employee: { select: { displayName: true } }, serviceSnapshot: { select: { shortName: true, name: true } }, addonSnapshots: { select: { name: true, shortName: true, amountCents: true } }, discountSnapshots: { select: { name: true, amountCents: true } } }, orderBy: { startAt: "desc" } }),
+      this.prisma.workRecord.findMany({ where: { storeId, businessDate: new Date(`${businessDate}T00:00:00.000Z`), deletedAt: null }, select: { id: true, employeeMembershipId: true, startAt: true, endAt: true, status: true, mainServiceAmountCents: true, grossFeeBaseCents: true, cashServiceCents: true, cardServiceCents: true, cashTipCents: true, cardTipCents: true, giftCardServiceCents: true, giftCardTipCents: true, giftCardSerialNumber: true, note: true, version: true, employee: { select: { displayName: true } }, serviceSnapshot: { select: { shortName: true, name: true } }, addonSnapshots: { select: { name: true, shortName: true, amountCents: true } }, discountSnapshots: { select: { name: true, amountCents: true } } }, orderBy: { startAt: "desc" } }),
     ]);
     return { businessDate, timezone: store.timezone, businessCutoffLocal: store.businessCutoffLocal, members, services, addons, discounts, records };
   }
@@ -395,10 +398,24 @@ export class AiService {
     return option;
   }
 
-  private paymentFrom(args: { cashServiceCents?: number | undefined; cardServiceCents?: number | undefined; cashTipCents?: number | undefined; cardTipCents?: number | undefined }) {
+  private paymentFrom(
+    args: { cashServiceCents?: number | undefined; cardServiceCents?: number | undefined; cashTipCents?: number | undefined; cardTipCents?: number | undefined },
+    existing?: { cashServiceCents: bigint | null; cardServiceCents: bigint | null; cashTipCents: bigint | null; cardTipCents: bigint | null; giftCardServiceCents: bigint | null; giftCardTipCents: bigint | null; giftCardSerialNumber: string | null },
+  ) {
     const values = [args.cashServiceCents, args.cardServiceCents, args.cashTipCents, args.cardTipCents];
     if (values.every((value) => value === undefined)) return null;
-    return { cashServiceCents: args.cashServiceCents ?? 0, cardServiceCents: args.cardServiceCents ?? 0, cashTipCents: args.cashTipCents ?? 0, cardTipCents: args.cardTipCents ?? 0 };
+    if (args.cashServiceCents === undefined && args.cardServiceCents === undefined && existing?.cashServiceCents == null && existing?.cardServiceCents == null) {
+      throw new BadRequestException({ code: "AI_PAYMENT_INCOMPLETE", messageZh: "请明确大费付款金额，不能仅凭小费确认付款" });
+    }
+    return toJsonSafe({
+      cashServiceCents: args.cashServiceCents ?? existing?.cashServiceCents ?? 0,
+      cardServiceCents: args.cardServiceCents ?? existing?.cardServiceCents ?? 0,
+      cashTipCents: args.cashTipCents ?? existing?.cashTipCents ?? 0,
+      cardTipCents: args.cardTipCents ?? existing?.cardTipCents ?? 0,
+      giftCardServiceCents: existing?.giftCardServiceCents ?? 0,
+      giftCardTipCents: existing?.giftCardTipCents ?? 0,
+      giftCardSerialNumber: existing?.giftCardSerialNumber ?? null,
+    });
   }
 
   private uniqueMatch<T extends { id: string }>(items: T[], input: string, label: string, fields: string[] = ["displayName"]) {
@@ -414,9 +431,24 @@ export class AiService {
     const from = new Date(`${today}T00:00:00.000Z`);
     if (text.includes("今天") || text.includes("今日") || /\btoday\b/i.test(text)) return { dateFrom: today, dateTo: today };
     if (text.includes("本月") || /\bthis month\b/i.test(text)) return { dateFrom: `${today.slice(0, 8)}01`, dateTo: today };
-    const days = Number(text.match(/(?:最近|近)\s*(\d+)\s*天/u)?.[1] ?? text.match(/(?:last|recent)\s*(\d+)\s*days?/i)?.[1] ?? 7);
+    const days = Number(text.match(/(?:最近|过去|过往|近)\s*(\d+)\s*天/u)?.[1] ?? text.match(/(?:last|past|recent)\s*(\d+)\s*days?/i)?.[1] ?? 7);
     from.setUTCDate(from.getUTCDate() - Math.max(1, Math.min(days, 366)) + 1);
     return { dateFrom: from.toISOString().slice(0, 10), dateTo: today };
+  }
+
+  private dailyDiscountedFeesAnswer(summary: Awaited<ReturnType<FinanceQueriesService["summary"]>>, locale: "zh-CN" | "en-US") {
+    const days = new Map(summary.days.map((day) => [day.businessDate, day]));
+    const lines = [locale === "en-US" ? "Daily service fees after discounts (business dates, inclusive):" : "每日折后大费（按店铺营业日，含起止日）："];
+    const cursor = new Date(`${summary.filters.dateFrom}T00:00:00.000Z`);
+    while (cursor.toISOString().slice(0, 10) <= summary.filters.dateTo) {
+      const date = cursor.toISOString().slice(0, 10);
+      const day = days.get(date);
+      const empty = !day || day.recordCount === 0;
+      lines.push(`${date}：${money(day?.discountedFeePerformanceCents ?? 0n)}${empty ? locale === "en-US" ? " (no matching work records)" : "（当前筛选下无记工记录）" : ""}`);
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    lines.push(`${locale === "en-US" ? "Total" : "合计"}：${money(summary.totals.discountedFeePerformanceCents)}`);
+    return lines.join("\n");
   }
 
   private deterministicFinanceAnswer(summary: Awaited<ReturnType<FinanceQueriesService["summary"]>>, names: string[], method: string, amountType: string, locale: "zh-CN" | "en-US" = "zh-CN") {

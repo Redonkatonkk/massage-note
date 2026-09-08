@@ -58,6 +58,8 @@ describe.skipIf(!enabled).sequential("AI 预览、确认和确定性财务工具
       await prisma.discountItem.deleteMany({ where: { storeId } });
       await prisma.serviceItem.deleteMany({ where: { storeId } });
       await prisma.store.update({ where: { id: storeId }, data: { ownerMembershipId: null } });
+      await prisma.dailyEmployeeRow.deleteMany({ where: { storeId } });
+      await prisma.dailyBoard.deleteMany({ where: { storeId } });
       await prisma.storeMembership.deleteMany({ where: { storeId } });
       await prisma.store.delete({ where: { id: storeId } });
       await prisma.user.delete({ where: { id: userId } });
@@ -171,6 +173,7 @@ describe.skipIf(!enabled).sequential("AI 预览、确认和确定性财务工具
           mainServiceAmountCents: 9_000,
           addons: [],
           discounts: [],
+          cashServiceCents: 0,
           cardServiceCents: 9_000,
           cardTipCents: 500,
           note: "AI 已修改",
@@ -243,4 +246,48 @@ describe.skipIf(!enabled).sequential("AI 预览、确认和确定性财务工具
     expect(response.answer).toContain("tips $35");
     expect(response.answer).toContain("deterministic server-side finance engine");
   });
+  it("付款步骤失败时创建、看板、审计和幂等记录全部回滚，预览可以重试", async () => {
+    const message = await ai.workMessage(actor, storeId, { text: "给AI店主记60分按摩，现金大费80，现金小费10" });
+    const previewId = message.preview!.previewId;
+    const count = await prisma.workRecord.count({ where: { storeId } });
+    const auditCount = await prisma.auditLog.count({ where: { storeId } });
+    const paymentSpy = vi.spyOn(workRecords, "confirmPayment").mockRejectedValueOnce(new Error("simulated payment failure"));
+    try {
+      await expect(ai.confirmPreview(actor, storeId, previewId, "rollback-failure")).rejects.toThrow("simulated payment failure");
+    } finally { paymentSpy.mockRestore(); }
+    expect(await prisma.workRecord.count({ where: { storeId } })).toBe(count);
+    expect(await prisma.auditLog.count({ where: { storeId } })).toBe(auditCount);
+    expect(await prisma.idempotencyRequest.count({ where: { storeId, key: { startsWith: `ai-${previewId}` } } })).toBe(0);
+    expect(await prisma.aiChangePreview.findUniqueOrThrow({ where: { id: previewId } })).toMatchObject({ status: "PENDING", consumedAt: null });
+    await expect(ai.confirmPreview(actor, storeId, previewId, "rollback-retry")).resolves.toMatchObject({ status: "CONSUMED" });
+  });
+
+  it("AI 只改小费时保留其他金额及礼物卡信息", async () => {
+    const record = await workRecords.create(actor, storeId, { employeeMembershipId: membershipId, serviceItemId, serviceDurationMinutes: 60, startAt: new Date().toISOString() }, randomUUID(), "partial-create");
+    await workRecords.confirmPayment(actor, storeId, record.id, { version: record.version, cashServiceCents: 2000, cardServiceCents: 3000, giftCardServiceCents: 5000, giftCardSerialNumber: "123456", cashTipCents: 100, cardTipCents: 200, giftCardTipCents: 300 }, randomUUID(), "partial-payment");
+    const configured = vi.spyOn(provider, "isConfigured").mockReturnValue(true);
+    const complete = vi.spyOn(provider, "complete").mockResolvedValue({ content: "", provider: "test", model: "test", toolCall: { name: "prepare_work_change", arguments: { operation: "UPDATE", recordId: record.id, cashTipCents: 2000 } } });
+    try {
+      const message = await ai.workMessage(actor, storeId, { text: "把现金小费改成20" });
+      await ai.confirmPreview(actor, storeId, message.preview!.previewId, "partial-confirm");
+      expect(await prisma.workRecord.findUniqueOrThrow({ where: { id: record.id } })).toMatchObject({ cashServiceCents: 2000n, cardServiceCents: 3000n, giftCardServiceCents: 5000n, giftCardSerialNumber: "123456", cashTipCents: 2000n, cardTipCents: 200n, giftCardTipCents: 300n });
+    } finally { complete.mockRestore(); configured.mockRestore(); }
+  });
+
+  it("网页详情与付款原子保存，失败不改变原记录，重试不重复写入", async () => {
+    const record = await workRecords.create(actor, storeId, { employeeMembershipId: membershipId, serviceItemId, serviceDurationMinutes: 60, startAt: new Date().toISOString() }, randomUUID(), "web-save-create");
+    const input = { details: { version: record.version, note: "atomic web save" }, payment: { version: record.version, cashServiceCents: 10000, cardServiceCents: 0, giftCardServiceCents: 0, giftCardSerialNumber: null, cashTipCents: 0, cardTipCents: 0, giftCardTipCents: 0 } };
+    const key = randomUUID();
+    const spy = vi.spyOn(workRecords, "confirmPayment").mockRejectedValueOnce(new Error("payment unavailable"));
+    try {
+      await expect(workRecords.save(actor, storeId, record.id, input, key, "web-save-fail")).rejects.toThrow("payment unavailable");
+    } finally { spy.mockRestore(); }
+    expect(await prisma.workRecord.findUniqueOrThrow({ where: { id: record.id } })).toMatchObject({ version: record.version, note: record.note, status: "PENDING_PAYMENT" });
+    const saved = await workRecords.save(actor, storeId, record.id, input, key, "web-save-retry");
+    expect(saved).toMatchObject({ note: "atomic web save", status: "CONFIRMED" });
+    await workRecords.save(actor, storeId, record.id, input, key, "web-save-repeat");
+    expect(await prisma.workRecord.findUniqueOrThrow({ where: { id: record.id } })).toMatchObject({ version: saved.version });
+    expect(await prisma.dailyEmployeeRow.findFirst({ where: { storeId, membershipId, board: { businessDate: record.businessDate } } })).not.toBeNull();
+  });
+
 });

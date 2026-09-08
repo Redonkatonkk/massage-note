@@ -121,6 +121,8 @@ model Store {
   id                                       String      @id @default(uuid()) @db.Uuid
   storeCode                                String      @unique @map("store_code") @db.Char(6)
   name                                     String
+  workBotInstructions                      String      @default("") @map("work_bot_instructions") @db.Text
+  workBotInstructionsVersion               Int         @default(1) @map("work_bot_instructions_version")
   timezone                                 String
   businessCutoffLocal                      String      @map("business_cutoff_local") @db.VarChar(5)
   globalCommissionBps                      Int         @map("global_commission_bps")

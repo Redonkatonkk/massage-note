@@ -256,6 +256,12 @@ export class StoreManagementService {
             messageZh: "新的拥有者必须是本店在职成员",
           });
         }
+        const account = nextOwner.userId
+          ? await transaction.user.findFirst({ where: { id: nextOwner.userId, status: "ACTIVE" }, select: { id: true } })
+          : null;
+        if (!account) {
+          throw new ConflictException({ code: "NEW_OWNER_ACCOUNT_REQUIRED", messageZh: "新店主必须先认领账号且账号处于启用状态" });
+        }
 
         const previousOwner = await transaction.storeMembership.update({
           where: { id: currentOwner.id },

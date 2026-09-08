@@ -1,5 +1,7 @@
 "use client";
 
+import { browserStorage } from "../../lib/browser-storage";
+
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
 import type { MeResponse } from "../../lib/types";
@@ -28,7 +30,7 @@ export function ProfilePageClient() {
     setFirstName(profile.firstName ?? "");
     setLastName(profile.lastName ?? "");
     setSelectedStoreId((current) => {
-      const remembered = current || window.localStorage.getItem("massage_note_store_id") || "";
+      const remembered = current || browserStorage.getItem("massage_note_store_id") || "";
       return profile.memberships.some((membership) => membership.store.id === remembered)
         ? remembered
         : (profile.memberships[0]?.store.id ?? "");
@@ -70,7 +72,7 @@ export function ProfilePageClient() {
             <label>当前店铺<select value={selectedStoreId} onChange={(event) => {
               const storeId = event.target.value;
               setSelectedStoreId(storeId);
-              window.localStorage.setItem("massage_note_store_id", storeId);
+              browserStorage.setItem("massage_note_store_id", storeId);
               setStoreSaved(true);
             }}>{me.memberships.map((membership) => <option key={membership.id} value={membership.store.id}>{membership.store.name} · {roleText[membership.role]}</option>)}</select></label>
             <p className="field-help">今日、财务和店铺设置都会使用这里选择的店铺。{selectedMembership ? `当前身份：${roleText[selectedMembership.role]}。` : ""}</p>

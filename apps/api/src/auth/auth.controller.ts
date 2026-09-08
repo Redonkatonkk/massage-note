@@ -45,14 +45,14 @@ export class AuthController {
 
   @Post("account-status")
   accountStatus(@Body() body: PhoneBody): Promise<{ exists: boolean; hasPassword: boolean }> {
-    return this.identities.accountStatus(this.validPhone(body.phoneE164));
+    return this.identities.accountStatus(this.validPhone(body?.phoneE164));
   }
 
   @Post("password")
   async passwordLogin(@Body() body: PasswordLoginBody): Promise<{ customToken: string }> {
     const user = await this.identities.authenticatePassword(
-      this.validPhone(body.phoneE164),
-      this.validPassword(body.password),
+      this.validPhone(body?.phoneE164),
+      this.validPassword(body?.password),
     );
     return { customToken: await this.firebase.createCustomToken(user.firebaseUid) };
   }
@@ -76,7 +76,7 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<{ authenticated: true; uid: string }> {
-    if (typeof body.idToken !== "string" || typeof body.csrfToken !== "string") {
+    if (typeof body?.idToken !== "string" || typeof body?.csrfToken !== "string") {
       throw new BadRequestException({
         code: "INVALID_SESSION_REQUEST",
         messageZh: "登录请求不完整，请重试",
@@ -128,15 +128,15 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<{ authenticated: true; developmentOnly: true }> {
     if (
-      typeof body.phoneE164 !== "string" ||
-      !/^\+[1-9]\d{7,14}$/.test(body.phoneE164)
+      typeof body?.phoneE164 !== "string" ||
+      !/^\+[1-9]\d{7,14}$/.test(body?.phoneE164)
     ) {
       throw new BadRequestException({
         code: "INVALID_PHONE_NUMBER",
         messageZh: "请输入有效的国际格式手机号码",
       });
     }
-    const session = this.firebase.createDevelopmentSession(body.phoneE164);
+    const session = this.firebase.createDevelopmentSession(body?.phoneE164);
     await this.identities.syncFromFirebase(session.decodedToken);
     response.cookie(sessionCookieName, session.cookie, {
       httpOnly: true,
@@ -216,7 +216,7 @@ export class AuthController {
 
   private validPasswordSetup(value: unknown): string {
     const input = value as { password?: unknown } | null;
-    if (!input || !("password" in input)) {
+    if (!input || typeof input !== "object" || !("password" in input)) {
       throw new BadRequestException({
         code: "PASSWORD_SETUP_REQUIRED",
         messageZh: "此老账号尚未设置密码，请先设置登录密码",

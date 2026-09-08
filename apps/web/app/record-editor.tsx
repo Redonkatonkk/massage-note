@@ -1,7 +1,9 @@
 "use client";
 
+import { browserStorage } from "../lib/browser-storage";
+
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, apiRequest, errorMessage } from "../lib/api";
+import { apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
 import { shouldConfirmPaymentOnSave } from "../lib/record-payment";
 import {
@@ -214,7 +216,7 @@ export function RecordEditor({
 
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(draftKey);
+      const raw = browserStorage.getItem(draftKey);
       if (raw) {
         const draft = JSON.parse(raw) as Record<string, unknown>;
         const savedAt = typeof draft.savedAt === "number" ? draft.savedAt : 0;
@@ -258,11 +260,11 @@ export function RecordEditor({
           if (typeof draft.note === "string") setNote(draft.note);
           setDraftDirty(true);
         } else {
-          window.localStorage.removeItem(draftKey);
+          browserStorage.removeItem(draftKey);
         }
       }
     } catch {
-      window.localStorage.removeItem(draftKey);
+      browserStorage.removeItem(draftKey);
     } finally {
       setDraftLoaded(true);
     }
@@ -270,7 +272,7 @@ export function RecordEditor({
 
   useEffect(() => {
     if (!draftLoaded || !draftDirty) return;
-    window.localStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note }));
+    browserStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note }));
   }, [draftLoaded, draftDirty, draftKey, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note]);
 
   const initialAddonSignature = JSON.stringify(
@@ -542,10 +544,7 @@ export function RecordEditor({
       setRecordVersion(updated.version);
       return updated;
     } catch (caught) {
-      const latest = caught instanceof ApiError && caught.code === "WORK_RECORD_VERSION_CONFLICT"
-        ? caught.latestResource as { version?: unknown } | undefined
-        : undefined;
-      if (typeof latest?.version === "number") setRecordVersion(latest.version);
+      // Keep the original version: retrying stale fields must not overwrite a concurrent edit.
       throw caught;
     }
   }
@@ -566,7 +565,7 @@ export function RecordEditor({
   }
 
   function finish() {
-    window.localStorage.removeItem(draftKey);
+    browserStorage.removeItem(draftKey);
     onSaved();
     onClose();
     void onChanged();
@@ -598,11 +597,10 @@ export function RecordEditor({
     if (Object.keys(servicePayments).length === 0) {
       throw new Error("现金、刷卡和礼物卡大费至少填写一项；免费服务请填写 0");
     }
-    const updated = await saveDetails();
-    await apiRequest(`/stores/${storeId}/work-records/${record.id}/confirm-payment`, {
+    await apiRequest(`/stores/${storeId}/work-records/${record.id}/save`, {
       method: "POST",
       idempotent: true,
-      body: { version: updated.version, ...servicePayments, ...tipPayments, ...giftCardPayment },
+      body: { details: buildUpdate(recordVersion), payment: { version: recordVersion, ...servicePayments, ...tipPayments, ...giftCardPayment } },
     });
     await finish();
   }

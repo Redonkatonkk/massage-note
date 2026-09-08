@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import type { UpdatePasswordInput } from "@massage-note/contracts";
 import type { AuthenticatedUser } from "../auth/auth.types.js";
 import { PasswordService } from "../auth/password.service.js";
@@ -89,10 +89,11 @@ export class UsersService {
       }
     }
     const passwordHash = await this.passwords.hash(input.newPassword);
-    await this.prisma.user.update({
-      where: { id: user.id },
+    const changed = await this.prisma.user.updateMany({
+      where: { id: user.id, passwordHash: current.passwordHash },
       data: { passwordHash },
     });
+    if (changed.count !== 1) throw new ConflictException({ code: "PASSWORD_CHANGED", messageZh: "密码已被修改，请使用最新密码重试" });
     return { hasPassword: true };
   }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   adjustedEndLocalDateTime,
+  zonedLocalToIso,
   endLocalDateTimeForDuration,
 } from "./time";
 
@@ -46,4 +47,8 @@ describe("记工时间计算", () => {
       ),
     ).toBe("2026-08-13T11:00");
   });
+});
+
+ it.each(["2026-03-08T02:30", "2026-02-30T12:00", "2026-09-08T25:00"])("拒绝不存在的当地时间 %s", (value) => {
+  expect(() => zonedLocalToIso(value, "America/New_York")).toThrow();
 });

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
-import { formatUsd } from "../lib/money";
+import { aiPreviewRows, previewValue } from "../lib/ai-preview";
 import type { AiMessageResponse, AiPreview } from "../lib/types";
 import { useLanguage } from "./language-provider";
 import { useAiVoiceInput } from "./use-ai-voice-input";
@@ -37,42 +37,20 @@ const content = {
   },
 } as const;
 
-function previewValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
-}
-
-function previewTime(value: unknown): string {
-  if (typeof value !== "string") return previewValue(value);
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
-}
-
 function PreviewCard({
   preview,
+  timezone,
   busy,
   confirm,
   cancel,
 }: {
   preview: AiPreview;
+  timezone: string;
   busy: boolean;
   confirm: (id: string) => Promise<void>;
   cancel: (id: string) => Promise<void>;
 }) {
-  const after = preview.after;
-  const rows = [
-    ["员工", after.employee ?? preview.target.employeeDisplayName],
-    ["项目", after.service ?? (preview.target.serviceSnapshot as { name?: string } | undefined)?.name],
-    ["开始时间", previewTime(after.startAt ?? preview.target.startAt)],
-    ["结束时间", previewTime(after.endAt ?? preview.target.endAt)],
-    ["项目金额", typeof after.amountCents === "number" ? formatUsd(after.amountCents, "en-US") : undefined],
-    ["额外项目", after.addons],
-    ["折扣", after.discounts],
-    ["付款", after.payment],
-    ["备注", after.note],
-    ["删除原因", after.reason],
-  ].filter((row) => row[1] !== undefined);
+  const rows = aiPreviewRows(preview, timezone);
   return (
     <section className={`ai-preview ${preview.operation === "DELETE_WORK_RECORD" ? "delete" : ""}`}>
       <header><div><strong>{operationText[preview.operation]}</strong><span>预览将在 {new Date(preview.expiresAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 过期</span></div><em>尚未写入</em></header>
@@ -85,10 +63,12 @@ function PreviewCard({
 
 export function FloatingAiAssistant({
   storeId,
+  timezone,
   type,
   onWorkChanged,
 }: {
   storeId: string;
+  timezone: string;
   type: AssistantType;
   onWorkChanged?: (() => Promise<void>) | undefined;
 }) {
@@ -200,7 +180,7 @@ export function FloatingAiAssistant({
       {open && <section id={`floating-ai-${type}`} className="floating-ai-dialog" role="dialog" aria-label={settings.title}>
         <header className="floating-ai-heading"><div><span aria-hidden="true">AI</span><div><strong>{settings.title}</strong><small>{type === "work" ? "确认后才会修改记工" : "财务数据只读"}</small></div></div><button type="button" aria-label="关闭 AI 助手" onClick={() => { voice.cancelRecording(); setOpen(false); }}>×</button></header>
         <div className="floating-ai-examples">{settings.examples.map((example) => <button key={example} type="button" onClick={() => setInput(t(example))}>{example}</button>)}</div>
-        <div className="chat-messages floating-ai-messages">{messages.map((message) => <article key={message.id} className={`chat-message ${message.role}`}><span>{message.role === "user" ? "你" : "助"}</span><div><p>{message.text}</p>{message.role === "assistant" && message.providerConfigured === false && <small>当前使用安全降级模式。</small>}{message.preview && <PreviewCard preview={message.preview} busy={busy} confirm={confirm} cancel={cancel} />}</div></article>)}{busy && <article className="chat-message assistant"><span>助</span><div><p>正在核对权限和数据…</p></div></article>}<div ref={endRef} /></div>
+        <div className="chat-messages floating-ai-messages">{messages.map((message) => <article key={message.id} className={`chat-message ${message.role}`}><span>{message.role === "user" ? "你" : "助"}</span><div><p>{message.text}</p>{message.role === "assistant" && message.providerConfigured === false && <small>当前使用安全降级模式。</small>}{message.preview && <PreviewCard timezone={timezone} preview={message.preview} busy={busy} confirm={confirm} cancel={cancel} />}</div></article>)}{busy && <article className="chat-message assistant"><span>助</span><div><p>正在核对权限和数据…</p></div></article>}<div ref={endRef} /></div>
         {error && <p className="form-error floating-ai-error" role="alert">{error}</p>}
         <form className="chat-composer floating-ai-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><textarea aria-label={`给${settings.title}的消息`} maxLength={4000} rows={2} placeholder={settings.placeholder} value={input} onChange={(event) => setInput(event.target.value)} /><div><span>{input.length}/4000</span><div className="composer-actions">{type === "work" && <button className={`voice-button ${voice.recording ? "recording" : ""}`} type="button" disabled={busy || voice.transcribing || voice.finishingRecording} onClick={voice.recording ? voice.stopRecording : () => void voice.startRecording()}>{voice.transcribing ? "正在转写…" : voice.finishingRecording ? "正在完成录音…" : voice.recording ? "停止并转写" : "语音输入"}</button>}<button className="primary-action" type="submit" disabled={inputBusy || voice.recording || !input.trim()}>{inputBusy ? "处理中…" : "发送"}</button></div></div></form>
       </section>}

@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import {
+  updateWorkBotInstructionsSchema,
   createWorkBotAliasSchema,
   deleteWorkBotBindingSchema,
   idempotencyKeySchema,
@@ -64,6 +65,11 @@ export class WorkBotAdminController {
   @Get()
   getSettings(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string) {
     return this.workBot.getSettings(user, parseRequest(uuidSchema, storeId));
+  }
+
+  @Patch("instructions")
+  updateInstructions(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Body() body: unknown, @Res({ passthrough: true }) response: Response) {
+    return this.workBot.updateInstructions(user, parseRequest(uuidSchema, storeId), parseRequest(updateWorkBotInstructionsSchema, body), response.locals.requestId as string);
   }
 
   @Post("aliases")

@@ -1,4 +1,5 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { loadJournal, saveJournal, type Journal } from "./journal.js";
+import { mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { messagesServices, sendMessagesAttachment } from "./messages.js";
@@ -17,22 +18,12 @@ interface Job { id: string; leaseToken: string; phoneE164: string; locale: "zh_C
 interface RangeSettlementJob { id: string; documentType: "RANGE_SETTLEMENT"; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; detailSent: boolean; snapshot: SettlementSnapshot }
 interface EmployeeSummaryJob { id: string; documentType: "EMPLOYEE_SUMMARY"; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; detailSent: boolean; snapshot: EmployeeSummarySnapshot }
 type SettlementJob = RangeSettlementJob | EmployeeSummaryJob;
-interface Journal { accepted: string[]; completed: string[] }
 const journalPath = join(dataDir, "journal.json");
 const outboxDir = await prepareOutbox(dataDir);
 await cleanupOutbox(outboxDir);
 
-async function loadJournal(): Promise<Journal> {
-  await mkdir(dataDir, { recursive: true, mode: 0o700 });
-  try { return JSON.parse(await readFile(journalPath, "utf8")) as Journal; } catch { return { accepted: [], completed: [] }; }
-}
-
-async function saveJournal(journal: Journal) {
-  await writeFile(journalPath, JSON.stringify(journal), { encoding: "utf8", mode: 0o600 });
-}
-
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, { ...init, headers: { Authorization: `Bearer ${agentToken}`, "Content-Type": "application/json", ...init.headers } });
+  const response = await fetch(`${apiUrl}${path}`, { ...init, signal: init.signal ?? AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${agentToken}`, "Content-Type": "application/json", ...init.headers } });
   const payload = await response.json().catch(() => null);
   if (!response.ok) throw new Error(`${response.status} ${(payload as { messageZh?: string } | null)?.messageZh ?? response.statusText}`);
   return payload as T;
@@ -40,15 +31,17 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 async function heartbeat(lastError: string | null = null) {
   let services: string[] = [];
+  let stagerReady = false;
   let diagnosticError = lastError;
   try {
     services = await messagesServices();
     await messagesStagerReady();
+    stagerReady = true;
   } catch (error) {
     diagnosticError = error instanceof Error ? error.message : String(error);
   }
   try {
-    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: services.length > 0, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "1.0.6", lastError: diagnosticError }) });
+    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: stagerReady && services.some((item) => ["iMessage", "RCS", "SMS"].includes(item)), serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "1.0.7", lastError: diagnosticError }) });
   } catch (error) {
     process.stderr.write(`heartbeat: ${error instanceof Error ? error.message : String(error)}\n`);
   }
@@ -69,7 +62,7 @@ async function processJob(job: Job, journal: Journal) {
   if (journal.completed.includes(job.id)) return;
   if (journal.accepted.includes(job.id)) {
     await request(`/closing-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
-    journal.completed.push(job.id); await saveJournal(journal); return;
+    journal.completed.push(job.id); await saveJournal(journalPath, journal); return;
   }
   const authorized = await request<{ authorized: boolean }>(`/closing-delivery-agent/jobs/${job.id}/authorize`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
   if (!authorized.authorized) return;
@@ -81,11 +74,13 @@ async function processJob(job: Job, journal: Journal) {
     await renderClosingPng(job.snapshot, job.locale, svgPath, pngPath);
     await secureClosingPng(pngPath);
     const stagedPath = await stageMessagesAttachment(pngPath, job.id);
+    const ready = await request<{ authorized: boolean }>(`/closing-delivery-agent/jobs/${job.id}/authorize`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
+    if (!ready.authorized) return;
     sendStarted = true;
     await sendMessagesAttachment(job.phoneE164, stagedPath);
-    journal.accepted.push(job.id); await saveJournal(journal);
+    journal.accepted.push(job.id); await saveJournal(journalPath, journal);
     await request(`/closing-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
-    journal.completed.push(job.id); await saveJournal(journal);
+    journal.completed.push(job.id); await saveJournal(journalPath, journal);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await request(`/closing-delivery-agent/jobs/${job.id}/fail`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, code: sendStarted ? "MESSAGES_RESULT_AMBIGUOUS" : "PRE_SEND_FAILURE", message, retryable: !sendStarted }) }).catch(() => undefined);
@@ -109,6 +104,8 @@ async function processSettlementJob(job: SettlementJob) {
     if (!job.detailSent) {
       sendStarted = false;
       const staged = await stageMessagesAttachment(detailsImagePath, job.id, "settlement-details.jpg", true);
+      const ready = await request<{ authorized: boolean }>(`/employee-settlement-delivery-agent/jobs/${job.id}/authorize`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
+      if (!ready.authorized) return;
       sendStarted = true;
       const service = await sendMessagesAttachment(job.phoneE164, staged, "CONVERSATION_IMAGE");
       process.stdout.write(`settlement ${job.id} ${job.documentType.toLowerCase()} image (${artifact.width}x${artifact.height}) accepted by ${service}\n`);
@@ -132,7 +129,7 @@ let stopped = false;
 process.on("SIGTERM", () => { stopped = true; });
 process.on("SIGINT", () => { stopped = true; });
 
-const journal = await loadJournal();
+const journal = await loadJournal(journalPath);
 await heartbeat();
 let lastHeartbeat = Date.now();
 while (!stopped) {

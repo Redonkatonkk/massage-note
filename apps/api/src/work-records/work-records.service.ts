@@ -1,3 +1,4 @@
+import type { SaveWorkRecordInput } from "@massage-note/contracts";
 import {
   BadRequestException,
   ConflictException,
@@ -25,6 +26,7 @@ import {
   resolveCustomItemCommission,
 } from "@massage-note/domain";
 import { PrismaService } from "../database/prisma.service.js";
+import { ensureBoardRow } from "../common/ensure-board-row.js";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
@@ -113,10 +115,12 @@ export class WorkRecordsService {
     input: CreateWorkRecordInput,
     idempotencyKey: string,
     requestId: string,
+    parentTransaction?: Prisma.TransactionClient,
   ) {
     const actorMembership = await this.access.requireActiveMembership(
       actor.id,
       storeId,
+      parentTransaction,
     );
     return this.idempotency.execute(
       {
@@ -295,6 +299,7 @@ export class WorkRecordsService {
         },
         include: recordInclude,
       });
+      await ensureBoardRow(transaction, storeId, businessDate, employee.id, actor.id);
       await this.reopenCashSettlements(
         transaction,
         storeId,
@@ -333,15 +338,17 @@ export class WorkRecordsService {
       });
         return record;
       },
+      parentTransaction,
     );
   }
 
-  async get(actor: User, storeId: string, recordId: string) {
+  async get(actor: User, storeId: string, recordId: string, client: Prisma.TransactionClient = this.prisma) {
     const actorMembership = await this.access.requireActiveMembership(
       actor.id,
       storeId,
+      client,
     );
-    const record = await this.prisma.workRecord.findFirst({
+    const record = await client.workRecord.findFirst({
       where: { id: recordId, storeId, deletedAt: null },
       include: recordInclude,
     });
@@ -362,7 +369,7 @@ export class WorkRecordsService {
         messageZh: "普通员工只能查看自己的历史记录",
       });
     }
-    const auditTrail = await this.prisma.auditLog.findMany({
+    const auditTrail = await client.auditLog.findMany({
       where: {
         storeId,
         entityType: "work_record",
@@ -400,10 +407,12 @@ export class WorkRecordsService {
     input: UpdateWorkRecordInput,
     idempotencyKey: string,
     requestId: string,
+    parentTransaction?: Prisma.TransactionClient,
   ) {
     const actorMembership = await this.access.requireActiveMembership(
       actor.id,
       storeId,
+      parentTransaction,
     );
     const mayOverrideCommission = hasStoreCapability(
       actorMembership.role,
@@ -473,6 +482,10 @@ export class WorkRecordsService {
             });
           }
           const originalBusinessDate = this.dateOnly(record.businessDate);
+          // Acquire both dates in a stable order when moving records between days.
+          for (const date of [...new Set([originalBusinessDate, businessDate])].sort()) {
+            await lockBusinessDay(transaction, storeId, date);
+          }
           await this.assertCanWrite(
             transaction,
             actorMembership,
@@ -729,6 +742,11 @@ export class WorkRecordsService {
               })),
             });
           }
+          if (employee.id !== record.employeeMembershipId) await transaction.workBotMemberBinding.updateMany({
+            where: { activeWorkRecordId: recordId },
+            data: { activeWorkRecordId: null, version: { increment: 1 } },
+          });
+          await ensureBoardRow(transaction, storeId, businessDate, employee.id, actor.id);
           const updated = await transaction.workRecord.findUniqueOrThrow({
             where: { id: recordId },
             include: recordInclude,
@@ -778,6 +796,7 @@ export class WorkRecordsService {
           });
           return updated;
         },
+        parentTransaction,
       );
     } catch (error) {
       if (error instanceof DomainError) {
@@ -794,10 +813,12 @@ export class WorkRecordsService {
     input: DeleteWorkRecordInput,
     idempotencyKey: string,
     requestId: string,
+    parentTransaction?: Prisma.TransactionClient,
   ) {
     const actorMembership = await this.access.requireActiveMembership(
       actor.id,
       storeId,
+      parentTransaction,
     );
     return this.idempotency.execute(
       {
@@ -844,6 +865,10 @@ export class WorkRecordsService {
         if (changed.count !== 1) {
           await this.throwRecordConflict(transaction, recordId, storeId);
         }
+        await transaction.workBotMemberBinding.updateMany({
+          where: { activeWorkRecordId: recordId },
+          data: { activeWorkRecordId: null, version: { increment: 1 } },
+        });
         const deleted = await transaction.workRecord.findUniqueOrThrow({
           where: { id: recordId },
           include: recordInclude,
@@ -885,6 +910,7 @@ export class WorkRecordsService {
         });
         return deleted;
       },
+      parentTransaction,
     );
   }
 
@@ -895,10 +921,12 @@ export class WorkRecordsService {
     input: RestoreWorkRecordInput,
     idempotencyKey: string,
     requestId: string,
+    parentTransaction?: Prisma.TransactionClient,
   ) {
     const actorMembership = await this.access.requireActiveMembership(
       actor.id,
       storeId,
+      parentTransaction,
     );
     if (
       !hasStoreCapability(actorMembership.role, "WORK_RECORD_WRITE_HISTORY")
@@ -952,6 +980,7 @@ export class WorkRecordsService {
         if (changed.count !== 1) {
           await this.throwRecordConflict(transaction, recordId, storeId);
         }
+        await ensureBoardRow(transaction, storeId, this.dateOnly(record.businessDate), record.employeeMembershipId, actor.id);
         const restored = await transaction.workRecord.findUniqueOrThrow({
           where: { id: recordId },
           include: recordInclude,
@@ -991,7 +1020,16 @@ export class WorkRecordsService {
         });
         return restored;
       },
+      parentTransaction,
     );
+  }
+
+  async save(actor: User, storeId: string, recordId: string, input: SaveWorkRecordInput, key: string, requestId: string) {
+    await this.access.requireActiveMembership(actor.id, storeId);
+    return this.idempotency.execute({ storeId, userId: actor.id, key, route: "/api/v1/stores/:storeId/work-records/:recordId/save", payload: { recordId, input }, responseCode: 200 }, async (transaction) => {
+      const updated = await this.update(actor, storeId, recordId, input.details, `save-${key}`, requestId, transaction);
+      return this.confirmPayment(actor, storeId, recordId, { ...input.payment, version: updated.version }, `save-${key}`, requestId, transaction);
+    });
   }
 
   async confirmPayment(
@@ -1001,10 +1039,12 @@ export class WorkRecordsService {
     input: CompatibleConfirmedPayment,
     idempotencyKey: string,
     requestId: string,
+    parentTransaction?: Prisma.TransactionClient,
   ) {
     const actorMembership = await this.access.requireActiveMembership(
       actor.id,
       storeId,
+      parentTransaction,
     );
     try {
       return await this.idempotency.execute(
@@ -1133,6 +1173,10 @@ export class WorkRecordsService {
           },
         });
 
+        await transaction.workBotMemberBinding.updateMany({
+          where: { activeWorkRecordId: recordId },
+          data: { activeWorkRecordId: null, version: { increment: 1 } },
+        });
         const updated = await transaction.workRecord.findUniqueOrThrow({
           where: { id: recordId },
           include: recordInclude,
@@ -1182,6 +1226,7 @@ export class WorkRecordsService {
         });
           return updated;
         },
+        parentTransaction,
       );
     } catch (error) {
       if (error instanceof DomainError) {

@@ -53,7 +53,11 @@ export function zonedLocalToIso(value: string, timezone: string): string {
     );
     guess += target - actualUtc;
   }
-  return new Date(guess).toISOString();
+  const result = new Date(guess).toISOString();
+  if (localDateTimeValue(result, timezone) !== value) {
+    throw new Error("该日期时间不存在，请检查日期或夏令时切换时间");
+  }
+  return result;
 }
 
 export function endLocalDateTimeForDuration(

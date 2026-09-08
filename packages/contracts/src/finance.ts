@@ -101,10 +101,10 @@ export const createPayrollSettlementSchema = z
       });
     }
     const total =
-      value.serviceWageCents +
-      value.cashTipCents +
-      value.cardTipCents +
-      value.adjustmentCents;
+      BigInt(value.serviceWageCents) +
+      BigInt(value.cashTipCents) +
+      BigInt(value.cardTipCents) +
+      BigInt(value.adjustmentCents);
     if (total < 0 && !value.negativeTotalReason) {
       context.addIssue({
         code: "custom",

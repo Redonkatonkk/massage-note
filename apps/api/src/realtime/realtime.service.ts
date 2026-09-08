@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { User } from "@massage-note/database";
 import { type MessageEvent } from "@nestjs/common";
-import { Observable, from, interval, startWith, switchMap } from "rxjs";
+import { Observable, exhaustMap, from, interval, startWith, switchMap } from "rxjs";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
 
@@ -16,10 +16,20 @@ export class RealtimeService {
     await this.access.requireActiveMembership(actor.id, storeId);
     let cursor = lastEventId;
     const connectedAt = new Date();
+    let lastResyncAt = connectedAt.getTime();
     return interval(2_000).pipe(
       startWith(0),
-      switchMap(() => from(this.nextEvents(storeId, cursor, connectedAt))),
+      exhaustMap(() => from((async () => {
+        await this.access.requireActiveMembership(actor.id, storeId);
+        return this.nextEvents(storeId, cursor, connectedAt);
+      })())),
       switchMap((events) => new Observable<MessageEvent>((subscriber) => {
+        // createdAt is assigned before commit. A slower transaction can commit
+        // behind the cursor, so periodically invalidate REST data as a backstop.
+        if (Date.now() - lastResyncAt >= 30_000) {
+          subscriber.next({ type: "store.changed", data: { reason: "resync" }, retry: 3_000 });
+          lastResyncAt = Date.now();
+        }
         if (events.length === 0) {
           subscriber.next({ type: "heartbeat", data: { serverTime: new Date().toISOString() }, retry: 3_000 });
         } else {

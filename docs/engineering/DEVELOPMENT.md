@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`1.0.6`
+> 适用版本：`1.0.7`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
@@ -67,6 +67,7 @@ pnpm dev
 | `pnpm typecheck` | 检查全部 workspace 类型 |
 | `pnpm test` | 运行领域、契约、Web 辅助函数和 API 非数据库测试 |
 | `pnpm test:integration` | 创建/迁移独立测试库并运行数据库与 API 集成测试 |
+| `python3 -m unittest discover -s integrations/langbot-plugin/tests -v` | 运行 LangBot 插件边界与解析测试，CI 同步执行 |
 | `pnpm build` | 检查版本一致性并构建全部 workspace |
 | `pnpm db:generate` | 生成 Prisma Client |
 | `pnpm db:validate` | 校验 Prisma schema |

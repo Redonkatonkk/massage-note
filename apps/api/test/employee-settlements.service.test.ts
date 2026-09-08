@@ -1,3 +1,4 @@
+import { idempotencyRequestHash } from "../src/common/idempotency.service.js";
 import { describe, expect, it, vi } from "vitest";
 import { EmployeeSettlementsService } from "../src/finance/employee-settlements.service.js";
 
@@ -40,6 +41,11 @@ const actor = { id: "30000000-0000-4000-8000-000000000001" } as never;
 const storeId = "40000000-0000-4000-8000-000000000001";
 
 describe("EmployeeSettlementsService preview", () => {
+  it("汇总超过 JSON 安全整数范围时明确拒绝", async () => {
+    const rows = [1, 2, 3].map(index => ({ ...record(index), totalLargeFeeWageCents: 4_000_000_000_000_000n, cashAllocatedServiceWageCents: 0n }));
+    const { value } = service(rows);
+    await expect(value.preview(actor, storeId, { membershipId: member.id, dateFrom: "2026-08-01", dateTo: "2026-08-31", paymentScope: "ALL" })).rejects.toThrow();
+  });
   it("按现金和非现金拆分混合付款工资", async () => {
     const { value, prisma } = service([record(1)]);
     const preview = await value.preview(actor, storeId, { membershipId: member.id, dateFrom: "2026-08-01", dateTo: "2026-08-31", paymentScope: "ALL" });
@@ -94,6 +100,7 @@ describe("EmployeeSettlementsService long-image redelivery", () => {
       auditLog: { create: vi.fn().mockResolvedValue({}) },
     };
     const access = { requireCapability: vi.fn().mockResolvedValue({ id: "manager" }) };
+    Object.assign(prisma, { $transaction: (fn: (client: unknown) => unknown) => fn(prisma) });
     const value = new EmployeeSettlementsService(prisma as never, access as never, {} as never);
 
     await expect(value.retryDetail(actor, storeId, "50000000-0000-4000-8000-000000000001", "request-id")).resolves.toEqual({ id: "delivery" });
@@ -114,6 +121,19 @@ describe("EmployeeSettlementsService long-image redelivery", () => {
 });
 
 describe("EmployeeSettlementsService employee-summary delivery", () => {
+  it("幂等键覆盖员工、金额类型和高亮筛选，不能返回另一份汇总", async () => {
+    const input = { dateFrom: "2026-09-01", dateTo: "2026-09-02", membershipIds: [member.id], paymentMethod: "ALL" as const, amountType: "ALL" as const, highlightFilter: "ALL" as const, recipientPhoneE164: "+16465551234" };
+    const existing = { id: "job", documentType: "EMPLOYEE_SUMMARY", periodStart: new Date("2026-09-01"), periodEnd: new Date("2026-09-02"), paymentScope: "ALL", recipientPhoneE164: input.recipientPhoneE164, snapshotJson: { requestHash: idempotencyRequestHash(input) } };
+    const client = { $queryRaw: vi.fn().mockResolvedValue([]), employeeSettlementDelivery: { findUnique: vi.fn().mockResolvedValue(existing) } };
+    const prisma = { $transaction: (fn: (value: unknown) => unknown) => fn(client) };
+    const access = { requireCapability: vi.fn().mockResolvedValue({ id: "manager" }) };
+    const value = new EmployeeSettlementsService(prisma as never, access as never, {} as never);
+    await expect(value.queueEmployeeSummary(actor, storeId, { ...input, membershipIds: [member.id, member.id] }, "same-key", "request")).resolves.toBe(existing);
+    for (const change of [{ membershipIds: [] }, { amountType: "TIP" as const }, { highlightFilter: "ONLY_HIGHLIGHTED" as const }]) {
+      await expect(value.queueEmployeeSummary(actor, storeId, { ...input, ...change }, "same-key", "request"))
+        .rejects.toMatchObject({ response: { code: "IDEMPOTENCY_KEY_REUSED" } });
+    }
+  });
   it("把保留美分的员工卡片汇总发送到指定号码", async () => {
     const created = { id: "50000000-0000-4000-8000-000000000001" };
     const prisma = {
@@ -136,6 +156,7 @@ describe("EmployeeSettlementsService employee-summary delivery", () => {
         employees: [{ membershipId: member.id, displayName: "Amy", role: "EMPLOYEE", defaultCommissionBps: 6_000, hasDifferentItemCommission: true, recordCount: 2, mainServiceAmountCents: 10_050n, addonTotalCents: 1_025n, grossFeeBaseCents: 11_075n, totalTipCents: 2_055n, totalLargeFeeWageCents: 6_701n, employeeIncomeCents: 8_756n }],
       }),
     };
+    Object.assign(prisma, { $transaction: (fn: (client: unknown) => unknown) => fn(prisma), $queryRaw: vi.fn().mockResolvedValue([]) });
     const value = new EmployeeSettlementsService(prisma as never, access as never, financeQueries as never);
 
     await expect(value.queueEmployeeSummary(actor, storeId, {

@@ -89,6 +89,8 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
         where: { id: storeId },
         data: { ownerMembershipId: null },
       });
+      await prisma.dailyEmployeeRow.deleteMany({ where: { storeId } });
+      await prisma.dailyBoard.deleteMany({ where: { storeId } });
       await prisma.storeMembership.deleteMany({ where: { storeId } });
       await prisma.store.deleteMany({ where: { id: storeId } });
       await prisma.user.deleteMany({ where: { id: { in: [ownerId, employeeId] } } });

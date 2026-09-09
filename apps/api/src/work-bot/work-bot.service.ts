@@ -731,7 +731,33 @@ export class WorkBotService {
     }
     const final = await transaction.workRecord.findUniqueOrThrow({ where: { id: record.id }, include: { discountSnapshots: true, addonSnapshots: true } });
     await transaction.auditLog.create({ data: { storeId: group.storeId, actorUserId: null, actorMembershipId: binding.membershipId, source: "langbot", action: intent.kind === "FINISH" ? "work_bot.work_finished" : "work_bot.work_adjusted", entityType: "work_record", entityId: record.id, businessDate: record.businessDate, afterJson: { requestedByMembershipId: binding.membershipId, messageId: input.messageId }, requestId } });
-    return this.persistReply(transaction, input, intent, { outcome: intent.kind === "FINISH" ? "WORK_FINISHED" : "WORK_ADJUSTED", recordId: record.id, businessDate: record.businessDate.toISOString().slice(0, 10), reply: `✅ ${record.employee.displayName} ${intent.kind === "FINISH" ? "已下工" : "记工已更新"}\n项目金额 ${this.formatMoney(final.mainServiceAmountCents)}；加项 ${this.formatMoney(final.addonTotalCents)}；折扣 ${this.formatMoney(final.discountTotalCents)}；折后大费 ${this.formatMoney(final.discountedFeePerformanceCents)}\n实收 ${final.actualServiceCollectedCents === null ? "未收款" : this.formatMoney(final.actualServiceCollectedCents)}；小费 ${this.formatMoney(final.totalTipCents ?? 0n)}；${final.isHighlighted ? "已高亮" : "未高亮"}\n折扣项：${final.discountSnapshots.map(d => d.name).join("、") || "无"}；加项：${final.addonSnapshots.map(a => a.name).join("、") || "无"}\n编号 ${record.id}` }, group);
+    if (intent.kind === "FINISH") {
+      const amounts: string[] = [];
+      if (final.mainServiceAmountCents !== final.actualServiceCollectedCents) {
+        amounts.push(`项目金额 ${this.formatMoney(final.mainServiceAmountCents)}`);
+      }
+      const details: string[] = [];
+      if (final.addonSnapshots.length || final.addonTotalCents !== 0n) {
+        amounts.push(`加项 ${this.formatMoney(final.addonTotalCents)}`);
+        if (final.addonSnapshots.length) details.push(`加项：${final.addonSnapshots.map(a => a.name).join("、")}`);
+      }
+      if (final.discountSnapshots.length || final.discountTotalCents !== 0n) {
+        amounts.push(`折扣 ${this.formatMoney(final.discountTotalCents)}`);
+        if (final.discountSnapshots.length) details.push(`折扣项：${final.discountSnapshots.map(d => d.name).join("、")}`);
+      }
+      const lines = [
+        `✅ ${record.employee.displayName} 已下工`,
+        ...(amounts.length ? [amounts.join("；")] : []),
+        `实收 ${final.actualServiceCollectedCents === null ? "未收款" : this.formatMoney(final.actualServiceCollectedCents)}；小费 ${this.formatMoney(final.totalTipCents ?? 0n)}${final.isHighlighted ? "；已高亮" : ""}`,
+      ];
+      if (details.length) lines.push(details.join("；"));
+      if (final.actualServiceCollectedCents !== null && final.actualServiceCollectedCents !== final.discountedFeePerformanceCents) {
+        const difference = final.actualServiceCollectedCents - final.discountedFeePerformanceCents;
+        lines.push(`⚠️ 金额不一致：应收 ${this.formatMoney(final.discountedFeePerformanceCents)}，${difference < 0n ? "少收" : "多收"} ${this.formatMoney(difference < 0n ? -difference : difference)}`);
+      }
+      return this.persistReply(transaction, input, intent, { outcome: "WORK_FINISHED", recordId: record.id, businessDate: record.businessDate.toISOString().slice(0, 10), reply: lines.join("\n") }, group);
+    }
+    return this.persistReply(transaction, input, intent, { outcome: "WORK_ADJUSTED", recordId: record.id, businessDate: record.businessDate.toISOString().slice(0, 10), reply: `✅ ${record.employee.displayName} 记工已更新\n项目金额 ${this.formatMoney(final.mainServiceAmountCents)}；加项 ${this.formatMoney(final.addonTotalCents)}；折扣 ${this.formatMoney(final.discountTotalCents)}；折后大费 ${this.formatMoney(final.discountedFeePerformanceCents)}\n实收 ${final.actualServiceCollectedCents === null ? "未收款" : this.formatMoney(final.actualServiceCollectedCents)}；小费 ${this.formatMoney(final.totalTipCents ?? 0n)}；${final.isHighlighted ? "已高亮" : "未高亮"}\n折扣项：${final.discountSnapshots.map(d => d.name).join("、") || "无"}；加项：${final.addonSnapshots.map(a => a.name).join("、") || "无"}\n编号 ${record.id}` }, group);
   }
 
   private async requireBoundMember(transaction: Prisma.TransactionClient, input: WorkBotEventInput, intent: WorkBotParsedIntent): Promise<{ group: Awaited<ReturnType<WorkBotService["findGroupBinding"]>> & {}; binding: NonNullable<Awaited<ReturnType<typeof transaction.workBotMemberBinding.findUnique>>> } | { reply: WorkBotReply }> {

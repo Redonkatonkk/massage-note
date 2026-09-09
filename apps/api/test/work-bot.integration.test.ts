@@ -250,6 +250,9 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
 
     const finished = await workBot.handleEvent(`Bearer ${token}`, key("finish-cash"), event("finish-cash", "我下了，80 20 现金", finishAt), "finish-cash-request");
     expect(finished).toMatchObject({ outcome: "WORK_FINISHED", recordId: started.recordId });
+    expect(finished.reply).toContain("项目金额 $100.00\n实收 $80.00；小费 $20.00");
+    expect(finished.reply).not.toMatch(/加项|折扣|折后大费|编号|高亮/);
+    expect(finished.reply).toContain("⚠️ 金额不一致：应收 $100.00，少收 $20.00");
     const record = await prisma.workRecord.findUniqueOrThrow({ where: { id: started.recordId }, include: { serviceSnapshot: true, payment: true } });
     expect(record).toMatchObject({
       status: "CONFIRMED", actualDurationMinutes: 63, mainServiceAmountCents: 10_000n,
@@ -260,6 +263,25 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     expect(record.serviceSnapshot).toMatchObject({ amountCents: 10_000n, wageCents: 5_000n });
     expect(record.payment).toMatchObject({ cashServiceCents: 8_000n, cashTipCents: 2_000n });
     expect(await prisma.workBotOperation.count({ where: { storeId, messageId: "start-cash" } })).toBe(1);
+  });
+
+  it.each([
+    { amount: "100", highlighted: false, warning: "" },
+    { amount: "120", highlighted: true, warning: "⚠️ 金额不一致：应收 $100.00，多收 $20.00" },
+  ])("下工回复按实收 $amount 和高亮 $highlighted 显示必要信息", async ({ amount, highlighted, warning }) => {
+    const prefix = `compact-${amount}`;
+    const startAt = new Date();
+    const started = await workBot.handleEvent(`Bearer ${token}`, key(`${prefix}-start`), event(`${prefix}-start`, "上工 大力", startAt), prefix);
+    if (!started.recordId) throw new Error("上工没有返回记工编号");
+    if (highlighted) await prisma.workRecord.update({ where: { id: started.recordId }, data: { isHighlighted: true } });
+    const reply = await workBot.handleEvent(`Bearer ${token}`, key(`${prefix}-finish`), event(`${prefix}-finish`, `下工 ${amount} 20 现金`, new Date(startAt.getTime() + 60 * 60_000)), prefix);
+    expect(reply.outcome).toBe("WORK_FINISHED");
+    if (warning) {
+      expect(reply.reply).toContain(warning);
+      expect(reply.reply).toContain("；已高亮");
+    } else {
+      expect(reply.reply).toBe("✅ 小王 已下工\n实收 $100.00；小费 $20.00");
+    }
   });
 
   it("支持刷卡，并且普通聊天或模型补写字段不会修改账目", async () => {
@@ -377,6 +399,9 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     const result = await workBot.handleEvent(`Bearer ${token}`, key("manual-finish"), finish, "manual-finish");
     expect(result).toMatchObject({ outcome: "WORK_FINISHED", recordId: manual.id });
     expect(result.reply).toContain("评论折扣");
+    expect(result.reply).toContain("加项 $10.00；折扣 $5.00");
+    expect(result.reply).toContain("加项：热石；折扣项：评论折扣");
+    expect(result.reply).not.toMatch(/折后大费|编号/);
     expect(await workBot.handleEvent(`Bearer ${token}`, key("manual-finish"), finish, "manual-retry")).toEqual(result);
     await expect(prisma.workRecord.findUniqueOrThrow({ where: { id: manual.id }, include: { discountSnapshots: true, addonSnapshots: true, payment: true } })).resolves.toMatchObject({
       status: "CONFIRMED", mainServiceAmountCents: template.mainServiceAmountCents, addonTotalCents: 1000n, discountTotalCents: 500n,

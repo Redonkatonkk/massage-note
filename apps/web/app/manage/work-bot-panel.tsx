@@ -17,7 +17,7 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat("zh-CN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
-const intentLabels: Record<string, string> = { BIND_STORE: "绑定店铺", BIND_MEMBER: "绑定员工", START: "上工", FINISH: "下工", ADJUST: "调整记工", HELP: "使用帮助" };
+const intentLabels: Record<string, string> = { BIND_STORE: "绑定店铺", BIND_MEMBER: "绑定员工", START: "上工", FINISH: "下工", ADJUST: "调整记工", QUERY: "查询账目", MANAGE: "管理记工", HELP: "使用帮助" };
 
 export function WorkBotPanel({ storeId, catalog, settings, busy, run, reload }: Props) {
   const [draft, setDraft] = useState<{ text: string; version: number } | null>(null);
@@ -48,11 +48,11 @@ export function WorkBotPanel({ storeId, catalog, settings, busy, run, reload }: 
 
     <section className="manage-card">
       <div className="manage-heading"><div><p className="eyebrow">连接与成员</p><h2>微信群绑定</h2></div><span className="work-bot-tag">{settings.groups.length} 个群</span></div>
-      <p className="work-bot-hint">在群里发送 <strong>绑定店铺 6位店铺代码</strong>，然后让员工发送 <strong>绑定 员工姓名</strong>。</p>
+      <p className="work-bot-hint">在群里发送 <strong>绑定店铺 6位店铺代码</strong>，然后让员工发送 <strong>绑定 员工姓名</strong>。核对下方微信身份后开启数据访问：店主和经理可查全店，员工只能查自己的历史财务。查询结果会回复到本群；未核实身份仅可操作当日记工。</p>
       {!settings.groups.length ? <div className="empty-state">还没有绑定的微信群。完成绑定后，可在这里管理群和员工。</div> : <div className="work-bot-groups">{settings.groups.map((group) => <details className="work-bot-group" key={group.id}>
         <summary><span><strong>微信群</strong><small>{group.groupId}</small></span><span className="work-bot-tag">{group.memberBindings.length} 位员工</span></summary>
         <div className="work-bot-group-body"><p className="field-help">机器人：{group.botId} · 更新于 {formatTime(group.updatedAt)}</p>
-          {group.memberBindings.map((member) => <div className="work-bot-member" key={member.id}><div><strong>{member.membership.displayName}</strong><small>{member.senderId}</small></div><span>{member.activeWorkRecordId ? "正在记工" : "空闲"}</span><button className="table-action danger" disabled={busy || Boolean(member.activeWorkRecordId)} title={member.activeWorkRecordId ? "请先完成当前记工再解除绑定" : "解除员工绑定"} type="button" onClick={() => { if (!window.confirm(`确认解除 ${member.membership.displayName} 的微信绑定吗？`)) return; void run(async () => { await apiRequest(`/stores/${storeId}/work-bot/members/${member.id}`, { method: "DELETE", body: { version: member.version } }); await reload(); }); }}>解除</button></div>)}
+          {group.memberBindings.map((member) => <div className="work-bot-member" key={member.id}><div><strong>{member.membership.displayName}</strong><small>{member.senderId}</small></div><button className="table-action" disabled={busy || member.senderId.startsWith("__massage_note_delegated__:")} type="button" onClick={() => { void run(async () => { await apiRequest(`/stores/${storeId}/work-bot/members/${member.id}/verification`, { method: "PATCH", body: { version: member.version, verified: !member.verifiedAt } }); await reload(); }); }}>{member.verifiedAt ? "关闭数据访问" : "核实身份并开启数据访问"}</button><span>{member.activeWorkRecordId ? "正在记工" : "空闲"}</span><button className="table-action danger" disabled={busy || Boolean(member.activeWorkRecordId)} title={member.activeWorkRecordId ? "请先完成当前记工再解除绑定" : "解除员工绑定"} type="button" onClick={() => { if (!window.confirm(`确认解除 ${member.membership.displayName} 的微信绑定吗？`)) return; void run(async () => { await apiRequest(`/stores/${storeId}/work-bot/members/${member.id}`, { method: "DELETE", body: { version: member.version } }); await reload(); }); }}>解除</button></div>)}
           {!group.memberBindings.length && <p className="empty-state">群内还没有员工绑定。</p>}
           <div className="work-bot-group-footer"><span className="field-help">解除后，群员需要重新绑定店铺。</span><button className="table-action danger" disabled={busy} type="button" onClick={() => { if (!window.confirm("确认解除这个群的店铺绑定吗？群员需要重新执行绑定店铺。")) return; void run(async () => { await apiRequest(`/stores/${storeId}/work-bot/groups/${group.id}`, { method: "DELETE", body: { version: group.version } }); await reload(); }); }}>解除群绑定</button></div>
         </div>

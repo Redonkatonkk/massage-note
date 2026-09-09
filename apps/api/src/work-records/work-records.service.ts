@@ -103,6 +103,11 @@ const recordInclude = {
 
 @Injectable()
 export class WorkRecordsService {
+  private auditSource: "api" | "langbot" = "api";
+
+  /** Only used on a fresh, event-scoped service with the server's WeChat access adapter. */
+  withWorkBotAudit(): this { this.auditSource = "langbot"; return this; }
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: StoreAccessService,
@@ -311,9 +316,9 @@ export class WorkRecordsService {
       await transaction.auditLog.create({
         data: {
           storeId,
-          actorUserId: actor.id,
+          actorUserId: this.auditSource === "langbot" ? null : actor.id,
           actorMembershipId: actorMembership.id,
-          source: "api",
+          source: this.auditSource,
           action: isCustom
             ? "work_record.created_with_custom_service"
             : "work_record.created",
@@ -762,9 +767,9 @@ export class WorkRecordsService {
           await transaction.auditLog.create({
             data: {
               storeId,
-              actorUserId: actor.id,
+              actorUserId: this.auditSource === "langbot" ? null : actor.id,
               actorMembershipId: actorMembership.id,
-              source: "api",
+              source: this.auditSource,
               action: "work_record.updated",
               entityType: "work_record",
               entityId: recordId,
@@ -884,9 +889,9 @@ export class WorkRecordsService {
         await transaction.auditLog.create({
           data: {
             storeId,
-            actorUserId: actor.id,
+            actorUserId: this.auditSource === "langbot" ? null : actor.id,
             actorMembershipId: actorMembership.id,
-            source: "api",
+            source: this.auditSource,
             action: "work_record.deleted",
             entityType: "work_record",
             entityId: recordId,
@@ -996,9 +1001,9 @@ export class WorkRecordsService {
         await transaction.auditLog.create({
           data: {
             storeId,
-            actorUserId: actor.id,
+            actorUserId: this.auditSource === "langbot" ? null : actor.id,
             actorMembershipId: actorMembership.id,
-            source: "api",
+            source: this.auditSource,
             action: "work_record.restored",
             entityType: "work_record",
             entityId: recordId,
@@ -1192,9 +1197,9 @@ export class WorkRecordsService {
         await transaction.auditLog.create({
           data: {
             storeId,
-            actorUserId: actor.id,
+            actorUserId: this.auditSource === "langbot" ? null : actor.id,
             actorMembershipId: actorMembership.id,
-            source: "api",
+            source: this.auditSource,
             action: "work_record.payment_confirmed",
             entityType: "work_record",
             entityId: recordId,
@@ -1649,7 +1654,7 @@ export class WorkRecordsService {
       await transaction.auditLog.create({
         data: {
           storeId,
-          actorUserId,
+          actorUserId: this.auditSource === "langbot" ? null : actorUserId,
           actorMembershipId,
           source: "system",
           action: "cash_settlement.reopened_automatically",

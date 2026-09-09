@@ -93,12 +93,49 @@ function numericDurationMatches(mention: string, duration: number): boolean {
   return Number(numeric[1]) * (hours ? 60 : 1) === duration;
 }
 
+function managementEvidence(intent: Extract<WorkBotParsedIntent, { kind: "MANAGE" }>, rawText: string): boolean {
+  const raw = rawText.normalize("NFKC");
+  if ((intent.operation !== "CREATE" && (!intent.recordId || !raw.includes(intent.recordId))) || !raw.includes(intent.evidence.normalize("NFKC"))) return false;
+  if (intent.operation === "CREATE" && !/新增|补录|记工|上工|create/iu.test(raw)) return false;
+  if (intent.operation === "DELETE" && !/删除|作废|\bdelete\b/iu.test(raw)) return false;
+  if (intent.operation === "RESTORE" && !/恢复|\brestore\b/iu.test(raw)) return false;
+  if (intent.operation === "PAYMENT" && !/收|付|结账|下工|下了|\bpay(?:ment)?\b/iu.test(raw)) return false;
+  if (intent.operation === "UPDATE" && !/改|设|调整|高亮|备注|折扣|加项|add.?on|highlight|update|change/iu.test(raw)) return false;
+  const numericRaw = intent.recordId ? raw.replace(intent.recordId, "") : raw;
+  const hasNumber = (value: number) => [...numericRaw.matchAll(/(?<![\d.−+\-])(\d+(?:\.\d{1,2})?)(?![\d.])/gu)].some(match => Number(match[1]) === value);
+  const check = (value: unknown, field: string): boolean => {
+    if (value === null) return /清空|取消|移除|remove|clear/iu.test(raw);
+    if (Array.isArray(value)) return value.length ? value.every(item => check(item, field)) : /清空|全部|所有|clear|all/iu.test(raw);
+    if (typeof value === "object") return Object.entries(value as Record<string, unknown>).every(([key, child]) => check(child, key));
+    if (typeof value === "number") return hasNumber(field.endsWith("Cents") || field.endsWith("Bps") ? value / 100 : value);
+    if (typeof value === "boolean") {
+      if (field === "isCustom") return true; // The catalog/source constraint is revalidated by the shared contract.
+      if (field === "isHighlighted") return value ? /高亮|highlight/iu.test(raw) && !/取消高亮|不高亮|unhighlight/iu.test(raw) : /取消高亮|不高亮|unhighlight/iu.test(raw);
+      if (field === "automaticDiscountSuppressed") return value ? /取消自动折扣|停用自动折扣|suppress/iu.test(raw) : /恢复自动折扣|启用自动折扣|enable/iu.test(raw);
+      if (field.endsWith("SettledManualFlag")) return /结清|结算|settled/iu.test(raw) && (value || /取消|未|unsettled/iu.test(raw));
+      return false;
+    }
+    if (typeof value === "string") {
+      if (field.endsWith("ItemId") || field === "employeeMembershipId") return true; // Resolved only from same-store live catalog; service checks ownership.
+      return raw.toLowerCase().includes(value.normalize("NFKC").toLowerCase());
+    }
+    return false;
+  };
+  return (!intent.create || check(intent.create, "create")) && (!intent.details || check(intent.details, "details")) && (!intent.payment || check(intent.payment, "payment")) && (!intent.reason || raw.includes(intent.reason.normalize("NFKC")));
+}
+
 export function parsedIntentAppearsInRawText(intent: WorkBotParsedIntent, rawText: string): boolean {
   const normalizedRaw = normalizeWorkBotValue(rawText);
   const appears = (value: string) => {
     const normalized = normalizeWorkBotValue(value);
     return normalized.length > 0 && normalizedRaw.includes(normalized);
   };
+  const adjustmentEvidence = (value: Extract<WorkBotParsedIntent, { kind: "ADJUST" | "FINISH" }>) =>
+    (!value.recordId || rawText.includes(value.recordId))
+    && (value.isHighlighted === undefined || (Boolean(value.highlightMention) && appears(value.highlightMention!)
+      && (value.isHighlighted ? /高亮|highlight/iu.test(value.highlightMention!) && !/取消|不高亮|unhighlight/iu.test(value.highlightMention!) : /取消高亮|不高亮|unhighlight/iu.test(value.highlightMention!))))
+    && [...(value.discounts ?? []), ...(value.addons ?? [])].every(item => appears(item.mention)
+      && (item.action === "REMOVE" ? /删除|取消|移除|去掉|remove/iu.test(item.mention) : !/删除|取消|移除|去掉|remove/iu.test(item.mention)));
   switch (intent.kind) {
     case "BIND_STORE":
       return normalizedRaw.includes(intent.storeCode);
@@ -109,23 +146,30 @@ export function parsedIntentAppearsInRawText(intent: WorkBotParsedIntent, rawTex
         && (intent.durationMinutes === undefined || (intent.durationSource === "SKILL" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(intent.serviceAlias) && !intent.durationMention) || (intent.durationMention !== undefined ? appears(intent.durationMention) && numericDurationMatches(intent.durationMention, intent.durationMinutes) : new RegExp(`(?<![\\d.])${intent.durationMinutes}(?![\\d.])`, "u").test(rawText.normalize("NFKC"))))
         && (intent.memberName === undefined || appears(intent.memberMention ?? intent.memberName));
     case "ADJUST":
-      return (Boolean(intent.discounts?.length || intent.addons?.length))
+      return (Boolean(intent.discounts?.length || intent.addons?.length) || intent.isHighlighted !== undefined)
+        && adjustmentEvidence(intent)
         && (!intent.memberName || appears(intent.memberMention ?? intent.memberName))
         && [...(intent.discounts ?? []), ...(intent.addons ?? [])].every(item => appears(item.mention));
     case "FINISH": {
       const text = rawText.normalize("NFKC").replace(/[@＠][^\s，,。！？!?：:]+/gu, " ");
-      const amounts = amountTokens(text);
+      const amounts = amountTokens(intent.recordId ? text.replace(intent.recordId, "") : text);
       const methods = paymentMethods(text);
       const methodPresent = intent.paymentMention
         ? appears(intent.paymentMention)
         : intent.paymentMethod === "CASH"
           ? methods.cash : methods.card;
-      return amounts.length === 2 && amounts[0] === intent.serviceAmount && amounts[1] === intent.tipAmount
+      return adjustmentEvidence(intent) && amounts.length === 2 && amounts[0] === intent.serviceAmount && amounts[1] === intent.tipAmount
         && methodPresent && !methods.gift && !(methods.cash && methods.card)
         && !(intent.paymentMethod === "CASH" ? methods.card : methods.cash)
         && (!intent.memberName || appears(intent.memberMention ?? intent.memberName))
         && [...(intent.discounts ?? []), ...(intent.addons ?? [])].every(item => appears(item.mention));
     }
+    case "QUERY":
+      return /查|列表|多少|合计|汇总|明细|记录|list|query|show|total/iu.test(rawText)
+        && (!intent.memberName || appears(intent.memberMention ?? intent.memberName))
+        && (!intent.recordId || rawText.includes(intent.recordId));
+    case "MANAGE":
+      return managementEvidence(intent, rawText);
     case "HELP":
       return true;
   }

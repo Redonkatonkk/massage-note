@@ -12,6 +12,7 @@ import {
 } from "@nestjs/common";
 import {
   updateWorkBotInstructionsSchema,
+  verifyWorkBotBindingSchema,
   createWorkBotAliasSchema,
   deleteWorkBotBindingSchema,
   idempotencyKeySchema,
@@ -136,6 +137,12 @@ export class WorkBotAdminController {
       parseRequest(deleteWorkBotBindingSchema, body).version,
       response.locals.requestId as string,
     );
+  }
+
+  @Patch("members/:bindingId/verification")
+  verifyMember(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Param("bindingId") bindingId: string, @Body() body: unknown, @Res({ passthrough: true }) response: Response) {
+    const input = parseRequest(verifyWorkBotBindingSchema, body);
+    return this.workBot.verifyMemberBinding(user, parseRequest(uuidSchema, storeId), parseRequest(uuidSchema, bindingId), input.version, input.verified, response.locals.requestId as string);
   }
 
   @Delete("members/:bindingId")

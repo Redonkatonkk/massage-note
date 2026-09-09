@@ -1,18 +1,11 @@
 # Massage Note Work Bot
 
-Restricted LangBot event-listener plugin for WeChat group work records. It intercepts group messages that already passed LangBot's mention trigger, loads the bound store's live alias-and-employee skill from Massage Note, and requires the configured LLM to interpret every message before authoritative validation and atomic accounting.
+LangBot WeChat plugin for complete work records and scoped database queries. Requires Massage Note API 1.1.0 (protocol version 2).
 
-Configure these fields on the installed plugin in LangBot:
+Configure `api_base_url`, `integration_token`, the dedicated `bot`, and parser `model` in LangBot. Each mentioned group message loads the live store catalog and instructions, invokes the model, and submits a constrained intent to the API. Money, authorization, idempotency and database access are server controlled.
 
-- `integration_token`: the same `mnw_...` secret configured as `LANGBOT_WORK_TOKEN` on the Massage Note API.
-- `api_base_url`: defaults to `https://massagenote.waltonjin.com/api/v1`.
-- `bot`: the dedicated WeChat work bot.
-- `model`: required; DeepSeek or another model used to interpret every message with the live store skill.
+Supports start/finish, discounts and add-ons, highlighting, record edits, mixed cash/card/gift-card payments, custom items, historical entry, soft delete/restore, and paginated record/day/employee queries. Payment collection does not overwrite the original service price.
 
-Do not rely on environment variables set only on the Plugin Runtime container. Current isolated plugin workers receive a minimal environment and do not inherit custom `MASSAGE_NOTE_*` variables. LangBot masks `integration_token` when returning plugin configuration through its management API.
+For data access, a store manager must verify the WeChat identity in the Massage Note work-bot settings. Employees can query their own history; verified managers/owners can query the store. Replies are posted to the group that requested them.
 
-The bot never calls general Massage Note APIs and does not handle private messages.
-
-Before every model call the plugin loads enabled aliases, their mapped service names, default and available durations, and active employee names. The model may use general language knowledge to map an unlisted colloquial expression such as `deep tissue` to the uniquely appropriate configured canonical alias, but it must quote the original evidence span. Canonical employees and aliases must still come from the live skill, while prices and accounting remain server-controlled.
-
-支持人工创建的待付款记工；`Lily 下了，收 75/15卡，评论` 表示代下工、卡付大费 75 / 小费 15 并使用配置的评论折扣。`Lily 加评论折扣` / `Lily 加热石` 可单独更新待付款记工。折扣、加项由实时店铺配置提供，未知项目不写账；多条待付款记录要求到网页核对。需配套更新后的 Massage Note API。
+See [中文操作说明](readme/README_zh_Hans.md). Deploy API and database migrations before installing the plugin. Never include credentials in the package or rely on custom Runtime environment variables being inherited by isolated plugin workers.

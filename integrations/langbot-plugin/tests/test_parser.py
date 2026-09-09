@@ -18,6 +18,19 @@ parse = namespace["parse_llm_json"]
 
 
 class ParserTest(unittest.TestCase):
+    def test_query_and_management_keep_parameters(self):
+        query = {"kind": "QUERY", "days": 15, "groupBy": "DAY", "page": 2}
+        self.assertEqual(parse(json.dumps(query), {}), query)
+        self.assertIsNone(parse('{"kind":"QUERY","sql":"SELECT * FROM users"}', {}))
+        manage = {"kind": "MANAGE", "operation": "UPDATE", "recordId": "11111111-1111-4111-8111-111111111111", "details": {"isHighlighted": False}, "evidence": "取消高亮"}
+        self.assertEqual(parse(json.dumps(manage), {}), manage)
+
+    def test_highlight_and_removing_retired_addon(self):
+        highlight = {"kind": "ADJUST", "isHighlighted": False, "highlightMention": "取消高亮"}
+        self.assertEqual(parse(json.dumps(highlight), {}), highlight)
+        remove = {"kind": "ADJUST", "addons": [{"name": "已停用的热石", "mention": "移除已停用的热石", "action": "REMOVE"}]}
+        self.assertEqual(parse(json.dumps(remove), {}), remove)
+
     def test_message_time_rejects_invalid_values(self):
         for value in [float("nan"), float("inf"), 10**100, "not-a-date", "NaN", True]:
             with self.subTest(value=value), self.assertRaises((ValueError, OverflowError)):

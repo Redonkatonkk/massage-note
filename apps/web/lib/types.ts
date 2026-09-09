@@ -732,6 +732,7 @@ export interface WorkBotMemberBinding {
   senderId: string;
   membershipId: string;
   activeWorkRecordId: string | null;
+  verifiedAt: string | null;
   version: number;
   updatedAt: string;
   membership: { id: string; displayName: string; status: string };

@@ -505,6 +505,7 @@ model WorkBotMemberBinding {
   groupBindingId     String   @map("group_binding_id") @db.Uuid
   senderId           String   @map("sender_id") @db.VarChar(255)
   membershipId       String   @map("membership_id") @db.Uuid
+  verifiedAt         DateTime? @map("verified_at") @db.Timestamptz(3)
   activeWorkRecordId String?  @unique @map("active_work_record_id") @db.Uuid
   version            Int      @default(1)
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -554,7 +555,7 @@ model WorkBotOperation {
   outcome        String    @db.VarChar(48)
   rawText        String    @map("raw_text") @db.VarChar(1000)
   parsedJson     Json?     @map("parsed_json")
-  reply          String    @db.VarChar(1000)
+  reply          String    @db.Text
   errorCode      String?   @map("error_code") @db.VarChar(100)
   occurredAt     DateTime  @map("occurred_at") @db.Timestamptz(3)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)

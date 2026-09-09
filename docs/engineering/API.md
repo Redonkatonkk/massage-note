@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.0.7`
+> 适用版本：`1.1.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -256,3 +256,11 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 - SSE 每轮重新验证成员及账号状态，慢轮询不会被取消。除增量事件外，每 30 秒发出不带事件 ID 的 `store.changed`（`reason: resync`），覆盖时间游标之前延迟提交的事务；浏览器在重连时也重新读取 REST。
 - 发送代理的授权、检查点、完成和失败回写均检查未过期租约及当前令牌；租约失效返回 `DELIVERY_LEASE_INVALID`。
 - 员工小计发送的幂等内容包含日期、员工列表、付款方式、金额类型、高亮筛选及接收号码；相同键更换筛选返回 `IDEMPOTENCY_KEY_REUSED`。
+
+### 完整微信记工与数据查询（1.1.0）
+
+`POST /integrations/langbot/work-context` 返回协议版本 2、店铺当前营业日期/时区、员工 ID 和实时意图 JSON Schema。`work-events` 扩展 QUERY 与 MANAGE；QUERY 支持最近 1–366 个营业日或完整起止日期、员工/状态/高亮筛选、按记录/天/员工分组及每页 20 条分页。总计覆盖完整范围。MANAGE 支持 CREATE、UPDATE、PAYMENT、DELETE、RESTORE，输入事实须有原文依据，编辑与付款共用事务；完整契约见 `packages/contracts/src/work-bot.ts`。
+
+`PATCH /stores/:storeId/work-bot/members/:bindingId/verification` 接受 `{version, verified}`，需要 `STORE_SETTINGS_MANAGE`。核实前按普通员工限制写当日，核实后仍按实际成员角色授权；历史财务查询需核实，员工只能读本人。重绑不同身份取消核实，查询重放重新鉴权。
+
+下工服务金额表示实收，不自动覆盖项目原价。完整用法与部署顺序见 [LangBot 记工机器人](../operations/LANGBOT_WORK_BOT.md)。

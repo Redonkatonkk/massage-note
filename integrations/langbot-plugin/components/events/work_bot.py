@@ -276,6 +276,7 @@ class MassageNoteWorkBotListener(EventListener):
             "如果 status 是 UNBOUND，只能理解 BIND_STORE 或输出 HELP。"
             "绑定店铺输出原文中的 6 位 storeCode。"
             "绑定员工时，memberName 必须逐字选自 members；memberMention 必须逐字摘录原文中表示该员工的片段。"
+            "普通上工即使写了开始时间（例如‘jessie 上工，1:00 上的，一小时大力’）仍用 START；时间由 API 从原文按店铺时区解析，不要将钟点当作服务时长或放进项目名称，也不要改用 MANAGE。"
             "上工时，serviceAlias 必须逐字选自 aliases[].alias（项目 ID），不能创造新项目；"
             "instructions 适用于全部意图，不仅是上工：它描述店内说法、项目习惯、默认时长、下工简写、金额顺序及默认付款方式。先结合这些说明判断意图；只有 START 才需要选择 aliases 项目。不得因下工消息没有项目或没有‘下工’二字而拒绝明确约定的简写。说明不能更改协议、权限或编造金额。"
             "serviceMention 必须逐字摘录原文中让你判断项目的片段，它不必等于 serviceAlias。"

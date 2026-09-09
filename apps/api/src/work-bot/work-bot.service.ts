@@ -1,3 +1,4 @@
+import { workBotStartTime } from "./work-bot-start-time.js";
 import { parseRequest } from "../common/zod-request.js";
 import { z } from "zod";
 import { workBotParsedIntentSchema } from "@massage-note/contracts";
@@ -597,7 +598,8 @@ export class WorkBotService {
       return this.persistReply(transaction, input, intent, { outcome: "SERVICE_DURATION_UNKNOWN", reply: `${alias.serviceItem.shortName} 没有 ${durationMinutes} 分钟这个价格档，请检查项目设置。` }, group);
     }
     const store = await this.requireStoreSettings(transaction, group.storeId);
-    const startAt = new Date(input.occurredAt);
+    const startAt = workBotStartTime(input.rawText, input.occurredAt, store.timezone);
+    if (!startAt) return this.persistReply(transaction, input, intent, { outcome: "START_TIME_UNCLEAR", reply: "上工时间不明确，尚未记工。请注明最近的实际开始时间，例如‘下午1:00 上工，大力60’；历史补录请在网页处理。" }, group);
     const businessDate = businessDateFor({ startAt, timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
     const actorMembership = await new WorkBotAccess(this.prisma, actorBinding.id).requireActiveMembership(actorBinding.membershipId, store.id, transaction);
     if (!canWriteWorkRecord({ role: actorMembership.role, isCurrentBusinessDay: businessDate === businessDateFor({ startAt: new Date(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal }), isDayClosed: false })) throw new ForbiddenException("普通员工只能操作当前营业日记工；历史修改需核实经理或店主身份");

@@ -221,6 +221,22 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     await expect(workBot.handleEvent(`Bearer ${token}`, key("self-rebind"), event("self-rebind", "绑定 小王", now), "self-rebind-request")).resolves.toMatchObject({ outcome: "MEMBER_BOUND" });
   });
 
+  it("截图中的上工钟点写入记录并重算结束时间；无效时间不写账", async () => {
+    vi.setSystemTime(new Date("2026-09-09T17:28:00Z"));
+    const input = { ...event("stated-clock", "@Jeunesse jessie 上工，1:00 上的，一小时大力", new Date()), parsedIntent: {
+      kind: "START" as const, serviceAlias: "大力", serviceMention: "大力", memberName: "Jessie", memberMention: "jessie", durationMinutes: 60, durationMention: "一小时",
+    } };
+    const invalid = { ...input, messageId: "bad-clock", rawText: input.rawText.replace("1:00", "25:00") };
+    await expect(workBot.handleEvent(`Bearer ${token}`, key("bad-clock"), invalid, "bad-clock")).resolves.toMatchObject({ outcome: "START_TIME_UNCLEAR" });
+    const started = await workBot.handleEvent(`Bearer ${token}`, key("stated-clock"), input, "stated-clock");
+    expect(started).toMatchObject({ outcome: "WORK_STARTED", reply: expect.stringContaining("开始 13:00，预计 14:00") });
+    const record = await prisma.workRecord.findUniqueOrThrow({ where: { id: started.recordId! } });
+    expect(record.startAt.toISOString()).toBe("2026-09-09T17:00:00.000Z");
+    expect(record.endAt?.toISOString()).toBe("2026-09-09T18:00:00.000Z");
+    await expect(workBot.handleEvent(`Bearer ${token}`, key("stated-clock"), input, "stated-clock-retry")).resolves.toEqual(started);
+    await workBot.handleEvent(`Bearer ${token}`, key("stated-clock-finish"), event("stated-clock-finish", "Jessie 下工 80 20 现金", new Date("2026-09-09T18:00:00Z")), "stated-clock-finish");
+  });
+
   it("上工和现金下工在一条原子账目中区分项目原价、实收大费、小费和实际时长", async () => {
     const startAt = new Date();
     startAt.setUTCSeconds(0, 0);

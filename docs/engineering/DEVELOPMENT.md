@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`1.1.2`
+> 适用版本：`1.1.3`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
@@ -131,7 +131,7 @@ pnpm build
 
 ## 版本规则
 
-根目录 `VERSION` 是唯一版本号来源。任何准备提交的代码或文档变化都递增语义版本，并同步：
+根目录 `VERSION` 是唯一版本号来源。每次代码、配置、文档或其他项目调整都必须递增语义版本并更新相关项目文档，不以是否提交或部署为前提。该要求也记录在根目录 [`AGENTS.md`](../../AGENTS.md)。版本需要同步：
 
 - 根目录和所有 workspace 的 `package.json`
 - `CHANGELOG.md`

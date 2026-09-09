@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.1.2` 代码结构核对。
+> 状态：与 `1.1.3` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -154,3 +154,9 @@ Web 表单
 | AI | `apps/api/src/ai` | canonical preview、确认鉴权、限流和安全降级 |
 
 具体开发与验证流程见 [`DEVELOPMENT.md`](DEVELOPMENT.md)，HTTP 端点见 [`API.md`](API.md)。
+
+## AI 会话上下文
+
+`AiConversation` 绑定店铺、用户和助手类型；`AiQueryLog` 的现有 JSON 结果字段保存回复、查询结果、预览和成员权限范围，无需数据库迁移。每次带 `conversationId` 的请求先验证归属，再读取非 ERROR 历史，按角色和时间顺序交给模型供应商；记工只读工具循环保留同一份历史。角色/成员范围变化会排除先前范围的结果。
+
+财务助手在有历史且模型可用时，先结合历史解析当前完整筛选，再调用后端财务服务并解释最新统计。历史仅帮助理解追问，不能替代业务鉴权、确定性计算或写入确认。接口细节及旧日志兼容限制见 [API 文档](API.md)。

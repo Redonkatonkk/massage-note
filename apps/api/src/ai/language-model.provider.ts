@@ -7,7 +7,13 @@ export interface LanguageModelResult {
   model: string;
 }
 
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface LanguageModelRequest {
+  history?: ConversationMessage[];
   system: string;
   user: string;
   tools?: Array<{ type: "function"; function: { name: string; description: string; parameters: object } }>;
@@ -38,7 +44,7 @@ export class MiniMaxLanguageModelProvider {
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             model,
-            messages: [{ role: "system", content: input.system }, { role: "user", content: input.user }],
+            messages: [{ role: "system", content: input.system }, ...(input.history ?? []), { role: "user", content: input.user }],
             max_completion_tokens: tokenBudget,
             temperature: 0.2,
             reasoning_split: true,

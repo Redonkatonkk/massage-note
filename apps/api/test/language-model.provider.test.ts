@@ -20,6 +20,14 @@ describe("MiniMax completion integrity", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("sends every historical turn in role order before the current message", async () => {
+    fetchMock.mockResolvedValueOnce(reply("stop", "记住了"));
+    const history = [{ role: "user" as const, content: "给 Amy 记工" }, { role: "assistant" as const, content: "多长时间？" }];
+    await new MiniMaxLanguageModelProvider().complete({ ...request, history });
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(body.messages).toEqual([{ role: "system", content: request.system }, ...history, { role: "user", content: request.user }]);
+  });
+
   it("discards truncated text and retries the original request with a larger budget", async () => {
     fetchMock.mockResolvedValueOnce(reply("length", "半截"))
       .mockResolvedValueOnce(reply("stop", "完整回复。"));

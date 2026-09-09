@@ -129,12 +129,7 @@ export function businessTimeToIso(
 
 export function displayTime(instant: string | null, timezone: string): string {
   if (!instant) return "未填写";
-  return new Intl.DateTimeFormat("zh-CN", {
-    timeZone: timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).format(new Date(instant));
+  return formatWorkTime(localDateTimeValue(instant, timezone).slice(11));
 }
 
 export function currentStoreTime(timezone: string): string {
@@ -142,4 +137,22 @@ export function currentStoreTime(timezone: string): string {
   return `${value.hour.toString().padStart(2, "0")}:${value.minute
     .toString()
     .padStart(2, "0")}`;
+}
+
+// Bare clock hours follow the shop's usual daytime shift; explicit AM/PM wins.
+export function parseWorkTime(value: string): string | null {
+  const match = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i.exec(value.trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2] ?? 0);
+  if (hour < 1 || hour > 12 || minute > 59) return null;
+  const period = match[3]?.toLowerCase() ?? (hour >= 9 && hour <= 11 ? "am" : "pm");
+  const hour24 = hour % 12 + (period === "pm" ? 12 : 0);
+  return `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+export function formatWorkTime(value: string): string {
+  if (!value) return "";
+  const [hour, minute] = value.split(":").map(Number);
+  return `${hour! % 12 || 12}:${String(minute).padStart(2, "0")} ${hour! >= 12 ? "PM" : "AM"}`;
 }

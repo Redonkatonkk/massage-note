@@ -35,6 +35,7 @@ import type {
 import { ClosingDeliveryQueue } from "./closing-delivery-queue";
 import { EmployeeClosingModal } from "./employee-closing";
 import { GiftCardSales } from "./gift-card-sales";
+import { WorkTimeInput } from "./work-time-input";
 import { RecordEditor } from "./record-editor";
 
 interface TodayBoardProps {
@@ -119,6 +120,7 @@ export function TodayBoard({
   const [customServiceShortName, setCustomServiceShortName] = useState("");
   const [customServiceAmount, setCustomServiceAmount] = useState("");
   const [customServiceDuration, setCustomServiceDuration] = useState("");
+  const [startTimeValid, setStartTimeValid] = useState(true);
   const [startTime, setStartTime] = useState(currentStoreTime(currentDay.timezone));
   const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
   const [closingEmployee, setClosingEmployee] = useState<{ id: string; displayName: string } | null>(null);
@@ -332,6 +334,7 @@ export function TodayBoard({
   }
 
   async function saveQuickRecord() {
+    if (!startTimeValid) throw new Error("请填写有效的开始时间");
     if (!quickEmployeeId) return;
     let serviceSelection:
       | { serviceItemId: string; serviceDurationMinutes: number }
@@ -574,7 +577,7 @@ export function TodayBoard({
                       );
                     })}
                     {!board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage) && (
-                      <button className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickEmployeeId(row.membershipId); }}>
+                      <button className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickEmployeeId(row.membershipId); }}>
                         <span aria-hidden="true">＋</span>新增记工
                       </button>
                     )}
@@ -631,7 +634,7 @@ export function TodayBoard({
               </div>
             </div>
             <label className="field-label" htmlFor="start-time">开始时间</label>
-            <input className="time-input" id="start-time" type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} />
+            <WorkTimeInput id="start-time" value={startTime} onChange={setStartTime} onValidityChange={setStartTimeValid} />
             <div className="quick-mode-switch" role="group" aria-label="项目类型">
               <button className={quickMode === "PRESET" ? "active" : ""} type="button" onClick={() => setQuickMode("PRESET")}>预设项目</button>
               <button className={quickMode === "CUSTOM" ? "active" : ""} type="button" onClick={() => setQuickMode("CUSTOM")}>＋ 自定义项目</button>

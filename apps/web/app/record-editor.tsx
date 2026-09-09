@@ -1,5 +1,6 @@
 "use client";
 
+import { WorkDateTimeInput } from "./work-time-input";
 import { browserStorage } from "../lib/browser-storage";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -163,6 +164,8 @@ export function RecordEditor({
     [record.discountSnapshots],
   );
   const [employeeId, setEmployeeId] = useState(record.employeeMembershipId);
+  const [startTimeValid, setStartTimeValid] = useState(true);
+  const [endTimeValid, setEndTimeValid] = useState(true);
   const [startAt, setStartAt] = useState(initialStart);
   const lastValidStartAt = useRef(initialStart);
   const [endAt, setEndAt] = useState(initialEnd);
@@ -535,6 +538,7 @@ export function RecordEditor({
   }
 
   async function saveDetails(): Promise<WorkRecord> {
+    if (!startTimeValid || !endTimeValid) throw new Error("请填写有效的开始和结束时间");
     try {
       const updated = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/${record.id}`, {
         method: "PATCH",
@@ -685,10 +689,10 @@ export function RecordEditor({
             </select>
           </label>
           <label className="field-label">开始时间
-            <input type="datetime-local" value={startAt} onChange={(event) => changeStartAt(event.target.value)} />
+            <WorkDateTimeInput value={startAt} fallbackDate={initialStart.slice(0, 10)} onChange={changeStartAt} onValidityChange={setStartTimeValid} />
           </label>
           <label className="field-label">结束时间
-            <input type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} />
+            <WorkDateTimeInput value={endAt} fallbackDate={startAt.slice(0, 10) || initialStart.slice(0, 10)} onChange={setEndAt} onValidityChange={setEndTimeValid} optional />
           </label>
           <label className="field-label">主要项目
             <select value={serviceChoice} onChange={(event) => chooseService(event.target.value)}>

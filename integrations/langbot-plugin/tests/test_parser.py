@@ -51,6 +51,17 @@ class ParserTest(unittest.TestCase):
         intent = {"kind": "FINISH", "memberName": "Lily", "memberMention": "lily", "serviceAmount": "75", "tipAmount": "15", "paymentMethod": "CARD", "paymentMention": "卡", "discounts": [{"name": "评论折扣", "mention": "评论"}], "addons": [{"name": "热石", "mention": "热石"}]}
         self.assertEqual(parse(json.dumps(intent), self.context), intent)
 
+    def test_shorthand_payment_evidence_preserves_employee_and_amounts(self):
+        context = {"members": ["Jessica", "Lily"], "instructions": "Jessica 75 5 表示下工，大费75小费5，默认信用卡，以此类推。"}
+        for name, amount, tip in [("Jessica", "75", "5"), ("Jessica", "90", "0"), ("Lily", "80.50", "12.25")]:
+            with self.subTest(name=name, amount=amount, tip=tip):
+                intent = {"kind": "FINISH", "memberName": name, "memberMention": name, "serviceAmount": amount, "tipAmount": tip, "paymentMethod": "CARD", "paymentMention": f"{name} {amount} {tip}"}
+                self.assertEqual(parse(json.dumps(intent), context), intent)
+
+    def test_explicit_cash_and_checkout_keep_named_employee(self):
+        intent = {"kind": "FINISH", "memberName": "Lily", "memberMention": "Lily", "serviceAmount": "75", "tipAmount": "5", "paymentMethod": "CASH", "paymentMention": "现金"}
+        self.assertEqual(parse(json.dumps(intent), self.context), intent)
+
     def test_adjust_requires_configured_item_and_evidence(self):
         intent = {"kind": "ADJUST", "memberName": "Lily", "memberMention": "Lily", "addons": [{"name": "热石", "mention": "热石"}]}
         self.assertEqual(parse(json.dumps(intent), self.context), intent)

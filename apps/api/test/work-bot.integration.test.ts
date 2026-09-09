@@ -130,6 +130,19 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     await expect(workBot.handleEvent(`Bearer ${token}`, key("rebind-store"), event("rebind-store", "绑定店铺 000000", now), "rebind-store-request")).resolves.toMatchObject({ outcome: "STORE_REBIND_FORBIDDEN" });
   });
 
+  it("网页手动开始的记工可按指定员工简写收款，不误收发消息者的记工", async () => {
+    const records = new WorkRecordsService(prisma, access, new IdempotencyService(prisma));
+    const startAt = new Date().toISOString();
+    const manual = await records.create(actor, storeId, { employeeMembershipId: delegatedEmployeeId, startAt, serviceItemId, serviceDurationMinutes: 60 }, randomUUID(), "manual-shorthand-start");
+    const own = await records.create(actor, storeId, { employeeMembershipId, startAt, serviceItemId, serviceDurationMinutes: 60 }, randomUUID(), "manual-sender-start");
+    expect(await prisma.workBotMemberBinding.count({ where: { activeWorkRecordId: manual.id } })).toBe(0);
+    const input = { ...event("manual-shorthand-finish", "Jessie 75 5", new Date(Date.now() + 60 * 60_000)), parsedIntent: { kind: "FINISH" as const, memberName: "Jessie", memberMention: "Jessie", serviceAmount: "75", tipAmount: "5", paymentMethod: "CARD" as const, paymentMention: "Jessie 75 5" } };
+    await expect(workBot.handleEvent(`Bearer ${token}`, key(input.messageId), input, input.messageId)).resolves.toMatchObject({ outcome: "WORK_FINISHED", recordId: manual.id });
+    await expect(prisma.workRecord.findUniqueOrThrow({ where: { id: manual.id } })).resolves.toMatchObject({ status: "CONFIRMED", cardServiceCents: 7500n, cardTipCents: 500n });
+    await expect(prisma.workRecord.findUniqueOrThrow({ where: { id: own.id } })).resolves.toMatchObject({ status: "PENDING_PAYMENT" });
+    await records.confirmPayment(actor, storeId, own.id, { version: own.version, cashServiceCents: 10000, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0 }, randomUUID(), "manual-sender-cleanup");
+  });
+
   it("保存自然语言说明并实时提供给 AI，拒绝过期版本", async () => {
     const settings = await workBot.getSettings(actor, storeId);
     const instructions = "店里说 deep 时指 Deep Tissue；加石头指热石。";

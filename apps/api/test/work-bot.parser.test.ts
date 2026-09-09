@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { parseWorkBotMessage, parsedIntentAppearsInRawText } from "../src/work-bot/work-bot.parser.js";
 
 describe("记工机器人固定语法", () => {
+  it("接受 AI 按店铺约定解释的下工简写，保留姓名并验证实际金额和显式付款方式", () => {
+    const intent = { kind: "FINISH" as const, memberName: "Jessica", memberMention: "Jessica", serviceAmount: "75", tipAmount: "5", paymentMethod: "CARD" as const, paymentMention: "Jessica 75 5" };
+    expect(parsedIntentAppearsInRawText(intent, "Jessica 75 5")).toBe(true);
+    expect(parsedIntentAppearsInRawText(intent, "Jessica 75 5 现金")).toBe(false);
+    expect(parsedIntentAppearsInRawText(intent, "Jessica 90 0")).toBe(false);
+    expect(parsedIntentAppearsInRawText(intent, "Lily 75 5")).toBe(false);
+  });
   it("时长必须匹配完整数字而不是子串", () => {
     expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "脚", durationMinutes: 60 }, "脚160分钟")).toBe(false);
     expect(parsedIntentAppearsInRawText({ kind: "START", serviceAlias: "脚", durationMinutes: 60, durationMention: "" }, "脚160分钟")).toBe(false);

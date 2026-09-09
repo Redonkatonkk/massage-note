@@ -31,35 +31,48 @@ export class MiniMaxLanguageModelProvider {
     const base = configuredBase.replace(/\/$/, "");
     const endpoint = base.endsWith("/v1") ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
     try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "system", content: input.system }, { role: "user", content: input.user }],
-          max_completion_tokens: 1_200,
-          temperature: 0.2,
-          reasoning_split: true,
-          ...(input.tools ? { tools: input.tools, tool_choice: "auto" } : {}),
-        }),
-        signal: AbortSignal.timeout(45_000),
+      // Retry the original request so partial text/tool arguments are never accepted.
+      for (const tokenBudget of [8_192, 16_384]) {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "system", content: input.system }, { role: "user", content: input.user }],
+            max_completion_tokens: tokenBudget,
+            temperature: 0.2,
+            reasoning_split: true,
+            ...(input.tools ? { tools: input.tools, tool_choice: "auto" } : {}),
+          }),
+          signal: AbortSignal.timeout(45_000),
+        });
+        const payload = await response.json() as {
+          choices?: Array<{ finish_reason?: string; message?: { content?: string | null; tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }>;
+          base_resp?: { status_code?: number; status_msg?: string };
+        };
+        if (!response.ok || payload.base_resp?.status_code) {
+          throw new Error(payload.base_resp?.status_msg || `HTTP ${response.status}`);
+        }
+        const choice = payload.choices?.[0];
+        if (choice?.finish_reason === "length") continue;
+        if (choice?.finish_reason && !["stop", "tool_calls"].includes(choice.finish_reason)) {
+          throw new Error(`模型未完成回复：${choice.finish_reason}`);
+        }
+        const message = choice?.message;
+        if (!message) throw new Error("模型没有返回消息");
+        const tool = message.tool_calls?.[0]?.function;
+        let toolCall: LanguageModelResult["toolCall"];
+        if (tool?.name && tool.arguments) {
+          toolCall = { name: tool.name, arguments: JSON.parse(tool.arguments) as unknown };
+        }
+        const content = (message.content ?? "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+        if (!content && !toolCall) throw new Error("模型返回了空消息");
+        return { content, ...(toolCall ? { toolCall } : {}), provider: this.provider, model };
+      }
+      throw new ServiceUnavailableException({
+        code: "AI_RESPONSE_INCOMPLETE",
+        messageZh: "AI 回复未能完整生成，请缩小查询范围或分成几个问题重试",
       });
-      const payload = await response.json() as {
-        choices?: Array<{ message?: { content?: string; tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }>;
-        base_resp?: { status_code?: number; status_msg?: string };
-      };
-      if (!response.ok || payload.base_resp?.status_code) {
-        throw new Error(payload.base_resp?.status_msg || `HTTP ${response.status}`);
-      }
-      const message = payload.choices?.[0]?.message;
-      if (!message) throw new Error("模型没有返回消息");
-      const tool = message.tool_calls?.[0]?.function;
-      let toolCall: LanguageModelResult["toolCall"];
-      if (tool?.name && tool.arguments) {
-        toolCall = { name: tool.name, arguments: JSON.parse(tool.arguments) as unknown };
-      }
-      const content = (message.content ?? "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-      return { content, ...(toolCall ? { toolCall } : {}), provider: this.provider, model };
     } catch (error) {
       if (error instanceof ServiceUnavailableException) throw error;
       throw new ServiceUnavailableException({

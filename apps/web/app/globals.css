@@ -3057,7 +3057,7 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.work-time-field select,
+.work-time-field input,
 .work-date-time-field input {
   box-sizing: border-box;
   width: 100%;
@@ -3213,3 +3213,16 @@ body { position: relative; }
 /* Reserve the measured fixed navigation height, including wrapping and safe area. */
 .app-nav-space { height: calc(72px + env(safe-area-inset-bottom)); flex-shrink: 0; }
 .app-shell:has(> .app-nav-space) { padding-bottom: 16px; }
+
+/* Record details: shared date, paired clocks, then service pricing. */
+.record-editor > .editor-grid { align-items: start; gap: 12px 16px; }
+.record-time-row { margin-top: 14px; }
+.record-service-section { margin-top: 18px; }
+.record-service-section > h3 { margin: 0 0 12px; font-size: 1.05rem; }
+.record-editor .sticky-heading h2 { font-size: clamp(1.3rem, 3vw, 1.7rem); overflow-wrap: anywhere; }
+.record-editor .sticky-heading { margin-bottom: 16px; padding-top: 16px; padding-bottom: 12px; }
+.record-editor .field-label { align-content: start; gap: 6px; }
+.record-editor .record-time-row .work-time-field { min-width: 0; }
+@media (max-width: 520px) {
+  .record-time-row { grid-template-columns: 1fr; }
+}

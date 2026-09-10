@@ -496,6 +496,15 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     const highlighted = await call("highlight-record", `高亮 ${record.id}`, { kind: "ADJUST", recordId: record.id, isHighlighted: true, highlightMention: "高亮" });
     expect(highlighted.outcome).toBe("WORK_ADJUSTED");
     expect(await prisma.workRecord.findUniqueOrThrow({ where: { id: record.id } })).toMatchObject({ isHighlighted: true });
+    for (const [index, command, state] of [[0, "取消高亮", false], [1, "高亮", true], [2, "去掉高亮", false]] as const) {
+      const messageId = `highlight-toggle-${index}`;
+      const input = { ...event(messageId, `${command} ${record.id}`, new Date("2026-09-08T21:00:00Z")), senderId: "verified-owner" };
+      const result = await workBot.handleEvent(`Bearer ${token}`, key(messageId), input, messageId);
+      expect(result.outcome).toBe("WORK_ADJUSTED");
+      expect(result.reply).toContain(state ? "已高亮" : "未高亮");
+      expect(await prisma.workRecord.findUniqueOrThrow({ where: { id: record.id } })).toMatchObject({ isHighlighted: state });
+      expect(await workBot.handleEvent(`Bearer ${token}`, key(messageId), input, messageId)).toEqual(result);
+    }
     await call("remove-record-addon", `移除热石 ${record.id}`, { kind: "ADJUST", recordId: record.id, addons: [{ name: "热石", mention: "移除热石", action: "REMOVE" }] });
     expect(await prisma.workRecordAddonSnapshot.count({ where: { workRecordId: record.id } })).toBe(0);
     const raw = `修改 ${record.id} 原价 90，现金大费 30，卡大费 60，卡小费 10，取消高亮`;

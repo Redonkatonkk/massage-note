@@ -156,3 +156,9 @@ export function formatWorkTime(value: string): string {
   const [hour, minute] = value.split(":").map(Number);
   return `${hour! % 12 || 12}:${String(minute).padStart(2, "0")} ${hour! >= 12 ? "PM" : "AM"}`;
 }
+
+export function parseWorkTimeParts(hour: string, minute: string, period: string): string | null {
+  const normalizedPeriod = period.trim().toUpperCase().replace("上午", "AM").replace("下午", "PM");
+  if (!/^\d{1,2}$/.test(hour.trim()) || !/^\d{1,2}$/.test(minute.trim()) || !/^(AM|PM)$/.test(normalizedPeriod)) return null;
+  return parseWorkTime(`${hour.trim()}:${minute.trim().padStart(2, "0")} ${normalizedPeriod}`);
+}

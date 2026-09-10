@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { parseWorkTimeParts } from "../lib/time";
 import { useLanguage } from "./language-provider";
 
 interface WorkTimeInputProps {
@@ -14,40 +15,37 @@ interface WorkTimeInputProps {
 export function WorkTimeInput({ id, value, onChange, onValidityChange, optional = false }: WorkTimeInputProps) {
   const { locale } = useLanguage();
   const english = locale === "en-US";
-  const valid = /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) || (optional && value === "");
-  const [hour24, minute = "00"] = value ? value.split(":") : ["0", "00"];
-  const hour = String(Number(hour24) % 12 || 12);
-  const period = Number(hour24) >= 12 ? "PM" : "AM";
+  const [draft, setDraft] = useState<{ value: string; hour: string; minute: string; period: string } | null>(null);
+  const [hour24, minute24 = "00"] = value.split(":");
+  const fields = draft?.value === value ? draft : {
+    hour: value ? String(Number(hour24) % 12 || 12) : "",
+    minute: value ? minute24 : "",
+    period: value ? (Number(hour24) >= 12 ? (english ? "PM" : "下午") : (english ? "AM" : "上午")) : "",
+  };
+  const parsed = parseWorkTimeParts(fields.hour, fields.minute, fields.period);
+  const valid = parsed !== null || (optional && fields.hour.trim() === "");
   useEffect(() => onValidityChange(valid), [valid, onValidityChange]);
 
-  function update(nextHour: string, nextMinute: string, nextPeriod: string) {
-    if (!nextHour) {
-      onChange("");
-      return;
-    }
-    const nextHour24 = Number(nextHour) % 12 + (nextPeriod === "PM" ? 12 : 0);
-    onChange(`${String(nextHour24).padStart(2, "0")}:${nextMinute}`);
+  function update(field: "hour" | "minute" | "period", text: string) {
+    const next = { ...fields, [field]: text };
+    const parsedNext = parseWorkTimeParts(next.hour, next.minute, next.period);
+    const empty = optional && next.hour.trim() === "";
+    const nextValue = parsedNext ?? (empty ? "" : value);
+    setDraft({ ...next, value: nextValue });
+    onValidityChange(parsedNext !== null || empty);
+    if (parsedNext !== null || empty) onChange(nextValue);
   }
 
   return <span className="work-time-field">
-    <select id={id} aria-label={english ? "Hour" : "小时"} value={value ? hour : ""}
-      aria-invalid={!valid} onChange={(event) => update(event.target.value, minute, period)}>
-      <option value="" disabled={!optional}>{english ? "Hour" : "小时"}</option>
-      {Array.from({ length: 12 }, (_, index) => index + 1).map((item) =>
-        <option key={item} value={String(item)}>{item}</option>)}
-    </select>
-    <select aria-label={english ? "Minute" : "分钟"} value={value ? minute : ""}
-      onChange={(event) => update(hour, event.target.value, period)}>
-      <option value="" disabled>{english ? "Minute" : "分钟"}</option>
-      {Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0")).map((item) =>
-        <option key={item} value={item}>{item}</option>)}
-    </select>
-    <select aria-label={english ? "AM/PM" : "上午/下午"} value={value ? period : ""}
-      onChange={(event) => update(hour, minute, event.target.value)}>
-      <option value="" disabled>{english ? "AM/PM" : "时段"}</option>
-      <option value="AM">{english ? "AM" : "上午"}</option>
-      <option value="PM">{english ? "PM" : "下午"}</option>
-    </select>
+    <input id={id} type="text" inputMode="numeric" autoComplete="off" maxLength={2}
+      aria-label={english ? "Hour" : "小时"} placeholder={english ? "Hour" : "小时"}
+      value={fields.hour} aria-invalid={!valid} onChange={(event) => update("hour", event.target.value)} />
+    <input type="text" inputMode="numeric" autoComplete="off" maxLength={2}
+      aria-label={english ? "Minute" : "分钟"} placeholder={english ? "Minute" : "分钟"}
+      value={fields.minute} aria-invalid={!valid} onChange={(event) => update("minute", event.target.value)} />
+    <input type="text" autoComplete="off" spellCheck={false}
+      aria-label={english ? "AM/PM" : "上午/下午"} placeholder={english ? "AM/PM" : "上午/下午"}
+      value={fields.period} aria-invalid={!valid} onChange={(event) => update("period", event.target.value)} />
   </span>;
 }
 

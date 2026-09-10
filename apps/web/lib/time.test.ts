@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   parseWorkTime,
+  parseWorkTimeParts,
   formatWorkTime,
   displayTime,
   businessTimeToIso,
@@ -85,5 +86,19 @@ describe("12 小时记工", () => {
     const time = parseWorkTime("8:30")!;
     expect(businessTimeToIso("2026-09-09", time, "America/New_York", "22:00")).toBe("2026-09-10T00:30:00.000Z");
     expect(endLocalDateTimeForDuration("2026-09-09T20:30", 60, "America/New_York")).toBe("2026-09-09T21:30");
+  });
+});
+
+describe("分栏时间输入", () => {
+  it("支持中英文时段和单数字分钟，正确区分正午与午夜", () => {
+    expect(parseWorkTimeParts("12", "0", "上午")).toBe("00:00");
+    expect(parseWorkTimeParts("12", "09", "下午")).toBe("12:09");
+    expect(parseWorkTimeParts("1", "5", "pm")).toBe("13:05");
+    expect(parseWorkTimeParts("9", "59", "am")).toBe("09:59");
+  });
+  it("不接受未完成或越界输入，不推断上午下午", () => {
+    for (const fields of [["", "09", "PM"], ["1", "", "PM"], ["1", "09", ""], ["0", "09", "AM"], ["13", "09", "PM"], ["1", "60", "PM"], ["1", "-1", "PM"], ["a", "09", "PM"]]) {
+      expect(parseWorkTimeParts(fields[0]!, fields[1]!, fields[2]!)).toBeNull();
+    }
   });
 });

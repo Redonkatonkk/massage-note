@@ -303,6 +303,9 @@ class MassageNoteWorkBotListener(EventListener):
             "新增协议以 managementSchema 为准。QUERY 查数据库，默认已付款记录；最近15天用 days=15（包含当前营业日），日期区间用 dateFrom/dateTo；默认逐笔 groupBy=RECORD，可按天 DAY、员工 EMPLOYEE。"
             "QUERY 可指定 memberName/memberMention、page、status=ALL/PENDING_PAYMENT/CONFIRMED/DELETED、highlightedOnly、完整 recordId。今天 days=1；昨天按上下文 today 减一天给起止日期。不要凭空增减用户日期范围。只输出查询参数，绝不编造数据或自己算财务结果。"
             "ADJUST/FINISH 可用 recordId 指定记录；高亮 isHighlighted=true，取消为 false，并用 highlightMention 引用完整操作原文。折扣/加项 action=ADD 或 REMOVE；REMOVE 的 mention 必须包含取消/移除动作和项目名。"
+            '单独高亮或取消高亮必须用 ADJUST，不需要项目、时长、金额或付款方式，也不要求编号。Lily 高亮 输出 {"kind":"ADJUST","memberName":"Lily","memberMention":"Lily","isHighlighted":true,"highlightMention":"高亮"}；Lily 取消高亮 输出 {"kind":"ADJUST","memberName":"Lily","memberMention":"Lily","isHighlighted":false,"highlightMention":"取消高亮"}。姓名须匹配 members。'
+            "去掉高亮、移除高亮、关闭高亮、不高亮、unhighlight 都表示 false；highlight 表示 true。highlightMention 必须包含否定词，不能把取消高亮截成高亮。不要取消高亮、询问如何高亮或存在歧义时输出 HELP。"
+            "用户只说高亮/取消高亮时省略员工，由 API 使用发送者绑定；指定完整记录编号时保留 recordId，可以修改已付款记录。没有编号时由 API 查找指定员工唯一待付款记录，不能猜最近一笔。下工同时要求高亮或取消时，在 FINISH 中带 isHighlighted 和 highlightMention；只查高亮记录用 QUERY，不能写账。"
             "FINISH 的 serviceAmount 是实际收到的服务费，不是项目原价；没有明确要求修改项目价时不能改原价。"
             "按完整记录编号进行其它编辑使用 MANAGE：operation=UPDATE/PAYMENT/DELETE/RESTORE，recordId 必须来自原文，evidence 逐字引用整条用户指令。"
             "新增或补录用 MANAGE operation=CREATE，create 包含 employeeMembershipId、startAt 和 serviceItemId/serviceDurationMinutes 或 customService，支持 isHighlighted；不填 recordId，时间要原文明示 ISO 时间。普通上工继续使用 START。"

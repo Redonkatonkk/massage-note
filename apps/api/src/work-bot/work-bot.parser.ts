@@ -9,6 +9,14 @@ export function normalizeWorkBotValue(value: string): string {
     .trim();
 }
 
+function highlightState(text: string): boolean | undefined {
+  const value = text.normalize("NFKC").toLowerCase().replace(/\s+/gu, "");
+  // Reject double negation and questions instead of inferring a write.
+  if (/不要取消|别取消|不取消|是否|要不要|[?？]|怎么|如何/u.test(value)) return undefined;
+  if (/(?:取消|去掉|移除|关闭|不要|不再|不)高亮|unhighlight|removehighlight|clearhighlight/u.test(value)) return false;
+  return /高亮|\bhighlight\b/iu.test(text) ? true : undefined;
+}
+
 function cleanOperand(value: string): string {
   return value.replace(/^[\s，,。！？!?：:、;；]+|[\s，,。！？!?、;；]+$/gu, "").trim();
 }
@@ -65,9 +73,13 @@ export function parseWorkBotMessage(rawText: string): WorkBotParsedIntent {
     const methods = paymentMethods(tail);
     const paymentMethod = methods.gift || methods.cash === methods.card
       ? null : methods.cash ? "CASH" : "CARD";
+    const hasHighlight = /高亮|highlight/iu.test(tail);
+    const isHighlighted = highlightState(tail);
+    if (hasHighlight && isHighlighted === undefined) return { kind: "HELP" };
     if (amounts.length === 2 && paymentMethod) {
       return {
         kind: "FINISH",
+        ...(hasHighlight ? { isHighlighted: isHighlighted!, highlightMention: tail.trim() } : {}),
         serviceAmount: amounts[0]!,
         tipAmount: amounts[1]!,
         paymentMethod,
@@ -76,6 +88,19 @@ export function parseWorkBotMessage(rawText: string): WorkBotParsedIntent {
       };
     }
     return { kind: "HELP" };
+  }
+
+  const highlightAction = "取消\\s*高亮|去掉\\s*高亮|移除\\s*高亮|关闭\\s*高亮|不\\s*高亮|高亮|unhighlight|highlight";
+  const actionFirst = new RegExp(`^(${highlightAction})(?:\\s+(.+?))?[。！!]*$`, "iu").exec(text);
+  const targetFirst = new RegExp(`^(.+?)\\s+(${highlightAction})[。！!]*$`, "iu").exec(text);
+  if (actionFirst || targetFirst) {
+    const target = cleanOperand(actionFirst ? actionFirst[2] ?? "" : targetFirst![1]!);
+    const isHighlighted = highlightState(text);
+    if (isHighlighted !== undefined) return {
+      kind: "ADJUST", isHighlighted, highlightMention: text,
+      ...(target ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(target)
+        ? { recordId: target } : { memberName: target } : {}),
+    };
   }
 
   const start = /(?:我)?(?:上工(?:了)?|开工(?:了)?|开始(?:了)?)/u.exec(text);
@@ -110,7 +135,7 @@ function managementEvidence(intent: Extract<WorkBotParsedIntent, { kind: "MANAGE
     if (typeof value === "number") return hasNumber(field.endsWith("Cents") || field.endsWith("Bps") ? value / 100 : value);
     if (typeof value === "boolean") {
       if (field === "isCustom") return true; // The catalog/source constraint is revalidated by the shared contract.
-      if (field === "isHighlighted") return value ? /高亮|highlight/iu.test(raw) && !/取消高亮|不高亮|unhighlight/iu.test(raw) : /取消高亮|不高亮|unhighlight/iu.test(raw);
+      if (field === "isHighlighted") return highlightState(raw) === value;
       if (field === "automaticDiscountSuppressed") return value ? /取消自动折扣|停用自动折扣|suppress/iu.test(raw) : /恢复自动折扣|启用自动折扣|enable/iu.test(raw);
       if (field.endsWith("SettledManualFlag")) return /结清|结算|settled/iu.test(raw) && (value || /取消|未|unsettled/iu.test(raw));
       return false;
@@ -133,7 +158,8 @@ export function parsedIntentAppearsInRawText(intent: WorkBotParsedIntent, rawTex
   const adjustmentEvidence = (value: Extract<WorkBotParsedIntent, { kind: "ADJUST" | "FINISH" }>) =>
     (!value.recordId || rawText.includes(value.recordId))
     && (value.isHighlighted === undefined || (Boolean(value.highlightMention) && appears(value.highlightMention!)
-      && (value.isHighlighted ? /高亮|highlight/iu.test(value.highlightMention!) && !/取消|不高亮|unhighlight/iu.test(value.highlightMention!) : /取消高亮|不高亮|unhighlight/iu.test(value.highlightMention!))))
+      && highlightState(value.highlightMention!) === value.isHighlighted
+      && highlightState(rawText) === value.isHighlighted))
     && [...(value.discounts ?? []), ...(value.addons ?? [])].every(item => appears(item.mention)
       && (item.action === "REMOVE" ? /删除|取消|移除|去掉|remove/iu.test(item.mention) : !/删除|取消|移除|去掉|remove/iu.test(item.mention)));
   switch (intent.kind) {

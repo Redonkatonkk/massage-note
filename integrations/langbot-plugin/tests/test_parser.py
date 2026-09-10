@@ -25,6 +25,15 @@ class ParserTest(unittest.TestCase):
         manage = {"kind": "MANAGE", "operation": "UPDATE", "recordId": "11111111-1111-4111-8111-111111111111", "details": {"isHighlighted": False}, "evidence": "取消高亮"}
         self.assertEqual(parse(json.dumps(manage), {}), manage)
 
+    def test_highlight_states_preserve_target_and_checkout(self):
+        for state, mention in [(True, "高亮"), (False, "取消高亮"), (False, "去掉高亮")]:
+            for kind in ["ADJUST", "FINISH"]:
+                intent = {"kind": kind, "memberName": "Lily", "memberMention": "Lily", "isHighlighted": state, "highlightMention": mention}
+                if kind == "FINISH":
+                    intent.update(serviceAmount="75", tipAmount="5", paymentMethod="CARD", paymentMention="卡")
+                with self.subTest(state=state, kind=kind):
+                    self.assertEqual(parse(json.dumps(intent), self.context), intent)
+
     def test_highlight_and_removing_retired_addon(self):
         highlight = {"kind": "ADJUST", "isHighlighted": False, "highlightMention": "取消高亮"}
         self.assertEqual(parse(json.dumps(highlight), {}), highlight)

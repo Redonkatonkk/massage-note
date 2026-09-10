@@ -2,6 +2,35 @@ import { describe, expect, it } from "vitest";
 import { parseWorkBotMessage, parsedIntentAppearsInRawText } from "../src/work-bot/work-bot.parser.js";
 
 describe("记工机器人固定语法", () => {
+  it.each([
+    ["高亮", true], ["取消高亮", false], ["去掉高亮", false],
+    ["移除高亮", false], ["关闭高亮", false], ["不高亮", false],
+    ["highlight", true], ["unhighlight", false], ["取消 高亮", false],
+  ])("解析并校验高亮操作 %s", (command, state) => {
+    for (const text of [command, `Lily ${command}`, `${command} 11111111-1111-4111-8111-111111111111`]) {
+      const intent = parseWorkBotMessage(text);
+      expect(intent).toMatchObject({ kind: "ADJUST", isHighlighted: state });
+      expect(parsedIntentAppearsInRawText(intent, text)).toBe(true);
+    }
+  });
+
+  it.each([["高亮", true], ["取消高亮", false]] as const)("下工合并 %s", (command, state) => {
+    const text = `Lily 下工 75 5 卡 ${command}`;
+    const intent = parseWorkBotMessage(text);
+    expect(intent).toMatchObject({ kind: "FINISH", memberName: "Lily", isHighlighted: state });
+    expect(parsedIntentAppearsInRawText(intent, text)).toBe(true);
+  });
+
+  it("取消操作不能截取高亮二字后反向执行", () => {
+    for (const raw of ["Lily 取消高亮", "Lily 去掉高亮", "Lily 不要高亮", "Lily 不要取消高亮", "如何高亮？"]) {
+      expect(parsedIntentAppearsInRawText({ kind: "ADJUST", isHighlighted: true, highlightMention: "高亮" }, raw)).toBe(false);
+    }
+    const recordId = "11111111-1111-4111-8111-111111111111";
+    const raw = `去掉高亮 ${recordId}`;
+    expect(parsedIntentAppearsInRawText({ kind: "MANAGE", operation: "UPDATE", recordId, evidence: raw, details: { isHighlighted: false } }, raw)).toBe(true);
+    expect(parsedIntentAppearsInRawText({ kind: "MANAGE", operation: "UPDATE", recordId, evidence: raw, details: { isHighlighted: true } }, raw)).toBe(false);
+  });
+
   it("接受 AI 按店铺约定解释的下工简写，保留姓名并验证实际金额和显式付款方式", () => {
     const intent = { kind: "FINISH" as const, memberName: "Jessica", memberMention: "Jessica", serviceAmount: "75", tipAmount: "5", paymentMethod: "CARD" as const, paymentMention: "Jessica 75 5" };
     expect(parsedIntentAppearsInRawText(intent, "Jessica 75 5")).toBe(true);

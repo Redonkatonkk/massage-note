@@ -1,6 +1,7 @@
 "use client";
 
-import { WorkDateTimeInput } from "./work-time-input";
+import { WorkTimeInput } from "./work-time-input";
+import { adjustedSameDayEnd, recordTimeError } from "../lib/record-time";
 import { browserStorage } from "../lib/browser-storage";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -8,7 +9,6 @@ import { apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
 import { shouldConfirmPaymentOnSave } from "../lib/record-payment";
 import {
-  adjustedEndLocalDateTime,
   localDateTimeValue,
   zonedLocalToIso,
 } from "../lib/time";
@@ -288,7 +288,7 @@ export function RecordEditor({
   function adjustEndForDurationDelta(durationDeltaMinutes: number) {
     if (durationDeltaMinutes === 0 || !startAt) return;
     setEndAt((currentEnd) =>
-      adjustedEndLocalDateTime(
+      adjustedSameDayEnd(
         startAt,
         currentEnd,
         startAt,
@@ -301,7 +301,7 @@ export function RecordEditor({
   function changeStartAt(value: string) {
     if (value) {
       setEndAt((currentEnd) =>
-        adjustedEndLocalDateTime(
+        adjustedSameDayEnd(
           lastValidStartAt.current,
           currentEnd,
           value,
@@ -539,6 +539,8 @@ export function RecordEditor({
 
   async function saveDetails(): Promise<WorkRecord> {
     if (!startTimeValid || !endTimeValid) throw new Error("请填写有效的开始和结束时间");
+    const timeError = recordTimeError(startAt, endAt);
+    if (timeError) throw new Error(timeError);
     try {
       const updated = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/${record.id}`, {
         method: "PATCH",
@@ -688,12 +690,24 @@ export function RecordEditor({
               ))}
             </select>
           </label>
-          <label className="field-label">开始时间
-            <WorkDateTimeInput value={startAt} fallbackDate={initialStart.slice(0, 10)} onChange={changeStartAt} onValidityChange={setStartTimeValid} />
+          <label className="field-label">服务日期
+            <input type="date" value={startAt.slice(0, 10)} onChange={(event) => {
+              if (event.target.value) changeStartAt(`${event.target.value}T${startAt.slice(11)}`);
+            }} />
           </label>
-          <label className="field-label">结束时间
-            <WorkDateTimeInput value={endAt} fallbackDate={startAt.slice(0, 10) || initialStart.slice(0, 10)} onChange={setEndAt} onValidityChange={setEndTimeValid} optional />
-          </label>
+        </div>
+        <div className="editor-grid record-time-row">
+          <div className="field-label" role="group" aria-label="开始时间">开始时间
+            <WorkTimeInput value={startAt.slice(11)} onChange={(value) => changeStartAt(`${startAt.slice(0, 10)}T${value}`)} onValidityChange={setStartTimeValid} />
+          </div>
+          <div className="field-label" role="group" aria-label="结束时间">结束时间
+            <WorkTimeInput value={endAt.slice(11)} onChange={(value) => setEndAt(value ? `${startAt.slice(0, 10)}T${value}` : "")} onValidityChange={setEndTimeValid} optional />
+          </div>
+        </div>
+        {recordTimeError(startAt, endAt) && <p className="form-error" role="alert">{recordTimeError(startAt, endAt)}</p>}
+        <section className="editor-section record-service-section">
+          <h3>项目与金额</h3>
+          <div className="editor-grid">
           <label className="field-label">主要项目
             <select value={serviceChoice} onChange={(event) => chooseService(event.target.value)}>
               {serviceChoice !== "__custom__" && !catalog.serviceItems.some((item) => item.id === serviceChoice && item.isEnabled && !item.deletedAt) && (
@@ -725,6 +739,8 @@ export function RecordEditor({
           <label className="field-label">主要项目金额（美元）<input inputMode="decimal" value={serviceAmount} onChange={(event) => setServiceAmount(event.target.value)} /></label>
           <label className="field-label">本单主要项目提成（%）<input inputMode="decimal" value={serviceCommission} disabled={!canManage} onChange={(event) => setServiceCommission(event.target.value)} /><small>{canManage ? "修改会保留审计记录" : "只有店长或经理可以修改"}</small></label>
         </div>
+
+        </section>
 
         <section className="editor-section">
           <div className="section-heading"><h3>额外项目</h3><button type="button" onClick={addAddon}>＋ 添加</button></div>

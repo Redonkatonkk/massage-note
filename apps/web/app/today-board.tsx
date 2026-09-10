@@ -142,7 +142,7 @@ export function TodayBoard({
   }, [notice]);
 
   useEffect(() => {
-    if (!canManage || !board.isClosed) { setDeliveryList(null); return; }
+    if (!canManage) { setDeliveryList(null); return; }
     const load = () => void apiRequest<ClosingDeliveryList>(`/stores/${membership.store.id}/closings/${currentDay.businessDate}/deliveries`).then(setDeliveryList).catch(() => undefined);
     load();
     const timer = window.setInterval(load, 15_000);
@@ -303,12 +303,10 @@ export function TodayBoard({
       await onReload();
       return;
     }
-    const reason = window.prompt("请填写取消日结原因");
-    if (!reason?.trim()) return;
     await apiRequest(`${path}/cancel`, {
       method: "POST",
       idempotent: true,
-      body: { version: preview.activeClosing.version, reason: reason.trim() },
+      body: { version: preview.activeClosing.version },
     });
     setNotice("已取消日结，可以继续修改记工");
     await onReload();
@@ -475,7 +473,7 @@ export function TodayBoard({
       </section>}
 
       {board.isClosed && <p className="closed-banner" role="status">这个营业日已经日结。记工、员工顺序和显示状态均为只读；如需修改请先取消日结。</p>}
-      {canManage && board.isClosed && deliveryList && <ClosingDeliveryQueue value={deliveryList} busy={busy} onCancel={(delivery) => void run(() => cancelEmployeeClosingDelivery(delivery))} />}
+      {canManage && deliveryList && <ClosingDeliveryQueue value={deliveryList} busy={busy} onCancel={(delivery) => void run(() => cancelEmployeeClosingDelivery(delivery))} />}
       {notice && <p className="success-banner" role="status">✓ {notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
 
@@ -517,11 +515,11 @@ export function TodayBoard({
                 </button>
                 {(canManage || row.membershipId === membership.id) && (
                   <div className="row-tools">
-                    {canManage && <>
+                    {canManage && !board.isClosed && <details className="row-management"><summary>员工操作</summary><div>
                       {!board.isClosed && <><span className="drag-handle" draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDraggingRowId(row.id); }} onDragEnd={() => setDraggingRowId(null)} title="按住并拖动整行排序">拖动排序</span><button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button><button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button></>}
                       {board.ranking.enabled && !board.isClosed && <button type="button" disabled={busy} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}/remove`, { method: "POST", idempotent: true, body: { version: row.version } }); setNotice(`已移除 ${row.membership.displayName}`); await onReload(); })}>移除</button>}
                       {!board.isClosed && <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>}
-                    </>}
+                    </div></details>}
                     {(canManage || row.membershipId === membership.id) && <button className="row-closing-action" type="button" onClick={() => setClosingEmployee({ id: row.membershipId, displayName: row.membership.displayName })}>个人日结</button>}
                   </div>
                 )}

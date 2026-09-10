@@ -34,7 +34,7 @@ export class ClosingDeliveriesService {
     await this.access.requireCapability(actor.id, storeId, "DAY_CLOSE_MANAGE");
     const [deliveries, agent, activeClosing] = await Promise.all([
       this.prisma.employeeClosingDelivery.findMany({
-        where: { storeId, closing: { businessDate: dateAtUtc(businessDate) } },
+        where: { storeId, businessDate: dateAtUtc(businessDate) },
         orderBy: { createdAt: "desc" },
         select: {
           id: true, closingId: true, membershipId: true, kind: true, status: true,
@@ -126,7 +126,7 @@ export class ClosingDeliveriesService {
           where: { storeId_closingId_membershipId_kind_requestKey: { storeId, closingId: closing.id, membershipId: item.member.id, kind: "INITIAL", requestKey: "initial" } },
           update: {},
           create: {
-            storeId, closingId: closing.id, membershipId: item.member.id, kind: "INITIAL",
+            storeId, businessDate: dateAtUtc(businessDate), closingId: closing.id, membershipId: item.member.id, kind: "INITIAL",
             recipientPhoneE164: item.phone, locale: item.locale,
             snapshotJson: snapshot as unknown as Prisma.InputJsonValue,
             queuedBy: actor.id, requestKey: "initial",
@@ -150,7 +150,6 @@ export class ClosingDeliveriesService {
 
   async queueMember(actor: User, storeId: string, businessDate: string, membershipId: string, requestKey: string, requestId: string) {
     const actorMembership = await this.access.requireCapability(actor.id, storeId, "DAY_CLOSE_MANAGE");
-    const closing = await this.activeClosing(storeId, businessDate);
     const member = await this.prisma.storeMembership.findFirst({
       where: { id: membershipId, storeId, status: "ACTIVE", deletedAt: null },
       include: { user: { select: { phoneE164: true } }, store: { select: { closingDefaultLocale: true } } },
@@ -161,10 +160,8 @@ export class ClosingDeliveriesService {
     if (!isE164Phone(phone)) throw new ConflictException({ code: "CLOSING_DELIVERY_PHONE_MISSING", messageZh: "这位员工没有有效接收号码" });
     return this.prisma.$transaction(async (transaction) => {
       await lockBusinessDay(transaction, storeId, businessDate);
-      const stillClosed = await transaction.businessDayClosing.findFirst({ where: { id: closing.id, storeId, status: "CLOSED" } });
-      if (!stillClosed) throw new ConflictException({ code: "CLOSING_REQUIRED_FOR_DELIVERY", messageZh: "日结状态已变化，请刷新后重试" });
       const existing = await transaction.employeeClosingDelivery.findFirst({
-        where: { storeId, closingId: closing.id, membershipId, kind: "RESEND", requestKey },
+        where: { storeId, businessDate: dateAtUtc(businessDate), membershipId, kind: "RESEND", requestKey },
       });
       if (existing) {
         if (existing.status === "QUEUED" && !isE164Phone(existing.recipientPhoneE164)) {
@@ -176,11 +173,9 @@ export class ClosingDeliveriesService {
         return existing;
       }
       const snapshot = await this.closings.previewMember(actor, storeId, businessDate, membershipId, transaction);
-      const delivery = await transaction.employeeClosingDelivery.upsert({
-        where: { storeId_closingId_membershipId_kind_requestKey: { storeId, closingId: closing.id, membershipId, kind: "RESEND", requestKey } },
-        update: {},
-        create: {
-          storeId, closingId: closing.id, membershipId, kind: "RESEND",
+      const delivery = await transaction.employeeClosingDelivery.create({
+        data: {
+          storeId, businessDate: dateAtUtc(businessDate), closingId: snapshot.activeClosing?.id ?? null, membershipId, kind: "RESEND",
           recipientPhoneE164: phone,
           locale: member.closingImageLocale ?? member.store.closingDefaultLocale,
           snapshotJson: snapshot as unknown as Prisma.InputJsonValue,
@@ -191,8 +186,8 @@ export class ClosingDeliveriesService {
         data: {
           storeId, actorUserId: actor.id, actorMembershipId: actorMembership.id,
           source: "api", action: "employee_closing.delivery_queued", entityType: "employee_closing_delivery",
-          entityId: delivery.id, businessDate: closing.businessDate,
-          afterJson: { membershipId, closingId: closing.id, kind: "RESEND", locale: delivery.locale }, requestId,
+          entityId: delivery.id, businessDate: dateAtUtc(businessDate),
+          afterJson: { membershipId, closingId: delivery.closingId, kind: "RESEND", locale: delivery.locale }, requestId,
         },
       });
       return delivery;
@@ -205,7 +200,7 @@ export class ClosingDeliveriesService {
       where: {
         id: deliveryId,
         storeId,
-        closing: { businessDate: dateAtUtc(businessDate) },
+        businessDate: dateAtUtc(businessDate),
       },
       include: { closing: { select: { businessDate: true } } },
     });
@@ -250,7 +245,7 @@ export class ClosingDeliveriesService {
           action: "employee_closing.delivery_cancelled",
           entityType: "employee_closing_delivery",
           entityId: delivery.id,
-          businessDate: delivery.closing.businessDate,
+          businessDate: delivery.businessDate,
           afterJson: { membershipId: delivery.membershipId, status: "CANCELLED" },
           requestId,
         },
@@ -347,7 +342,7 @@ export class ClosingDeliveriesService {
       });
       if (updated.count !== 1) continue;
       const job = await this.prisma.employeeClosingDelivery.findUniqueOrThrow({ where: { id: candidate.id }, include: { closing: { select: { cycleNo: true } }, membership: { select: { displayName: true } } } });
-      return { id: job.id, leaseToken, phoneE164: job.recipientPhoneE164, locale: job.locale, kind: job.kind, cycleNo: job.closing.cycleNo, displayName: job.membership.displayName, snapshot: job.snapshotJson };
+      return { id: job.id, leaseToken, phoneE164: job.recipientPhoneE164, locale: job.locale, kind: job.kind, cycleNo: job.closing?.cycleNo ?? 0, displayName: job.membership.displayName, snapshot: job.snapshotJson };
     }
     return null;
   }
@@ -355,7 +350,7 @@ export class ClosingDeliveriesService {
   async authorize(authorization: string | undefined, deliveryId: string, leaseToken: string) {
     const agent = await this.authenticateAgent(authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
-    if (job.closing.status !== "CLOSED") {
+    if (job.closing && job.closing.status !== "CLOSED") {
       await this.prisma.employeeClosingDelivery.updateMany({ where: claimedDeliveryWhere(agent.storeId, job.id, leaseToken), data: { status: "CANCELLED", leaseToken: null, leaseExpiresAt: null } });
       return { authorized: false };
     }
@@ -368,7 +363,7 @@ export class ClosingDeliveriesService {
     const sentAt = new Date();
     await this.prisma.$transaction(async (transaction) => {
       requireDeliveryLease(await transaction.employeeClosingDelivery.updateMany({ where: claimedDeliveryWhere(agent.storeId, job.id, leaseToken), data: { status: "SENT", sentAt, leaseToken: null, leaseExpiresAt: null, lastError: null, lastErrorCode: null } }));
-      await transaction.auditLog.create({ data: { storeId: job.storeId, actorUserId: null, actorMembershipId: null, source: "messages_agent", action: "employee_closing.delivery_sent", entityType: "employee_closing_delivery", entityId: job.id, businessDate: job.closing.businessDate, afterJson: { membershipId: job.membershipId, sentAt: sentAt.toISOString() }, requestId: `agent:${job.id}` } });
+      await transaction.auditLog.create({ data: { storeId: job.storeId, actorUserId: null, actorMembershipId: null, source: "messages_agent", action: "employee_closing.delivery_sent", entityType: "employee_closing_delivery", entityId: job.id, businessDate: job.businessDate, afterJson: { membershipId: job.membershipId, sentAt: sentAt.toISOString() }, requestId: `agent:${job.id}` } });
     });
     return { sent: true, sentAt };
   }

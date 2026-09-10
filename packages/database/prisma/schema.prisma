@@ -704,7 +704,8 @@ model BusinessDayClosing {
 model EmployeeClosingDelivery {
   id                    String                @id @default(uuid()) @db.Uuid
   storeId               String                @map("store_id") @db.Uuid
-  closingId             String                @map("closing_id") @db.Uuid
+  closingId             String?               @map("closing_id") @db.Uuid
+  businessDate          DateTime              @map("business_date") @db.Date
   membershipId          String                @map("membership_id") @db.Uuid
   kind                   ClosingDeliveryKind
   status                 ClosingDeliveryStatus @default(QUEUED)
@@ -724,10 +725,11 @@ model EmployeeClosingDelivery {
   updatedAt              DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   store      Store              @relation(fields: [storeId], references: [id])
-  closing    BusinessDayClosing @relation(fields: [closingId], references: [id])
+  closing    BusinessDayClosing? @relation(fields: [closingId], references: [id])
   membership StoreMembership    @relation(fields: [membershipId], references: [id])
 
   @@unique([storeId, closingId, membershipId, kind, requestKey])
+  @@index([storeId, businessDate, createdAt])
   @@index([status, nextAttemptAt, createdAt])
   @@index([storeId, closingId, createdAt])
   @@index([storeId, membershipId, createdAt])

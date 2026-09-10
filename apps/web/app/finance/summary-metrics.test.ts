@@ -24,7 +24,7 @@ describe("财务汇总指标说明", () => {
     expect(financeSummaryGroups.at(-1)).toMatchObject({
       key: "store-settlement",
       title: "店铺总结算",
-      metricKeys: ["storeIncomeCents", "ownerWorkerIncomeCents", "managerWorkerIncomeCents", "giftCardNetIncomeCents", "creditCardFeeCents", "totalIncomeCents"],
+      metricKeys: ["ownerWorkerIncomeCents", "managerWorkerIncomeCents", "giftCardNetIncomeCents", "creditCardFeeCents"],
     });
   });
 });

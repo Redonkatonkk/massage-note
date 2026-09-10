@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.1.8`
+> 适用版本：`1.3.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -70,16 +70,16 @@
 | POST | `/stores/:storeId/gift-card-sales/:saleId/restore` | 恢复已删除卖卡记录 |
 | GET | `/stores/:storeId/closings/:businessDate/preview` | 全店日结预览 |
 | GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人；返回目标员工按开始时间排序的逐笔记工、项目/加项名称、逐笔 `grossFeeBaseCents` 折前大费、现金/刷卡/礼物卡实收拆分、单笔工资收入，以及现金/刷卡大费分红、现金/刷卡小费分红和对应合计；仅计已确认付款；应提交现金按含现金大费的已确认项目折前基数合计 × 40% 计算；不含全店或他人数据 |
-| POST | `/stores/:storeId/closings/:businessDate`、`.../cancel` | 正常/强制日结与取消日结 |
+| POST | `/stores/:storeId/closings/:businessDate`、`.../cancel` | 正常/强制日结与取消日结；取消仅需 `version`，`reason` 可省略 |
 | GET | `/stores/:storeId/closings/:businessDate/deliveries` | 店主或经理查看个人日结短信发送历史、错误和 Mac 代理状态 |
 | POST | `/stores/:storeId/closings/:businessDate/deliveries/batch` | 日结后把所有已开启、号码有效且当天有记工的成员幂等加入发送队列 |
 | DELETE | `/stores/:storeId/closings/:businessDate/deliveries/:deliveryId` | 店主或经理取消仍处于排队状态的单条员工日结短信任务 |
-| POST | `/stores/:storeId/closings/:businessDate/deliveries/members/:membershipId` | 单独发送或补发一位员工的个人日结 |
+| POST | `/stores/:storeId/closings/:businessDate/deliveries/members/:membershipId` | 单独发送或补发一位员工的个人日结；未日结也可发送，按营业日和请求键保存当时快照 |
 | GET/POST/DELETE | `/stores/:storeId/closing-delivery-agent/status`、`credential` | 查看代理状态、生成一次性代理令牌或撤销令牌 |
 | POST | `/closing-delivery-agent/jobs/claim`、`jobs/:id/authorize`、`complete`、`fail`、`heartbeat` | Mac 代理使用 Bearer 令牌领取租约任务、发送前复核并回写结果 |
 | GET | `/stores/:storeId/cash-settlements/:businessDate` | 当日现金结算列表，只含当日有记工的员工 |
 | POST | `/stores/:storeId/cash-settlements/:businessDate/settle-all` | 批量结清未结清员工 |
-| POST | `/stores/:storeId/cash-settlements/:businessDate/:membershipId/settle`、`reopen` | 单人结清或回退 |
+| POST | `/stores/:storeId/cash-settlements/:businessDate/:membershipId/settle`、`reopen` | 单人结清或回退；个人日结的“已结现金”复用此接口，回退 `reason` 可省略 |
 | GET/POST | `/stores/:storeId/payroll-settlements` | 查询或新增工资结算账本 |
 | GET/PATCH/DELETE | `/stores/:storeId/payroll-settlements/:settlementId` | 工资结算详情、修改和软删除 |
 | POST | `/stores/:storeId/payroll-settlements/:settlementId/restore` | 恢复工资结算 |
@@ -263,7 +263,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 - 发送代理的授权、检查点、完成和失败回写均检查未过期租约及当前令牌；租约失效返回 `DELIVERY_LEASE_INVALID`。
 - 员工小计发送的幂等内容包含日期、员工列表、付款方式、金额类型、高亮筛选及接收号码；相同键更换筛选返回 `IDEMPOTENCY_KEY_REUSED`。
 
-### 完整微信记工与数据查询（1.1.8）
+### 完整微信记工与数据查询（1.3.0）
 
 `POST /integrations/langbot/work-context` 返回协议版本 2、店铺当前营业日期/时区、员工 ID 和实时意图 JSON Schema。`work-events` 扩展 QUERY 与 MANAGE；QUERY 支持最近 1–366 个营业日或完整起止日期、员工/状态/高亮筛选、按记录/天/员工分组及每页 20 条分页。总计覆盖完整范围。MANAGE 支持 CREATE、UPDATE、PAYMENT、DELETE、RESTORE，输入事实须有原文依据，编辑与付款共用事务；完整契约见 `packages/contracts/src/work-bot.ts`。
 
@@ -274,3 +274,9 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 ### 群机器人上工开始时间
 
 START 的开始时间由 API 从 rawText 解析，使用店铺时区及 occurredAt 作为基准。示例：13:28 发送“jessie 上工，1:00 上的，一小时大力”，开始为 13:00，预计结束 14:00。未标时段的 1–12 点取最近 12 小时内已发生的钟点；明确上午/下午或 24 小时制取最近 24 小时。支持“下午一点”“十点半”和全角钟点。“今天”限制本地当天。未写时间使用消息时间；无效、多重、夏令时歧义或暂不支持的日期/相对时间返回 START_TIME_UNCLEAR，不创建记工。历史补录在网页处理。营业日、权限和日结锁基于解析后的开始时间继续校验。
+
+### 个人日结状态与独立短信
+
+个人预览返回 `cashSettlement: { status, version, settledAt }`；无记录时为 `UNSETTLED`、版本 0。仅返回目标员工状态，现金写入仍由管理权限保护。
+
+短信任务独立存储 `businessDate`；未日结逐人任务的 `closingId` 和列表中的 `closing` 为 null，代理领取返回 `cycleNo: 0`，PNG 不显示周期。关联有效日结的任务仍在取消该周期时撤销；未关联周期的任务保留排队时快照。迁移 `20260910010000_independent_member_closing_delivery` 从旧周期回填营业日并放宽周期外键非空限制；旧记录保留。回退应用前须处理无周期任务，不能直接恢复非空约束。

@@ -163,15 +163,15 @@ export const financeSummaryGroups: ReadonlyArray<{
   {
     key: "overview",
     title: "先看关键结果",
-    description: "先看项目数量、折后业绩和包含礼物卡净收支的总流水。",
-    metricKeys: ["itemCount", "totalTurnoverCents", "discountedFeePerformanceCents"],
+    description: "先看总流水、店铺收入和总结算收入；详细组成按需展开。",
+    metricKeys: ["totalTurnoverCents", "storeIncomeCents", "totalIncomeCents", "itemCount"],
     emphasis: true,
   },
   {
     key: "performance",
     title: "项目与业绩",
     description: "从项目原价、加项和折扣，逐步看到实际服务费表现。",
-    metricKeys: ["mainServiceAmountCents", "addonTotalCents", "grossFeeBaseCents", "discountTotalCents", "actualServiceCollectedCents"],
+    metricKeys: ["mainServiceAmountCents", "addonTotalCents", "grossFeeBaseCents", "discountTotalCents", "discountedFeePerformanceCents", "actualServiceCollectedCents"],
   },
   {
     key: "payments",
@@ -189,6 +189,6 @@ export const financeSummaryGroups: ReadonlyArray<{
     key: "store-settlement",
     title: "店铺总结算",
     description: "汇总店铺经营、店长与经理作为工人的收入、礼物卡净收支和信用卡手续费。",
-    metricKeys: ["storeIncomeCents", "ownerWorkerIncomeCents", "managerWorkerIncomeCents", "giftCardNetIncomeCents", "creditCardFeeCents", "totalIncomeCents"],
+    metricKeys: ["ownerWorkerIncomeCents", "managerWorkerIncomeCents", "giftCardNetIncomeCents", "creditCardFeeCents"],
   },
 ];

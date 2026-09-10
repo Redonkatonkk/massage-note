@@ -5,6 +5,7 @@ import { apiRequest, errorMessage } from "../lib/api";
 import { type AppLocale, translateText } from "../lib/i18n";
 import { formatUsd } from "../lib/money";
 import type { EmployeeClosingPreview, EmployeeClosingRecord } from "../lib/types";
+import { useStoreRealtime } from "../lib/realtime";
 import { useLanguage } from "./language-provider";
 
 interface EmployeeClosingSummaryProps {
@@ -298,6 +299,28 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
   const [imageMessage, setImageMessage] = useState("");
   const [imageError, setImageError] = useState("");
   const [sending, setSending] = useState(false);
+  const [cashSettlement, setCashSettlement] = useState(preview.cashSettlement);
+  const [settlingCash, setSettlingCash] = useState(false);
+
+  useEffect(() => { setCashSettlement(preview.cashSettlement); }, [preview]);
+
+  async function toggleCashSettlement() {
+    setSettlingCash(true);
+    setImageError("");
+    try {
+      const result = await apiRequest<EmployeeClosingPreview["cashSettlement"]>(
+        `/stores/${preview.storeId}/cash-settlements/${preview.businessDate}/${preview.employee.membershipId}/${cashSettlement.status === "SETTLED" ? "reopen" : "settle"}`,
+        { method: "POST", idempotent: true, body: { version: cashSettlement.version } },
+      );
+      setCashSettlement(result);
+    } catch (caught) {
+      setImageError(errorMessage(caught));
+      const latest = await apiRequest<EmployeeClosingPreview>(`/stores/${preview.storeId}/closings/${preview.businessDate}/members/${preview.employee.membershipId}/preview`).catch(() => null);
+      if (latest) setCashSettlement(latest.cashSettlement);
+    } finally {
+      setSettlingCash(false);
+    }
+  }
 
   useEffect(() => () => {
     if (generated) URL.revokeObjectURL(generated.url);
@@ -407,6 +430,11 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
         <article><span>应提交现金</span><strong>{money(employee.cashToSubmitToStoreCents, locale)}</strong><small>含现金大费的已确认项目，折前大费基数 × 40%</small></article>
       </section>
 
+      <div className="employee-closing-image-actions">
+        <span role="status">{cashSettlement.status === "SETTLED" ? "已结现金：当天现金大费和小费已结清" : "现金尚未结清"}</span>
+        {canSend && preview.records.length > 0 && <button className="secondary-action" type="button" disabled={settlingCash} onClick={() => void toggleCashSettlement()}>{settlingCash ? "正在保存…" : cashSettlement.status === "SETTLED" ? "取消已结现金" : "已结现金"}</button>}
+      </div>
+
       <section className="employee-closing-records" aria-labelledby="employee-closing-records-title">
         <div className="employee-closing-section-heading">
           <div><h3 id="employee-closing-records-title">逐笔记工</h3><p>员工大费显示折扣前金额；实收付款拆分仅供核对。</p></div>
@@ -452,7 +480,7 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
       <div className="employee-closing-image-actions">
         <button className="primary-action" type="button" disabled={generating} onClick={() => void createImage()}>{generating ? "正在生成…" : generated ? "重新生成图片" : "生成日结图片"}</button>
         {generated && <button className="secondary-action" type="button" onClick={() => void saveImage()}>保存到相册 / 分享</button>}
-        {canSend && preview.isClosed && <button className="secondary-action" type="button" disabled={sending} onClick={() => void sendToEmployee()}>{sending ? "正在排队…" : "短信发送给员工"}</button>}
+        {canSend && <button className="secondary-action" type="button" disabled={sending} onClick={() => void sendToEmployee()}>{sending ? "正在排队…" : "短信发送给员工"}</button>}
       </div>
       {imageMessage && <p className="employee-closing-image-message" role="status">{imageMessage}</p>}
       {imageError && <p className="form-error" role="alert">{imageError}</p>}
@@ -471,6 +499,11 @@ export function EmployeeClosingModal({
 }: EmployeeClosingModalProps) {
   const [preview, setPreview] = useState<EmployeeClosingPreview | null>(null);
   const [error, setError] = useState("");
+
+  useStoreRealtime(storeId, async () => {
+    const latest = await apiRequest<EmployeeClosingPreview>(`/stores/${storeId}/closings/${businessDate}/members/${membershipId}/preview`);
+    setPreview(latest);
+  });
 
   useEffect(() => {
     const previousBodyOverflow = document.body.style.overflow;

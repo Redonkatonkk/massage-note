@@ -2,11 +2,21 @@ import { describe, expect, it } from "vitest";
 import {
   calendarDateRangeQuerySchema,
   closeBusinessDaySchema,
+  cancelBusinessDayClosingSchema,
+  reopenCashSchema,
   createPayrollSettlementSchema,
   financeQuerySchema,
 } from "../src/index.js";
 
 describe("日结与财务契约", () => {
+  it("取消日结和取消已结现金允许省略原因，仍要求版本", () => {
+    for (const schema of [cancelBusinessDayClosingSchema, reopenCashSchema]) {
+      expect(schema.parse({ version: 1 })).toEqual({ version: 1 });
+      expect(schema.safeParse({}).success).toBe(false);
+      expect(schema.parse({ version: 1, reason: "补充" }).reason).toBe("补充");
+    }
+  });
+
   it("强制日结必须填写原因", () => {
     expect(closeBusinessDaySchema.safeParse({ force: true }).success).toBe(false);
     expect(

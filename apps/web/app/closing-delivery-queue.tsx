@@ -45,7 +45,7 @@ export function ClosingDeliveryQueue({ value, busy, onCancel }: ClosingDeliveryQ
                 <tr key={item.id}>
                   <td><strong>{item.membership.displayName}</strong></td>
                   <td className={item.recipientPhoneE164 ? "delivery-phone" : "delivery-phone invalid"}>{item.recipientPhoneE164 || "号码缺失"}</td>
-                  <td>第 {item.closing.cycleNo} 次</td>
+                  <td>{item.closing ? `第 ${item.closing.cycleNo} 次` : "未日结"}</td>
                   <td>{item.kind === "INITIAL" ? "首次" : "补发"}</td>
                   <td>{item.locale === "zh_CN" ? "中文" : "English"}</td>
                   <td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{statusLabels[item.status]}</span></td>

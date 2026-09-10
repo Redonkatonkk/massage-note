@@ -32,7 +32,7 @@ export const closeBusinessDaySchema = z
 
 export const cancelBusinessDayClosingSchema = z.object({
   version: versionSchema,
-  reason: z.string().trim().min(1, "请填写取消日结原因").max(500),
+  reason: optionalReasonSchema,
 });
 
 const expectedSettlementVersionSchema = z.number().int().min(0);
@@ -44,7 +44,7 @@ export const settleCashSchema = z.object({
 
 export const reopenCashSchema = z.object({
   version: versionSchema,
-  reason: z.string().trim().min(1, "请填写取消结清原因").max(500),
+  reason: optionalReasonSchema,
 });
 
 export const settleAllCashSchema = z.object({

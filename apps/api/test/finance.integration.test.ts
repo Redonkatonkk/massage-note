@@ -310,6 +310,37 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     expect(managerView.employee.membershipId).toBe(employeeMembershipId);
   });
 
+  it("个人日结现金标记支持无理由取消、版本保护与重新结清", async () => {
+    const preview = await closings.previewMember(actor(managerId), storeId, businessDate, employeeMembershipId);
+    expect(preview.cashSettlement).toMatchObject({ status: "SETTLED", version: 1 });
+    await expect(cash.reopen(actor(employeeId), storeId, businessDate, employeeMembershipId, { version: 1 }, "cash-forbidden", "cash-forbidden")).rejects.toBeInstanceOf(ForbiddenException);
+    const reopened = await cash.reopen(actor(managerId), storeId, businessDate, employeeMembershipId, { version: 1 }, "cash-reopen-personal", "cash-reopen-personal");
+    expect(reopened).toMatchObject({ status: "UNSETTLED", version: 2 });
+    await expect(cash.reopen(actor(managerId), storeId, businessDate, employeeMembershipId, { version: 1 }, "cash-reopen-personal", "cash-reopen-repeat")).resolves.toMatchObject({ status: "UNSETTLED", version: 2 });
+    await expect(cash.settle(actor(managerId), storeId, businessDate, employeeMembershipId, { version: 1 }, "cash-stale-personal", "cash-stale-personal")).rejects.toBeInstanceOf(ConflictException);
+    expect((await closings.previewMember(actor(employeeId), storeId, businessDate, employeeMembershipId)).cashSettlement.status).toBe("UNSETTLED");
+    await cash.settle(actor(managerId), storeId, businessDate, employeeMembershipId, { version: 2 }, "cash-resettle-personal", "cash-resettle-personal");
+    expect((await closings.previewMember(actor(employeeId), storeId, businessDate, employeeMembershipId)).cashSettlement.status).toBe("SETTLED");
+  });
+
+  it("未日结也可逐人发送快照、重复请求不重复排队，员工不能发送", async () => {
+    await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { closingDeliveryEnabled: true } });
+    await expect(closingDeliveries.queueMember(actor(employeeId), storeId, businessDate, employeeMembershipId, "open-forbidden", "open-forbidden")).rejects.toBeInstanceOf(ForbiddenException);
+    const queued = await closingDeliveries.queueMember(actor(managerId), storeId, businessDate, employeeMembershipId, "open-send", "open-send");
+    expect(queued.closingId).toBeNull();
+    expect(queued.snapshotJson).toMatchObject({ isClosed: false, businessDate });
+    const duplicate = await closingDeliveries.queueMember(actor(managerId), storeId, businessDate, employeeMembershipId, "open-send", "open-repeat");
+    expect(duplicate.id).toBe(queued.id);
+    expect((await closingDeliveries.list(actor(managerId), storeId, businessDate)).deliveries.some(item => item.id === queued.id)).toBe(true);
+    const credential = await closingDeliveries.rotateAgentCredential(actor(managerId), storeId, "open-agent");
+    const claimed = await closingDeliveries.claim(`Bearer ${credential.token}`);
+    expect(claimed?.id).toBe(queued.id);
+    await expect(closingDeliveries.authorize(`Bearer ${credential.token}`, claimed!.id, claimed!.leaseToken)).resolves.toEqual({ authorized: true });
+    await closingDeliveries.complete(`Bearer ${credential.token}`, claimed!.id, claimed!.leaseToken);
+    const cancel = await closingDeliveries.queueMember(actor(managerId), storeId, businessDate, employeeMembershipId, "open-cancel", "open-cancel");
+    await expect(closingDeliveries.cancel(actor(managerId), storeId, businessDate, cancel.id, "open-cancel")).resolves.toMatchObject({ status: "CANCELLED" });
+  });
+
   it("工资账本支持部分支付、超付、软删除与恢复，并排除店主", async () => {
     const settlement = await payroll.create(
       actor(managerId),
@@ -483,7 +514,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       actor(managerId),
       storeId,
       businessDate,
-      { version: closingVersion, reason: "需要补充记录" },
+      { version: closingVersion },
       "closing-cancel-0001",
       "closing-cancel",
     );
@@ -492,7 +523,10 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     const afterCancel = await cash.list(actor(managerId), storeId, businessDate);
     expect(
       afterCancel.rows.find((row) => row.membershipId === employeeMembershipId),
-    ).toMatchObject({ status: "UNSETTLED", version: 2 });
+    ).toMatchObject({ status: "UNSETTLED", version: 4 });
+    const afterReopen = await closingDeliveries.queueMember(actor(managerId), storeId, businessDate, employeeMembershipId, "after-reopen-send", "after-reopen-send");
+    expect(afterReopen.closingId).toBeNull();
+    await closingDeliveries.cancel(actor(managerId), storeId, businessDate, afterReopen.id, "after-reopen-cancel");
   });
 
   it("一键现金结清使用完整版本集合，修改记工后自动回退", async () => {

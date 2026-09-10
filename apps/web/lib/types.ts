@@ -66,7 +66,7 @@ export type ClosingDeliveryStatus = "QUEUED" | "CLAIMED" | "SENT" | "FAILED" | "
 
 export interface ClosingDeliveryItem {
   id: string;
-  closingId: string;
+  closingId: string | null;
   membershipId: string;
   kind: "INITIAL" | "RESEND";
   status: ClosingDeliveryStatus;
@@ -79,7 +79,7 @@ export interface ClosingDeliveryItem {
   nextAttemptAt: string;
   createdAt: string;
   updatedAt: string;
-  closing: { cycleNo: number; status: string };
+  closing: { cycleNo: number; status: string } | null;
   membership: { displayName: string };
 }
 
@@ -646,6 +646,7 @@ export interface ClosingPreview {
 }
 
 export interface EmployeeClosingPreview {
+  cashSettlement: { status: "SETTLED" | "UNSETTLED"; version: number; settledAt: string | null };
   storeId: string;
   storeName: string;
   storeTimezone: string;

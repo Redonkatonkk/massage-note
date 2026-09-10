@@ -121,6 +121,10 @@ export class ClosingsService {
           closedAt: preview.activeClosing.closedAt,
         }
       : null;
+    const cashSettlement = await client.dailyCashSettlement.findFirst({
+      where: { storeId, businessDate: dateAtUtc(businessDate), membershipId: targetMembershipId, deletedAt: null },
+      select: { status: true, version: true, settledAt: true },
+    });
     const confirmedLargeFeeWageCents =
       this.safeNumber(BigInt(employee.cashLargeFeeDividendCents) + BigInt(employee.cardLargeFeeDividendCents));
     const confirmedTipWageCents =
@@ -142,6 +146,7 @@ export class ClosingsService {
         confirmedIncomeCents:
           this.safeNumber(BigInt(confirmedLargeFeeWageCents) + BigInt(confirmedTipWageCents)),
       },
+      cashSettlement: cashSettlement ?? { status: "UNSETTLED", version: 0, settledAt: null },
       records: preview.personalRecords ?? [],
     };
   }
@@ -357,7 +362,7 @@ export class ClosingsService {
               cancelledDeliveryCount: cancelledDeliveries.count,
               version: cancelled.version,
             },
-            reason: input.reason,
+            reason: input.reason ?? null,
             requestId,
           },
         });

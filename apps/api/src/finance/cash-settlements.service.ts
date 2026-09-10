@@ -266,7 +266,7 @@ export class CashSettlementsService {
             businessDate: current.businessDate,
             beforeJson: { status: current.status, version: current.version },
             afterJson: { status: reopened.status, version: reopened.version },
-            reason: input.reason,
+            reason: input.reason ?? null,
             requestId,
           },
         });

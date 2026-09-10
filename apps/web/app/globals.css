@@ -3149,7 +3149,6 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 
 .employee-settlement-record-card__payments > span { grid-template-columns: 70px minmax(0,1fr); }
 .floating-ai-button { box-shadow: 0 3px 12px rgba(71,32,23,.15); }
 @media (min-width: 1100px) {
-  .app-shell { padding-bottom: 32px; }
   .finance-metric-group--emphasis .finance-cards { grid-template-columns: repeat(4,minmax(0,1fr)); }
 }
 @media (max-width: 760px) {
@@ -3206,3 +3205,7 @@ body { position: relative; }
 .row-management summary { min-height: 48px; padding: 12px 8px; cursor: pointer; font-size: .85rem; }
 .row-management > div { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
 .payroll-entry .payroll-form { border: 0; box-shadow: none; padding: 12px 0; }
+
+/* Reserve the measured fixed navigation height, including wrapping and safe area. */
+.app-nav-space { height: calc(72px + env(safe-area-inset-bottom)); flex-shrink: 0; }
+.app-shell:has(> .app-nav-space) { padding-bottom: 16px; }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
-import { formatWorkTime, parseWorkTime } from "../lib/time";
+import { useEffect, useState } from "react";
+import { useLanguage } from "./language-provider";
 
 interface WorkTimeInputProps {
   id?: string;
@@ -12,28 +12,42 @@ interface WorkTimeInputProps {
 }
 
 export function WorkTimeInput({ id, value, onChange, onValidityChange, optional = false }: WorkTimeInputProps) {
-  const helpId = useId();
-  const [draft, setDraft] = useState<{ value: string; text: string } | null>(null);
-  const text = draft?.value === value ? draft.text : formatWorkTime(value);
-  const parsed = parseWorkTime(text);
-  const valid = parsed !== null || (optional && text.trim() === "");
+  const { locale } = useLanguage();
+  const english = locale === "en-US";
+  const valid = /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) || (optional && value === "");
+  const [hour24, minute = "00"] = value ? value.split(":") : ["0", "00"];
+  const hour = String(Number(hour24) % 12 || 12);
+  const period = Number(hour24) >= 12 ? "PM" : "AM";
   useEffect(() => onValidityChange(valid), [valid, onValidityChange]);
+
+  function update(nextHour: string, nextMinute: string, nextPeriod: string) {
+    if (!nextHour) {
+      onChange("");
+      return;
+    }
+    const nextHour24 = Number(nextHour) % 12 + (nextPeriod === "PM" ? 12 : 0);
+    onChange(`${String(nextHour24).padStart(2, "0")}:${nextMinute}`);
+  }
+
   return <span className="work-time-field">
-    <input id={id} type="text" aria-label="时间 / Time" autoComplete="off"
-      placeholder="1:30 PM" value={text} aria-invalid={!valid} aria-describedby={helpId}
-      onChange={(event) => {
-        const nextText = event.target.value;
-        const next = parseWorkTime(nextText);
-        const empty = optional && nextText.trim() === "";
-        onValidityChange(next !== null || empty);
-        const nextValue = next ?? (empty ? "" : value);
-        setDraft({ value: nextValue, text: nextText });
-        if (next !== null || empty) onChange(nextValue);
-      }}
-      onBlur={() => { if (valid) setDraft(null); }} />
-    <small id={helpId} className={valid ? "field-help" : "form-error"}>
-      {valid ? (parsed ? formatWorkTime(parsed) + " · " : "") + "9–11 → AM；12、1–8 → PM。可填写 AM/PM。" : "请填写 1–12 点，例如 1:30 PM / Enter a time, e.g. 1:30 PM"}
-    </small>
+    <select id={id} aria-label={english ? "Hour" : "小时"} value={value ? hour : ""}
+      aria-invalid={!valid} onChange={(event) => update(event.target.value, minute, period)}>
+      <option value="" disabled={!optional}>{english ? "Hour" : "小时"}</option>
+      {Array.from({ length: 12 }, (_, index) => index + 1).map((item) =>
+        <option key={item} value={String(item)}>{item}</option>)}
+    </select>
+    <select aria-label={english ? "Minute" : "分钟"} value={value ? minute : ""}
+      onChange={(event) => update(hour, event.target.value, period)}>
+      <option value="" disabled>{english ? "Minute" : "分钟"}</option>
+      {Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0")).map((item) =>
+        <option key={item} value={item}>{item}</option>)}
+    </select>
+    <select aria-label={english ? "AM/PM" : "上午/下午"} value={value ? period : ""}
+      onChange={(event) => update(hour, minute, event.target.value)}>
+      <option value="" disabled>{english ? "AM/PM" : "时段"}</option>
+      <option value="AM">{english ? "AM" : "上午"}</option>
+      <option value="PM">{english ? "PM" : "下午"}</option>
+    </select>
   </span>;
 }
 

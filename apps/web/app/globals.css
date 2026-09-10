@@ -3053,7 +3053,11 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
   min-width: 0;
 }
 
-.work-time-field input,
+.work-time-field {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.work-time-field select,
 .work-date-time-field input {
   box-sizing: border-box;
   width: 100%;

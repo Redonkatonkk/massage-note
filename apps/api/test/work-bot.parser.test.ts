@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { parseWorkBotMessage, parsedIntentAppearsInRawText } from "../src/work-bot/work-bot.parser.js";
 
 describe("记工机器人固定语法", () => {
+  it.each(["@Jeunesse jessica 上工 大力", "@jessica 上工 大力", "＠jessica　上工　大力"])("保留 @ 员工证据并接受店铺默认时长：%s", raw => {
+    const intent = { kind: "START" as const, serviceAlias: "11111111-1111-4111-8111-111111111111", serviceMention: "大力", memberName: "Jessica", memberMention: "jessica", durationMinutes: 60, durationSource: "SKILL" as const };
+    expect(parsedIntentAppearsInRawText(intent, raw)).toBe(true);
+    expect(parsedIntentAppearsInRawText({ ...intent, memberMention: "Lily" }, raw)).toBe(false);
+    expect(parsedIntentAppearsInRawText({ ...intent, serviceMention: "脚" }, raw)).toBe(false);
+    expect(parsedIntentAppearsInRawText({ ...intent, durationSource: undefined }, raw)).toBe(false);
+  });
+
   it.each([
     ["高亮", true], ["取消高亮", false], ["去掉高亮", false],
     ["移除高亮", false], ["关闭高亮", false], ["不高亮", false],

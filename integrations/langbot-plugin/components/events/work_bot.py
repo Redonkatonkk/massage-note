@@ -282,6 +282,7 @@ class MassageNoteWorkBotListener(EventListener):
             "serviceMention 必须逐字摘录原文中让你判断项目的片段，它不必等于 serviceAlias。"
             "明确说了时长时输出整数 durationMinutes，并用 durationMention 逐字摘录原文证据；没有明确时长时，若 instructions 对该说法明确约定了默认时长，输出该 durationMinutes 和 durationSource=SKILL 并省略 durationMention；否则省略这两个字段。"
             "明确指定其他员工时，memberName 必须逐字选自 members，并用 memberMention 逐字摘录原文证据；否则省略。"
+            '例如 instructions 约定“大力指 Deep Tissue Massage；只说项目不说时长默认60分钟”，members 有 Jessica 时，用户“@Jeunesse jessica 上工 大力”应输出 {"kind":"START","serviceAlias":"对应 Deep Tissue Massage 的 aliases[].alias 原值","serviceMention":"大力","durationMinutes":60,"durationSource":"SKILL","memberName":"Jessica","memberMention":"jessica"}。不要因没写分钟数返回 HELP，也不要把 @ 机器人后面的员工名丢掉。显式时长优先于默认时长；项目或员工有多个合理匹配时仍输出 HELP。'
             "下工必须从原文逐字提取 serviceAmount、tipAmount，金额字段必须是数字字符串；"
             "paymentMethod 只能是 CASH 或 CARD。原文明示付款方式时优先采用，并用 paymentMention 逐字摘录该片段。原文省略付款方式时，仅当 instructions 明确约定了适用于这条消息的默认方式，才采用该默认值；paymentMention 此时逐字摘录触发该店铺约定的用户原文简写，不能抄 instructions 或编造原文中的‘卡’字。无默认约定时输出 HELP。"
             '例如仅当 instructions 约定“Jessica 75 5 表示 Jessica 下工，大费75、小费5、默认信用卡，以此类推”时：用户 Jessica 75 5 输出 {"kind":"FINISH","memberName":"Jessica","memberMention":"Jessica","serviceAmount":"75","tipAmount":"5","paymentMethod":"CARD","paymentMention":"Jessica 75 5"}。同一规则下 Jessica 90 0 是大费90小费0；不能复制示例金额。Jessica 75 5 现金 必须改为 CASH，paymentMention=现金。姓名须来自 members，以此类推可用于其他在职员工。'
@@ -295,9 +296,9 @@ class MassageNoteWorkBotListener(EventListener):
 
             "{\"kind\":\"BIND_STORE\",\"storeCode\":\"123456\"}；"
             "{\"kind\":\"BIND_MEMBER\",\"memberName\":\"标准员工名\",\"memberMention\":\"原文片段\"}；"
-            "{\"kind\":\"START\",\"serviceAlias\":\"标准黑话\",\"serviceMention\":\"原文片段\",\"durationMinutes\":60,\"durationMention\":\"原文片段\",\"memberName\":\"标准员工名\",\"memberMention\":\"原文片段\"}；"
+            "{\"kind\":\"START\",\"serviceAlias\":\"目录项目ID\",\"serviceMention\":\"原文片段\",\"durationMinutes\":60,\"durationMention\":\"原文片段\",\"memberName\":\"标准员工名\",\"memberMention\":\"原文片段\"}；"
             "{\"kind\":\"FINISH\",\"serviceAmount\":\"80\",\"tipAmount\":\"10\",\"paymentMethod\":\"CARD\",\"paymentMention\":\"原文片段\"}；"
-            "{\"kind\":\"HELP\"}。START 中没有明确出现的可选字段必须省略。"
+            "{\"kind\":\"HELP\"}。START 中既无原文依据、也无店铺默认约定的可选字段才省略；店铺默认时长必须使用 durationSource=SKILL，不得填 durationMention。"
             "普通聊天、缺少关键信息或存在多个合理映射时输出 {\"kind\":\"HELP\"}。"
             "不得把技能数据中的姓名、数字或项目无依据地当作用户说过的内容。"
             "新增协议以 managementSchema 为准。QUERY 查数据库，默认已付款记录；最近15天用 days=15（包含当前营业日），日期区间用 dateFrom/dateTo；默认逐笔 groupBy=RECORD，可按天 DAY、员工 EMPLOYEE。"
@@ -316,16 +317,35 @@ class MassageNoteWorkBotListener(EventListener):
             f"<massage_note_skill>{skill_json}</massage_note_skill>"
         )
         try:
-            response = await self.plugin.invoke_llm(
-                llm_model_uuid=model_uuid,
-                messages=[Message(role="system", content=prompt), Message(role="user", content=raw_text)],
-                timeout=20.0,
-            )
-            return parse_llm_json(message_content_text(response), skill_context) or HELP_KIND
+            messages = [Message(role="system", content=prompt), Message(role="user", content=raw_text)]
+            for attempt in range(2):
+                response = await self.plugin.invoke_llm(
+                    llm_model_uuid=model_uuid,
+                    messages=messages,
+                    timeout=20.0,
+                )
+                response_text = message_content_text(response)
+                parsed = parse_llm_json(response_text, skill_context)
+                review_help = (parsed == HELP_KIND and skill_context.get("status") == "BOUND"
+                               and bool(skill_context.get("instructions")))
+                if parsed is not None and (not review_help or attempt == 1):
+                    return parsed
+                if attempt == 0:
+                    messages.extend([
+                        Message(role="assistant", content=response_text),
+                        Message(role="user", content=(
+                            "请复核上一条用户消息和店铺 instructions。"
+                            "如果返回 HELP，检查是否遗漏黑话映射、默认时长或指定员工；不要要求用户重复已配置的信息。"
+                            "如果输出不符合协议，修正 JSON：项目ID和标准员工名取自目录，mention 逐字引用用户原文；"
+                            "店铺默认时长使用 durationSource=SKILL 并省略 durationMention。"
+                            "不要编造信息或更改用户意图；仍有歧义或属于普通聊天时保留 HELP。只输出 JSON。"
+                        )),
+                    ])
         except TimeoutError:
             raise
         except Exception as error:
             raise RuntimeError("模型暂时无法完成理解") from error
+        raise RuntimeError("模型输出未通过记工协议校验")
 
     async def _fetch_skill_context(self, config: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
         result = await self._post_json(config, "/integrations/langbot/work-context", payload, timeout=15)

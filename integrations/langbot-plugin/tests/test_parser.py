@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from urllib.parse import urlsplit
 import re
 import unittest
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from pathlib import Path
 from typing import Any
 
@@ -88,6 +90,58 @@ class ParserTest(unittest.TestCase):
     def test_unknown_target_is_not_silently_dropped(self):
         intent = {"kind": "FINISH", "memberName": "Unknown", "memberMention": "Unknown", "serviceAmount": "75", "tipAmount": "15", "paymentMethod": "CARD", "paymentMention": "卡"}
         self.assertIsNone(parse(json.dumps(intent), self.context))
+
+
+class LlmIntentTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        listener_node = next(node for node in tree.body if isinstance(node, ast.ClassDef))
+        method = next(node for node in listener_node.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "_llm_intent")
+        test_namespace = {**namespace, "os": SimpleNamespace(environ={}), "Message": SimpleNamespace}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), str(source), "exec"), test_namespace)
+        self.method = test_namespace["_llm_intent"]
+        self.context = {"status": "BOUND", "members": ["Jessica"], "instructions": "只说项目没提时间，默认60分钟。大力指 Deep Tissue Massage。", "aliases": [{"alias": "11111111-1111-4111-8111-111111111111", "serviceName": "Deep Tissue Massage"}]}
+        self.intent = {"kind": "START", "memberName": "Jessica", "memberMention": "jessica", "serviceAlias": self.context["aliases"][0]["alias"], "serviceMention": "大力", "durationMinutes": 60, "durationSource": "SKILL"}
+
+    async def run_responses(self, responses):
+        invoke = AsyncMock(side_effect=[SimpleNamespace(content=json.dumps(value)) for value in responses])
+        self.listener = SimpleNamespace(plugin=SimpleNamespace(invoke_llm=invoke))
+        result = await self.method(self.listener, "@Jeunesse jessica 上工 大力", {"model": "test-model"}, self.context)
+        return result, invoke
+
+    async def test_screenshot_intent_preserves_employee_and_skill_default(self):
+        result, invoke = await self.run_responses([self.intent])
+        self.assertEqual(result, self.intent)
+        self.assertEqual(invoke.await_count, 1)
+        messages = invoke.call_args.kwargs["messages"]
+        self.assertIn(self.context["instructions"], messages[0].content)
+        self.assertEqual(messages[1].content, "@Jeunesse jessica 上工 大力")
+
+    async def test_help_is_reviewed_against_store_instructions(self):
+        result, invoke = await self.run_responses([{"kind": "HELP"}, self.intent])
+        self.assertEqual(result, self.intent)
+        self.assertEqual(invoke.await_count, 2)
+
+    async def test_invalid_duration_evidence_can_be_repaired(self):
+        invalid = {**self.intent, "durationSource": None}
+        result, invoke = await self.run_responses([invalid, self.intent])
+        self.assertEqual(result, self.intent)
+        self.assertEqual(invoke.await_count, 2)
+
+    async def test_genuine_help_remains_help_after_one_review(self):
+        result, invoke = await self.run_responses([{"kind": "HELP"}, {"kind": "HELP"}])
+        self.assertEqual(result, {"kind": "HELP"})
+        self.assertEqual(invoke.await_count, 2)
+
+    async def test_repeated_invalid_output_does_not_become_help(self):
+        with self.assertRaisesRegex(RuntimeError, "协议校验"):
+            await self.run_responses([{"kind": "START"}, {"kind": "START"}])
+        self.assertEqual(self.listener.plugin.invoke_llm.await_count, 2)
+
+    async def test_unbound_help_is_not_retried(self):
+        self.context = {"status": "UNBOUND"}
+        result, invoke = await self.run_responses([{"kind": "HELP"}])
+        self.assertEqual(result, {"kind": "HELP"})
+        self.assertEqual(invoke.await_count, 1)
 
 
 if __name__ == "__main__":

@@ -150,9 +150,11 @@ function managementEvidence(intent: Extract<WorkBotParsedIntent, { kind: "MANAGE
 }
 
 export function parsedIntentAppearsInRawText(intent: WorkBotParsedIntent, rawText: string): boolean {
-  const normalizedRaw = normalizeWorkBotValue(rawText);
+  // @ can identify an employee as well as address the bot. Keep its text as evidence.
+  const normalizeEvidence = (value: string) => normalizeWorkBotValue(value.replace(/[@＠]/gu, ""));
+  const normalizedRaw = normalizeEvidence(rawText);
   const appears = (value: string) => {
-    const normalized = normalizeWorkBotValue(value);
+    const normalized = normalizeEvidence(value);
     return normalized.length > 0 && normalizedRaw.includes(normalized);
   };
   const adjustmentEvidence = (value: Extract<WorkBotParsedIntent, { kind: "ADJUST" | "FINISH" }>) =>

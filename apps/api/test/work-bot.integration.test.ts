@@ -167,6 +167,33 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     await expect(workBot.handleEvent(`Bearer ${token}`, key("skill-default-finish"), event("skill-default-finish", "下工 140/10卡", new Date(startAt.getTime() + 90 * 60_000)), "skill-default-finish")).resolves.toMatchObject({ outcome: "WORK_FINISHED" });
   });
 
+  it("截图中的 Jessica 上工大力按店铺默认60分钟写账，保留员工并区分证据失败", async () => {
+    const jessicaId = randomUUID();
+    await prisma.storeMembership.create({ data: { id: jessicaId, storeId, role: "EMPLOYEE", displayName: "Jessica", displayNameNormalized: "jessica", isServiceProvider: true } });
+    const settings = await workBot.getSettings(actor, storeId);
+    const instructions = "只说项目名字没有提到时间的时候，默认60分钟。大力指 Deep Tissue。";
+    await workBot.updateInstructions(actor, storeId, { instructions, version: settings.instructionsVersion }, "screenshot-instructions");
+    await expect(workBot.getIntegrationContext(`Bearer ${token}`, baseEvent)).resolves.toMatchObject({ instructions, members: expect.arrayContaining(["Jessica"]) });
+    const parsedIntent = { kind: "START" as const, memberName: "Jessica", memberMention: "jessica", serviceAlias: serviceItemId, serviceMention: "大力", durationMinutes: 60, durationSource: "SKILL" as const };
+    const rawText = "@Jeunesse jessica 上工 大力";
+    const rejected = await workBot.handleEvent(`Bearer ${token}`, key("screenshot-rejected"), { ...event("screenshot-rejected", rawText, new Date()), parsedIntent: { ...parsedIntent, serviceMention: "脚" } }, "screenshot-rejected");
+    expect(rejected.outcome).toBe("INTENT_EVIDENCE_REJECTED");
+    expect(await prisma.workRecord.count({ where: { employeeMembershipId: jessicaId } })).toBe(0);
+    for (const [index, text] of [rawText, "@jessica 上工 大力"].entries()) {
+      const messageId = `screenshot-start-${index}`;
+      const input = { ...event(messageId, text, new Date()), parsedIntent };
+      const started = await workBot.handleEvent(`Bearer ${token}`, key(messageId), input, messageId);
+      expect(started.outcome).toBe("WORK_STARTED");
+      expect(await workBot.handleEvent(`Bearer ${token}`, key(messageId), input, messageId)).toEqual(started);
+      const record = await prisma.workRecord.findUniqueOrThrow({ where: { id: started.recordId! }, include: { serviceSnapshot: true } });
+      expect(record.employeeMembershipId).toBe(jessicaId);
+      expect(record.serviceSnapshot).toMatchObject({ sourceServiceItemId: serviceItemId, durationMinutes: 60 });
+      expect(record.endAt!.getTime() - record.startAt.getTime()).toBe(60 * 60_000);
+      const finishId = `screenshot-finish-${index}`;
+      await expect(workBot.handleEvent(`Bearer ${token}`, key(finishId), event(finishId, "Jessica 下工 100 0 卡", new Date()), finishId)).resolves.toMatchObject({ outcome: "WORK_FINISHED", recordId: record.id });
+    }
+  });
+
   it("接受 AI 以原话证据映射到项目目录，无需黑话对应关系", async () => {
     const startAt = new Date(Date.now() + 30 * 60_000);
     const finishAt = new Date(startAt.getTime() + 60 * 60_000);

@@ -169,7 +169,8 @@ export class WorkBotService {
     }
 
     let intent = input.parsedIntent ?? parseWorkBotMessage(input.rawText);
-    if (!parsedIntentAppearsInRawText(intent, input.rawText)) intent = { kind: "HELP" };
+    const evidenceRejected = !parsedIntentAppearsInRawText(intent, input.rawText);
+    if (evidenceRejected) intent = { kind: "HELP" };
 
     try {
       return await this.prisma.$transaction(async (transaction) => {
@@ -202,8 +203,10 @@ export class WorkBotService {
             return this.manageWork(transaction, input, intent, requestId);
           case "HELP":
             return this.persistReply(transaction, input, intent, {
-              outcome: "HELP",
-              reply: HELP_REPLY,
+              outcome: evidenceRejected ? "INTENT_EVIDENCE_REJECTED" : "HELP",
+              reply: evidenceRejected
+                ? "AI 已返回解析结果，但与消息原文的校验未通过，本次没有记账。请重试或到网页核对。"
+                : HELP_REPLY,
             });
         }
       });

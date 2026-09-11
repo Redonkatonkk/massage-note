@@ -1,15 +1,11 @@
 # Massage Note Work Bot
 
-LangBot WeChat plugin for complete work records and scoped database queries. Plugin 1.1.4 targets Massage Note API 1.3.7 (protocol version 2).
+LangBot WeChat plugin for work records and scoped queries. Plugin **1.1.5** requires Massage Note API **1.3.7 or later**, protocol version 2. This release organizes documentation; runtime code is unchanged from 1.1.4.
 
-Plugin 1.1.1 applies store instructions to checkout shorthand as well as starts. A configured rule such as `Jessica 75 5` preserves the named employee and interprets service/tip amounts with the configured default payment method. Explicit cash/card wording overrides the default. The shorthand itself is original-text evidence for the semantic default; example amounts are never copied. API 1.1.0 finds pending records created either on the web or by the bot.
+Each mentioned group message loads the live store catalog and instructions, asks the configured model for a constrained intent, and submits it to the API. Money, authorization, idempotency and database access remain server controlled.
 
-Configure `api_base_url`, `integration_token`, the dedicated `bot`, and parser `model` in LangBot. Each mentioned group message loads the live store catalog and instructions, invokes the model, and submits a constrained intent to the API. Money, authorization, idempotency and database access are server controlled.
+Supports start/finish, discounts and add-ons, highlighting, record edits, mixed cash/card/gift-card payments, historical entry, soft delete/restore, and paginated queries. Payment collection does not overwrite the original service price. Store instructions can define shorthand and default durations; explicit wording takes precedence. Invalid model output or HELP with store instructions receives at most one review call.
 
-Supports start/finish, discounts and add-ons, highlighting, record edits, mixed cash/card/gift-card payments, custom items, historical entry, soft delete/restore, and paginated record/day/employee queries. Payment collection does not overwrite the original service price.
+Configure `api_base_url`, `integration_token`, the dedicated `bot`, and parser `model` in LangBot. Keep the work pipeline restricted to group messages mentioning the bot. A manager must verify the WeChat identity in Massage Note before historical data access is enabled; replies are posted to the requesting group.
 
-For data access, a store manager must verify the WeChat identity in the Massage Note work-bot settings. Employees can query their own history; verified managers/owners can query the store. Replies are posted to the group that requested them.
-
-See [中文操作说明](readme/README_zh_Hans.md). Deploy API and database migrations before installing the plugin. Never include credentials in the package or rely on custom Runtime environment variables being inherited by isolated plugin workers.
-
-Plugin 1.1.4 clarifies configured default durations and preserves named employees in start commands. HELP with store instructions, or invalid model output, receives at most one review call before submission. Persistent malformed output raises an explicit error; it does not become generic help. API 1.3.7 preserves @ employee evidence and distinguishes evidence rejection from HELP.
+See [中文配置说明](readme/README_zh_Hans.md) and the repository [development guide](DEVELOPMENT.md). Deploy the required API and migrations before installing the plugin. Never include credentials in a package or rely on custom container environment variables reaching isolated plugin workers.

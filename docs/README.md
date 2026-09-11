@@ -52,6 +52,8 @@ docs/
 - [`operations/RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md)：发布前、业务验收和上线后检查。
 - 根目录 [`CHANGELOG.md`](../CHANGELOG.md)：按版本记录已经交付的变化。
 
+- [`../integrations/langbot-plugin/DEVELOPMENT.md`](../integrations/langbot-plugin/DEVELOPMENT.md)：插件目录、验证、打包与旧包归档。
+
 ## 事实来源优先级
 
 文档与实现不一致时，先停止传播旧说法，并按下面顺序核对：
@@ -67,10 +69,12 @@ docs/
 
 ## 归档
 
-[`archive/`](archive/) 只保存项目启动阶段的历史材料：
+[`archive/`](archive/) 保存历史设计与早期实施记录：
 
 - [`INITIAL_ARCHITECTURE_PLAN.md`](archive/INITIAL_ARCHITECTURE_PLAN.md)：编码前的架构、ER 图、路由设想和阶段计划。
 - [`INITIAL_AI_DEVELOPMENT_PROMPT.md`](archive/INITIAL_AI_DEVELOPMENT_PROMPT.md)：最初用于启动项目的一次性 AI 提示。
+
+- [`LANGBOT_MASSAGE_NOTE_WORK_BOT_IMPLEMENTATION.md`](archive/LANGBOT_MASSAGE_NOTE_WORK_BOT_IMPLEMENTATION.md)：早期 1.0.2 跨项目对接记录。
 
 归档文档中的路由、目录和“待实现”内容可能已经过时，不参与当前事实优先级。
 

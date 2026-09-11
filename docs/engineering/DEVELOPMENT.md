@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`1.3.7`
+> 适用版本：`1.3.9`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
@@ -170,3 +170,7 @@ pnpm build
 - 若有迁移：迁移名、兼容策略和回滚边界。
 
 提交前检查 `git status --short` 和 `git diff`，只处理当前任务文件，保留工作区中不属于本次修改的内容。
+
+## LangBot 插件目录
+
+插件源码与后端在同一仓库维护，入口见 [插件开发指南](../../integrations/langbot-plugin/DEVELOPMENT.md)。安装包输出到插件的 `dist/`，旧包保留在 `dist/archive/`；LangBot 的运行数据位于工作区兄弟仓库的 `langbot-local/docker/data/`，不作为源码修改。

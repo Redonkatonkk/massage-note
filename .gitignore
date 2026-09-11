@@ -15,3 +15,9 @@ coverage/
 packages/database/src/generated/
 artifacts/
 .local-ai/
+
+# Python integration caches and plugin packages
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.lbpkg

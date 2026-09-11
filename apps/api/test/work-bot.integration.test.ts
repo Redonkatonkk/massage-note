@@ -257,6 +257,9 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     await expect(workBot.handleEvent(`Bearer ${token}`, key("bad-clock"), invalid, "bad-clock")).resolves.toMatchObject({ outcome: "START_TIME_UNCLEAR" });
     const started = await workBot.handleEvent(`Bearer ${token}`, key("stated-clock"), input, "stated-clock");
     expect(started).toMatchObject({ outcome: "WORK_STARTED", reply: expect.stringContaining("开始 13:00，预计 14:00") });
+    expect(started.reply.split("\n")[1]).toContain("空闲：");
+    expect(started.reply.split("\n")[1]).toContain("小王");
+    expect(started.reply.split("\n")[1]).not.toContain("Jessie");
     const record = await prisma.workRecord.findUniqueOrThrow({ where: { id: started.recordId! } });
     expect(record.startAt.toISOString()).toBe("2026-09-09T17:00:00.000Z");
     expect(record.endAt?.toISOString()).toBe("2026-09-09T18:00:00.000Z");

@@ -1,3 +1,4 @@
+import { workBotAvailability } from "./work-bot-availability.js";
 import { workBotStartTime } from "./work-bot-start-time.js";
 import { parseRequest } from "../common/zod-request.js";
 import { z } from "zod";
@@ -661,8 +662,22 @@ export class WorkBotService {
       action: "work_bot.work_started", entityType: "work_record", entityId: record.id,
       businessDate: record.businessDate, afterJson: { employeeMembershipId: employee.id, requestedByMembershipId: actorBinding.membershipId, alias: alias.alias, serviceItemId: alias.serviceItem.id, durationMinutes, startAt: startAt.toISOString(), endAt: endAt.toISOString(), amountCents: option.priceCents.toString(), status: record.status }, requestId,
     } });
+    const now = new Date();
+    const members = await transaction.storeMembership.findMany({
+      where: { storeId: store.id, status: "ACTIVE", deletedAt: null, isServiceProvider: true,
+        OR: [{ userId: null }, { user: { status: "ACTIVE" } }],
+      },
+      orderBy: [{ displayName: "asc" }, { id: "asc" }],
+      select: { displayName: true, workRecords: {
+        where: { storeId: store.id, deletedAt: null, status: "PENDING_PAYMENT", startAt: { lte: now },
+          OR: [{ endAt: null }, { endAt: { gt: now } }],
+        },
+        select: { endAt: true },
+      } },
+    });
+    const availability = workBotAvailability(members, now, store.timezone);
     return this.persistReply(transaction, input, intent, {
-      outcome: "WORK_STARTED", reply: `✅ ${employee.displayName} 已上工：${alias.serviceItem.shortName} ${durationMinutes} 分钟，开始 ${this.formatTime(startAt, store.timezone)}，预计 ${this.formatTime(endAt, store.timezone)}。`,
+      outcome: "WORK_STARTED", reply: `✅ ${employee.displayName} 已上工：${alias.serviceItem.shortName} ${durationMinutes} 分钟，开始 ${this.formatTime(startAt, store.timezone)}，预计 ${this.formatTime(endAt, store.timezone)}。\n${availability}`,
       recordId: record.id, businessDate,
     }, group);
   }

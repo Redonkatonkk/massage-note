@@ -3132,7 +3132,6 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 
 .finance-summary-info:hover .finance-summary-tooltip, .finance-summary-info:focus-within .finance-summary-tooltip { display: none; }
 .finance-summary-info[open] .finance-summary-tooltip { display: grid; }
 .finance-metric-group--emphasis .finance-summary-card:nth-child(3) { background: var(--brand-soft); border-color: #b78676; }
-.finance-daily-table:not(.is-expanded) :is(th,td):nth-child(2),
 .finance-daily-table:not(.is-expanded) :is(th,td):nth-child(n+4):nth-child(-n+10) { display: none; }
 .finance-report-heading { align-items: center; }
 .finance-report-heading .secondary-action { padding: 8px 14px; }

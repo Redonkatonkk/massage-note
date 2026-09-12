@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DomainError,
+  calculateBoardTotalIncome,
   calculateDailyTurnover,
   calculateDailyCashSettlement,
   calculatePersonalClosingCashToSubmit,
@@ -400,5 +401,25 @@ describe("日现金结算与工资余额", () => {
         adjustmentCents: -1_000n,
       }),
     ).toBe(61_000n);
+  });
+});
+
+
+describe("今日看板总收入", () => {
+  it("只加回店长和全部经理收入，保留店铺已有礼物卡收支", () => {
+    const storeIncomeCents = calculateStoreIncome({
+      discountedFeePerformanceCents: 40_000n, totalTipCents: 5_000n,
+      employeeIncomeCents: 25_000n, giftCardSalesAmountCents: 9_000n,
+      giftCardRedemptionCents: 3_000n,
+    });
+    expect(calculateBoardTotalIncome({ storeIncomeCents, workers: [
+      { role: "OWNER", incomeCents: 5_000n },
+      { role: "MANAGER", incomeCents: 4_000n },
+      { role: "MANAGER", incomeCents: 6_000n },
+      { role: "EMPLOYEE", incomeCents: 10_000n },
+    ] })).toBe(41_000n);
+  });
+  it("没有参与记工的店长或经理时保留负数店铺收入", () => {
+    expect(calculateBoardTotalIncome({ storeIncomeCents: -1_000n, workers: [] })).toBe(-1_000n);
   });
 });

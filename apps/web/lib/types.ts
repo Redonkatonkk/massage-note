@@ -439,7 +439,7 @@ export interface BoardResponse {
   rows: BoardRow[];
   giftCardSales: GiftCardSale[];
   nextGiftCardSerialNumber: string;
-  statistics: BoardStatistics;
+  statistics: BoardStatistics & { totalIncomeCents: number };
   ranking: {
     enabled: boolean;
     rankedAt: string | null;

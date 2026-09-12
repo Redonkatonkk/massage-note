@@ -3209,6 +3209,22 @@ body { position: relative; }
 .row-management { min-width: 0; flex: 1; }
 .row-management summary { min-height: 48px; padding: 12px 8px; cursor: pointer; font-size: .85rem; }
 .row-management > div { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
+/* Keep row actions beside the name when space permits, and in flow when expanded. */
+.employee-header { display: flex; flex-wrap: wrap; align-items: center; }
+.employee-toggle { flex: 1 1 260px; min-width: 0; width: auto; }
+.employee-toggle > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+.employee-toggle .chevron { flex-shrink: 0; }
+.employee-header .row-tools { flex: 0 1 auto; min-width: 0; align-items: center; padding: 8px 14px; }
+.row-management { flex: 0 1 auto; }
+.row-management summary, .row-closing-action { white-space: nowrap; }
+.row-management > div { max-width: 280px; }
+.row-work-count { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; min-height: 48px; padding: 0 8px; color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.row-work-count svg { flex-shrink: 0; }
+@media (max-width: 640px) {
+  .employee-toggle { flex-basis: 100%; }
+  .employee-header .row-tools { width: 100%; padding-top: 0; }
+  .row-management { margin-right: auto; }
+}
 .payroll-entry .payroll-form { border: 0; box-shadow: none; padding: 12px 0; }
 
 /* Reserve the measured fixed navigation height, including wrapping and safe area. */

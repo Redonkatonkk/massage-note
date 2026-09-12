@@ -445,11 +445,11 @@ export function TodayBoard({
   return (
     <>
       {canManage && <section className="summary-strip" aria-label="今日全店汇总">
-        <div><span>大费总额（折扣前）</span><strong>{money(board.statistics.grossFeeBaseCents)}</strong></div>
+        <div><span>营业额（折扣后）</span><strong>{money(board.statistics.discountedFeePerformanceCents)}</strong></div>
         <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
-        <div><span>礼物卡销售</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>
-        <div><span>礼物卡核销支出</span><strong>{money(board.statistics.giftCardRedemptionCents)}</strong></div>
+        <div title="礼物卡销售实际收款"><span>礼物卡总额</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>
         <div title="折后大费业绩＋小费总额－员工应得＋礼物卡销售－礼物卡核销支出"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
+        <div title="店铺收入＋店长收入＋经理收入"><span>总收入</span><strong>{money(board.statistics.totalIncomeCents)}</strong></div>
       </section>}
 
       <section className="board-toolbar" aria-label="今日操作">
@@ -513,16 +513,18 @@ export function TodayBoard({
                   {row.isHidden && canManage && <em className="hidden-badge">已隐藏</em>}
                   <span className="chevron" aria-hidden="true">{isCollapsed ? "展开" : "收起"}</span>
                 </button>
-                {(canManage || row.membershipId === membership.id) && (
-                  <div className="row-tools">
-                    {canManage && !board.isClosed && <details className="row-management"><summary>员工操作</summary><div>
-                      {!board.isClosed && <><span className="drag-handle" draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDraggingRowId(row.id); }} onDragEnd={() => setDraggingRowId(null)} title="按住并拖动整行排序">拖动排序</span><button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button><button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button></>}
-                      {board.ranking.enabled && !board.isClosed && <button type="button" disabled={busy} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}/remove`, { method: "POST", idempotent: true, body: { version: row.version } }); setNotice(`已移除 ${row.membership.displayName}`); await onReload(); })}>移除</button>}
-                      {!board.isClosed && <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>}
-                    </div></details>}
-                    {(canManage || row.membershipId === membership.id) && <button className="row-closing-action" type="button" onClick={() => setClosingEmployee({ id: row.membershipId, displayName: row.membership.displayName })}>个人日结</button>}
-                  </div>
-                )}
+                <div className="row-tools">
+                  {canManage && !board.isClosed && <details className="row-management"><summary>员工操作</summary><div>
+                    {!board.isClosed && <><span className="drag-handle" draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDraggingRowId(row.id); }} onDragEnd={() => setDraggingRowId(null)} title="按住并拖动整行排序">拖动排序</span><button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button><button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button></>}
+                    {board.ranking.enabled && !board.isClosed && <button type="button" disabled={busy} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}/remove`, { method: "POST", idempotent: true, body: { version: row.version } }); setNotice(`已移除 ${row.membership.displayName}`); await onReload(); })}>移除</button>}
+                    {!board.isClosed && <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>}
+                  </div></details>}
+                  <span className="row-work-count" title="记工数" aria-label={`${row.workRecords.length} 条记工`}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="16" rx="2" /><path d="M9 5V3h6v2M9 11h6M9 16h6" /></svg>
+                    <strong>{row.workRecords.length}</strong>
+                  </span>
+                  {(canManage || row.membershipId === membership.id) && <button className="row-closing-action" type="button" onClick={() => setClosingEmployee({ id: row.membershipId, displayName: row.membership.displayName })}>个人日结</button>}
+                </div>
               </header>
 
               {!isCollapsed && (

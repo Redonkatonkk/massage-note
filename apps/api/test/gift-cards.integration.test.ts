@@ -185,6 +185,7 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
       giftCardCardCents: 7_000n,
       giftCardSalesAmountCents: 9_500n,
       storeIncomeCents: 9_500n,
+      totalIncomeCents: 9_500n,
     });
   });
 

@@ -17,6 +17,7 @@ import type {
 import {
   businessDateFor,
   calculateStoreIncome,
+  calculateBoardTotalIncome,
   hasStoreCapability,
 } from "@massage-note/domain";
 import { ensureBoardRow } from "../common/ensure-board-row.js";
@@ -166,6 +167,7 @@ export class BoardsService {
         },
         orderBy: { startAt: "asc" },
         include: {
+          employee: { select: { role: true } },
           serviceSnapshot: true,
           addonSnapshots: { orderBy: { position: "asc" } },
           discountSnapshots: { orderBy: { position: "asc" } },
@@ -251,7 +253,16 @@ export class BoardsService {
         }),
       ),
       nextGiftCardSerialNumber: String(store.nextGiftCardSerialNumber),
-      statistics,
+      statistics: {
+        ...statistics,
+        totalIncomeCents: calculateBoardTotalIncome({
+          storeIncomeCents: statistics.storeIncomeCents,
+          workers: records.map((record) => ({
+            role: record.employee.role,
+            incomeCents: record.totalLargeFeeWageCents + (record.totalTipCents ?? 0n),
+          })),
+        }),
+      },
       ranking: {
         enabled: personalHistoryMembershipId
           ? false

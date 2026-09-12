@@ -72,6 +72,19 @@ export interface DailyTurnoverInput {
   giftCardRedemptionCents: Cents;
 }
 
+/** 今日看板总收入：店铺收入已包含礼物卡收支，只加回店长和经理的服务收入。 */
+export function calculateBoardTotalIncome(input: {
+  storeIncomeCents: bigint;
+  workers: readonly { role: string; incomeCents: Cents }[];
+}): bigint {
+  return input.workers.reduce(
+    (total, worker) => worker.role === "OWNER" || worker.role === "MANAGER"
+      ? total + cents(worker.incomeCents)
+      : total,
+    input.storeIncomeCents,
+  );
+}
+
 export interface StoreSettlementInput {
   storeIncomeCents: bigint;
   ownerWorkerIncomeCents: Cents;

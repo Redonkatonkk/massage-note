@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.4.4`
+> 适用版本：`1.4.5`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -286,3 +286,7 @@ START 的开始时间由 API 从 rawText 解析，使用店铺时区及 occurred
 ### 今日看板顶部总收入
 
 `GET /stores/:storeId/boards/:businessDate` 的顶层 `statistics.totalIncomeCents` 由服务端整数美分计算：`storeIncomeCents + 店长大费工资及小费 + 所有经理大费工资及小费`。成员角色按当前记录关联成员读取，不依赖行是否隐藏；使用看板相同的未删除记录范围（包含待结账已知工资和小费），员工历史仍限定本人。该字段不额外加入礼物卡净收入或扣除信用卡手续费，区别于 `finance/summary` 的总结算字段。顶部营业额读取 `discountedFeePerformanceCents`，礼物卡总额读取 `giftCardSalesAmountCents`。
+
+### 营业日日历已日结金额
+
+`GET /stores/:storeId/business-days/open-work-dates` 保留 `dates` 未日结日期数组，并返回 `closedDates: [{ date, discountedFeePerformanceCents }]`。仅返回当前 CLOSED 的日期，金额由数据库按营业日汇总未删除记工的折后项目金额（整数美分）。店主/经理可见全店，已日结无记录显示零；员工仅返回本人有记工日期及本人金额。取消日结不再返回该日期金额。前端仅展示美元数值，不附币种、单位或标签；翻月、切店和重新打开时清除旧标记并防止旧请求覆盖。

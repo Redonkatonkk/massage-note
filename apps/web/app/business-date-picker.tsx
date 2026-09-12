@@ -5,6 +5,7 @@ import { apiRequest } from "../lib/api";
 
 interface OpenWorkDatesResponse {
   dates: string[];
+  closedDates: Array<{ date: string; discountedFeePerformanceCents: number }>;
 }
 
 function monthBounds(month: string): { first: string; last: string } {
@@ -45,6 +46,7 @@ export function BusinessDatePicker({
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(value.slice(0, 7));
   const [markedDates, setMarkedDates] = useState<Set<string>>(new Set());
+  const [closedRevenue, setClosedRevenue] = useState<Map<string, number>>(new Map());
   const [loadingMarks, setLoadingMarks] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const requestGeneration = useRef(0);
@@ -75,12 +77,15 @@ export function BusinessDatePicker({
     const generation = ++requestGeneration.current;
     const { first, last } = monthBounds(month);
     setLoadingMarks(true);
+    setMarkedDates(new Set());
+    setClosedRevenue(new Map());
     apiRequest<OpenWorkDatesResponse>(
       "/stores/" + storeId + "/business-days/open-work-dates?dateFrom=" + first + "&dateTo=" + last,
     )
       .then((result) => {
         if (generation === requestGeneration.current) {
           setMarkedDates(new Set(result.dates));
+          setClosedRevenue(new Map((result.closedDates ?? []).map((item) => [item.date, item.discountedFeePerformanceCents])));
         }
       })
       .catch(() => {
@@ -89,6 +94,7 @@ export function BusinessDatePicker({
       .finally(() => {
         if (generation === requestGeneration.current) setLoadingMarks(false);
       });
+    return () => { requestGeneration.current += 1; };
   }, [month, open, storeId]);
 
   const calendar = useMemo(() => {
@@ -130,16 +136,20 @@ export function BusinessDatePicker({
             {Array.from({ length: calendar.leading }, (_, index) => <span key={"blank-" + index} />)}
             {calendar.days.map(({ day, date }) => {
               const marked = markedDates.has(date);
+              const revenue = closedRevenue.get(date);
+              const amount = revenue === undefined ? undefined : (revenue / 100).toFixed(2).replace(/\.00$/, "");
               return (
                 <button
                   key={date}
                   type="button"
                   disabled={date > max}
-                  className={(date === value ? "selected" : "") + (marked ? " has-open-work" : "")}
+                  className={(date === value ? "selected" : "") + (marked ? " has-open-work" : "") + (amount !== undefined ? " has-closed-revenue" : "")}
                   aria-label={dateLabel(date) + (marked ? "，有记工但未日结" : "")}
                   onClick={() => { onChange(date); setOpen(false); }}
                 >
-                  <span>{day}</span>{marked && <i aria-hidden="true" />}
+                  <span>{day}</span>
+                  {amount !== undefined && <small className="business-date-picker__revenue" style={amount.length > 5 ? { fontSize: `${44 / amount.length}px` } : undefined}>{amount}</small>}
+                  {marked && <i aria-hidden="true" />}
                 </button>
               );
             })}

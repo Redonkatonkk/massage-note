@@ -86,7 +86,7 @@ export class BoardsService {
       lte: dateAtUtc(query.dateTo),
     };
     const [workDates, closedDates] = await Promise.all([
-      this.prisma.workRecord.findMany({
+      this.prisma.workRecord.groupBy({
         where: {
           storeId,
           businessDate: dateRange,
@@ -95,8 +95,8 @@ export class BoardsService {
             ? {}
             : { employeeMembershipId: actorMembership.id }),
         },
-        select: { businessDate: true },
-        distinct: ["businessDate"],
+        by: ["businessDate"],
+        _sum: { discountedFeePerformanceCents: true },
       }),
       this.prisma.businessDayClosing.findMany({
         where: { storeId, businessDate: dateRange, status: "CLOSED" },
@@ -107,7 +107,15 @@ export class BoardsService {
     const closed = new Set(
       closedDates.map((item) => item.businessDate.toISOString().slice(0, 10)),
     );
+    const revenueByDate = new Map(workDates.map((item) => [
+      item.businessDate.toISOString().slice(0, 10),
+      item._sum.discountedFeePerformanceCents ?? 0n,
+    ]));
     return {
+      closedDates: [...closed]
+        .filter((date) => canReadStore || revenueByDate.has(date))
+        .sort()
+        .map((date) => ({ date, discountedFeePerformanceCents: revenueByDate.get(date) ?? 0n })),
       dates: workDates
         .map((item) => item.businessDate.toISOString().slice(0, 10))
         .filter((date) => !closed.has(date))

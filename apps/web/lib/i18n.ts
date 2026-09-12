@@ -12,7 +12,7 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "服务日期": "Service date",
   "项目与金额": "Service and price",
   "请选择服务日期和开始时间": "Choose a service date and start time",
-  "开始和结束时间必须在同一天，请重新填写结束时间": "Start and end must share the same date. Re-enter the end time.",
+  "开始和结束时间必须在同一天，请调整开始时间或项目时长": "Start and end must share the same date. Adjust the start time or service duration.",
   "结束时间不能早于开始时间，请调整时间或项目时长": "End time cannot be before start time. Adjust the time or duration.",
   "说明": "Info",
   "员工操作": "Staff actions",

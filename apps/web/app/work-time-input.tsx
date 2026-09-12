@@ -20,7 +20,7 @@ export function WorkTimeInput({ id, value, onChange, onValidityChange, optional 
   const fields = draft?.value === value ? draft : {
     hour: value ? String(Number(hour24) % 12 || 12) : "",
     minute: value ? minute24 : "",
-    period: value ? (Number(hour24) >= 12 ? (english ? "PM" : "下午") : (english ? "AM" : "上午")) : "",
+    period: value ? (Number(hour24) >= 12 ? "PM" : "AM") : "",
   };
   const parsed = parseWorkTimeParts(fields.hour, fields.minute, fields.period);
   const valid = parsed !== null || (optional && fields.hour.trim() === "");
@@ -43,9 +43,12 @@ export function WorkTimeInput({ id, value, onChange, onValidityChange, optional 
     <input type="text" inputMode="numeric" autoComplete="off" maxLength={2}
       aria-label={english ? "Minute" : "分钟"} placeholder={english ? "Minute" : "分钟"}
       value={fields.minute} aria-invalid={!valid} onChange={(event) => update("minute", event.target.value)} />
-    <input type="text" autoComplete="off" spellCheck={false}
-      aria-label={english ? "AM/PM" : "上午/下午"} placeholder={english ? "AM/PM" : "上午/下午"}
-      value={fields.period} aria-invalid={!valid} onChange={(event) => update("period", event.target.value)} />
+    <select aria-label="AM/PM" value={fields.period} aria-invalid={!valid}
+      onChange={(event) => update("period", event.target.value)}>
+      <option value="" disabled>AM/PM</option>
+      <option value="AM">AM</option>
+      <option value="PM">PM</option>
+    </select>
   </span>;
 }
 

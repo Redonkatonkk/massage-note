@@ -1,6 +1,6 @@
 # LangBot 插件开发与目录
 
-插件版本由 [manifest.yaml](manifest.yaml) 的 `metadata.version` 定义，当前为 1.1.5，与应用版本独立。1.1.5 仅整理文档，执行代码与 1.1.4 相同，要求 API 至少 1.3.7、协议版本 2。
+插件版本由 [manifest.yaml](manifest.yaml) 的 `metadata.version` 定义，当前为 1.2.0，与应用版本独立。1.2.0 增加最近对话上下文，要求 API 至少 1.3.7、协议版本 2。
 
 ## 目录职责
 
@@ -46,7 +46,7 @@ docker run --rm --entrypoint /bin/sh -v "$PWD:/plugin" -w /plugin rockchin/langb
 
 镜像标签沿用本地方案；正式发布应记录实际镜像版本或摘要。构建后检查 `dist/` 中的文件名与包内 manifest 版本，并确认包内不含令牌、环境文件、历史包或运行数据，再通过 LangBot 管理页“插件 → 本地安装”安装。不得用复制运行目录替代可信安装。
 
-本次整理没有构建 1.1.5 安装包，也没有验证本机 `lbp` 或镜像构建环境；源码版本不代表已安装版本。安装后的状态以管理页和 `mounted`、`initialized` 日志为准。
+本轮未构建或安装 1.2.0 插件包；源码版本不代表已安装版本。安装后的状态以管理页和 `mounted`、`initialized` 日志为准。
 
 ## 旧包归档
 

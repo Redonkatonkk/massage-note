@@ -1,7 +1,7 @@
 "use client";
 
 import { WorkTimeInput } from "./work-time-input";
-import { adjustedSameDayEnd, recordTimeError } from "../lib/record-time";
+import { adjustedSameDayEnd, automaticRecordEnd, recordTimeError } from "../lib/record-time";
 import { browserStorage } from "../lib/browser-storage";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -9,6 +9,7 @@ import { apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
 import { shouldConfirmPaymentOnSave } from "../lib/record-payment";
 import {
+  formatWorkTime,
   localDateTimeValue,
   zonedLocalToIso,
 } from "../lib/time";
@@ -165,10 +166,9 @@ export function RecordEditor({
   );
   const [employeeId, setEmployeeId] = useState(record.employeeMembershipId);
   const [startTimeValid, setStartTimeValid] = useState(true);
-  const [endTimeValid, setEndTimeValid] = useState(true);
   const [startAt, setStartAt] = useState(initialStart);
   const lastValidStartAt = useRef(initialStart);
-  const [endAt, setEndAt] = useState(initialEnd);
+  const [endAt, setEndAt] = useState(() => automaticRecordEnd(initialStart, initialEnd, (service?.durationMinutes ?? 60) + initialAddons.reduce((sum, item) => sum + addonDurationValue(item), 0), timezone));
   const [serviceChoice, setServiceChoice] = useState(
     service?.sourceServiceItemId ?? "__custom__",
   );
@@ -229,7 +229,12 @@ export function RecordEditor({
             setStartAt(draft.startAt);
             if (draft.startAt) lastValidStartAt.current = draft.startAt;
           }
-          if (typeof draft.endAt === "string") setEndAt(draft.endAt);
+          setEndAt(automaticRecordEnd(
+            typeof draft.startAt === "string" ? draft.startAt : initialStart,
+            typeof draft.endAt === "string" ? draft.endAt : initialEnd,
+            ((typeof draft.serviceDuration === "string" ? serviceDurationValue(draft.serviceDuration) : null) ?? (service?.durationMinutes ?? 60)) + (Array.isArray(draft.addons) ? draft.addons as AddonDraft[] : initialAddons).reduce((sum, item) => sum + addonDurationValue(item), 0),
+            timezone,
+          ));
           if (typeof draft.serviceChoice === "string") setServiceChoice(draft.serviceChoice);
           if (typeof draft.serviceName === "string") setServiceName(draft.serviceName);
           if (typeof draft.serviceShortName === "string") setServiceShortName(draft.serviceShortName);
@@ -538,7 +543,7 @@ export function RecordEditor({
   }
 
   async function saveDetails(): Promise<WorkRecord> {
-    if (!startTimeValid || !endTimeValid) throw new Error("请填写有效的开始和结束时间");
+    if (!startTimeValid) throw new Error("请选择服务日期和开始时间");
     const timeError = recordTimeError(startAt, endAt);
     if (timeError) throw new Error(timeError);
     try {
@@ -701,7 +706,7 @@ export function RecordEditor({
             <WorkTimeInput value={startAt.slice(11)} onChange={(value) => changeStartAt(`${startAt.slice(0, 10)}T${value}`)} onValidityChange={setStartTimeValid} />
           </div>
           <div className="field-label" role="group" aria-label="结束时间">结束时间
-            <WorkTimeInput value={endAt.slice(11)} onChange={(value) => setEndAt(value ? `${startAt.slice(0, 10)}T${value}` : "")} onValidityChange={setEndTimeValid} optional />
+            <output className="record-end-time" aria-live="polite">{startTimeValid && endAt ? formatWorkTime(endAt.slice(11)) : "—"}</output>
           </div>
         </div>
         {recordTimeError(startAt, endAt) && <p className="form-error" role="alert">{recordTimeError(startAt, endAt)}</p>}

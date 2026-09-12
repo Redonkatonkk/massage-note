@@ -1,5 +1,8 @@
 """Exercise the pure parser without requiring a running LangBot SDK."""
 import ast
+import hashlib
+import time
+from collections import OrderedDict
 import json
 import math
 from datetime import datetime, timezone
@@ -7,7 +10,7 @@ from urllib.parse import urlsplit
 import re
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 from pathlib import Path
 from typing import Any
 
@@ -97,7 +100,8 @@ class LlmIntentTest(unittest.IsolatedAsyncioTestCase):
         listener_node = next(node for node in tree.body if isinstance(node, ast.ClassDef))
         method = next(node for node in listener_node.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "_llm_intent")
         test_namespace = {**namespace, "os": SimpleNamespace(environ={}), "Message": SimpleNamespace}
-        exec(compile(ast.Module(body=[method], type_ignores=[]), str(source), "exec"), test_namespace)
+        future = [node for node in tree.body if isinstance(node, ast.ImportFrom) and node.module == "__future__"]
+        exec(compile(ast.Module(body=future + [method], type_ignores=[]), str(source), "exec"), test_namespace)
         self.method = test_namespace["_llm_intent"]
         self.context = {"status": "BOUND", "members": ["Jessica"], "instructions": "只说项目没提时间，默认60分钟。大力指 Deep Tissue Massage。", "aliases": [{"alias": "11111111-1111-4111-8111-111111111111", "serviceName": "Deep Tissue Massage"}]}
         self.intent = {"kind": "START", "memberName": "Jessica", "memberMention": "jessica", "serviceAlias": self.context["aliases"][0]["alias"], "serviceMention": "大力", "durationMinutes": 60, "durationSource": "SKILL"}
@@ -142,6 +146,70 @@ class LlmIntentTest(unittest.IsolatedAsyncioTestCase):
         result, invoke = await self.run_responses([{"kind": "HELP"}])
         self.assertEqual(result, {"kind": "HELP"})
         self.assertEqual(invoke.await_count, 1)
+
+
+class HistoryTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        listener_node = next(node for node in tree.body if isinstance(node, ast.ClassDef))
+        ns = {**namespace, "EventListener": object, "time": time, "hashlib": hashlib,
+              "os": SimpleNamespace(environ={}), "Message": SimpleNamespace}
+        future = [node for node in tree.body if isinstance(node, ast.ImportFrom) and node.module == "__future__"]
+        exec(compile(ast.Module(body=future + [listener_node], type_ignores=[]), str(source), "exec"), ns)
+        self.listener = ns[listener_node.name]()
+        self.listener._history = OrderedDict()
+        self.listener._fetch_skill_context = AsyncMock(return_value={"status": "BOUND", "today": "2026-09-12"})
+        self.listener._post_event = AsyncMock(return_value={"reply": "已处理"})
+        self.listener._reply = AsyncMock()
+        self.listener.plugin = SimpleNamespace(invoke_llm=AsyncMock(return_value=SimpleNamespace(content='{"kind":"HELP"}')))
+
+    async def send(self, message_id, text="本条指令", bot="bot", group="group", sender="sender"):
+        event = SimpleNamespace(launcher_id=group, sender_id=sender,
+                                message_chain=SimpleNamespace(source=SimpleNamespace(id=message_id, time=1700000000)))
+        await self.listener._handle_message(SimpleNamespace(event=event), {"model": "model"}, bot, text)
+        return self.listener.plugin.invoke_llm.call_args.kwargs["messages"]
+
+    async def test_next_request_includes_actual_reply_and_current_text_once(self):
+        await self.send("1", "上一条指令")
+        messages = await self.send("2")
+        self.assertEqual([(m.role, m.content) for m in messages[1:]],
+                         [("user", "上一条指令"), ("assistant", "已处理"), ("user", "本条指令")])
+        self.assertEqual(self.listener._post_event.call_args.args[1]["rawText"], "本条指令")
+
+    async def test_bot_group_sender_and_context_isolation(self):
+        await self.send("1")
+        for kwargs in [{"bot": "other"}, {"group": "other"}, {"sender": "other"}]:
+            self.assertEqual(len(await self.send("2", **kwargs)), 2)
+        self.listener._fetch_skill_context.return_value = {"status": "UNBOUND"}
+        self.assertEqual(len(await self.send("3")), 2)
+
+    async def test_duplicate_does_not_include_itself_or_accumulate(self):
+        await self.send("1")
+        self.assertEqual(len(await self.send("1")), 2)
+        self.assertEqual(len(await self.send("2")), 4)
+
+    async def test_failed_write_remembers_uncertain_reply(self):
+        self.listener._post_event.side_effect = TimeoutError()
+        await self.send("1")
+        self.listener._post_event.side_effect = None
+        messages = await self.send("2")
+        self.assertIn("结果未确认", messages[2].content)
+        self.assertNotIn("已处理", messages[2].content)
+
+    def test_limit_expiry_and_oversized_turn(self):
+        with patch.object(time, "monotonic", return_value=10):
+            for index in range(7):
+                self.listener._remember("scope", str(index), f"user{index}", f"reply{index}")
+            history = self.listener._recent_history("scope", "new")
+            self.assertEqual(len(history), 10)
+            self.assertEqual(history[0]["content"], "user2")
+            self.listener._remember("scope", "large", "x" * 4001, "reply")
+            self.assertEqual(self.listener._recent_history("scope", "new"), history)
+        with patch.object(time, "monotonic", return_value=1810):
+            self.assertEqual(self.listener._recent_history("scope", "new"), [])
+        for index in range(257):
+            self.listener._remember(str(index), "1", "user", "reply")
+        self.assertEqual(len(self.listener._history), 256)
+        self.assertNotIn("0", self.listener._history)
 
 
 if __name__ == "__main__":

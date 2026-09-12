@@ -3058,6 +3058,8 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 }
 
 .work-time-field input,
+.work-time-field select,
+.record-end-time,
 .work-date-time-field input {
   box-sizing: border-box;
   width: 100%;

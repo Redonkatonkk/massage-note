@@ -1320,11 +1320,21 @@ h2 {
   background: #fff8e9;
 }
 
-.gift-card-sales__empty {
-  align-self: center;
-  margin: 0;
-  color: var(--muted);
+.gift-card-sales--empty { gap: 0; }
+.gift-card-sales__compact-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  min-height: 76px;
+  padding: 12px 18px;
 }
+.gift-card-sales__compact-header > div { min-width: 0; }
+.gift-card-sales__compact-header h2 { margin: 0; font-size: 1.12rem; }
+.gift-card-sales__compact-header p { margin: 4px 0 0; color: var(--muted); font-size: .85rem; }
+.gift-card-sales__compact-header p strong { color: var(--brand); }
+.gift-card-sales__compact-header button { min-height: 48px; margin-left: auto; white-space: nowrap; }
 
 .gift-card-sales > .success-banner {
   margin: -4px 20px 20px;

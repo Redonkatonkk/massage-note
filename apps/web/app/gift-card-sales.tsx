@@ -205,41 +205,52 @@ export function GiftCardSales({
   }
 
   return (
-    <section className="gift-card-sales" aria-label="店铺礼物卡销售">
-      <header className="gift-card-sales__header">
-        <div>
-          <p className="eyebrow">店铺项目</p>
-          <h2>礼物卡销售</h2>
-          <p>先输入礼物卡面值，系统按售出时的折扣规则计算应付；实际收款计入店铺收入，不参与员工分成。</p>
-        </div>
-        <div className="gift-card-sales__summary">
-          <span>{sales.length} 张 · 实际收入</span>
-          <strong>{money(sales.reduce((sum, sale) => sum + sale.amountCents, 0))}</strong>
-        </div>
-      </header>
-      <div className="gift-card-sales__track">
-        {sales.map((sale) => (
-          <button
-            className="gift-card-sale-card"
-            key={sale.id}
-            type="button"
-            disabled={!canEdit}
-            onClick={() => openEdit(sale)}
-          >
-            <span><small>序列号</small><strong>{sale.serialNumber}</strong></span>
-            <b>面值 {money(sale.faceValueCents)}</b>
-            <span className="gift-card-sale-card__payments">折扣 -{money(sale.discountCents)} · 实收 {money(sale.amountCents)}</span>
-            <span className="gift-card-sale-card__payments">现金 {money(sale.cashCents)} · 刷卡 {money(sale.cardCents)}</span>
-            <span className="gift-card-sale-card__operator">操作人 · {sale.operator.displayName}</span>
-          </button>
-        ))}
-        {sales.length === 0 && <p className="gift-card-sales__empty">这个营业日还没有卖出礼物卡。</p>}
-        {canEdit && (
-          <button className="add-record gift-card-sales__add" type="button" onClick={openCreate}>
-            <span aria-hidden="true">＋</span>记录卖卡
-          </button>
-        )}
-      </div>
+    <section className={`gift-card-sales${sales.length === 0 ? " gift-card-sales--empty" : ""}`} aria-label="店铺礼物卡销售">
+      {sales.length === 0 ? (
+        <header className="gift-card-sales__compact-header">
+          <div>
+            <h2>礼物卡销售</h2>
+            <p><span>{sales.length} 张 · 实际收入</span> <strong>{money(0)}</strong></p>
+          </div>
+          {canEdit && <button className="secondary-action compact" type="button" onClick={openCreate}><span aria-hidden="true">＋</span>记录卖卡</button>}
+        </header>
+      ) : (
+        <>
+          <header className="gift-card-sales__header">
+            <div>
+              <p className="eyebrow">店铺项目</p>
+              <h2>礼物卡销售</h2>
+              <p>先输入礼物卡面值，系统按售出时的折扣规则计算应付；实际收款计入店铺收入，不参与员工分成。</p>
+            </div>
+            <div className="gift-card-sales__summary">
+              <span>{sales.length} 张 · 实际收入</span>
+              <strong>{money(sales.reduce((sum, sale) => sum + sale.amountCents, 0))}</strong>
+            </div>
+          </header>
+          <div className="gift-card-sales__track">
+            {sales.map((sale) => (
+              <button
+                className="gift-card-sale-card"
+                key={sale.id}
+                type="button"
+                disabled={!canEdit}
+                onClick={() => openEdit(sale)}
+              >
+                <span><small>序列号</small><strong>{sale.serialNumber}</strong></span>
+                <b>面值 {money(sale.faceValueCents)}</b>
+                <span className="gift-card-sale-card__payments">折扣 -{money(sale.discountCents)} · 实收 {money(sale.amountCents)}</span>
+                <span className="gift-card-sale-card__payments">现金 {money(sale.cashCents)} · 刷卡 {money(sale.cardCents)}</span>
+                <span className="gift-card-sale-card__operator">操作人 · {sale.operator.displayName}</span>
+              </button>
+            ))}
+            {canEdit && (
+              <button className="add-record gift-card-sales__add" type="button" onClick={openCreate}>
+                <span aria-hidden="true">＋</span>记录卖卡
+              </button>
+            )}
+          </div>
+        </>
+      )}
       {notice && <p className="success-banner" role="status">✓ {notice}</p>}
 
       {editing !== undefined && (

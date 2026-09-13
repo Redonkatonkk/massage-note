@@ -412,6 +412,7 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
       storeIncomeCents: 3_000n,
     });
     expect(employeeView.statistics.totalIncomeCents).toBe(3_000n);
+    expect(employeeView.statistics.recentClosedRevenue).toBeNull();
     expect(employeeView.isClosed).toBe(true);
     expect(employeeView.closing).toBeNull();
     expect(employeeView.rows[0]?.workRecords.map((record) => record.id)).not.toContain(
@@ -431,6 +432,7 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
       employeeIncomeCents: 22_000n,
       storeIncomeCents: 11_000n,
       totalIncomeCents: 25_000n,
+      recentClosedRevenue: { dayCount: 1, averageCents: 27_000n },
     });
     expect(ownerView.closing).toMatchObject({
       totalsSnapshotJson: { privateStoreGrossFeeCents: 30_000 },

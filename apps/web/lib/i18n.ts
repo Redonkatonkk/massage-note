@@ -343,6 +343,10 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "店主和经理可在个人日结页面随时发送短信，无需先日结；也可点击“已结现金”或取消，标记当天现金大费和小费是否结清。": "Owners and managers can send an employee closing message before or after closing the day, and mark or undo settlement of the day's cash service fees and tips.",
   "已经日结的日期会在记工页面显示“取消日结”按钮；取消后即可修改该日记工，无需填写理由。": "Closed dates show a Reopen day button on the work board. Reopening allows edits without requiring a reason.",
   "个人日结": "Employee closing",
+  "短信队列": "SMS queue",
+  "已发送": "Sent",
+  "短信发送队列详情": "SMS delivery queue details",
+  "查看短信队列详情": "View SMS queue details",
   "发送员工小结": "Send employee closings",
   "短信发送给员工": "Send to employee by message",
   "正在排队…": "Queueing…",
@@ -590,6 +594,10 @@ Object.assign(ENGLISH_TRANSLATIONS, {
   "员工小计": "Employee subtotals",
   "横向比较每位员工；点击金额查看该员工的逐笔组成。": "Compare employees horizontally; select an amount to view that employee's record-by-record breakdown.",
   "单数": "Records",
+  "平均营业额": "Average revenue",
+  "所选范围暂无已日结日期": "No closed days in the selected range",
+  "所选日期范围内，已日结日期的折后营业额平均值，沿用当前员工和记工筛选。": "Average revenue after discounts for closed days in the selected date range, using the current employee and work-record filters.",
+  "平均营业额 = 已日结日期的折后大费业绩合计 ÷ 已日结天数。未日结日期不计入，已日结但无匹配记工的日期按零计入；不含小费或礼物卡销售。没有已日结日期时显示破折号。": "Average revenue = total service performance after discounts on closed days ÷ closed day count. Unclosed days are excluded; closed days without matching records count as zero. Tips and gift card sales are excluded. A dash is shown when there are no closed days.",
   "总收入": "Total earnings",
   "每日小计": "Daily subtotals",
   "日期": "Date",
@@ -1370,6 +1378,8 @@ Object.assign(ENGLISH_TRANSLATIONS, {
 });
 
 const DYNAMIC_TRANSLATIONS: Array<[RegExp, (...groups: string[]) => string]> = [
+  [/^按 (\d+) 个已日结日计算（折扣后）$/u, (count) => `Based on ${count} closed days (after discounts)`],
+  [/^过去(\d+)天平均营业额$/u, (count) => `Average revenue over ${count} closed days`],
   [/^已选 (\d+) 人$/u, (count) => `${count} selected`],
   [/^(\d+) 张$/u, (count) => `${count} cards`],
   [/^(\d+) 条记工，(\d+) 张礼物卡销售；表格可左右滑动查看全部金额。$/u, (records, sales) => `${records} work records and ${sales} gift card sales; scroll horizontally to view all amounts.`],

@@ -699,6 +699,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       hasDifferentItemCommission: true,
     });
     expect(summary.days).toHaveLength(1);
+    expect(summary.days[0]).toMatchObject({ totalIncomeCents: 4_000n });
     const cashSummary = await finance.summary(actor(managerId), storeId, {
       dateFrom: businessDate,
       dateTo: businessDate,
@@ -709,7 +710,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     });
     expect(cashSummary.totals).toMatchObject({ totalLargeFeeWageCents: 2_400n, totalTipCents: 1_000n, employeeIncomeCents: 3_400n, storeIncomeCents: 7_600n });
     expect(cashSummary.employees[0]).toMatchObject({ totalLargeFeeWageCents: 2_400n, totalTipCents: 1_000n, employeeIncomeCents: 3_400n });
-    expect(cashSummary.days[0]).toMatchObject({ totalLargeFeeWageCents: 2_400n, totalTipCents: 1_000n, employeeIncomeCents: 3_400n });
+    expect(cashSummary.days[0]).toMatchObject({ totalLargeFeeWageCents: 2_400n, totalTipCents: 1_000n, employeeIncomeCents: 3_400n, totalIncomeCents: 7_600n });
     const nonCashSummary = await finance.summary(actor(managerId), storeId, {
       dateFrom: businessDate,
       dateTo: businessDate,
@@ -746,6 +747,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       creditCardFeeCents: 550n,
       totalIncomeCents: 13_450n,
     });
+    expect(allEmployeesSummary.days[0]).toMatchObject({ totalIncomeCents: 14_000n });
     const payrollLedger = await payroll.list(actor(managerId), storeId, { includeDeleted: true });
     expect(payrollLedger.find((item) => item.id === payrollId)).toMatchObject({ historyChangedAfterSettlement: true });
     const csv = await finance.exportCsv(actor(managerId), storeId, {

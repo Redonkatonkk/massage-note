@@ -16,6 +16,7 @@ import type {
 } from "@massage-note/contracts";
 import {
   businessDateFor,
+  calculateAverageRevenue,
   calculateStoreIncome,
   calculateBoardTotalIncome,
   hasStoreCapability,
@@ -217,6 +218,22 @@ export class BoardsService {
       }),
     ]);
 
+    let recentClosedRevenue = null;
+    if (closing && hasStoreCapability(actorMembership.role, "FINANCE_READ_STORE")) {
+      const start = dateAtUtc(businessDate);
+      start.setUTCDate(start.getUTCDate() - 29);
+      const { closedDates } = await this.openWorkDates(actor, storeId, {
+        dateFrom: start.toISOString().slice(0, 10),
+        dateTo: businessDate,
+      });
+      const averageCents = calculateAverageRevenue(
+        closedDates.map((day) => day.discountedFeePerformanceCents),
+      );
+      if (averageCents !== null) {
+        recentClosedRevenue = { dayCount: closedDates.length, averageCents };
+      }
+    }
+
     const boardRows = personalHistoryMembershipId
       ? board?.rows ?? []
       : (board?.rows ?? []).filter(
@@ -263,6 +280,7 @@ export class BoardsService {
       nextGiftCardSerialNumber: String(store.nextGiftCardSerialNumber),
       statistics: {
         ...statistics,
+        recentClosedRevenue,
         totalIncomeCents: calculateBoardTotalIncome({
           storeIncomeCents: statistics.storeIncomeCents,
           workers: records.map((record) => ({

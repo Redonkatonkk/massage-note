@@ -43,3 +43,50 @@ describe("营业日日历折后营业额", () => {
     expect(await fixture("OWNER", false).read()).toEqual({ dates: ["2026-09-10", "2026-09-12"], closedDates: [] });
   });
 });
+
+function averageFixture(role: "OWNER" | "MANAGER" | "EMPLOYEE" = "OWNER", closed = true) {
+  const prisma = {
+    store: { findFirst: vi.fn().mockResolvedValue({ timezone: "America/New_York", businessCutoffLocal: "22:00", nextGiftCardSerialNumber: 1 }) },
+    dailyBoard: { findUnique: vi.fn().mockResolvedValue(null) },
+    shift: { findMany: vi.fn().mockResolvedValue([]) },
+    giftCardSale: { findMany: vi.fn().mockResolvedValue([]) },
+    workRecord: {
+      findMany: vi.fn().mockResolvedValue([]),
+      groupBy: vi.fn().mockResolvedValue([
+        { businessDate: new Date("2026-09-12"), _sum: { discountedFeePerformanceCents: 94001n } },
+        { businessDate: new Date("2026-09-11"), _sum: { discountedFeePerformanceCents: 999999n } },
+      ]),
+    },
+    businessDayClosing: {
+      findFirst: vi.fn().mockResolvedValue(closed ? { id: "closing" } : null),
+      findMany: vi.fn().mockResolvedValue([
+        { businessDate: new Date("2026-09-12") },
+        { businessDate: new Date("2026-08-14") },
+      ]),
+    },
+  };
+  const access = { requireActiveMembership: vi.fn().mockResolvedValue({ id: "member", role }) };
+  const service = new BoardsService(prisma as unknown as PrismaService, access as unknown as StoreAccessService, {} as IdempotencyService);
+  return { prisma, read: () => service.getBoard({ id: "user" } as User, "store", "2026-09-12") };
+}
+
+describe("记工已日结平均营业额", () => {
+  it.each(["OWNER", "MANAGER"] as const)("%s 按含所选日的30天窗口统计，仅纳入已日结日期，零营业额也计入", async role => {
+    const test = averageFixture(role);
+    expect((await test.read()).statistics.recentClosedRevenue).toEqual({ dayCount: 2, averageCents: 47001n });
+    expect(test.prisma.businessDayClosing.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { storeId: "store", businessDate: { gte: new Date("2026-08-14"), lte: new Date("2026-09-12") }, status: "CLOSED" },
+      distinct: ["businessDate"],
+    }));
+    expect(test.prisma.workRecord.groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId: "store", deletedAt: null }) }));
+    test.prisma.businessDayClosing.findMany.mockResolvedValue([{ businessDate: new Date("2026-09-12") }]);
+    expect((await test.read()).statistics.recentClosedRevenue).toEqual({ dayCount: 1, averageCents: 94001n });
+    test.prisma.businessDayClosing.findFirst.mockResolvedValue(null);
+    expect((await test.read()).statistics.recentClosedRevenue).toBeNull();
+  });
+  it.each([["OWNER", false], ["EMPLOYEE", true]] as const)("%s 日结状态 %s 不加载全店平均营业额", async (role, closed) => {
+    const test = averageFixture(role, closed);
+    expect((await test.read()).statistics.recentClosedRevenue).toBeNull();
+    expect(test.prisma.workRecord.groupBy).not.toHaveBeenCalled();
+  });
+});

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DomainError,
+  calculateAverageRevenue,
   calculateBoardTotalIncome,
   calculateDailyTurnover,
   calculateDailyCashSettlement,
@@ -421,5 +422,18 @@ describe("今日看板总收入", () => {
   });
   it("没有参与记工的店长或经理时保留负数店铺收入", () => {
     expect(calculateBoardTotalIncome({ storeIncomeCents: -1_000n, workers: [] })).toBe(-1_000n);
+  });
+});
+
+
+describe("已日结平均营业额", () => {
+  it("支持30天、29天和仅1天，四舍五入到美分", () => {
+    expect(calculateAverageRevenue(Array(30).fill(94000n))).toBe(94000n);
+    expect(calculateAverageRevenue(Array(29).fill(94000n))).toBe(94000n);
+    expect(calculateAverageRevenue([94001n])).toBe(94001n);
+    expect(calculateAverageRevenue([94001n, 0n])).toBe(47001n);
+  });
+  it("没有已日结日期时不产生无效均值", () => {
+    expect(calculateAverageRevenue([])).toBeNull();
   });
 });

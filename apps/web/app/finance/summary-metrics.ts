@@ -1,5 +1,11 @@
 export const financeSummaryMetrics = [
   {
+    key: "averageRevenueCents",
+    label: "平均营业额",
+    explanation: "所选日期范围内，已日结日期的折后营业额平均值，沿用当前员工和记工筛选。",
+    calculation: "平均营业额 = 已日结日期的折后大费业绩合计 ÷ 已日结天数。未日结日期不计入，已日结但无匹配记工的日期按零计入；不含小费或礼物卡销售。没有已日结日期时显示破折号。",
+  },
+  {
     key: "itemCount",
     label: "全部项目数量",
     explanation: "当前筛选范围内的有效记工和礼物卡销售总数量。",
@@ -164,7 +170,7 @@ export const financeSummaryGroups: ReadonlyArray<{
     key: "overview",
     title: "先看关键结果",
     description: "先看总流水、店铺收入和总结算收入；详细组成按需展开。",
-    metricKeys: ["totalTurnoverCents", "storeIncomeCents", "totalIncomeCents", "itemCount"],
+    metricKeys: ["totalTurnoverCents", "storeIncomeCents", "totalIncomeCents", "averageRevenueCents", "itemCount"],
     emphasis: true,
   },
   {

@@ -225,6 +225,10 @@ h2 {
   box-shadow: var(--shadow);
 }
 
+.summary-strip--with-average {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .summary-strip > div {
   display: flex;
   min-height: 92px;
@@ -1788,7 +1792,7 @@ h2 {
     border-bottom: 1px solid var(--line);
   }
 
-  .summary-strip > div:last-child {
+  .summary-strip > div:last-child:nth-child(odd) {
     grid-column: 1 / -1;
   }
 
@@ -3167,7 +3171,7 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 
 .employee-settlement-record-card__payments > span { grid-template-columns: 70px minmax(0,1fr); }
 .floating-ai-button { box-shadow: 0 3px 12px rgba(71,32,23,.15); }
 @media (min-width: 1100px) {
-  .finance-metric-group--emphasis .finance-cards { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .finance-metric-group--emphasis .finance-cards { grid-template-columns: repeat(5,minmax(0,1fr)); }
 }
 @media (max-width: 760px) {
   .employee-subtotal-grid, .cash-grid { grid-template-columns: 1fr; }
@@ -3256,3 +3260,21 @@ body { position: relative; }
 @media (max-width: 520px) {
   .record-time-row { grid-template-columns: 1fr; }
 }
+
+
+.board-delivery-dialog {
+  width: min(1120px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--ink);
+  overflow: auto;
+}
+
+.board-delivery-dialog::backdrop { background: rgb(0 0 0 / 40%); }
+.board-delivery-dialog .modal-heading { gap: 12px; }
+.board-delivery-dialog h2 { margin: 0; }
+.board-toolbar > div { flex-wrap: wrap; min-width: 0; }
+.board-toolbar .board-closing-action { gap: 5px; text-decoration: none; flex-shrink: 0; }

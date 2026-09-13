@@ -9,6 +9,8 @@ import type { FinanceQuery } from "@massage-note/contracts";
 import {
   businessDateFor,
   calculateDailyTurnover,
+  calculateAverageRevenue,
+  calculateBoardTotalIncome,
   calculatePayrollBalance,
   calculateStoreSettlement,
   calculateStoreIncome,
@@ -58,7 +60,7 @@ export class FinanceQueriesService {
 
   async summary(actor: User, storeId: string, query: FinanceQuery, client: Prisma.TransactionClient = this.prisma) {
     const context = await this.resolveQueryContext(actor, storeId, query, client);
-    const [records, giftCardSales, commissionProfiles] = await Promise.all([
+    const [records, giftCardSales, commissionProfiles, closedDates] = await Promise.all([
       this.findRecords(storeId, context, client),
       this.findGiftCardSales(storeId, context, client),
       client.storeMembership.findMany({
@@ -71,6 +73,15 @@ export class FinanceQueriesService {
             select: { commissionBps: true },
           },
         },
+      }),
+      client.businessDayClosing.findMany({
+        where: {
+          storeId,
+          businessDate: { gte: dateAtUtc(context.dateFrom), lte: dateAtUtc(context.dateTo) },
+          status: "CLOSED",
+        },
+        select: { businessDate: true },
+        distinct: ["businessDate"],
       }),
     ]);
     const commissionProfileByMembershipId = new Map(
@@ -88,6 +99,7 @@ export class FinanceQueriesService {
       }
     >();
     const days = new Map<string, FinanceTotals & { businessDate: string }>();
+    const dailyWorkers = new Map<string, { role: string; incomeCents: bigint }[]>();
     for (const record of records) {
       this.addRecord(total, record, context.query);
       const profile = commissionProfileByMembershipId.get(
@@ -114,7 +126,11 @@ export class FinanceQueriesService {
         businessDate,
         ...this.emptyTotals(),
       };
+      const previousIncome = day.employeeIncomeCents;
       this.addRecord(day, record, context.query);
+      const workers = dailyWorkers.get(businessDate) ?? [];
+      workers.push({ role: record.employee.role, incomeCents: day.employeeIncomeCents - previousIncome });
+      dailyWorkers.set(businessDate, workers);
       days.set(businessDate, day);
     }
     for (const sale of giftCardSales) {
@@ -213,6 +229,10 @@ export class FinanceQueriesService {
       totals: {
         ...total,
         totalTurnoverCents: calculateDailyTurnover(total),
+        averageRevenueCents: calculateAverageRevenue(closedDates.map((closing) =>
+          days.get(dateOnly(closing.businessDate))?.discountedFeePerformanceCents ?? 0n,
+        )),
+        averageRevenueDayCount: closedDates.length,
         ownerWorkerIncomeCents,
         managerWorkerIncomeCents,
         ...storeSettlement,
@@ -233,6 +253,10 @@ export class FinanceQueriesService {
         .map((day) => ({
           ...day,
           dailyTurnoverCents: calculateDailyTurnover(day),
+          totalIncomeCents: calculateBoardTotalIncome({
+            storeIncomeCents: day.storeIncomeCents,
+            workers: dailyWorkers.get(day.businessDate) ?? [],
+          }),
         }))
         .sort((left, right) =>
           right.businessDate.localeCompare(left.businessDate),

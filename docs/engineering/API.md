@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.4.5`
+> 适用版本：`1.4.9`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -222,7 +222,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 店主或经理未限定员工且选择全部金额时，汇总、明细和 CSV 会纳入店铺级礼物卡销售：`itemCount = recordCount + giftCardSaleCount`，`customerTotalPaidCents = actualServiceCollectedCents + totalTipCents + giftCardSalesAmountCents`。员工小计、明确员工筛选、仅大费、仅小费或仅高亮记工不分摊卖卡记录。`giftCardRedemptionCents = giftCardServiceCents + giftCardTipCents`，`storeIncomeCents = discountedFeePerformanceCents + totalTipCents - employeeIncomeCents + giftCardSalesAmountCents - giftCardRedemptionCents`。
 
-`finance/summary` 的每个 `days[]` 行额外返回 `dailyTurnoverCents = discountedFeePerformanceCents + giftCardSalesAmountCents - giftCardRedemptionCents`。该字段由服务端使用整数美分计算；Web 每日小计依次显示日期、星期和今日流水，并隐藏全部项目数、记工数、实收服务费、小费和客人总付款列。
+`finance/summary` 的每个 `days[]` 行额外返回 `dailyTurnoverCents = discountedFeePerformanceCents + giftCardSalesAmountCents - giftCardRedemptionCents`。每日行同时返回 `totalIncomeCents = 店铺收入 + 店长收入 + 经理收入`，复用看板领域公式，不额外加减礼物卡净收入或信用卡手续费。上述字段由服务端使用整数美分计算；Web 每日小计前三列依次显示日期、星期和今日流水，最后一列显示总收入，并隐藏全部项目数、记工数、实收服务费、小费和客人总付款列。
 
 `finance/summary.totals` 还返回：
 
@@ -290,3 +290,7 @@ START 的开始时间由 API 从 rawText 解析，使用店铺时区及 occurred
 ### 营业日日历已日结金额
 
 `GET /stores/:storeId/business-days/open-work-dates` 保留 `dates` 未日结日期数组，并返回 `closedDates: [{ date, discountedFeePerformanceCents }]`。仅返回当前 CLOSED 的日期，金额由数据库按营业日汇总未删除记工的折后项目金额（整数美分）。店主/经理可见全店，已日结无记录显示零；员工仅返回本人有记工日期及本人金额。取消日结不再返回该日期金额。前端仅展示美元数值，不附币种、单位或标签；翻月、切店和重新打开时清除旧标记并防止旧请求覆盖。
+
+已日结的记工看板向拥有者和经理返回 `statistics.recentClosedRevenue: { dayCount, averageCents }`。以所选营业日为终点（含当天）的30个自然日内，仅按 `CLOSED` 日期统计全店未删除记工的 `discountedFeePerformanceCents`；空日结按零计入，均值四舍五入至整数美分。未日结、员工请求或窗口无已日结日期时返回 `null`，不向更早日期补足样本。
+
+`finance/summary.totals` 增加 `averageRevenueCents: number | null` 和 `averageRevenueDayCount: number`。按所选日期范围（含两端）内去重后的 `CLOSED` 营业日计算当前筛选的折后大费业绩平均值，无匹配记录的日结日按零计入，沿用领域层整数美分舍入；没有已日结日期时分别返回 `null`、`0`。不含未日结日期、小费或卖卡金额，不限制为30天。

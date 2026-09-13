@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import type { ClosingDeliveryItem, ClosingDeliveryList, ClosingDeliveryStatus } from "../lib/types";
 
 const statusLabels: Record<ClosingDeliveryStatus, string> = {
@@ -17,15 +18,16 @@ interface ClosingDeliveryQueueProps {
   value: ClosingDeliveryList;
   busy: boolean;
   onCancel: (delivery: ClosingDeliveryItem) => void;
+  expanded?: boolean;
 }
 
-export function ClosingDeliveryQueue({ value, busy, onCancel }: ClosingDeliveryQueueProps) {
+export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }: ClosingDeliveryQueueProps) {
   const deliveries = value.deliveries;
   if (deliveries.length === 0) return null;
 
   return (
     <div className="closing-delivery-queue">
-      <details className="delivery-queue-details">
+      <details className="delivery-queue-details" open={expanded || undefined}>
         <summary>
           <span className="delivery-status-strip" aria-label="员工小结发送状态">
             {(Object.keys(statusLabels) as ClosingDeliveryStatus[]).map((status) => {
@@ -63,4 +65,22 @@ export function ClosingDeliveryQueue({ value, busy, onCancel }: ClosingDeliveryQ
       </details>
     </div>
   );
+}
+
+export function ClosingDeliveryQueueButton(props: ClosingDeliveryQueueProps) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const sentCount = props.value.deliveries.filter((item) => item.status === "SENT").length;
+
+  return <>
+    <button className="secondary-action board-closing-action" type="button" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
+      <span>短信队列</span> · <span>已发送</span> <strong>{sentCount}</strong>
+    </button>
+    <dialog ref={dialog} className="board-delivery-dialog" aria-label="短信发送队列详情" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
+      <div className="modal-heading">
+        <h2>短信发送队列详情</h2>
+        <button className="close-button" type="button" onClick={() => dialog.current?.close()}>关闭</button>
+      </div>
+      {props.value.deliveries.length === 0 ? <p>还没有短信发送记录。</p> : <ClosingDeliveryQueue {...props} expanded />}
+    </dialog>
+  </>;
 }

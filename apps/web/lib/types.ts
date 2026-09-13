@@ -439,7 +439,7 @@ export interface BoardResponse {
   rows: BoardRow[];
   giftCardSales: GiftCardSale[];
   nextGiftCardSerialNumber: string;
-  statistics: BoardStatistics & { totalIncomeCents: number };
+  statistics: BoardStatistics & { totalIncomeCents: number; recentClosedRevenue: { dayCount: number; averageCents: number } | null };
   ranking: {
     enabled: boolean;
     rankedAt: string | null;
@@ -506,6 +506,8 @@ export interface FinanceSummaryResponse {
   };
   totals: FinanceTotals & {
     totalTurnoverCents: number;
+    averageRevenueCents: number | null;
+    averageRevenueDayCount: number;
     ownerWorkerIncomeCents: number;
     managerWorkerIncomeCents: number;
     giftCardNetIncomeCents: number;
@@ -525,7 +527,7 @@ export interface FinanceSummaryResponse {
       hasDifferentItemCommission: boolean;
     }
   >;
-  days: Array<FinanceTotals & { businessDate: string; dailyTurnoverCents: number }>;
+  days: Array<FinanceTotals & { businessDate: string; dailyTurnoverCents: number; totalIncomeCents: number }>;
   balances: EmployeeBalance[];
 }
 

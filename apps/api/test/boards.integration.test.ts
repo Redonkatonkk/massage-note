@@ -205,6 +205,15 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
 
     const employeeRow = reordered.rows.find((row) => row.id === employeeRowId);
     if (!employeeRow) throw new Error("缺少员工行");
+    await prisma.workRecord.create({
+      data: {
+        storeId, employeeMembershipId, businessDate: new Date(`${businessDate}T00:00:00.000Z`),
+        storeTimezoneSnapshot: "America/New_York", businessCutoffSnapshot: "22:00",
+        startAt: new Date(), status: "PENDING_PAYMENT",
+        mainServiceAmountCents: 0, grossFeeBaseCents: 0, discountedFeePerformanceCents: 0,
+        mainServiceWageCents: 0, totalLargeFeeWageCents: 0, createdBy: employeeId, updatedBy: employeeId,
+      },
+    });
     const hidden = await boards.updateRow(
       actor(ownerId),
       storeId,
@@ -216,6 +225,7 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
     );
     boardVersion = hidden.board.version;
     expect(hidden.row.isHidden).toBe(true);
+    expect(hidden.removed).toBe(false);
 
     await expect(
       boards.reorder(
@@ -227,6 +237,38 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
         "stale-reorder",
       ),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it("隐藏无记工员工会移除当日行和班次，可幂等重试及重新添加", async () => {
+    const date = "2026-01-15";
+    const added = await boards.addRow(actor(ownerId), storeId, date,
+      { membershipId: employeeMembershipId }, "empty-row-add-0001", "empty-add");
+    const shift = await prisma.shift.create({ data: {
+      storeId, membershipId: employeeMembershipId, businessDate: new Date(`${date}T00:00:00Z`),
+      clockInAt: new Date(`${date}T12:00:00Z`), clockOutAt: new Date(`${date}T13:00:00Z`),
+      createdBy: employeeId, updatedBy: employeeId,
+    } });
+    await expect(boards.updateRow(actor(employeeId), storeId, date, added.row.id,
+      { version: added.row.version, isHidden: true }, "empty-forbidden-0001", "empty-forbidden"))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    await expect(boards.updateRow(actor(ownerId), storeId, date, added.row.id,
+      { version: added.row.version + 1, isHidden: true }, "empty-stale-0001", "empty-stale"))
+      .rejects.toBeInstanceOf(ConflictException);
+    const hide = () => boards.updateRow(actor(ownerId), storeId, date, added.row.id,
+      { version: added.row.version, isHidden: true }, "empty-hide-0001", "empty-hide");
+    const removed = await hide();
+    expect(removed.removed).toBe(true);
+    expect(removed.board.version).toBe(added.board.version + 1);
+    expect((await hide()).removed).toBe(true);
+    expect(await prisma.dailyEmployeeRow.findUnique({ where: { id: added.row.id } })).toBeNull();
+    expect(await prisma.shift.findUnique({ where: { id: shift.id } })).toBeNull();
+    expect(await prisma.shift.findUnique({ where: { id: shiftId } })).not.toBeNull();
+    expect((await boards.getBoard(actor(ownerId), storeId, date)).rows).toHaveLength(0);
+    expect(await prisma.auditLog.count({ where: { storeId, entityId: added.row.id, action: "board.row_removed" } })).toBe(1);
+    const again = await boards.addRow(actor(ownerId), storeId, date,
+      { membershipId: employeeMembershipId }, "empty-row-readd-0001", "empty-readd");
+    expect(again.row.id).not.toBe(added.row.id);
+    expect(again.row.isHidden).toBe(false);
   });
 
   it("员工只能结束自己的未结束班次，旧版本不能重复下班", async () => {

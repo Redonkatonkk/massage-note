@@ -16,6 +16,7 @@ import {
 import type {
   AddonItem,
   CatalogResponse,
+  ClosingPreview,
   DiscountItem,
   StoreDetails,
   StoreMember,
@@ -35,6 +36,7 @@ interface RecordEditorProps {
   catalog: CatalogResponse;
   members: StoreMember[];
   canManage: boolean;
+  isClosed: boolean;
   onClose: () => void;
   onSaved: () => void;
   onChanged: () => Promise<void>;
@@ -128,6 +130,7 @@ export function RecordEditor({
   catalog,
   members,
   canManage,
+  isClosed,
   onClose,
   onSaved,
   onChanged,
@@ -628,7 +631,21 @@ export function RecordEditor({
     giftCardTip,
   });
 
+  async function reopenDay() {
+    const path = `/stores/${storeId}/closings/${businessDate}`;
+    const preview = await apiRequest<ClosingPreview>(`${path}/preview`);
+    if (preview.isClosed && preview.activeClosing) {
+      await apiRequest(`${path}/cancel`, {
+        method: "POST",
+        idempotent: true,
+        body: { version: preview.activeClosing.version },
+      });
+    }
+    await onChanged();
+  }
+
   async function saveRecord() {
+    if (isClosed) return;
     if (willConfirmPayment) {
       await saveAndConfirmPayment();
       return;
@@ -839,14 +856,16 @@ export function RecordEditor({
         {draftMismatchText && <p className="mismatch-warning" role="status">{draftMismatchText}</p>}
 
         <p className="record-save-help">
-          {willConfirmPayment
+          {isClosed
+            ? "这个营业日已经日结，请先取消日结再保存。"
+            : willConfirmPayment
             ? "点击保存会校验付款信息；完整时同时确认付款。小费留空按 0 处理。"
             : "付款尚未填写；点击保存只保存记工，之后仍可补录付款。"}
         </p>
 
         {error && <p className="form-error" role="alert">{error}</p>}
         <footer className="editor-actions">
-          <button className="delete-record" type="button" disabled={busy} onClick={() => run(async () => {
+          <button className="delete-record" type="button" disabled={busy || isClosed} onClick={() => run(async () => {
             if (!window.confirm("确认删除这条记工吗？删除后普通页面将隐藏，店长或经理可以恢复。")) return;
             const answer = window.prompt("删除原因（可不填）");
             if (answer === null) return;
@@ -855,7 +874,10 @@ export function RecordEditor({
             await finish();
           })}>删除记录</button>
           <span />
-          <button className="primary-action" type="button" disabled={busy} onClick={() => run(saveRecord)}>{busy ? "正在保存…" : "保存"}</button>
+          <div className="editor-save-actions">
+            {isClosed && canManage && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(reopenDay)}>取消日结</button>}
+            <button className="primary-action" type="button" disabled={busy || isClosed} onClick={() => run(saveRecord)}>{busy ? "处理中…" : "保存"}</button>
+          </div>
         </footer>
       </section>
     </div>

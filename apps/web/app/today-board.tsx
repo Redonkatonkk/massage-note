@@ -36,6 +36,8 @@ import { ClosingDeliveryQueueButton } from "./closing-delivery-queue";
 import { EmployeeClosingModal } from "./employee-closing";
 import { GiftCardSales } from "./gift-card-sales";
 import { WorkTimeInput } from "./work-time-input";
+import { BoardEmployeePicker } from "./board-employee-picker";
+import { RecordTrack } from "./record-track";
 import { RecordEditor } from "./record-editor";
 
 interface TodayBoardProps {
@@ -124,7 +126,6 @@ export function TodayBoard({
   const [startTime, setStartTime] = useState(currentStoreTime(currentDay.timezone));
   const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
   const [closingEmployee, setClosingEmployee] = useState<{ id: string; displayName: string } | null>(null);
-  const [addMemberId, setAddMemberId] = useState("");
   const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -326,8 +327,8 @@ export function TodayBoard({
 
   async function setRowHidden(row: BoardResponse["rows"][number], isHidden: boolean) {
     const path = `/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}`;
-    await apiRequest(path, { method: "PATCH", idempotent: true, body: { version: row.version, isHidden } });
-    setNotice(isHidden ? `已隐藏 ${row.membership.displayName}` : `已恢复 ${row.membership.displayName}`);
+    const result = await apiRequest<{ removed: boolean }>(path, { method: "PATCH", idempotent: true, body: { version: row.version, isHidden } });
+    setNotice(result.removed ? `已移除 ${row.membership.displayName} 的当天上班记录` : isHidden ? `已隐藏 ${row.membership.displayName}` : `已恢复 ${row.membership.displayName}`);
     await onReload();
   }
 
@@ -446,11 +447,11 @@ export function TodayBoard({
     <>
       {canManage && <section className={`summary-strip${board.isClosed && board.statistics.recentClosedRevenue ? " summary-strip--with-average" : ""}`} aria-label="今日全店汇总">
         <div><span>营业额（折扣后）</span><strong>{money(board.statistics.discountedFeePerformanceCents)}</strong></div>
+        {board.isClosed && board.statistics.recentClosedRevenue && <div><span>{`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`}</span><strong>{money(board.statistics.recentClosedRevenue.averageCents)}</strong></div>}
         <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
         <div title="礼物卡销售实际收款"><span>礼物卡总额</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>
         <div title="折后大费业绩＋小费总额－员工应得＋礼物卡销售－礼物卡核销支出"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
         <div title="店铺收入＋店长收入＋经理收入"><span>总收入</span><strong>{money(board.statistics.totalIncomeCents)}</strong></div>
-        {board.isClosed && board.statistics.recentClosedRevenue && <div><span>{`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`}</span><strong>{money(board.statistics.recentClosedRevenue.averageCents)}</strong></div>}
       </section>}
 
       <section className="board-toolbar" aria-label="今日操作">
@@ -474,11 +475,6 @@ export function TodayBoard({
           {canGenerateRanking && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(rankBoard)}>{dailyRankingActionLabel(board.ranking.rankedAt)}</button>}
         </div>
       </section>
-
-      {hiddenRows.length > 0 && <section className="hidden-rows-panel" aria-label="已隐藏员工管理">
-        <header><div><strong>已隐藏员工 · {hiddenRows.length}</strong><p>隐藏只影响表格显示，不会删除记工。可在这里直接恢复。</p></div><button className="secondary-action compact" type="button" onClick={() => setShowHidden((value) => !value)}>{showHidden ? "收起隐藏内容" : "查看隐藏内容"}</button></header>
-        <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{row.workRecords.length} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy || board.isClosed} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
-      </section>}
 
       {board.isClosed && <p className="closed-banner" role="status">这个营业日已经日结。记工、员工顺序和显示状态均为只读；如需修改请先取消日结。</p>}
       {notice && <p className="success-banner" role="status">✓ {notice}</p>}
@@ -536,7 +532,7 @@ export function TodayBoard({
 
               {!isCollapsed && (
                 <div className={`employee-content${showTotals ? "" : " employee-content--records-only"}`}>
-                  <div className="record-track">
+                  <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed}>
                     {row.workRecords.map((record) => {
                       const hasPaymentMismatch = hasConfirmedPaymentMismatch(
                         record.status,
@@ -588,7 +584,7 @@ export function TodayBoard({
                         <span aria-hidden="true">＋</span>新增记工
                       </button>
                     )}
-                  </div>
+                  </RecordTrack>
                   {showTotals && <dl className="employee-totals">
                     <div><dt>大费</dt><dd>{money(row.statistics.grossFeeBaseCents)}</dd></div>
                     <div><dt>小费</dt><dd>{money(row.statistics.totalTipCents)}</dd></div>
@@ -613,22 +609,21 @@ export function TodayBoard({
         onReload={onReload}
       />}
 
-      {canManage && availableMembers.length > 0 && !board.isClosed && (
-        <section className="add-employee-panel">
-          <label className="field-label">手动添加员工到今日表格
-            <select value={addMemberId} onChange={(event) => setAddMemberId(event.target.value)}>
-              <option value="">请选择员工</option>
-              {availableMembers.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
-            </select>
-          </label>
-          <button className="secondary-action" type="button" disabled={!addMemberId || busy} onClick={() => run(async () => {
-            await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows`, { method: "POST", idempotent: true, body: { membershipId: addMemberId } });
-            setAddMemberId("");
-            setNotice("员工已加入今日表格");
-            await onReload();
-          })}>添加员工</button>
-        </section>
-      )}
+      {hiddenRows.length > 0 && <section className="hidden-rows-panel" aria-label="已隐藏员工管理">
+        <header><div><strong>已隐藏员工 · {hiddenRows.length}</strong><p>隐藏只影响表格显示，不会删除记工。可在这里直接恢复。</p></div><button className="secondary-action compact" type="button" onClick={() => setShowHidden((value) => !value)}>{showHidden ? "收起隐藏内容" : "查看隐藏内容"}</button></header>
+        <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{row.workRecords.length} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy || board.isClosed} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
+      </section>}
+
+      {canManage && !board.isClosed && <BoardEmployeePicker
+        key={`${membership.store.id}:${currentDay.businessDate}`}
+        members={availableMembers}
+        empty={activeRowCount === 0}
+        disabled={busy}
+        onAdd={async (membershipId) => {
+          await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows`, { method: "POST", idempotent: true, body: { membershipId } });
+        }}
+        onReload={onReload}
+      />}
 
       {quickEmployeeId && (
         <div className="modal-backdrop" role="presentation">
@@ -690,6 +685,7 @@ export function TodayBoard({
           catalog={catalog}
           members={members}
           canManage={canManage}
+          isClosed={board.isClosed}
           onClose={() => setEditingRecord(null)}
           onSaved={() => setNotice("记工修改已保存")}
           onChanged={onReload}

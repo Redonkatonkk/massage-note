@@ -226,11 +226,14 @@ export class BoardsService {
         dateFrom: start.toISOString().slice(0, 10),
         dateTo: businessDate,
       });
-      const averageCents = calculateAverageRevenue(
-        closedDates.map((day) => day.discountedFeePerformanceCents),
-      );
+      const revenues = closedDates
+        .filter((day) => day.date !== businessDate)
+        .map((day) => day.discountedFeePerformanceCents);
+      // Include the selected closed day exactly once using the board’s current records.
+      revenues.push(records.reduce((total, record) => total + record.discountedFeePerformanceCents, 0n));
+      const averageCents = calculateAverageRevenue(revenues);
       if (averageCents !== null) {
-        recentClosedRevenue = { dayCount: closedDates.length, averageCents };
+        recentClosedRevenue = { dayCount: revenues.length, averageCents };
       }
     }
 
@@ -639,6 +642,17 @@ export class BoardsService {
           },
         });
         if (!row) this.throwRowNotFound();
+        if (row.version !== input.version) {
+          await this.throwRowConflict(transaction, rowId, storeId);
+        }
+        // Include deleted records: their recoverable history must remain intact.
+        const removed = input.isHidden && await transaction.workRecord.count({
+          where: {
+            storeId,
+            employeeMembershipId: row.membershipId,
+            businessDate: dateAtUtc(businessDate),
+          },
+        }) === 0;
         const changed = await transaction.dailyEmployeeRow.updateMany({
           where: { id: rowId, storeId, version: input.version },
           data: { isHidden: input.isHidden, version: { increment: 1 } },
@@ -649,6 +663,14 @@ export class BoardsService {
         const updated = await transaction.dailyEmployeeRow.findUniqueOrThrow({
           where: { id: rowId },
         });
+        let removedShiftCount = 0;
+        if (removed) {
+          const shifts = await transaction.shift.deleteMany({
+            where: { storeId, membershipId: row.membershipId, businessDate: dateAtUtc(businessDate) },
+          });
+          removedShiftCount = shifts.count;
+          await transaction.dailyEmployeeRow.delete({ where: { id: rowId } });
+        }
         const board = await transaction.dailyBoard.update({
           where: { id: row.boardId },
           data: { version: { increment: 1 } },
@@ -659,12 +681,14 @@ export class BoardsService {
             actorUserId: actor.id,
             actorMembershipId: manager.id,
             source: "api",
-            action: input.isHidden ? "board.row_hidden" : "board.row_shown",
+            action: removed ? "board.row_removed" : input.isHidden ? "board.row_hidden" : "board.row_shown",
             entityType: "daily_employee_row",
             entityId: rowId,
             businessDate: dateAtUtc(businessDate),
             beforeJson: { isHidden: row.isHidden, version: row.version },
             afterJson: {
+              removed,
+              removedShiftCount,
               isHidden: updated.isHidden,
               version: updated.version,
               boardVersion: board.version,
@@ -672,7 +696,7 @@ export class BoardsService {
             requestId,
           },
         });
-        return { row: updated, board };
+        return { row: updated, board, removed };
       },
     );
   }

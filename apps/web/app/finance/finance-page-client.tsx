@@ -613,6 +613,7 @@ export function FinancePageClient() {
           catalog={catalog}
           members={members}
           canManage={canManage}
+          isClosed={closing?.isClosed ?? true}
           onClose={() => setEditingRecord(null)}
           onSaved={() => undefined}
           onChanged={async () => {

@@ -9,6 +9,14 @@ export function isAppLocale(value: unknown): value is AppLocale {
 }
 
 const ENGLISH_TRANSLATIONS: Record<string, string> = {
+  "选择今日上班员工": "Choose today's staff",
+  "按点击顺序排列，取消后重新选择会排到最后。": "Staff appear in click order. Deselecting and selecting again moves them to the end.",
+  "选择顺序": "Selection order",
+  "已选择": "Selected",
+  "正在添加…": "Adding…",
+  "添加所选员工": "Add selected staff",
+  "跳到最后": "Jump to last",
+  "这个营业日已经日结，请先取消日结再保存。": "This business day is closed. Reopen it before saving.",
   "服务日期": "Service date",
   "项目与金额": "Service and price",
   "请选择服务日期和开始时间": "Choose a service date and start time",
@@ -1403,6 +1411,7 @@ const DYNAMIC_TRANSLATIONS: Array<[RegExp, (...groups: string[]) => string]> = [
   [/^小费 (.+)$/u, (amount) => `Tips ${translateText(amount, "en-US")}`],
   [/^合计 (.+)$/u, (amount) => `Total ${translateText(amount, "en-US")}`],
   [/^大费：(.+?) · 小费：(.+?)( · 有加项)?$/u, (service, tip, hasAddons) => `Service fees: ${translateText(service, "en-US")} · Tips: ${translateText(tip, "en-US")}${hasAddons ? " · Add-ons" : ""}`],
+  [/^已移除 (.+) 的当天上班记录$/u, (name) => `Removed today’s attendance for ${name}`],
   [/^已隐藏 (.+)$/u, (name) => `Hidden ${name}`],
   [/^已恢复 (.+)$/u, (name) => `Restored ${name}`],
   [/^已隐藏员工 · (\d+)$/u, (count) => `Hidden employees · ${count}`],

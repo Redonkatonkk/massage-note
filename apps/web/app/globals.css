@@ -3278,3 +3278,52 @@ body { position: relative; }
 .board-delivery-dialog h2 { margin: 0; }
 .board-toolbar > div { flex-wrap: wrap; min-width: 0; }
 .board-toolbar .board-closing-action { gap: 5px; text-decoration: none; flex-shrink: 0; }
+
+
+.record-track-container { position: relative; min-width: 0; }
+.record-track-jump { display: none; }
+
+@media (min-width: 901px) and (hover: hover) and (pointer: fine) {
+  .record-track-jump {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 64px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 4px 16px #0002;
+    font-size: 2rem;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .record-track-jump:hover,
+  .record-track-jump:focus-visible { opacity: 1; }
+}
+
+.editor-save-actions { display: flex; gap: 10px; align-items: stretch; }
+.editor-actions button:disabled {
+  background: #e5e2df;
+  border-color: #d5d1cd;
+  color: #77716b;
+  box-shadow: none;
+}
+@media (max-width: 640px) {
+  .editor-save-actions { grid-column: 1 / -1; }
+  .editor-save-actions > button { flex: 1; min-width: 0; }
+}
+
+.employee-picker-trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 48px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: white; color: var(--ink); font: inherit; text-align: left; }
+.employee-picker-dialog { width: min(560px, calc(100vw - 32px)); }
+.employee-picker-options { display: grid; gap: 10px; margin: 18px 0; }
+.employee-picker-option { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+.employee-picker-option.is-selected { background: #f5e9dc; border-color: #a77856; }
+.employee-picker-option input { width: 22px; height: 22px; min-height: 0; padding: 0; flex: 0 0 22px; accent-color: #805332; }
+.employee-picker-option > span { overflow-wrap: anywhere; min-width: 0; }
+.employee-picker-order { display: grid; place-items: center; flex: 0 0 28px; height: 28px; margin-left: auto; border-radius: 50%; background: #805332; color: white; }
+.employee-picker-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; position: sticky; bottom: -20px; padding: 16px 0; background: var(--surface); }

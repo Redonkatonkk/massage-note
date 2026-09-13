@@ -51,7 +51,7 @@ function averageFixture(role: "OWNER" | "MANAGER" | "EMPLOYEE" = "OWNER", closed
     shift: { findMany: vi.fn().mockResolvedValue([]) },
     giftCardSale: { findMany: vi.fn().mockResolvedValue([]) },
     workRecord: {
-      findMany: vi.fn().mockResolvedValue([]),
+      findMany: vi.fn().mockResolvedValue([{ discountedFeePerformanceCents: 94001n, grossFeeBaseCents: 94001n, discountTotalCents: 0n, totalLargeFeeWageCents: 0n, employee: { role: "OWNER" } }]),
       groupBy: vi.fn().mockResolvedValue([
         { businessDate: new Date("2026-09-12"), _sum: { discountedFeePerformanceCents: 94001n } },
         { businessDate: new Date("2026-09-11"), _sum: { discountedFeePerformanceCents: 999999n } },
@@ -70,8 +70,8 @@ function averageFixture(role: "OWNER" | "MANAGER" | "EMPLOYEE" = "OWNER", closed
   return { prisma, read: () => service.getBoard({ id: "user" } as User, "store", "2026-09-12") };
 }
 
-describe("记工已日结平均营业额", () => {
-  it.each(["OWNER", "MANAGER"] as const)("%s 按含所选日的30天窗口统计，仅纳入已日结日期，零营业额也计入", async role => {
+describe("记工含当日平均营业额", () => {
+  it.each(["OWNER", "MANAGER"] as const)("%s 按含所选日的30天窗口统计，此前仅纳入已日结日期，零营业额也计入", async role => {
     const test = averageFixture(role);
     expect((await test.read()).statistics.recentClosedRevenue).toEqual({ dayCount: 2, averageCents: 47001n });
     expect(test.prisma.businessDayClosing.findMany).toHaveBeenCalledWith(expect.objectContaining({
@@ -84,7 +84,12 @@ describe("记工已日结平均营业额", () => {
     test.prisma.businessDayClosing.findFirst.mockResolvedValue(null);
     expect((await test.read()).statistics.recentClosedRevenue).toBeNull();
   });
-  it.each([["OWNER", false], ["EMPLOYEE", true]] as const)("%s 日结状态 %s 不加载全店平均营业额", async (role, closed) => {
+  it("当日为零营业额也计入平均值分母", async () => {
+    const test = averageFixture();
+    test.prisma.workRecord.findMany.mockResolvedValue([]);
+    expect((await test.read()).statistics.recentClosedRevenue).toEqual({ dayCount: 2, averageCents: 0n });
+  });
+  it.each([["OWNER", false], ["MANAGER", false], ["EMPLOYEE", false], ["EMPLOYEE", true]] as const)("%s 日结状态 %s 不加载全店平均营业额", async (role, closed) => {
     const test = averageFixture(role, closed);
     expect((await test.read()).statistics.recentClosedRevenue).toBeNull();
     expect(test.prisma.workRecord.groupBy).not.toHaveBeenCalled();

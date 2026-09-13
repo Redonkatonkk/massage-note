@@ -84,6 +84,19 @@ describe("记工含当日平均营业额", () => {
     test.prisma.businessDayClosing.findFirst.mockResolvedValue(null);
     expect((await test.read()).statistics.recentClosedRevenue).toBeNull();
   });
+  it("数据库仅有当日日结时除以1，不补足30天", async () => {
+    const test = averageFixture();
+    test.prisma.businessDayClosing.findMany.mockResolvedValue([{ businessDate: new Date("2026-09-12") }]);
+    expect((await test.read()).statistics.recentClosedRevenue).toEqual({ dayCount: 1, averageCents: 94001n });
+  });
+  it("窗口有30个日结日时当日仅计一次，缺一天日结就除以29", async () => {
+    const test = averageFixture();
+    const dates = Array.from({ length: 30 }, (_, index) => ({ businessDate: new Date(Date.UTC(2026, 7, 14 + index)) }));
+    test.prisma.businessDayClosing.findMany.mockResolvedValue(dates);
+    expect((await test.read()).statistics.recentClosedRevenue).toEqual({ dayCount: 30, averageCents: 36467n });
+    test.prisma.businessDayClosing.findMany.mockResolvedValue(dates.filter(day => day.businessDate.toISOString().slice(0, 10) !== "2026-09-11"));
+    expect((await test.read()).statistics.recentClosedRevenue).toEqual({ dayCount: 29, averageCents: 3241n });
+  });
   it("当日为零营业额也计入平均值分母", async () => {
     const test = averageFixture();
     test.prisma.workRecord.findMany.mockResolvedValue([]);

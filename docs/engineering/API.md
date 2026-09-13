@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.4.14`
+> 适用版本：`1.4.16`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -291,7 +291,7 @@ START 的开始时间由 API 从 rawText 解析，使用店铺时区及 occurred
 
 `GET /stores/:storeId/business-days/open-work-dates` 保留 `dates` 未日结日期数组，并返回 `closedDates: [{ date, discountedFeePerformanceCents }]`。仅返回当前 CLOSED 的日期，金额由数据库按营业日汇总未删除记工的折后项目金额（整数美分）。店主/经理可见全店，已日结无记录显示零；员工仅返回本人有记工日期及本人金额。取消日结不再返回该日期金额。前端仅展示美元数值，不附币种、单位或标签；翻月、切店和重新打开时清除旧标记并防止旧请求覆盖。
 
-已日结的记工看板向拥有者和经理返回 `statistics.recentClosedRevenue: { dayCount, averageCents }`。以所选营业日为终点（含当天）的30个自然日内，所选已日结当天的金额与天数计入一次，金额直接取当日看板记工汇总，之前29天仅按 `CLOSED` 日期统计。使用全店未删除记工的 `discountedFeePerformanceCents`，零营业额也计入天数，均值四舍五入至整数美分；所选当天未日结、取消日结后或员工请求返回 `null`，不向更早日期补足样本。
+已日结的记工看板向拥有者和经理返回 `statistics.recentClosedRevenue: { dayCount, averageCents }`。窗口为所选当日及之前29个自然日，仅纳入当前 `CLOSED` 日期。`dayCount` 是实际已日结日期数（1–30），不是固定30；`averageCents` 是这些日期的全店未删除记工 `discountedFeePerformanceCents` 合计除以 `dayCount`，四舍五入至美分。当日取看板记工汇总且只计一次。缺少日结或未日结日期不计入，已日结但无记工按零计入，不向窗口外补足。所选当日未日结、取消日结后或员工请求返回 `null`。
 
 `finance/summary.totals` 增加 `averageRevenueCents: number | null` 和 `averageRevenueDayCount: number`。按所选日期范围（含两端）内去重后的 `CLOSED` 营业日计算当前筛选的折后大费业绩平均值，无匹配记录的日结日按零计入，沿用领域层整数美分舍入；没有已日结日期时分别返回 `null`、`0`。不含未日结日期、小费或卖卡金额，不限制为30天。
 

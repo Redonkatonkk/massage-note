@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adjustedSameDayEnd, automaticRecordEnd, recordTimeError } from "./record-time";
+import { adjustedSameDayEnd, automaticRecordEnd, recordTimeAfterDuration, recordTimeError } from "./record-time";
 
 describe("record service date", () => {
   it("moves both times together when the date changes", () => {
@@ -34,5 +34,11 @@ describe("automatic record end", () => {
     const end = automaticRecordEnd(start, "", 60, "America/New_York");
     expect(end).toBe("2026-09-13T00:30");
     expect(recordTimeError(start, end)).not.toBeNull();
+  });
+  it("calculates from the reference time each time instead of accumulating duration changes", () => {
+    const start = "2026-09-12T17:10";
+    expect(recordTimeAfterDuration(start, 90, "America/New_York")).toBe("2026-09-12T18:40");
+    expect(recordTimeAfterDuration(start, 60, "America/New_York")).toBe("2026-09-12T18:10");
+    expect(recordTimeAfterDuration("2026-09-12T18:40", -90, "America/New_York")).toBe(start);
   });
 });

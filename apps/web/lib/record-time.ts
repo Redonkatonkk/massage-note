@@ -1,4 +1,4 @@
-import { adjustedEndLocalDateTime } from "./time";
+import { adjustedEndLocalDateTime, localDateTimeValue, zonedLocalToIso } from "./time";
 
 /** Keep both clock values on the selected service date; validate overflow visibly. */
 export function adjustedSameDayEnd(start: string, end: string, nextStart: string, delta: number, timezone: string): string {
@@ -16,5 +16,19 @@ export function recordTimeError(start: string, end: string): string | null {
 
 /** Preserve recorded actual duration; fill missing end times from service snapshots. */
 export function automaticRecordEnd(start: string, end: string, durationMinutes: number, timezone: string): string {
-  return end || adjustedEndLocalDateTime(start, start, start, durationMinutes, timezone);
+  return end || recordTimeAfterDuration(start, durationMinutes, timezone);
+}
+
+/** Calculate a clock value from a duration without retaining an earlier adjustment. */
+export function recordTimeAfterDuration(
+  reference: string,
+  durationMinutes: number,
+  timezone: string,
+): string {
+  if (!reference || !Number.isInteger(durationMinutes)) return reference;
+  const instant = new Date(zonedLocalToIso(reference, timezone));
+  return localDateTimeValue(
+    new Date(instant.getTime() + durationMinutes * 60_000).toISOString(),
+    timezone,
+  );
 }

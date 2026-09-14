@@ -527,7 +527,7 @@ export interface FinanceSummaryResponse {
       hasDifferentItemCommission: boolean;
     }
   >;
-  days: Array<FinanceTotals & { businessDate: string; dailyTurnoverCents: number; totalIncomeCents: number }>;
+  days: Array<FinanceTotals & { businessDate: string; dailyTurnoverCents: number; recentClosedRevenue: { averageCents: number; dayCount: number } | null; totalIncomeCents: number }>;
   balances: EmployeeBalance[];
 }
 

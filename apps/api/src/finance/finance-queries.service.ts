@@ -218,6 +218,7 @@ export class FinanceQueriesService {
       nonHighlightedCardAmountCents,
       highlightedCardPaymentCount,
     });
+    const recentRevenue = await this.recentDailyRevenue(storeId, [...days.keys()], client);
     return {
       filters: {
         dateFrom: context.dateFrom,
@@ -254,6 +255,7 @@ export class FinanceQueriesService {
         .map((day) => ({
           ...day,
           dailyTurnoverCents: calculateDailyTurnover(day),
+          recentClosedRevenue: recentRevenue.get(day.businessDate) ?? null,
           totalIncomeCents: calculateBoardTotalIncome({
             storeIncomeCents: day.storeIncomeCents,
             workers: dailyWorkers.get(day.businessDate) ?? [],
@@ -264,6 +266,46 @@ export class FinanceQueriesService {
         ),
       balances,
     };
+  }
+
+  /** Same whole-store, closed-day baseline as the daily work board. */
+  private async recentDailyRevenue(storeId: string, dates: string[], client: Prisma.TransactionClient) {
+    const result = new Map<string, { averageCents: bigint; dayCount: number }>();
+    if (dates.length === 0) return result;
+    const sorted = [...dates].sort();
+    const start = dateAtUtc(sorted[0]!);
+    start.setUTCDate(start.getUTCDate() - 29);
+    const businessDate = { gte: start, lte: dateAtUtc(sorted.at(-1)!) };
+    const [closings, records, sales] = await Promise.all([
+      client.businessDayClosing.findMany({
+        where: { storeId, businessDate, status: "CLOSED" },
+        select: { businessDate: true }, distinct: ["businessDate"],
+      }),
+      client.workRecord.groupBy({
+        by: ["businessDate"], where: { storeId, businessDate, deletedAt: null },
+        _sum: { discountedFeePerformanceCents: true },
+      }),
+      client.giftCardSale.groupBy({
+        by: ["businessDate"], where: { storeId, businessDate, deletedAt: null },
+        _sum: { amountCents: true },
+      }),
+    ]);
+    const revenue = new Map(records.map(row => [dateOnly(row.businessDate), row._sum.discountedFeePerformanceCents ?? 0n]));
+    const saleAmounts = new Map(sales.map(row => [dateOnly(row.businessDate), row._sum.amountCents ?? 0n]));
+    const closedDates = [...new Set(closings.map(row => dateOnly(row.businessDate)))].sort();
+    for (const date of dates) {
+      if (!closedDates.includes(date)) continue;
+      const windowStart = dateAtUtc(date);
+      windowStart.setUTCDate(windowStart.getUTCDate() - 29);
+      const from = dateOnly(windowStart);
+      const amounts = closedDates.filter(day => day >= from && day <= date).map(day => calculateRevenue({
+        discountedFeePerformanceCents: revenue.get(day) ?? 0n,
+        giftCardSalesAmountCents: saleAmounts.get(day) ?? 0n,
+      }));
+      const averageCents = calculateAverageRevenue(amounts);
+      if (averageCents !== null) result.set(date, { averageCents, dayCount: amounts.length });
+    }
+    return result;
   }
 
   async details(actor: User, storeId: string, query: FinanceQuery) {

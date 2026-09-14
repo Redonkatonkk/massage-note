@@ -607,6 +607,7 @@ Object.assign(ENGLISH_TRANSLATIONS, {
   "员工小计": "Employee subtotals",
   "横向比较每位员工；点击金额查看该员工的逐笔组成。": "Compare employees horizontally; select an amount to view that employee's record-by-record breakdown.",
   "单数": "Records",
+  "过去30天平均营业额": "Past 30 days avg. revenue",
   "平均营业额": "Average revenue",
   "所选范围暂无已日结日期": "No closed days in the selected range",
   "所选日期范围内，已日结日期的折后营业额平均值，沿用当前员工和记工筛选。": "Average revenue after discounts for closed days in the selected date range, using the current employee and work-record filters.",

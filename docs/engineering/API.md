@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.4.33`
+> 适用版本：`1.4.34`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -225,6 +225,8 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 店主或经理未限定员工且选择全部金额时，汇总、明细和 CSV 会纳入店铺级礼物卡销售：`itemCount = recordCount + giftCardSaleCount`，`customerTotalPaidCents = actualServiceCollectedCents + totalTipCents + giftCardSalesAmountCents`。员工小计、明确员工筛选、仅大费、仅小费或仅高亮记工不分摊卖卡记录。`giftCardRedemptionCents = giftCardServiceCents + giftCardTipCents`，`storeIncomeCents = calculateRevenue({ discountedFeePerformanceCents, giftCardSalesAmountCents }) + totalTipCents - employeeIncomeCents - giftCardRedemptionCents`（营业额已含卖卡实收，不再单独追加卖卡金额）。
 
 `finance/summary` 的每个 `days[]` 行额外返回 `dailyTurnoverCents = discountedFeePerformanceCents + giftCardSalesAmountCents - giftCardRedemptionCents`。每日行同时返回 `totalIncomeCents = 店铺收入 + 店长收入 + 经理收入`，复用看板领域公式，不额外加减礼物卡净收入或信用卡手续费。上述字段由服务端使用整数美分计算；Web 每日小计前三列依次显示日期、星期和今日流水，最后一列显示总收入，并隐藏全部项目数、记工数、实收服务费、小费和客人总付款列。
+
+`finance/summary.days[]` 新增 `recentClosedRevenue: { averageCents, dayCount } | null`，为该营业日及此前29天的全店已日结平均营业额，含折后业绩与卖卡实际收款，不含小费，不沿用财务筛选。仅该行已日结时返回对象，否则为 null；金额为整数美分，空日结计零。Web 将此列放在今日流水之后。
 
 `finance/summary.totals` 还返回：
 

@@ -349,6 +349,20 @@ export function RecordEditor({
     );
   }
 
+  function changeAddonDuration(key: string, durationMinutes: string) {
+    const nextAddons = addons.map((item) => (
+      item.key === key ? { ...item, durationMinutes } : item
+    ));
+    updateAddon(key, { durationMinutes });
+    if (startAt) {
+      setEndAt(recordTimeAfterDuration(
+        startAt,
+        configuredDuration(serviceDuration, nextAddons),
+        timezone,
+      ));
+    }
+  }
+
   function selectAddon(key: string, value: string) {
     if (value === "__custom__") {
       const nextAddon = {
@@ -780,13 +794,14 @@ export function RecordEditor({
           <div className="section-heading"><h3>额外项目</h3><button type="button" onClick={addAddon}>＋ 添加</button></div>
           {addons.length === 0 && <p className="empty-note">本单没有额外项目</p>}
           {addons.map((item) => (
-            <div className="line-item" key={item.key}>
+            <div className="line-item line-item--addon" key={item.key}>
               <select value={item.sourceItemId} onChange={(event) => selectAddon(item.key, event.target.value)}>
                 {catalog.addonItems.filter((candidate) => candidate.isEnabled && !candidate.deletedAt).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
                 <option value="__custom__">自定义额外项目</option>
               </select>
               {item.sourceItemId === "__custom__" && <input aria-label="额外项目名称" placeholder="额外项目名称" value={item.name} onChange={(event) => updateAddon(item.key, { name: event.target.value, shortName: event.target.value.slice(0, 30) })} />}
               <input aria-label="额外项目金额" inputMode="decimal" placeholder="金额" value={item.amount} onChange={(event) => updateAddon(item.key, { amount: event.target.value })} />
+              <input aria-label="额外项目加时分钟" type="number" min="0" max="720" inputMode="numeric" placeholder="加时分钟" value={item.durationMinutes} onChange={(event) => changeAddonDuration(item.key, event.target.value)} />
               {canManage && <input aria-label="额外项目提成百分比" inputMode="decimal" placeholder="提成 %（留空按规则）" value={item.commissionPercent} onChange={(event) => updateAddon(item.key, { commissionPercent: event.target.value })} />}
               <button className="danger-link" type="button" onClick={() => removeAddon(item)}>移除</button>
             </div>

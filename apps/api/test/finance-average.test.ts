@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { FinanceQueriesService } from "../src/finance/finance-queries.service.js";
 
-it("所选范围平均值只包含已日结折后业绩，排除小费和卖卡并保留零营业额日结", async () => {
+it("所选范围平均值只包含已日结折后业绩，包含卖卡但排除小费并保留零营业额日结", async () => {
   const closedDates = vi.fn().mockResolvedValue([
     { businessDate: new Date("2026-09-01") },
     { businessDate: new Date("2026-09-03") },
@@ -33,13 +33,13 @@ it("所选范围平均值只包含已日结折后业绩，排除小费和卖卡�
     totalLargeFeeWageCents: 5000n, cashAllocatedServiceWageCents: 5000n, cashAcquiredServiceWageCents: 5000n,
   })) as never);
   const read = () => service.summary({} as never, "store", query);
-  expect((await read()).totals).toMatchObject({ averageRevenueCents: 4701n, averageRevenueDayCount: 2 });
+  expect((await read()).totals).toMatchObject({ averageRevenueCents: 49701n, averageRevenueDayCount: 2 });
   expect(closedDates).toHaveBeenCalledWith({
     where: { storeId: "store", businessDate: { gte: new Date("2026-09-01"), lte: new Date("2026-09-03") }, status: "CLOSED" },
     select: { businessDate: true }, distinct: ["businessDate"],
   });
   closedDates.mockResolvedValue([{ businessDate: new Date("2026-09-01") }]);
-  expect((await read()).totals).toMatchObject({ averageRevenueCents: 9401n, averageRevenueDayCount: 1 });
+  expect((await read()).totals).toMatchObject({ averageRevenueCents: 99401n, averageRevenueDayCount: 1 });
   closedDates.mockResolvedValue([]);
   expect((await read()).totals).toMatchObject({ averageRevenueCents: null, averageRevenueDayCount: 0 });
 });

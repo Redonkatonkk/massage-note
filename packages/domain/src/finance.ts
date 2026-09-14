@@ -85,7 +85,12 @@ export function calculateBoardTotalIncome(input: {
   );
 }
 
-/** 已日结营业日的折后营业额平均值，空日结按零计入，四舍五入到美分。 */
+/** 营业额包含折后服务业绩和卖卡实收，不扣礼物卡核销。 */
+export function calculateRevenue(input: { discountedFeePerformanceCents: Cents; giftCardSalesAmountCents: Cents }): bigint {
+  return cents(input.discountedFeePerformanceCents) + cents(input.giftCardSalesAmountCents);
+}
+
+/** 已日结营业日的营业额平均值，空日结按零计入，四舍五入到美分。 */
 export function calculateAverageRevenue(amounts: readonly Cents[]): bigint | null {
   if (amounts.length === 0) return null;
   return roundHalfUp(amounts.reduce((sum, amount) => sum + cents(amount), 0n), BigInt(amounts.length));

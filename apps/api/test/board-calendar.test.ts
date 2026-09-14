@@ -10,7 +10,7 @@ function fixture(role: "OWNER" | "EMPLOYEE", closed = true) {
     { businessDate: new Date("2026-09-10"), _sum: { discountedFeePerformanceCents: 94050n } },
     { businessDate: new Date("2026-09-12"), _sum: { discountedFeePerformanceCents: 10000n } },
   ]);
-  const prisma = { workRecord: { groupBy }, businessDayClosing: {
+  const prisma = { giftCardSale: { groupBy: vi.fn().mockResolvedValue([]) }, workRecord: { groupBy }, businessDayClosing: {
     findMany: vi.fn().mockResolvedValue(closed ? [
       { businessDate: new Date("2026-09-10") },
       { businessDate: new Date("2026-09-11") },
@@ -25,8 +25,8 @@ describe("营业日日历折后营业额", () => {
   it("仅已日结日期显示金额，空日结为零，未日结保留圆点", async () => {
     const test = fixture("OWNER");
     expect(await test.read()).toEqual({ dates: ["2026-09-12"], closedDates: [
-      { date: "2026-09-10", discountedFeePerformanceCents: 94050n },
-      { date: "2026-09-11", discountedFeePerformanceCents: 0n },
+      { date: "2026-09-10", discountedFeePerformanceCents: 94050n, revenueCents: 94050n },
+      { date: "2026-09-11", discountedFeePerformanceCents: 0n, revenueCents: 0n },
     ] });
     expect(test.groupBy).toHaveBeenCalledWith(expect.objectContaining({
       where: { storeId: "store", deletedAt: null, businessDate: { gte: new Date("2026-09-01"), lte: new Date("2026-09-30") } },
@@ -36,7 +36,7 @@ describe("营业日日历折后营业额", () => {
   });
   it("员工查询只汇总本人，不暴露其他日结日期或全店金额", async () => {
     const test = fixture("EMPLOYEE");
-    expect((await test.read()).closedDates).toEqual([{ date: "2026-09-10", discountedFeePerformanceCents: 94050n }]);
+    expect((await test.read()).closedDates).toEqual([{ date: "2026-09-10", discountedFeePerformanceCents: 94050n, revenueCents: 94050n }]);
     expect(test.groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ employeeMembershipId: "member" }) }));
   });
   it("取消日结后移除金额并恢复未日结圆点", async () => {
@@ -49,7 +49,7 @@ function averageFixture(role: "OWNER" | "MANAGER" | "EMPLOYEE" = "OWNER", closed
     store: { findFirst: vi.fn().mockResolvedValue({ timezone: "America/New_York", businessCutoffLocal: "22:00", nextGiftCardSerialNumber: 1 }) },
     dailyBoard: { findUnique: vi.fn().mockResolvedValue(null) },
     shift: { findMany: vi.fn().mockResolvedValue([]) },
-    giftCardSale: { findMany: vi.fn().mockResolvedValue([]) },
+    giftCardSale: { findMany: vi.fn().mockResolvedValue([]), groupBy: vi.fn().mockResolvedValue([]) },
     workRecord: {
       findMany: vi.fn().mockResolvedValue([{ discountedFeePerformanceCents: 94001n, grossFeeBaseCents: 94001n, discountTotalCents: 0n, totalLargeFeeWageCents: 0n, employee: { role: "OWNER" } }]),
       groupBy: vi.fn().mockResolvedValue([
@@ -107,4 +107,24 @@ describe("记工含当日平均营业额", () => {
     expect((await test.read()).statistics.recentClosedRevenue).toBeNull();
     expect(test.prisma.workRecord.groupBy).not.toHaveBeenCalled();
   });
+});
+
+it("卖卡实收同时进入看板营业额和已日结平均值，收入不重复增加", async () => {
+  const test = averageFixture();
+  test.prisma.giftCardSale.findMany.mockResolvedValue([{ serialNumber: "1001", cashCents: 8000n, cardCents: 0n, amountCents: 8000n, faceValueCents: 10000n }] as never);
+  test.prisma.giftCardSale.groupBy.mockResolvedValue([{ businessDate: new Date("2026-08-14"), _sum: { amountCents: 2000n } }] as never);
+  expect((await test.read()).statistics).toMatchObject({
+    discountedFeePerformanceCents: 94001n, revenueCents: 102001n,
+    storeIncomeCents: 102001n, totalIncomeCents: 102001n,
+    recentClosedRevenue: { dayCount: 2, averageCents: 52001n },
+  });
+});
+it("日历包含只有卖卡的日结日，员工不查询卖卡数据", async () => {
+  const test = fixture("OWNER");
+  test.prisma.giftCardSale.groupBy.mockResolvedValue([{ businessDate: new Date("2026-09-11"), _sum: { amountCents: 8000n } }] as never);
+  expect((await test.read()).closedDates[1]).toMatchObject({ discountedFeePerformanceCents: 0n, revenueCents: 8000n });
+  expect(test.prisma.giftCardSale.groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId: "store", deletedAt: null }) }));
+  const employee = fixture("EMPLOYEE");
+  await employee.read();
+  expect(employee.prisma.giftCardSale.groupBy).not.toHaveBeenCalled();
 });

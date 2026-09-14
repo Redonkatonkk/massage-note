@@ -24,6 +24,7 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "结束时间不能早于开始时间，请调整时间或项目时长": "End time cannot be before start time. Adjust the time or duration.",
   "说明": "Info",
   "营业额（折扣后）": "Revenue (after discounts)",
+  "折后服务金额＋礼物卡销售实际收款": "Service revenue after discounts + gift card sales collected",
   "礼物卡总额": "Gift card total",
   "礼物卡销售实际收款": "Actual gift card sale receipts",
   "店铺收入＋店长收入＋经理收入": "Store income + owner income + manager income",

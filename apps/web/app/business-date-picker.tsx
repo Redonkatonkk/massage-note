@@ -5,7 +5,7 @@ import { apiRequest } from "../lib/api";
 
 interface OpenWorkDatesResponse {
   dates: string[];
-  closedDates: Array<{ date: string; discountedFeePerformanceCents: number }>;
+  closedDates: Array<{ date: string; discountedFeePerformanceCents: number; revenueCents: number }>;
 }
 
 function monthBounds(month: string): { first: string; last: string } {
@@ -85,7 +85,7 @@ export function BusinessDatePicker({
       .then((result) => {
         if (generation === requestGeneration.current) {
           setMarkedDates(new Set(result.dates));
-          setClosedRevenue(new Map((result.closedDates ?? []).map((item) => [item.date, item.discountedFeePerformanceCents])));
+          setClosedRevenue(new Map((result.closedDates ?? []).map((item) => [item.date, item.revenueCents])));
         }
       })
       .catch(() => {

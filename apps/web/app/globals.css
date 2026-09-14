@@ -859,6 +859,10 @@ h2 {
   background: #fcfaf7;
 }
 
+.line-item--addon {
+  grid-template-columns: minmax(150px, 1.2fr) minmax(96px, 0.65fr) minmax(96px, 0.65fr) minmax(100px, 0.7fr) auto;
+}
+
 .danger-link {
   color: #9d2c24;
 }

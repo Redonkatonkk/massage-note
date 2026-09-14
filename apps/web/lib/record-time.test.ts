@@ -41,4 +41,9 @@ describe("automatic record end", () => {
     expect(recordTimeAfterDuration(start, 60, "America/New_York")).toBe("2026-09-12T18:10");
     expect(recordTimeAfterDuration("2026-09-12T18:40", -90, "America/New_York")).toBe(start);
   });
+  it("recalculates the end when an add-on duration is entered or cleared", () => {
+    const start = "2026-09-12T11:30";
+    expect(recordTimeAfterDuration(start, 90, "America/New_York")).toBe("2026-09-12T13:00");
+    expect(recordTimeAfterDuration(start, 60, "America/New_York")).toBe("2026-09-12T12:30");
+  });
 });

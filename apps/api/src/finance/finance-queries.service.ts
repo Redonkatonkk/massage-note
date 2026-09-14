@@ -10,6 +10,7 @@ import {
   businessDateFor,
   calculateDailyTurnover,
   calculateAverageRevenue,
+  calculateRevenue,
   calculateBoardTotalIncome,
   calculatePayrollBalance,
   calculateStoreSettlement,
@@ -230,7 +231,7 @@ export class FinanceQueriesService {
         ...total,
         totalTurnoverCents: calculateDailyTurnover(total),
         averageRevenueCents: calculateAverageRevenue(closedDates.map((closing) =>
-          days.get(dateOnly(closing.businessDate))?.discountedFeePerformanceCents ?? 0n,
+          calculateRevenue(days.get(dateOnly(closing.businessDate)) ?? { discountedFeePerformanceCents: 0n, giftCardSalesAmountCents: 0n }),
         )),
         averageRevenueDayCount: closedDates.length,
         ownerWorkerIncomeCents,

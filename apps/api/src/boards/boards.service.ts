@@ -17,6 +17,7 @@ import type {
 import {
   businessDateFor,
   calculateAverageRevenue,
+  calculateRevenue,
   calculateStoreIncome,
   calculateBoardTotalIncome,
   hasStoreCapability,
@@ -86,7 +87,7 @@ export class BoardsService {
       gte: dateAtUtc(query.dateFrom),
       lte: dateAtUtc(query.dateTo),
     };
-    const [workDates, closedDates] = await Promise.all([
+    const [workDates, closedDates, giftCardDates] = await Promise.all([
       this.prisma.workRecord.groupBy({
         where: {
           storeId,
@@ -104,6 +105,11 @@ export class BoardsService {
         select: { businessDate: true },
         distinct: ["businessDate"],
       }),
+      canReadStore ? this.prisma.giftCardSale.groupBy({
+        where: { storeId, businessDate: dateRange, deletedAt: null },
+        by: ["businessDate"],
+        _sum: { amountCents: true },
+      }) : Promise.resolve([]),
     ]);
     const closed = new Set(
       closedDates.map((item) => item.businessDate.toISOString().slice(0, 10)),
@@ -112,11 +118,12 @@ export class BoardsService {
       item.businessDate.toISOString().slice(0, 10),
       item._sum.discountedFeePerformanceCents ?? 0n,
     ]));
+    const salesByDate = new Map(giftCardDates.map((item) => [item.businessDate.toISOString().slice(0, 10), item._sum.amountCents ?? 0n]));
     return {
       closedDates: [...closed]
         .filter((date) => canReadStore || revenueByDate.has(date))
         .sort()
-        .map((date) => ({ date, discountedFeePerformanceCents: revenueByDate.get(date) ?? 0n })),
+        .map((date) => ({ date, discountedFeePerformanceCents: revenueByDate.get(date) ?? 0n, revenueCents: calculateRevenue({ discountedFeePerformanceCents: revenueByDate.get(date) ?? 0n, giftCardSalesAmountCents: salesByDate.get(date) ?? 0n }) })),
       dates: workDates
         .map((item) => item.businessDate.toISOString().slice(0, 10))
         .filter((date) => !closed.has(date))
@@ -228,9 +235,9 @@ export class BoardsService {
       });
       const revenues = closedDates
         .filter((day) => day.date !== businessDate)
-        .map((day) => day.discountedFeePerformanceCents);
+        .map((day) => day.revenueCents);
       // Include the selected closed day exactly once using the board’s current records.
-      revenues.push(records.reduce((total, record) => total + record.discountedFeePerformanceCents, 0n));
+      revenues.push(calculateRevenue({ discountedFeePerformanceCents: records.reduce((total, record) => total + record.discountedFeePerformanceCents, 0n), giftCardSalesAmountCents: giftCardSales.reduce((total, sale) => total + sale.amountCents, 0n) }));
       const averageCents = calculateAverageRevenue(revenues);
       if (averageCents !== null) {
         recentClosedRevenue = { dayCount: revenues.length, averageCents };
@@ -284,6 +291,7 @@ export class BoardsService {
       statistics: {
         ...statistics,
         recentClosedRevenue,
+        revenueCents: calculateRevenue(statistics),
         totalIncomeCents: calculateBoardTotalIncome({
           storeIncomeCents: statistics.storeIncomeCents,
           workers: records.map((record) => ({

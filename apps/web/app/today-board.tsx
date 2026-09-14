@@ -446,7 +446,7 @@ export function TodayBoard({
   return (
     <>
       {canManage && <section className={`summary-strip${board.isClosed && board.statistics.recentClosedRevenue ? " summary-strip--with-average" : ""}`} aria-label="今日全店汇总">
-        <div><span>营业额（折扣后）</span><strong>{money(board.statistics.discountedFeePerformanceCents)}</strong></div>
+        <div title="折后服务金额＋礼物卡销售实际收款"><span>营业额（折扣后）</span><strong>{money(board.statistics.revenueCents)}</strong></div>
         {board.isClosed && board.statistics.recentClosedRevenue && <div><span>{`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`}</span><strong>{money(board.statistics.recentClosedRevenue.averageCents)}</strong></div>}
         <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
         <div title="礼物卡销售实际收款"><span>礼物卡总额</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>

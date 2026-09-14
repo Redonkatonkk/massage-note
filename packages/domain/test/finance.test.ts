@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DomainError,
   calculateAverageRevenue,
+  calculateRevenue,
   calculateBoardTotalIncome,
   calculateDailyTurnover,
   calculateDailyCashSettlement,
@@ -436,4 +437,10 @@ describe("已日结平均营业额", () => {
   it("没有已日结日期时不产生无效均值", () => {
     expect(calculateAverageRevenue([])).toBeNull();
   });
+});
+
+it("营业额计入卖卡实收，服务业绩独立保留", () => {
+  expect(calculateRevenue({ discountedFeePerformanceCents: 102000n, giftCardSalesAmountCents: 8000n })).toBe(110000n);
+  expect(calculateRevenue({ discountedFeePerformanceCents: 0n, giftCardSalesAmountCents: 8000n })).toBe(8000n);
+  expect(calculateRevenue({ discountedFeePerformanceCents: 102000n, giftCardSalesAmountCents: 0n })).toBe(102000n);
 });

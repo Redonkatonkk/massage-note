@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.4.19`
+> 适用版本：`1.4.23`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -48,7 +48,7 @@
 | POST | `/stores/:storeId/catalog/items/:itemId/restore` | 恢复软删除项目 |
 | GET | `/stores/:storeId/members/:membershipId/commissions` | 读取员工默认与项目专属提成 |
 | PUT | `/stores/:storeId/members/:membershipId/commissions/default`、`item` | 保存员工默认或项目专属提成；按规则重算未日结当前营业日 |
-| GET | `/stores/:storeId/business-days/current` | 当前营业日、时区和截止时间 |
+| GET | `/stores/:storeId/business-days/current` | 设备当前营业日、设备时区及兼容旧截止字段 |
 | GET | `/stores/:storeId/business-days/open-work-dates` | 查询日期范围内有有效记工但尚未日结的营业日，供今日记工和财务日结日历标记；`dateFrom`、`dateTo` 必填，均包含端点，范围最多 63 天；Owner/Manager 返回全店日期，员工仅返回自己的记工日期 |
 | GET | `/stores/:storeId/boards/:businessDate` | 今日或历史记工表；包含该日有效礼物卡销售和店铺销售汇总；普通员工查看历史时仅返回本人行、班次、记工和本人统计，不返回全店卖卡记录 |
 | POST | `/stores/:storeId/shifts/clock-in`、`shifts/:shiftId/clock-out` | 上下班；当前 Web 只向符合条件的普通员工显示“上班” |
@@ -162,6 +162,8 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 上例表示礼物卡面值满 `$100.00` 时折扣 `5%`。卖卡时会把当时的门槛和比例写入销售快照，之后修改店铺设置不会改变既有卖卡记录。
 
+额外项目 `addons[].durationMinutes` 明确提交数字时保存本单加时，`null` 表示不加时；只有省略该字段时才使用预设项目的目录分钟数。
+
 记工详情可通过 `PATCH /stores/:storeId/work-records/:recordId` 为单笔记录停用或恢复自动折扣：
 
 ```json
@@ -231,7 +233,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 - `managerWorkerIncomeCents`：所有 `MANAGER` 角色作为工人的大费工资与小费合计；
 - `giftCardNetIncomeCents = giftCardSalesAmountCents - giftCardRedemptionCents`；
 - `creditCardFeeCents`：未高亮记工的所选刷卡大费与刷卡小费合计按 `2.5%` 四舍五入到美分，再加上每条含所选刷卡金额的高亮记工 `$3.00`；部分刷卡仍按一笔，高亮但没有刷卡金额不收费，礼物卡付款和卖卡刷卡不计入；
-- `totalIncomeCents = storeIncomeCents + ownerWorkerIncomeCents + managerWorkerIncomeCents + giftCardNetIncomeCents - creditCardFeeCents`。
+- `totalIncomeCents = storeIncomeCents + ownerWorkerIncomeCents + managerWorkerIncomeCents - creditCardFeeCents`。
 
 这些字段采用当前日期、员工、付款方式、金额类型和高亮筛选口径。`finance/summary.employees[]` 还返回员工当前 `defaultCommissionBps` 和是否存在不同项目专属设置的 `hasDifferentItemCommission`；Web 与员工小计短信直接显示该设置，不再用筛选后的工资反推比例。Web 的每日小计位于员工小计之前，日期后显示按当前界面语言本地化的星期；员工范围使用复选框多选，空选择表示全部员工。
 
@@ -287,6 +289,8 @@ START 的开始时间由 API 从 rawText 解析，使用店铺时区及 occurred
 
 `GET /stores/:storeId/boards/:businessDate` 的顶层 `statistics.totalIncomeCents` 由服务端整数美分计算：`storeIncomeCents + 店长大费工资及小费 + 所有经理大费工资及小费`。成员角色按当前记录关联成员读取，不依赖行是否隐藏；使用看板相同的未删除记录范围（包含待结账已知工资和小费），员工历史仍限定本人。该字段不额外加入礼物卡净收入或扣除信用卡手续费，区别于 `finance/summary` 的总结算字段。顶部营业额读取新增的 `revenueCents = discountedFeePerformanceCents + giftCardSalesAmountCents`；原 `discountedFeePerformanceCents` 仍仅为折后服务业绩，礼物卡总额读取 `giftCardSalesAmountCents`。
 
+礼物卡对记工页总收入、财务每日小计及财务总结算均只影响一次：卖卡按实际收款增加，用卡按大费与小费合计减少；这些收支已包含在店铺收入中，礼物卡净收入字段只用于展示组成，不再次加减。财务总结算继续扣除信用卡手续费；记工页及每日小计保留手续费前口径。
+
 ### 营业日日历已日结金额
 
 `GET /stores/:storeId/business-days/open-work-dates` 保留 `dates` 未日结日期数组，并返回 `closedDates: [{ date, discountedFeePerformanceCents, revenueCents }]`。仅返回当前 CLOSED 的日期，金额由数据库按营业日汇总未删除记工的折后项目金额（整数美分）。日历显示新增 `revenueCents`，为折后服务业绩加卖卡实收；店主/经理可见全店，已日结无记工且无卖卡显示零；员工仅返回本人有记工日期及本人金额。取消日结不再返回该日期金额。前端仅展示美元数值，不附币种、单位或标签；翻月、切店和重新打开时清除旧标记并防止旧请求覆盖。
@@ -296,3 +300,7 @@ START 的开始时间由 API 从 rawText 解析，使用店铺时区及 occurred
 `finance/summary.totals` 增加 `averageRevenueCents: number | null` 和 `averageRevenueDayCount: number`。按所选日期范围（含两端）内去重后的 `CLOSED` 营业日计算当前筛选的折后大费业绩加卖卡实际收款的平均值，无匹配记工及卖卡的日结日按零计入，沿用领域层整数美分舍入；没有已日结日期时分别返回 `null`、`0`。不含未日结日期和小费；卖卡沿用店铺级销售的权限及筛选规则，不限制为30天。
 
 `PATCH /stores/:storeId/boards/:date/rows/:rowId` 隐藏无任何记工（含已删除历史）的员工时，在营业日锁和同一事务内删除当天员工行及班次，递增表格版本并写入审计/outbox；返回 `{ row, board, removed: true }`，`row` 为移除前更新后的快照。有记工时仅切换显示状态，`removed: false`。两种路径均保留权限、日结、幂等与行版本检查。
+
+### 设备日期上下文
+
+Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timezone`（IANA 时区）；二者须同时提供且有效，否则返回 400。当前营业日和当前日写权限使用设备日期，新记工按开始时间的设备本地自然日期归属。无此请求头的机器人/后台调用回退服务端当前时间及店铺时区。`businessCutoffLocal` 和历史截止快照保留兼容但不参与归日；已有记录未更改开始时间时保留营业日。

@@ -22,6 +22,15 @@ import type {
   WorkRecord,
 } from "../lib/types";
 
+// Selection changes no draft values: focusing without typing preserves saved content.
+function selectEditorInput(event: { target: EventTarget }) {
+  const target = event.target;
+  if (target instanceof HTMLTextAreaElement ||
+      (target instanceof HTMLInputElement && ["text", "number", "search", "tel", "url", "email"].includes(target.type))) {
+    target.select();
+  }
+}
+
 interface RecordEditorProps {
   storeId: string;
   timezone: string;
@@ -718,7 +727,7 @@ export function RecordEditor({
 
   return (
     <div className="modal-backdrop modal-backdrop--editor" role="presentation">
-      <section className="record-editor" role="dialog" aria-modal="true" aria-labelledby="record-title" onChangeCapture={() => setDraftDirty(true)}>
+      <section className="record-editor" role="dialog" aria-modal="true" aria-labelledby="record-title" onFocusCapture={selectEditorInput} onClick={selectEditorInput} onChangeCapture={() => setDraftDirty(true)}>
         <header className="modal-heading sticky-heading">
           <div>
             <p className="eyebrow">记工详情</p>
@@ -771,7 +780,7 @@ export function RecordEditor({
             <>
               <label className="field-label">项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} /></label>
               <label className="field-label">项目简称<input value={serviceShortName} onChange={(event) => setServiceShortName(event.target.value)} /></label>
-              <label className="field-label">时长（分钟）<input type="number" min="1" max="720" value={serviceDuration} onChange={(event) => changeCustomServiceDuration(event.target.value)} /></label>
+              <label className="field-label">时长（分钟）<input type="text" inputMode="numeric" value={serviceDuration} onChange={(event) => changeCustomServiceDuration(event.target.value)} /></label>
             </>
           )}
           {serviceChoice !== "__custom__" && (
@@ -795,14 +804,14 @@ export function RecordEditor({
           {addons.length === 0 && <p className="empty-note">本单没有额外项目</p>}
           {addons.map((item) => (
             <div className="line-item line-item--addon" key={item.key}>
-              <select value={item.sourceItemId} onChange={(event) => selectAddon(item.key, event.target.value)}>
+              <label className="field-label">额外项目<select value={item.sourceItemId} onChange={(event) => selectAddon(item.key, event.target.value)}>
                 {catalog.addonItems.filter((candidate) => candidate.isEnabled && !candidate.deletedAt).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
                 <option value="__custom__">自定义额外项目</option>
-              </select>
-              {item.sourceItemId === "__custom__" && <input aria-label="额外项目名称" placeholder="额外项目名称" value={item.name} onChange={(event) => updateAddon(item.key, { name: event.target.value, shortName: event.target.value.slice(0, 30) })} />}
-              <input aria-label="额外项目金额" inputMode="decimal" placeholder="金额" value={item.amount} onChange={(event) => updateAddon(item.key, { amount: event.target.value })} />
-              <input aria-label="额外项目加时分钟" type="number" min="0" max="720" inputMode="numeric" placeholder="加时分钟" value={item.durationMinutes} onChange={(event) => changeAddonDuration(item.key, event.target.value)} />
-              {canManage && <input aria-label="额外项目提成百分比" inputMode="decimal" placeholder="提成 %（留空按规则）" value={item.commissionPercent} onChange={(event) => updateAddon(item.key, { commissionPercent: event.target.value })} />}
+              </select></label>
+              {item.sourceItemId === "__custom__" && <label className="field-label">额外项目名称<input aria-label="额外项目名称" placeholder="额外项目名称" value={item.name} onChange={(event) => updateAddon(item.key, { name: event.target.value, shortName: event.target.value.slice(0, 30) })} /></label>}
+              <label className="field-label">金额（美元）<input aria-label="额外项目金额" inputMode="decimal" placeholder="金额" value={item.amount} onChange={(event) => updateAddon(item.key, { amount: event.target.value })} /></label>
+              <label className="field-label">加时（分钟）<input aria-label="额外项目加时分钟" type="text" inputMode="numeric" placeholder="加时分钟" value={item.durationMinutes} onChange={(event) => changeAddonDuration(item.key, event.target.value)} /></label>
+              {canManage && <label className="field-label">提成（%）<input aria-label="额外项目提成百分比" inputMode="decimal" placeholder="提成 %（留空按规则）" value={item.commissionPercent} onChange={(event) => updateAddon(item.key, { commissionPercent: event.target.value })} /></label>}
               <button className="danger-link" type="button" onClick={() => removeAddon(item)}>移除</button>
             </div>
           ))}

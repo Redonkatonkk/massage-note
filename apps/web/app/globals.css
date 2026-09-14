@@ -860,6 +860,7 @@ h2 {
 }
 
 .line-item--addon {
+  align-items: end;
   grid-template-columns: minmax(150px, 1.2fr) minmax(96px, 0.65fr) minmax(96px, 0.65fr) minmax(100px, 0.7fr) auto;
 }
 
@@ -2459,8 +2460,14 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 .employee-closing-card { overflow: hidden; border: 1px solid #e5d1c4; border-radius: 24px; background: linear-gradient(145deg, #fff 0%, #fff8ef 56%, #f9e5dc 100%); box-shadow: 0 16px 42px rgba(83, 54, 31, .1); }
 .employee-closing-hero { display: grid; gap: 12px; padding: clamp(16px, 3vw, 22px); }
 .employee-closing-hero h2 { margin: 5px 0 0; font-size: clamp(2rem, 7vw, 3.35rem); line-height: 1.05; }
-.employee-closing-heading { min-width: 0; }
-.employee-closing-heading > div { min-width: 0; }
+.employee-closing-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; min-width: 0; }
+.employee-closing-heading > div { min-width: 0; flex: 1 1 260px; }
+.employee-closing-heading h2 { overflow-wrap: anywhere; }
+.employee-closing-heading-actions { display: grid; gap: 10px; }
+.employee-closing-heading-actions .employee-closing-image-actions { display: flex; flex-wrap: wrap; padding: 0; }
+.employee-closing-heading-actions .employee-closing-image-actions button { flex: 1 1 140px; min-width: 0; white-space: normal; }
+.employee-closing-heading-actions .employee-closing-image-message,
+.employee-closing-heading-actions .form-error { margin: 0; overflow-wrap: anywhere; }
 .employee-closing-date { margin: 8px 0 0; color: var(--muted); font-size: clamp(.86rem, 2.2vw, 1rem); font-weight: 750; }
 .employee-closing-income-summary { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(190px, .95fr); gap: 14px; padding: 14px 16px; border: 1px solid #eadbd0; border-radius: 22px; background: rgba(255,255,255,.94); }
 .employee-closing-income-table { display: grid; align-content: center; }

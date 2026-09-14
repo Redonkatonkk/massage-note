@@ -5,9 +5,9 @@ import { workBotParsedIntentSchema } from "@massage-note/contracts";
 const store = { timezone: "America/New_York", businessCutoffLocal: "22:00" };
 const id = "11111111-1111-4111-8111-111111111111";
 describe("机器人查询和编辑协议", () => {
-  it("最近15天包含当前营业日且按店铺截止时间换日", () => {
+  it("最近15天按店铺自然日期换日，不受旧截止时间影响", () => {
     const range = workBotDateRange({ kind: "QUERY", days: 15 }, store, new Date("2026-09-09T02:01:00Z"));
-    expect([range.from, range.to]).toEqual(["2026-08-26", "2026-09-09"]);
+    expect([range.from, range.to]).toEqual(["2026-08-25", "2026-09-08"]);
   });
   it("跨夏令时仍是15个营业日期", () => {
     const range = workBotDateRange({ kind: "QUERY", days: 15 }, store, new Date("2026-03-09T15:00:00Z"));

@@ -1,3 +1,4 @@
+import { businessDateFor, deviceNow } from "../common/device-time.js";
 import {
   ConflictException,
   Injectable,
@@ -5,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { Prisma, type User } from "@massage-note/database";
 import type { RankBoardInput } from "@massage-note/contracts";
-import { businessDateFor, rankRotationCandidates } from "@massage-note/domain";
+import { rankRotationCandidates } from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
@@ -66,7 +67,7 @@ export class DailyRankingService {
           });
         }
         const currentBusinessDate = businessDateFor({
-          startAt: new Date(),
+          startAt: deviceNow(),
           timezone: store.timezone,
           cutoffLocal: store.businessCutoffLocal,
         });

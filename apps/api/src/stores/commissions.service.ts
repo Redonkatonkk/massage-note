@@ -1,3 +1,4 @@
+import { businessDateFor, deviceNow } from "../common/device-time.js";
 import {
   ConflictException,
   Injectable,
@@ -9,7 +10,6 @@ import type {
   SetEmployeeItemCommissionInput,
 } from "@massage-note/contracts";
 import {
-  businessDateFor,
   calculateWorkRecordFinance,
   multiplyByBps,
   resolveCommission,
@@ -281,7 +281,7 @@ export class CommissionsService {
     });
     if (!store) return 0;
     const businessDate = businessDateFor({
-      startAt: new Date(),
+      startAt: deviceNow(),
       timezone: store.timezone,
       cutoffLocal: store.businessCutoffLocal,
     });

@@ -255,7 +255,6 @@ function RecoveryPanel({ storeId, records, giftCardSales, busy, run, reload }: {
 function StorePanel({ store, membership, members, busy, run, reload }: { store: StoreDetails; membership: MembershipSummary; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
   const [name, setName] = useState(store.name);
   const [timezone, setTimezone] = useState(store.timezone);
-  const [cutoff, setCutoff] = useState(store.businessCutoffLocal);
   const [commission, setCommission] = useState((store.globalCommissionBps / 100).toString());
   const [autoDiscountEnabled, setAutoDiscountEnabled] = useState(store.mondayThursdayAutoDiscountEnabled);
   const [autoDiscountThreshold, setAutoDiscountThreshold] = useState(formatMoneyInput(store.mondayThursdayAutoDiscountThresholdCents));
@@ -284,7 +283,7 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
 
   useEffect(() => {
     setSaved(false);
-  }, [name, timezone, cutoff, commission, autoDiscountEnabled, autoDiscountThreshold, autoDiscountAmount, giftCardDiscountEnabled, giftCardDiscountThreshold, giftCardDiscountPercent, closingDefaultLocale, automaticDispatchEnabled]);
+  }, [name, timezone, commission, autoDiscountEnabled, autoDiscountThreshold, autoDiscountAmount, giftCardDiscountEnabled, giftCardDiscountThreshold, giftCardDiscountPercent, closingDefaultLocale, automaticDispatchEnabled]);
 
   return <section className="manage-section">
     <form className="manage-card" onSubmit={(event) => { event.preventDefault(); setSaved(false); void run(async () => {
@@ -296,7 +295,6 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
         version: store.version,
         name,
         timezone,
-        businessCutoffLocal: cutoff,
         globalCommissionBps: parsePercent(commission, "全店默认提成"),
         mondayThursdayAutoDiscountEnabled: autoDiscountEnabled,
         mondayThursdayAutoDiscountThresholdCents: thresholdCents,
@@ -311,7 +309,7 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
       setSaved(true);
     }); }}>
       <div className="manage-heading"><div><p className="eyebrow">基础资料</p><h2>{canManage ? "店铺设置" : "店铺信息"}</h2></div><span className="status-chip">营业中</span></div>
-      <div className="manage-form-grid"><label>店铺名称<input disabled={!canManage} required value={name} onChange={(event) => setName(event.target.value)} /></label><label>店铺代码<input disabled value={store.storeCode} /></label><label>时区<input disabled={!canManage} required value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label className="business-cutoff-field">营业日截止<input disabled={!canManage} type="time" required value={cutoff} onChange={(event) => setCutoff(event.target.value)} /></label><label>全店默认提成（%）<input disabled={!canManage} inputMode="decimal" required value={commission} onChange={(event) => setCommission(event.target.value)} /></label><label>个人日结默认语言<select disabled={!canManage} value={closingDefaultLocale} onChange={(event) => setClosingDefaultLocale(event.target.value as "zh_CN" | "en_US")}><option value="zh_CN">中文</option><option value="en_US">English</option></select></label><label>当前店主<input disabled value={store.ownerMembership?.displayName ?? "—"} /></label></div>
+      <div className="manage-form-grid"><label>店铺名称<input disabled={!canManage} required value={name} onChange={(event) => setName(event.target.value)} /></label><label>店铺代码<input disabled value={store.storeCode} /></label><label>时区<input disabled={!canManage} required value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label>全店默认提成（%）<input disabled={!canManage} inputMode="decimal" required value={commission} onChange={(event) => setCommission(event.target.value)} /></label><label>个人日结默认语言<select disabled={!canManage} value={closingDefaultLocale} onChange={(event) => setClosingDefaultLocale(event.target.value as "zh_CN" | "en_US")}><option value="zh_CN">中文</option><option value="en_US">English</option></select></label><label>当前店主<input disabled value={store.ownerMembership?.displayName ?? "—"} /></label></div>
       <p className="field-help">提成优先顺序：员工项目专属比例 → 员工默认比例 → 项目默认比例 → 全店默认比例。保存员工提成后会重算未日结的当前营业日；已日结和历史记工继续使用原快照。</p>
       <section className={`auto-discount-settings${automaticDispatchEnabled ? " enabled" : ""}`}>
         <div className="auto-discount-heading"><div><strong>每日开门排位</strong><p>按员工最近一次出勤的最终名次，生成今天的员工顺序。</p></div><label className="inline-check"><input type="checkbox" disabled={!canManage} checked={automaticDispatchEnabled} onChange={(event) => setAutomaticDispatchEnabled(event.target.checked)} />开启</label></div>

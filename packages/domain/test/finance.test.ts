@@ -39,7 +39,7 @@ describe("每日流水", () => {
 });
 
 describe("店铺总结算", () => {
-  it("汇总店铺、店长、全部经理和礼物卡净收入", () => {
+  it("汇总店铺、店长和全部经理，礼物卡净收入不重复相加", () => {
     expect(
       calculateStoreSettlement({
         storeIncomeCents: 15_000n,
@@ -53,7 +53,7 @@ describe("店铺总结算", () => {
     ).toEqual({
       giftCardNetIncomeCents: 7_000n,
       creditCardFeeCents: 909n,
-      totalIncomeCents: 41_091n,
+      totalIncomeCents: 34_091n,
     });
   });
 
@@ -71,7 +71,7 @@ describe("店铺总结算", () => {
     ).toEqual({
       giftCardNetIncomeCents: -1_000n,
       creditCardFeeCents: 0n,
-      totalIncomeCents: -1_100n,
+      totalIncomeCents: -100n,
     });
   });
 
@@ -443,4 +443,30 @@ it("营业额计入卖卡实收，服务业绩独立保留", () => {
   expect(calculateRevenue({ discountedFeePerformanceCents: 102000n, giftCardSalesAmountCents: 8000n })).toBe(110000n);
   expect(calculateRevenue({ discountedFeePerformanceCents: 0n, giftCardSalesAmountCents: 8000n })).toBe(8000n);
   expect(calculateRevenue({ discountedFeePerformanceCents: 102000n, giftCardSalesAmountCents: 0n })).toBe(102000n);
+});
+
+describe("两页总收入的礼物卡收支", () => {
+  it.each([
+    [0n, 0n, 6000n],
+    [8000n, 0n, 14000n],
+    [0n, 3000n, 3000n],
+    [8000n, 3000n, 11000n],
+    [0n, 9000n, -3000n],
+  ])("卖卡 %s、用卡 %s 只计入一次", (sales, redemption, expected) => {
+    const storeIncomeCents = calculateStoreIncome({
+      discountedFeePerformanceCents: 10000n, totalTipCents: 2000n,
+      employeeIncomeCents: 8000n, giftCardSalesAmountCents: sales,
+      giftCardRedemptionCents: redemption,
+    });
+    const board = calculateBoardTotalIncome({ storeIncomeCents, workers: [
+      { role: "OWNER", incomeCents: 1200n }, { role: "MANAGER", incomeCents: 800n },
+    ] });
+    const finance = calculateStoreSettlement({ storeIncomeCents,
+      ownerWorkerIncomeCents: 1200n, managerWorkerIncomeCents: 800n,
+      giftCardSalesAmountCents: sales, giftCardRedemptionCents: redemption,
+      nonHighlightedCardAmountCents: 4000n, highlightedCardPaymentCount: 0,
+    });
+    expect(board).toBe(expected);
+    expect(finance.totalIncomeCents).toBe(expected - 100n);
+  });
 });

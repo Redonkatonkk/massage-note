@@ -125,7 +125,7 @@ export function calculateDailyTurnover(input: DailyTurnoverInput): bigint {
 }
 
 /**
- * 店铺总结算先相加四项收入，再扣除信用卡手续费。普通记工按刷卡金额的
+ * 店铺收入已加卖卡实收、减礼物卡核销；总结算复用看板总收入，再扣手续费。普通记工按刷卡金额的
  * 2.5% 收费，高亮且含刷卡付款的记工按每笔 3 美元收费。
  */
 export function calculateStoreSettlement(
@@ -150,11 +150,13 @@ export function calculateStoreSettlement(
     giftCardNetIncomeCents,
     creditCardFeeCents,
     totalIncomeCents:
-      input.storeIncomeCents +
-      ownerWorkerIncomeCents +
-      managerWorkerIncomeCents +
-      giftCardNetIncomeCents -
-      creditCardFeeCents,
+      calculateBoardTotalIncome({
+        storeIncomeCents: input.storeIncomeCents,
+        workers: [
+          { role: "OWNER", incomeCents: ownerWorkerIncomeCents },
+          { role: "MANAGER", incomeCents: managerWorkerIncomeCents },
+        ],
+      }) - creditCardFeeCents,
   };
 }
 

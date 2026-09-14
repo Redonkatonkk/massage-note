@@ -396,6 +396,15 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
             <h2>{employee.displayName}</h2>
             <p className="employee-closing-date">{localizedDate(preview.businessDate, locale)}{preview.activeClosing ? ` · #${preview.activeClosing.cycleNo}` : ""}</p>
           </div>
+          <div className="employee-closing-heading-actions">
+            <div className="employee-closing-image-actions">
+              <button className="primary-action" type="button" disabled={generating} onClick={() => void createImage()}>{generating ? "正在生成…" : generated ? "重新生成图片" : "生成日结图片"}</button>
+              {generated && <button className="secondary-action" type="button" onClick={() => void saveImage()}>保存到相册 / 分享</button>}
+              {canSend && <button className="secondary-action" type="button" disabled={sending} onClick={() => void sendToEmployee()}>{sending ? "正在排队…" : "短信发送给员工"}</button>}
+            </div>
+            {imageMessage && <p className="employee-closing-image-message" role="status">{imageMessage}</p>}
+            {imageError && <p className="form-error" role="alert">{imageError}</p>}
+          </div>
         </div>
         <div className="employee-closing-income-summary" aria-label="已确认收入">
           <div className="employee-closing-income-table" role="table" aria-label="现金刷卡工资汇总">
@@ -477,13 +486,6 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
         </div>
       </section>
 
-      <div className="employee-closing-image-actions">
-        <button className="primary-action" type="button" disabled={generating} onClick={() => void createImage()}>{generating ? "正在生成…" : generated ? "重新生成图片" : "生成日结图片"}</button>
-        {generated && <button className="secondary-action" type="button" onClick={() => void saveImage()}>保存到相册 / 分享</button>}
-        {canSend && <button className="secondary-action" type="button" disabled={sending} onClick={() => void sendToEmployee()}>{sending ? "正在排队…" : "短信发送给员工"}</button>}
-      </div>
-      {imageMessage && <p className="employee-closing-image-message" role="status">{imageMessage}</p>}
-      {imageError && <p className="form-error" role="alert">{imageError}</p>}
       {generated && <figure className="employee-closing-image-preview"><img src={generated.url} alt={`${employee.displayName}的个人日结图片预览`} /><figcaption>图片包含全部逐笔记工；手机可通过系统分享菜单保存到相册。</figcaption></figure>}
     </section>
   );

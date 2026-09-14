@@ -1,3 +1,4 @@
+import { businessDateFor, deviceNow } from "../common/device-time.js";
 import {
   BadRequestException,
   ConflictException,
@@ -12,7 +13,6 @@ import type {
   SettleCashInput,
 } from "@massage-note/contracts";
 import {
-  businessDateFor,
   calculateDailyCashSettlement,
   hasStoreCapability,
 } from "@massage-note/domain";
@@ -400,7 +400,7 @@ export class CashSettlementsService {
       });
     }
     const currentDate = businessDateFor({
-      startAt: new Date(),
+      startAt: deviceNow(),
       timezone: store.timezone,
       cutoffLocal: store.businessCutoffLocal,
     });

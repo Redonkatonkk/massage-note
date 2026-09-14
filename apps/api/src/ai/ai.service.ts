@@ -1,8 +1,8 @@
+import { businessDateFor, deviceNow, deviceTimezone } from "../common/device-time.js";
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, type User } from "@massage-note/database";
 import type { AiMessageInput, AiWorkToolArguments, FinanceQuery } from "@massage-note/contracts";
 import { aiWorkToolArgumentsSchema, financeQuerySchema } from "@massage-note/contracts";
-import { businessDateFor } from "@massage-note/domain";
 import { randomUUID } from "node:crypto";
 import { toJsonSafe } from "../common/json-safe.interceptor.js";
 import { PrismaService } from "../database/prisma.service.js";
@@ -329,7 +329,7 @@ export class AiService {
       const payment = this.paymentFrom(args);
       const addons = this.addonInputs(args.addons, context);
       const discounts = this.discountInputs(args.discounts, context);
-      const create = { employeeMembershipId: employee.id, startAt: args.startAt ?? new Date().toISOString(), serviceItemId: service.id, serviceDurationMinutes: option.durationMinutes };
+      const create = { employeeMembershipId: employee.id, startAt: args.startAt ?? deviceNow().toISOString(), serviceItemId: service.id, serviceDurationMinutes: option.durationMinutes };
       const updateAfterCreate = {
         ...(args.endAt !== undefined ? { endAt: args.endAt } : {}),
         ...(args.note !== undefined ? { note: args.note } : {}),
@@ -374,7 +374,7 @@ export class AiService {
   private async workContext(storeId: string, recordId?: string, ownMembershipId?: string) {
     const store = await this.prisma.store.findFirst({ where: { id: storeId, status: "ACTIVE", deletedAt: null }, select: { timezone: true, businessCutoffLocal: true } });
     if (!store) throw new NotFoundException({ code: "STORE_NOT_FOUND", messageZh: "店铺不存在" });
-    const businessDate = businessDateFor({ startAt: new Date(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
+    const businessDate = businessDateFor({ startAt: deviceNow(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
     const [members, services, addons, discounts, records] = await Promise.all([
       this.prisma.storeMembership.findMany({ where: { storeId, status: "ACTIVE", deletedAt: null, isServiceProvider: true }, select: { id: true, displayName: true } }),
       this.prisma.serviceItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, fullName: true, shortName: true, priceOptions: { select: { durationMinutes: true, priceCents: true }, orderBy: [{ position: "asc" }, { durationMinutes: "asc" }] } } }),
@@ -382,7 +382,7 @@ export class AiService {
       this.prisma.discountItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, name: true, shortName: true, amountCents: true } }),
       this.prisma.workRecord.findMany({ where: { storeId, ...(ownMembershipId ? { employeeMembershipId: ownMembershipId } : {}), ...(recordId ? { id: recordId } : { businessDate: new Date(`${businessDate}T00:00:00.000Z`) }), deletedAt: null }, select: { id: true, employeeMembershipId: true, startAt: true, endAt: true, status: true, mainServiceAmountCents: true, grossFeeBaseCents: true, cashServiceCents: true, cardServiceCents: true, cashTipCents: true, cardTipCents: true, giftCardServiceCents: true, giftCardTipCents: true, giftCardSerialNumber: true, note: true, version: true, employee: { select: { displayName: true } }, serviceSnapshot: { select: { shortName: true, name: true } }, addonSnapshots: { select: { name: true, shortName: true, amountCents: true } }, discountSnapshots: { select: { name: true, amountCents: true } } }, orderBy: { startAt: "desc" } }),
     ]);
-    return { businessDate, timezone: store.timezone, businessCutoffLocal: store.businessCutoffLocal, members, services, addons, discounts, records };
+    return { businessDate, timezone: deviceTimezone(store.timezone), businessCutoffLocal: store.businessCutoffLocal, members, services, addons, discounts, records };
   }
 
   private fallbackCreate(text: string, context: Awaited<ReturnType<AiService["workContext"]>>, ownName: string): AiWorkToolArguments | null {
@@ -486,7 +486,7 @@ export class AiService {
 
   private async financeDates(storeId: string, text: string) {
     const store = await this.prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { timezone: true, businessCutoffLocal: true } });
-    const today = businessDateFor({ startAt: new Date(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
+    const today = businessDateFor({ startAt: deviceNow(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
     const from = new Date(`${today}T00:00:00.000Z`);
     if (text.includes("今天") || text.includes("今日") || /\btoday\b/i.test(text)) return { dateFrom: today, dateTo: today };
     if (text.includes("本月") || /\bthis month\b/i.test(text)) return { dateFrom: `${today.slice(0, 8)}01`, dateTo: today };

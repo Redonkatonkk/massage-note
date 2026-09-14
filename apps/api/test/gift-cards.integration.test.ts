@@ -359,6 +359,7 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
       giftCardSalesAmountCents: 28_500n,
       giftCardRedemptionCents: 2_500n,
       storeIncomeCents: 26_800n,
+      totalIncomeCents: 26_800n,
     });
     expect(summary.filters.paymentMethod).toBe("ALL");
     expect(summary.totals).toMatchObject({
@@ -375,7 +376,7 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
       ownerWorkerIncomeCents: 0n,
       managerWorkerIncomeCents: 0n,
       giftCardNetIncomeCents: 26_000n,
-      totalIncomeCents: 52_800n,
+      totalIncomeCents: 26_800n,
     });
     expect(summary.days).toEqual([
       expect.objectContaining({
@@ -383,6 +384,7 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
         itemCount: 5,
         customerTotalPaidCents: 31_000n,
         dailyTurnoverCents: 28_000n,
+        totalIncomeCents: 26_800n,
       }),
     ]);
     expect(details.records).toHaveLength(2);
@@ -411,6 +413,7 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
       customerTotalPaidCents: 2_500n,
       giftCardRedemptionCents: 2_500n,
       storeIncomeCents: -1_700n,
+      totalIncomeCents: -1_700n,
     });
   });
 

@@ -1,3 +1,4 @@
+import { businessDateFor, deviceNow, deviceTimezone } from "../common/device-time.js";
 import type { SaveWorkRecordInput } from "@massage-note/contracts";
 import {
   BadRequestException,
@@ -17,7 +18,6 @@ import type {
 } from "@massage-note/contracts";
 import {
   DomainError,
-  businessDateFor,
   calculateWorkRecordFinance,
   canWriteWorkRecord,
   hasStoreCapability,
@@ -264,7 +264,7 @@ export class WorkRecordsService {
           storeId,
           employeeMembershipId: employee.id,
           businessDate: new Date(`${businessDate}T00:00:00.000Z`),
-          storeTimezoneSnapshot: store.timezone,
+          storeTimezoneSnapshot: deviceTimezone(store.timezone),
           businessCutoffSnapshot: store.businessCutoffLocal,
           startAt,
           endAt,
@@ -360,7 +360,7 @@ export class WorkRecordsService {
     if (!record) this.throwRecordNotFound();
 
     const currentBusinessDate = businessDateFor({
-      startAt: new Date(),
+      startAt: deviceNow(),
       timezone: record.storeTimezoneSnapshot,
       cutoffLocal: record.businessCutoffSnapshot,
     });
@@ -475,7 +475,9 @@ export class WorkRecordsService {
           }
 
           const startAt = input.startAt ? new Date(input.startAt) : record.startAt;
-          const businessDate = businessDateFor({
+          const businessDate = !input.startAt || startAt.getTime() === record.startAt.getTime()
+            ? this.dateOnly(record.businessDate)
+            : businessDateFor({
             startAt,
             timezone: record.storeTimezoneSnapshot,
             cutoffLocal: record.businessCutoffSnapshot,
@@ -483,7 +485,7 @@ export class WorkRecordsService {
           if (input.businessDate && input.businessDate !== businessDate) {
             throw new BadRequestException({
               code: "BUSINESS_DATE_MISMATCH",
-              messageZh: "营业日必须由开始时间和店铺截止时间自动确定",
+              messageZh: "营业日必须由开始时间的设备本地日期确定",
             });
           }
           const originalBusinessDate = this.dateOnly(record.businessDate);
@@ -1488,7 +1490,8 @@ export class WorkRecordsService {
         sourceAddonItemId = item.id;
         name = item.name;
         shortName = item.shortName;
-        durationMinutes = item.durationMinutes;
+        // Explicit null means no added time; only omitted values use the catalog default.
+        durationMinutes = addon.durationMinutes === undefined ? item.durationMinutes : addon.durationMinutes;
         defaultBps = item.defaultCommissionBps;
       }
       const employeeItemBps = sourceAddonItemId
@@ -1743,7 +1746,7 @@ export class WorkRecordsService {
       });
     }
     const currentBusinessDate = businessDateFor({
-      startAt: new Date(),
+      startAt: deviceNow(),
       timezone: store.timezone,
       cutoffLocal: store.businessCutoffLocal,
     });

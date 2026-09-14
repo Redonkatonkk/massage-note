@@ -1,4 +1,5 @@
-import { Module } from "@nestjs/common";
+import { deviceTimeMiddleware } from "./common/device-time.js";
+import { Module, type NestModule, type MiddlewareConsumer } from "@nestjs/common";
 import { HealthController } from "./health/health.controller.js";
 import { FinanceCalculatorService } from "./finance/finance-calculator.service.js";
 import { AuthModule } from "./auth/auth.module.js";
@@ -39,4 +40,8 @@ import { WorkBotModule } from "./work-bot/work-bot.module.js";
     { provide: APP_INTERCEPTOR, useClass: JsonSafeInterceptor },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(deviceTimeMiddleware).forRoutes("{*path}");
+  }
+}

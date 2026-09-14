@@ -451,7 +451,7 @@ export function TodayBoard({
         <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
         <div title="礼物卡销售实际收款"><span>礼物卡总额</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>
         <div title="折后大费业绩＋小费总额－员工应得＋礼物卡销售－礼物卡核销支出"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
-        <div title="店铺收入＋店长收入＋经理收入"><span>总收入</span><strong>{money(board.statistics.totalIncomeCents)}</strong></div>
+        <div title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费"><span>总收入</span><strong>{money(board.statistics.totalIncomeCents)}</strong></div>
       </section>}
 
       <section className="board-toolbar" aria-label="今日操作">

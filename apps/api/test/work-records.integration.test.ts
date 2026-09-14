@@ -535,22 +535,37 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     expect(withAddon.endAt).toEqual(new Date(startAt.getTime() + 75 * 60_000));
     expect(withAddon.actualDurationMinutes).toBe(75);
 
+    // Editing a catalog add-on must persist the per-record duration on reopening.
+    let edited = withAddon;
+    for (const durationMinutes of [30, 0, null]) {
+      edited = await workRecords.update(
+        actor(employeeId), storeId, durationRecord.id,
+        { version: edited.version, addons: [{ sourceItemId: addonItemId, isCustom: false,
+          name: "热石", shortName: "热石", amountCents: 2_500, durationMinutes }] },
+        `addon-duration-edit-${durationMinutes}-key`, `addon-duration-edit-${durationMinutes}`,
+      );
+      const reopened = await workRecords.get(actor(employeeId), storeId, durationRecord.id);
+      expect(reopened.addonSnapshots[0]?.durationMinutes).toBe(durationMinutes);
+      expect(reopened.actualDurationMinutes).toBe(60 + (durationMinutes ?? 0));
+      expect(reopened.endAt).toEqual(new Date(startAt.getTime() + (60 + (durationMinutes ?? 0)) * 60_000));
+    }
+
     const shiftedStart = new Date(startAt.getTime() + 30 * 60_000);
     const shifted = await workRecords.update(
       actor(employeeId),
       storeId,
       durationRecord.id,
       {
-        version: withAddon.version,
+        version: edited.version,
         startAt: shiftedStart.toISOString(),
       },
       "addon-duration-shift-key-0001",
       "addon-duration-shift",
     );
     expect(shifted.endAt).toEqual(
-      new Date(shiftedStart.getTime() + 75 * 60_000),
+      new Date(shiftedStart.getTime() + 60 * 60_000),
     );
-    expect(shifted.actualDurationMinutes).toBe(75);
+    expect(shifted.actualDurationMinutes).toBe(60);
 
     const withoutAddon = await workRecords.update(
       actor(employeeId),

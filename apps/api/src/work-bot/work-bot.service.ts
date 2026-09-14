@@ -1,3 +1,4 @@
+import { businessDateFor, deviceNow } from "../common/device-time.js";
 import { workBotAvailability } from "./work-bot-availability.js";
 import { workBotStartTime } from "./work-bot-start-time.js";
 import { parseRequest } from "../common/zod-request.js";
@@ -32,7 +33,6 @@ import {
   DomainError,
   hasStoreCapability,
   canWriteWorkRecord,
-  businessDateFor,
   calculateWorkRecordFinance,
   multiplyByBps,
   resolveCommission,
@@ -120,7 +120,7 @@ export class WorkBotService {
     return {
       status: "BOUND" as const,
       protocolVersion: 2,
-      today: businessDateFor({ startAt: new Date(), timezone: group.store.timezone, cutoffLocal: group.store.businessCutoffLocal }),
+      today: businessDateFor({ startAt: deviceNow(), timezone: group.store.timezone, cutoffLocal: group.store.businessCutoffLocal }),
       timezone: group.store.timezone,
       managementSchema: z.toJSONSchema(workBotParsedIntentSchema),
       discounts, addons,
@@ -606,7 +606,7 @@ export class WorkBotService {
     if (!startAt) return this.persistReply(transaction, input, intent, { outcome: "START_TIME_UNCLEAR", reply: "上工时间不明确，尚未记工。请注明最近的实际开始时间，例如‘下午1:00 上工，大力60’；历史补录请在网页处理。" }, group);
     const businessDate = businessDateFor({ startAt, timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
     const actorMembership = await new WorkBotAccess(this.prisma, actorBinding.id).requireActiveMembership(actorBinding.membershipId, store.id, transaction);
-    if (!canWriteWorkRecord({ role: actorMembership.role, isCurrentBusinessDay: businessDate === businessDateFor({ startAt: new Date(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal }), isDayClosed: false })) throw new ForbiddenException("普通员工只能操作当前营业日记工；历史修改需核实经理或店主身份");
+    if (!canWriteWorkRecord({ role: actorMembership.role, isCurrentBusinessDay: businessDate === businessDateFor({ startAt: deviceNow(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal }), isDayClosed: false })) throw new ForbiddenException("普通员工只能操作当前营业日记工；历史修改需核实经理或店主身份");
     await this.assertBusinessDayOpen(transaction, store, businessDate);
     const employee = await transaction.storeMembership.findFirst({ where: { id: targetMembershipId, storeId: store.id, status: "ACTIVE", deletedAt: null, isServiceProvider: true } });
     if (!employee) return this.persistReply(transaction, input, intent, { outcome: "MEMBER_INACTIVE", reply: "绑定的员工已停用，请联系管理员处理。" }, group);

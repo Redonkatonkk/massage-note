@@ -152,8 +152,8 @@ export const financeSummaryMetrics = [
   {
     key: "totalIncomeCents",
     label: "总收入",
-    explanation: "店铺总结算中前四项收入相加，再扣除信用卡手续费。",
-    calculation: "总收入 = 店铺收入 + 店长总收入 + 经理总收入 + 礼物卡收入 − 信用卡手续费。",
+    explanation: "店铺收入已包含卖卡实收减用卡金额（大费和小费）；加回店长和经理收入后扣除信用卡手续费。",
+    calculation: "总收入 = 店铺收入 + 店长总收入 + 经理总收入 − 信用卡手续费。",
   },
 ] as const;
 

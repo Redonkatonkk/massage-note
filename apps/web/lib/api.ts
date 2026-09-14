@@ -45,6 +45,10 @@ export async function apiRequest<T>(
   if (typeof document !== "undefined" && isAppLocale(document.documentElement.lang)) {
     headers.set("Accept-Language", document.documentElement.lang);
   }
+  if (typeof window !== "undefined") {
+    headers.set("X-Device-Timezone", Intl.DateTimeFormat().resolvedOptions().timeZone);
+    headers.set("X-Device-Time", new Date().toISOString());
+  }
   if (idempotent && !headers.has("Idempotency-Key")) headers.set("Idempotency-Key", crypto.randomUUID());
   const response = await fetch(`${apiBase}${path}`, {
     ...requestOptions,

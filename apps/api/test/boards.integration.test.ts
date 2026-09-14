@@ -1,3 +1,4 @@
+import { deviceTimeContext } from "../src/common/device-time.js";
 import { randomInt, randomUUID } from "node:crypto";
 import { ConflictException, ForbiddenException } from "@nestjs/common";
 import type { User } from "@massage-note/database";
@@ -20,6 +21,12 @@ const employeeMembershipId = randomUUID();
 const actor = (id: string) => ({ id }) as User;
 
 describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
+  it("今日日期使用设备时间和时区，不受店铺关门时间影响", async () => {
+    const day = await deviceTimeContext.run({ timezone: "Asia/Tokyo", now: new Date("2026-09-14T03:30:00Z") }, () => boards.currentBusinessDay(actor(ownerId), storeId));
+    expect(day.businessDate).toBe("2026-09-14");
+    expect(day.timezone).toBe("Asia/Tokyo");
+  });
+
   beforeAll(async () => {
     await prisma.user.createMany({
       data: [ownerId, employeeId].map((id, index) => ({

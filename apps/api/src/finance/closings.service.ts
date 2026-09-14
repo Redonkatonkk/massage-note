@@ -1,3 +1,4 @@
+import { businessDateFor, deviceNow } from "../common/device-time.js";
 import {
   BadRequestException,
   ConflictException,
@@ -11,7 +12,6 @@ import type {
   CloseBusinessDayInput,
 } from "@massage-note/contracts";
 import {
-  businessDateFor,
   calculatePersonalClosingCashToSubmit,
   calculatePersonalClosingPaymentDividends,
   calculateStoreIncome,
@@ -388,7 +388,7 @@ export class ClosingsService {
       });
     }
     const currentDate = businessDateFor({
-      startAt: new Date(),
+      startAt: deviceNow(),
       timezone: store.timezone,
       cutoffLocal: store.businessCutoffLocal,
     });

@@ -14,20 +14,6 @@ interface LocalDateTimeParts {
   minute: number;
 }
 
-function parseCutoff(value: string): { hour: number; minute: number } {
-  const match = /^(\d{2}):(\d{2})$/.exec(value);
-  if (!match) {
-    throw new DomainError("INVALID_CUTOFF", "营业日截止时间必须使用 HH:mm 格式");
-  }
-
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour > 23 || minute > 59) {
-    throw new DomainError("INVALID_CUTOFF", "营业日截止时间无效");
-  }
-  return { hour, minute };
-}
-
 function localParts(date: Date, timezone: string): LocalDateTimeParts {
   let formatter: Intl.DateTimeFormat;
   try {
@@ -72,21 +58,6 @@ export function businessDateFor(input: BusinessDayInput): string {
     throw new TypeError("startAt 不是有效时间");
   }
 
-  const cutoff = parseCutoff(input.cutoffLocal);
   const local = localParts(date, input.timezone);
-  const afterCutoff =
-    local.hour > cutoff.hour ||
-    (local.hour === cutoff.hour && local.minute >= cutoff.minute);
-
-  if (!afterCutoff) {
-    return formatDate(local.year, local.month, local.day);
-  }
-
-  const next = new Date(Date.UTC(local.year, local.month - 1, local.day + 1));
-  return formatDate(
-    next.getUTCFullYear(),
-    next.getUTCMonth() + 1,
-    next.getUTCDate(),
-  );
+  return formatDate(local.year, local.month, local.day);
 }
-

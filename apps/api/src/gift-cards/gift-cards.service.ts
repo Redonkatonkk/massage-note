@@ -1,3 +1,4 @@
+import { businessDateFor, deviceNow } from "../common/device-time.js";
 import {
   BadRequestException,
   ConflictException,
@@ -13,7 +14,6 @@ import type {
   UpdateGiftCardSaleInput,
 } from "@massage-note/contracts";
 import {
-  businessDateFor,
   canWriteWorkRecord,
   hasStoreCapability,
   multiplyByBps,
@@ -466,7 +466,7 @@ export class GiftCardsService {
       throw new NotFoundException({ code: "STORE_NOT_FOUND", messageZh: "店铺不存在或已停用" });
     }
     const currentBusinessDate = businessDateFor({
-      startAt: new Date(),
+      startAt: deviceNow(),
       timezone: store.timezone,
       cutoffLocal: store.businessCutoffLocal,
     });

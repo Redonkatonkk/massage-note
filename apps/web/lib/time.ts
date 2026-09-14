@@ -117,14 +117,7 @@ export function businessTimeToIso(
   timezone: string,
   cutoffLocal: string,
 ): string {
-  const calendar = time >= cutoffLocal
-    ? new Date(`${businessDate}T00:00:00.000Z`)
-    : null;
-  if (calendar) calendar.setUTCDate(calendar.getUTCDate() - 1);
-  const calendarDate = calendar
-    ? calendar.toISOString().slice(0, 10)
-    : businessDate;
-  return zonedLocalToIso(`${calendarDate}T${time}`, timezone);
+  return zonedLocalToIso(`${businessDate}T${time}`, timezone);
 }
 
 export function displayTime(instant: string | null, timezone: string): string {

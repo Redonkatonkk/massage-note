@@ -1,3 +1,4 @@
+import { businessDateFor, deviceNow, deviceTimezone } from "../common/device-time.js";
 import {
   BadRequestException,
   ConflictException,
@@ -15,7 +16,6 @@ import type {
   UpdateBoardRowInput,
 } from "@massage-note/contracts";
 import {
-  businessDateFor,
   calculateAverageRevenue,
   calculateRevenue,
   calculateStoreIncome,
@@ -58,13 +58,13 @@ export class BoardsService {
     await this.access.requireActiveMembership(actor.id, storeId);
     const store = await this.findStore(this.prisma, storeId);
     const businessDate = businessDateFor({
-      startAt: new Date(),
-      timezone: store.timezone,
+      startAt: deviceNow(),
+      timezone: deviceTimezone(store.timezone),
       cutoffLocal: store.businessCutoffLocal,
     });
     return {
       businessDate,
-      timezone: store.timezone,
+      timezone: deviceTimezone(store.timezone),
       businessCutoffLocal: store.businessCutoffLocal,
       serverTime: new Date(),
     };
@@ -138,8 +138,8 @@ export class BoardsService {
     );
     const store = await this.findStore(this.prisma, storeId);
     const currentDate = businessDateFor({
-      startAt: new Date(),
-      timezone: store.timezone,
+      startAt: deviceNow(),
+      timezone: deviceTimezone(store.timezone),
       cutoffLocal: store.businessCutoffLocal,
     });
     const personalHistoryMembershipId =
@@ -340,7 +340,7 @@ export class BoardsService {
           const now = new Date();
           const businessDate = businessDateFor({
             startAt: now,
-            timezone: store.timezone,
+            timezone: deviceTimezone(store.timezone),
             cutoffLocal: store.businessCutoffLocal,
           });
           await this.assertDayOpen(transaction, storeId, businessDate);

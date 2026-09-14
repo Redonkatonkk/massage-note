@@ -63,6 +63,8 @@ async function bootstrap(): Promise<void> {
       "Idempotency-Key",
       "X-CSRF-Token",
       "X-Request-Id",
+      "X-Device-Timezone",
+      "X-Device-Time",
     ],
   });
   app.setGlobalPrefix("api/v1");

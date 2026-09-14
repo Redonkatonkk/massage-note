@@ -1,3 +1,4 @@
+import { businessDateFor, deviceNow } from "../common/device-time.js";
 import {
   BadRequestException,
   ForbiddenException,
@@ -7,7 +8,6 @@ import {
 import type { Prisma, User } from "@massage-note/database";
 import type { FinanceQuery } from "@massage-note/contracts";
 import {
-  businessDateFor,
   calculateDailyTurnover,
   calculateAverageRevenue,
   calculateRevenue,
@@ -392,7 +392,7 @@ export class FinanceQueriesService {
       });
     }
     const today = businessDateFor({
-      startAt: new Date(),
+      startAt: deviceNow(),
       timezone: store.timezone,
       cutoffLocal: store.businessCutoffLocal,
     });

@@ -1,6 +1,6 @@
+import { businessDateFor } from "../common/device-time.js";
 import { BadRequestException } from "@nestjs/common";
 import type { WorkBotParsedIntent } from "@massage-note/contracts";
-import { businessDateFor } from "@massage-note/domain";
 
 export function workBotDateRange(intent: Extract<WorkBotParsedIntent, { kind: "QUERY" }>, store: { timezone: string; businessCutoffLocal: string }, now: Date) {
   const today = businessDateFor({ startAt: now, timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });

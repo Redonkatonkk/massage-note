@@ -67,7 +67,6 @@ function StoreSetup({ me, onDone }: { me: MeResponse; onDone: () => Promise<void
   const [mode, setMode] = useState<"choose" | "create" | "join">("choose");
   const [name, setName] = useState("");
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York");
-  const [cutoff, setCutoff] = useState("22:00");
   const [commission, setCommission] = useState("50");
   const [storeCode, setStoreCode] = useState("");
   const [resolvedStore, setResolvedStore] = useState<{ id: string; name: string; storeCode: string } | null>(null);
@@ -79,7 +78,7 @@ function StoreSetup({ me, onDone }: { me: MeResponse; onDone: () => Promise<void
   async function createStore() {
     const percent = Number(commission);
     if (!Number.isFinite(percent) || percent < 0 || percent > 100) throw new Error("全店默认提成必须在 0% 到 100% 之间");
-    await apiRequest("/stores", { method: "POST", idempotent: true, body: { storeCode, name, timezone, businessCutoffLocal: cutoff, globalCommissionBps: Math.round(percent * 100) } });
+    await apiRequest("/stores", { method: "POST", idempotent: true, body: { storeCode, name, timezone, businessCutoffLocal: "00:00", globalCommissionBps: Math.round(percent * 100) } });
     await onDone();
   }
 
@@ -116,7 +115,6 @@ function StoreSetup({ me, onDone }: { me: MeResponse; onDone: () => Promise<void
               <label className="field-label">店铺名称<input required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} /></label>
               <label className="field-label">6 位店铺代码<input inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required value={storeCode} onChange={(event) => setStoreCode(event.target.value.replace(/\D/g, "").slice(0, 6))} /><small>由你自己设置，今后员工使用这个代码申请加入</small></label>
               <label className="field-label">时区<input required value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label>
-              <label className="field-label">营业日截止时间<input type="time" required value={cutoff} onChange={(event) => setCutoff(event.target.value)} /></label>
               <label className="field-label">全店默认提成（%）<input inputMode="decimal" required value={commission} onChange={(event) => setCommission(event.target.value)} /></label>
             </div>
             {error && <p className="form-error" role="alert">{error}</p>}
@@ -201,6 +199,7 @@ function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; o
 export function MassageNoteApp() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [membership, setMembership] = useState<MembershipSummary | null>(null);
+  const currentDayRef = useRef("");
   const [currentDay, setCurrentDay] = useState<CurrentBusinessDay | null>(null);
   const [viewDate, setViewDate] = useState("");
   const viewDateRef = useRef("");
@@ -244,7 +243,8 @@ export function MassageNoteApp() {
     setError("");
     try {
       const day = await apiRequest<CurrentBusinessDay>(`/stores/${selectedMembership.store.id}/business-days/current`);
-      const requestedDate = viewDateRef.current || day.businessDate;
+      const requestedDate = !viewDateRef.current || viewDateRef.current === currentDayRef.current
+        ? day.businessDate : viewDateRef.current;
       const targetDate = requestedDate <= day.businessDate ? requestedDate : day.businessDate;
       const [nextBoard, nextCatalog, nextStoreDetails] = await Promise.all([
         apiRequest<BoardResponse>(`/stores/${selectedMembership.store.id}/boards/${targetDate}`),
@@ -260,7 +260,8 @@ export function MassageNoteApp() {
       if (generation !== storeLoadGeneration.current) return;
       viewDateRef.current = targetDate;
       setViewDate(targetDate);
-      setCurrentDay(day); setBoard(deduplicateBoardRows(nextBoard)); setCatalog(nextCatalog); setStoreDetails(nextStoreDetails); setMembers(nextMembers);
+      currentDayRef.current = day.businessDate;
+      setCurrentDay(day); setBoard(deduplicateBoardRows(nextBoard)); setCatalog(nextCatalog); setStoreDetails({ ...nextStoreDetails, timezone: day.timezone }); setMembers(nextMembers);
     } catch (caught) {
       if (generation === storeLoadGeneration.current) setError(errorMessage(caught));
     }
@@ -268,6 +269,17 @@ export function MassageNoteApp() {
 
   useEffect(() => { void loadMe(); }, [loadMe]);
   useEffect(() => { if (membership) void loadStore(); }, [membership, loadStore]);
+  useEffect(() => {
+    if (!membership) return;
+    let date = new Date().toDateString();
+    const refreshDate = () => {
+      const next = new Date().toDateString();
+      if (next !== date) { date = next; void loadStore(); }
+    };
+    const timer = window.setInterval(refreshDate, 1000);
+    window.addEventListener("focus", refreshDate);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refreshDate); };
+  }, [membership, loadStore]);
   const realtimeState = useStoreRealtime(membership?.store.id, loadStore);
 
   if (loading) return <LoadingPage />;
@@ -281,7 +293,7 @@ export function MassageNoteApp() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div><p className="eyebrow">{membership.store.name} · 店铺代码 {membership.store.storeCode}</p><h1>{viewDate === currentDay.businessDate ? "今日记工" : "历史记工"}</h1><p className="business-date">{chineseDate(viewDate)} · 营业日截止 {currentDay.businessCutoffLocal} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
+        <div><p className="eyebrow">{membership.store.name} · 店铺代码 {membership.store.storeCode}</p><h1>{viewDate === currentDay.businessDate ? "今日记工" : "历史记工"}</h1><p className="business-date">{chineseDate(viewDate)} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
         <div className="topbar-actions">
           {me.memberships.length > 1 && <select className="store-switcher" aria-label="切换店铺" value={membership.store.id} onChange={(event) => {
             const selected = me.memberships.find((item) => item.store.id === event.target.value); if (selected) { storeLoadGeneration.current += 1; viewDateRef.current = ""; setViewDate(""); setMembership(selected); setCurrentDay(null); setBoard(null); setStoreDetails(null); browserStorage.setItem("massage_note_store_id", selected.store.id); }
@@ -292,7 +304,7 @@ export function MassageNoteApp() {
       <section className="history-toolbar" aria-label="切换营业日"><div className="history-date-form"><div className="business-date-field"><span>{membership.role === "EMPLOYEE" ? "查看自己的营业日" : "查看营业日"}</span><BusinessDatePicker storeId={membership.store.id} value={viewDate} max={currentDay.businessDate} ariaLabel="查看营业日" onChange={(value) => { viewDateRef.current = value; void loadStore(); }} /></div></div>{viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => { viewDateRef.current = currentDay.businessDate; void loadStore(); }}>返回今天</button>}<span>{viewDate === currentDay.businessDate ? "当前营业日" : membership.role === "EMPLOYEE" ? "历史营业日；只显示你自己的记工" : "历史营业日；已日结时须先取消日结才能修改"}</span></section>
       {error && <p className="form-error" role="alert">{error}</p>}
       <TodayBoard key={`today-${membership.store.id}-${viewDate}`} membership={membership} store={storeDetails} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} board={board} catalog={catalog} members={members} initialRecordId={initialRecordId || undefined} onInitialRecordOpened={() => { setInitialRecordId(""); const url = new URL(window.location.href); url.searchParams.delete("record"); window.history.replaceState(null, "", `${url.pathname}${url.search}`); }} onReload={loadStore} />
-      <FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} timezone={membership.store.timezone} type="work" onWorkChanged={loadStore} />
+      <FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} timezone={currentDay.timezone} type="work" onWorkChanged={loadStore} />
       <AppNav active="today" storeId={membership.store.id} />
     </main>
   );

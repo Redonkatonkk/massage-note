@@ -232,7 +232,7 @@ export function ManagePageClient() {
         <div><p className="eyebrow">{store.name}</p><h1>店铺设置</h1><p className="business-date">店铺代码 {store.storeCode} · 你的身份：{roleText[membership.role]} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
         <div className="topbar-actions"><a className="store-switcher header-link" href="/help">使用帮助</a><a className="store-switcher header-link" href="/">返回今日记工</a></div>
       </header>
-      <nav className="section-tabs" aria-label="管理页面">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? "active" : ""} onClick={() => setTab(value)}>{label}</button>)}</nav>
+      <nav className="section-tabs" aria-label="管理页面">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? "active" : ""} aria-pressed={tab === value} onClick={() => setTab(value)}>{label}</button>)}</nav>
       {error && <p className="form-error" role="alert">{error}</p>}
       {tab === "store" && <StorePanel store={store} membership={membership} members={members} busy={busy} run={run} reload={loadAll} />}
       {tab === "members" && canManage && <MembersPanel storeId={store.id} dailyRankingEnabled={store.automaticDispatchEnabled} currentRole={membership.role} members={members} requests={requests} catalog={catalog} busy={busy} run={run} reload={loadAll} />}

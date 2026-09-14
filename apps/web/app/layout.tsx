@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import "./globals.css";
+import "./responsive.css";
 import { isAppLocale } from "../lib/i18n";
 import { LanguageProvider } from "./language-provider";
 import { NetworkStatus } from "./network-status";
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  viewportFit: "cover",
   themeColor: "#fffaf3",
 };
 

@@ -161,24 +161,16 @@ export function calculateStoreSettlement(
 }
 
 /**
- * 店铺经营收入把卖卡实收记为收入，把客人用礼物卡付款的金额记为支出。
+ * 店铺收入 = 营业额（已含卖卡实收）+ 小费 - 员工收入 - 礼物卡核销。
  * 结果允许为负数，因此返回 bigint 而不是只允许非负数的 Cents。
  */
 export function calculateStoreIncome(input: StoreIncomeInput): bigint {
-  const discountedFeePerformanceCents = cents(
-    input.discountedFeePerformanceCents,
-  );
-  const totalTipCents = cents(input.totalTipCents);
-  const employeeIncomeCents = cents(input.employeeIncomeCents);
-  const giftCardSalesAmountCents = cents(input.giftCardSalesAmountCents);
-  const giftCardRedemptionCents = cents(input.giftCardRedemptionCents);
-
+  const revenueCents = calculateRevenue(input);
   return (
-    discountedFeePerformanceCents +
-    totalTipCents -
-    employeeIncomeCents +
-    giftCardSalesAmountCents -
-    giftCardRedemptionCents
+    revenueCents +
+    cents(input.totalTipCents) -
+    cents(input.employeeIncomeCents) -
+    cents(input.giftCardRedemptionCents)
   );
 }
 

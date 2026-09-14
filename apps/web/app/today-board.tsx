@@ -445,34 +445,43 @@ export function TodayBoard({
 
   return (
     <>
-      {canManage && <section className={`summary-strip${board.isClosed && board.statistics.recentClosedRevenue ? " summary-strip--with-average" : ""}`} aria-label="今日全店汇总">
-        <div title="折后服务金额＋礼物卡销售实际收款"><span>营业额（折扣后）</span><strong>{money(board.statistics.revenueCents)}</strong></div>
-        {board.isClosed && board.statistics.recentClosedRevenue && <div><span>{`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`}</span><strong>{money(board.statistics.recentClosedRevenue.averageCents)}</strong></div>}
-        <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
-        <div title="礼物卡销售实际收款"><span>礼物卡总额</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>
-        <div title="折后大费业绩＋小费总额－员工应得＋礼物卡销售－礼物卡核销支出"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
-        <div title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费"><span>总收入</span><strong>{money(board.statistics.totalIncomeCents)}</strong></div>
+      {canManage && <section className="board-overview" aria-label="今日全店汇总">
+        <div className="summary-strip board-key-metrics">
+          <div title="折后服务金额＋礼物卡销售实际收款"><span>营业额（折扣后）</span><strong>{money(board.statistics.revenueCents)}</strong></div>
+          <div title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费"><span>总收入</span><strong>{money(board.statistics.totalIncomeCents)}</strong></div>
+        </div>
+        <details className="board-summary-details">
+          <summary>更多汇总</summary>
+          <div className="summary-strip board-extra-metrics">
+            {board.isClosed && board.statistics.recentClosedRevenue && <div><span>{`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`}</span><strong>{money(board.statistics.recentClosedRevenue.averageCents)}</strong></div>}
+            <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
+            <div title="礼物卡销售实际收款"><span>礼物卡总额</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>
+            <div title="营业额（已含卖卡实收）＋小费总额－员工应得－礼物卡核销支出"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
+          </div>
+        </details>
       </section>}
 
       <section className="board-toolbar" aria-label="今日操作">
-        <div>
+        <div className="board-primary-actions">
           <button className="secondary-action" type="button" disabled={busy} onClick={() => run(onReload)}>刷新</button>
           {showEmployeeClockIn && <button className="primary-action" type="button" disabled={busy} onClick={() => run(async () => {
             await apiRequest(`/stores/${membership.store.id}/shifts/clock-in`, { method: "POST", idempotent: true, body: {} });
             setNotice("已上班，并加入今日表格");
             await onReload();
           })}>{busy ? "正在上班…" : "上班"}</button>}
-          {canManage && <>
-            {board.isClosed
-              ? <button className="primary-action board-closing-action" type="button" disabled={busy || deliveryList?.batchAllowed === false} title={deliveryList?.batchBlockedReason ?? undefined} onClick={() => run(queueEmployeeClosings)}>{deliveryList?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>
-              : <button className="primary-action board-closing-action" type="button" disabled={busy} onClick={() => run(closeBusinessDay)}>日结</button>}
-            {deliveryList && <ClosingDeliveryQueueButton key={`${membership.store.id}:${currentDay.businessDate}`} value={deliveryList} busy={busy} onCancel={(delivery) => void run(() => cancelEmployeeClosingDelivery(delivery))} />}
-            {board.isClosed && <>
-              <a className="primary-action board-closing-action" href={financeCashHref(membership.store.id, currentDay.businessDate)}>现金结算</a>
-              <button className="secondary-action board-closing-action" type="button" disabled={busy} onClick={() => run(cancelBusinessDayClosing)}>取消日结</button>
-            </>}
-          </>}
-          {canGenerateRanking && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(rankBoard)}>{dailyRankingActionLabel(board.ranking.rankedAt)}</button>}
+          {canManage && (board.isClosed
+            ? <a className="primary-action board-closing-action" href={financeCashHref(membership.store.id, currentDay.businessDate)}>现金结算</a>
+            : <button className="primary-action board-closing-action" type="button" disabled={busy} onClick={() => run(closeBusinessDay)}>日结</button>)}
+          {(canManage || canGenerateRanking) && <details className="board-more-actions">
+            <summary>更多操作</summary>
+            <div className="board-more-actions__body">
+              {canManage && board.isClosed && <button className="secondary-action" type="button" disabled={busy || deliveryList?.batchAllowed === false} title={deliveryList?.batchBlockedReason ?? undefined} onClick={() => run(queueEmployeeClosings)}>{deliveryList?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>}
+              {canManage && deliveryList && <ClosingDeliveryQueueButton key={currentDay.businessDate} value={deliveryList} busy={busy} onCancel={(delivery) => void run(() => cancelEmployeeClosingDelivery(delivery))} />}
+              {canGenerateRanking && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(rankBoard)}>{dailyRankingActionLabel(board.ranking.rankedAt)}</button>}
+              {canManage && board.isClosed && <button className="secondary-action board-reopen-action" type="button" disabled={busy} onClick={() => run(cancelBusinessDayClosing)}>取消日结</button>}
+            </div>
+          </details>}
+
         </div>
       </section>
 

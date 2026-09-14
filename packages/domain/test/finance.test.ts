@@ -470,3 +470,12 @@ describe("两页总收入的礼物卡收支", () => {
     expect(finance.totalIncomeCents).toBe(expected - 100n);
   });
 });
+
+it("店铺收入复用含卖卡营业额，卖卡收入只计一次", () => {
+  const input = { discountedFeePerformanceCents: 102000n, giftCardSalesAmountCents: 8000n,
+    totalTipCents: 5000n, employeeIncomeCents: 60000n, giftCardRedemptionCents: 3000n };
+  expect(calculateRevenue(input)).toBe(110000n);
+  expect(calculateStoreIncome(input)).toBe(52000n);
+  expect(calculateStoreIncome({ ...input, giftCardSalesAmountCents: 0n })).toBe(44000n);
+  expect(calculateStoreIncome({ ...input, giftCardRedemptionCents: 0n })).toBe(55000n);
+});

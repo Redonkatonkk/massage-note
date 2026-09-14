@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`1.4.23`
+> 适用版本：`1.4.27`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
@@ -108,6 +108,8 @@ MASSAGE_NOTE_TEST_DATABASE_URL='postgresql://massage:massage@localhost:55432/mas
 5. 生产只运行 `prisma migrate deploy`。
 
 ### Web
+
+- 全站响应式规则集中在 `apps/web/app/responsive.css`，在组件基础样式之后加载。新增页面应复用共享页头、分区、表单和导航，并检查 320、390、768、1280px 宽度；验收覆盖中英文及展开状态。
 
 - 同时检查 `zh-CN` 与 `en-US`。
 - 检查手机、iPad/横屏和桌面，确保宽表只在自身容器滚动。

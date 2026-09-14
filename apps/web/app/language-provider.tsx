@@ -151,8 +151,7 @@ export function LanguageProvider({
 
   return (
     <LanguageContext.Provider value={value}>
-      {children}
-      <div className="language-switcher" role="group" aria-label={locale === "zh-CN" ? "选择语言" : "Choose language"}>
+      <div className="app-utility-bar"><div className="language-switcher" role="group" aria-label={locale === "zh-CN" ? "选择语言" : "Choose language"}>
         <button
           className={locale === "zh-CN" ? "active" : ""}
           type="button"
@@ -169,7 +168,8 @@ export function LanguageProvider({
         >
           English
         </button>
-      </div>
+      </div></div>
+      {children}
     </LanguageContext.Provider>
   );
 }

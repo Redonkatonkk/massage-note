@@ -123,7 +123,7 @@ export const financeSummaryMetrics = [
     key: "storeIncomeCents",
     label: "店铺收入",
     explanation: "店铺在当前范围内的经营收入；卖卡记收入，用卡核销记支出。",
-    calculation: "店铺收入 = 折后大费业绩 + 所选小费 − 所选员工收入 + 礼物卡销售收入 − 礼物卡核销支出。按付款方式筛选时，员工收入只计算对应来源。",
+    calculation: "店铺收入 = 营业额（所选折后服务金额＋所选卖卡实收）+ 所选小费 − 所选员工收入 − 礼物卡核销支出。按付款方式筛选时，员工收入只计算对应来源。",
   },
   {
     key: "ownerWorkerIncomeCents",

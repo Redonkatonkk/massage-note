@@ -28,7 +28,7 @@ export function AppNav({ active, storeId }: { active: AppNavPage; storeId?: stri
   return (
     <div className="app-nav-space" style={{ height: navHeight ?? undefined }}>
     <nav ref={navRef} className="bottom-nav" aria-label="主要导航">
-      {items.map((item) => <a key={item.page} className={`bottom-nav__item${active === item.page ? " bottom-nav__item--active" : ""}`} href={item.href}><span aria-hidden="true">{item.icon}</span>{item.label}</a>)}
+      {items.map((item) => <a key={item.page} aria-current={active === item.page ? "page" : undefined} className={`bottom-nav__item${active === item.page ? " bottom-nav__item--active" : ""}`} href={item.href}><span aria-hidden="true">{item.icon}</span>{item.label}</a>)}
     </nav>
     </div>
   );

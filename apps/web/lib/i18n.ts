@@ -9,6 +9,8 @@ export function isAppLocale(value: unknown): value is AppLocale {
 }
 
 const ENGLISH_TRANSLATIONS: Record<string, string> = {
+  "更多汇总": "More totals",
+  "更多操作": "More actions",
   "选择今日上班员工": "Choose today's staff",
   "按点击顺序排列，取消后重新选择会排到最后。": "Staff appear in click order. Deselecting and selecting again moves them to the end.",
   "选择顺序": "Selection order",
@@ -539,6 +541,7 @@ Object.assign(ENGLISH_TRANSLATIONS, {
   "项目／加项": "Service / add-ons",
   "所选付款实收": "Selected payment collected",
   "所选大费工资": "Selected service-fee wages",
+  "店铺收入 = 营业额（所选折后服务金额＋所选卖卡实收）+ 所选小费 − 所选员工收入 − 礼物卡核销支出。按付款方式筛选时，员工收入只计算对应来源。": "Store income = revenue (selected service revenue after discounts + selected gift card receipts) + selected tips − selected employee earnings − gift card redemptions. Payment-method filters include only earnings from the selected sources.",
   "所选小费": "Selected tips",
   "本笔所选收入": "Selected earnings",
   "本笔总收入": "Record earnings",
@@ -1363,7 +1366,7 @@ Object.assign(ENGLISH_TRANSLATIONS, {
   "客人使用礼物卡支付的大费和小费，按店铺支出处理。": "Service fees and tips paid with gift cards are treated as store expense.",
   "礼物卡核销支出 = 礼物卡大费 + 礼物卡小费。": "Gift card redemption expense = gift card service fees + gift card tips.",
   "店铺在当前范围内的经营收入；卖卡记收入，用卡核销记支出。": "Store operating income in the current range; sales count as income and redemptions as expense.",
-  "店铺收入 = 折后大费业绩 + 小费总额 − 员工总收入 + 礼物卡销售收入 − 礼物卡核销支出。": "Store income = performance after discounts + total tips − employee earnings + gift card sale income − gift card redemption expense.",
+  "店铺收入 = 营业额（已含卖卡实收）+ 小费总额 − 员工总收入 − 礼物卡核销支出。": "Store income = revenue (including gift card sales collected) + total tips − employee earnings − gift card redemption expense.",
   "礼物卡与店铺收入": "Gift cards and store income",
   "卖卡全部计入店铺收入；客人使用礼物卡付款时，核销金额计为店铺支出。": "Gift card sales count fully as store income; redeemed gift card payments count as store expense.",
   "礼物卡销售明细": "Gift card sale details",
@@ -1371,7 +1374,7 @@ Object.assign(ENGLISH_TRANSLATIONS, {
   "记工数": "Work records",
   "含服务、小费和礼物卡销售实收": "Includes services, tips, and actual gift card sale receipts",
   "卖卡记收入，核销记支出": "Sales are income; redemptions are expense",
-  "折后大费业绩＋小费总额－员工应得＋礼物卡销售－礼物卡核销支出": "Performance after discounts + tips − employee earnings + gift card sales − gift card redemption expense",
+  "营业额（已含卖卡实收）＋小费总额－员工应得－礼物卡核销支出": "Revenue (including gift card sales collected) + tips − employee earnings − gift card redemption expense",
   "礼物卡大费＋礼物卡小费": "Gift card service fees + gift card tips",
   "折后大费业绩 + 礼物卡销售收入 − 礼物卡核销支出。只在财务汇总的每日小计中显示，不包含小费。": "Performance after discounts + gift card sale income − gift card redemption expense. Shown only in Finance daily subtotals; tips are excluded.",
   "不进入员工现金结算": "Excluded from employee cash settlement",
@@ -1381,9 +1384,9 @@ Object.assign(ENGLISH_TRANSLATIONS, {
   "财务汇总中为实际收到大费 + 小费总额 + 礼物卡销售实际收款；单条记工仍只显示该次服务与小费。": "In finance summaries, service fees collected + total tips + actual gift card sale receipts. An individual work record still shows only that service and its tip.",
   "卖出礼物卡的现金和刷卡实际收款，全部算作店铺收入，不参与员工分成。": "Actual cash and card receipts from gift card sales all count as store income and are not shared with employees.",
   "客人使用礼物卡支付的大费 + 礼物卡小费，全部算作店铺支出。": "Gift card service fees + gift card tips all count as store expense.",
-  "折后大费业绩 + 小费总额 − 员工总收入 + 礼物卡销售收入 − 礼物卡核销支出。": "Performance after discounts + total tips − employee earnings + gift card sale income − gift card redemption expense.",
+  "营业额（已含卖卡实收）+ 小费总额 − 员工总收入 − 礼物卡核销支出。": "Revenue (including gift card sales collected) + total tips − employee earnings − gift card redemption expense.",
   "卖卡实际收款全部计入店铺收入，不参与员工分成；礼物卡销售现金不会计入任何员工的现金结算。客人使用礼物卡支付的大费和小费则作为店铺支出。财务页“礼物卡”标签可查看销售资料及同卡多条使用记录。": "Actual gift card sale receipts all count as store income and are not shared with employees; sale cash is excluded from employee cash settlement. Service fees and tips paid with gift cards count as store expense. Use Finance → Gift cards to view sales and multiple usage records for the same card.",
-  "今日总结显示大费总额、折扣总额、礼物卡销售、礼物卡核销支出和店铺收入，不单独显示小费总额；店铺收入仍按“折后大费业绩＋小费－员工总收入＋礼物卡销售实际收款－礼物卡核销支出”计算。": "Today's summary shows gross service fees, discounts, gift card sales, gift card redemption expense, and store income, without a separate total-tips card. Store income still equals performance after discounts + tips − employee earnings + actual gift card sale receipts − gift card redemption expense.",
+  "今日总结显示大费总额、折扣总额、礼物卡销售、礼物卡核销支出和店铺收入，不单独显示小费总额；店铺收入仍按“营业额（已含卖卡实收）＋小费－员工总收入－礼物卡核销支出”计算。": "Today's summary shows gross service fees, discounts, gift card sales, gift card redemption expense, and store income, without a separate total-tips card. Store income still equals revenue (including gift card sales collected) + tips − employee earnings − gift card redemption expense.",
   "财务汇总的付款方式默认选择“全部”。页面先显示关键结果，再分为项目与业绩、收款构成、礼物卡与店铺收入、工资与现金结算。店铺级全部项目数量、客人总付款和日结合计会纳入礼物卡销售；每日小计改为在营业日后首先显示“今日流水”，按“折后大费业绩＋礼物卡销售收入－礼物卡核销支出”计算，并隐藏全部项目数、记工数、实收服务费、小费和客人总付款。限定员工、仅大费、仅小费或仅高亮记工时，店铺级礼物卡销售不进入该筛选结果。汇总、组成明细和 CSV 导出使用同一筛选口径。卡片右上角的圆形“！”可查看对应词条解释和计算方法；电脑可悬停或聚焦，手机可点击。点击卡片会打开独立组成明细，可在明细内左右滑动。": "The payment method in Finance Summary defaults to All. Key results appear first, followed by Services and performance, Payment breakdown, Gift cards and store income, and Wages and cash settlement. Store-level all item count, total customer payments, and closing totals include gift card sales. Daily subtotals now show Daily turnover immediately after the business date, calculated as performance after discounts + gift card sale income − gift card redemption expense, and hide all item count, work record count, service fees collected, tips, and total customer payments. Store-level gift card sales are excluded when filtering by employee, service fees only, tips only, or highlighted records only. Summary, details, and CSV export use the same filter. Use the round ! on a card for its definition and formula; select a card to open a horizontally scrollable breakdown.",
   "如果同一范围内又卖出一张实收 $95 的礼物卡，并有 $30 礼物卡核销，则全部项目数量增加 1，客人总付款再增加 $95；店铺收入在原公式基础上加 $95、再减 $30。": "If the same range also has a gift card sold for $95 and $30 redeemed, all item count increases by 1 and total customer payments increase by $95; store income adds $95 and then subtracts $30.",
 });

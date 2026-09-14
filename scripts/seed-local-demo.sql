@@ -75,7 +75,9 @@ INSERT INTO store_memberships (
     '10000000-0000-4000-8000-000000000001',
     NULL,
     'EMPLOYEE', '安娜', '安娜', true, 5500, 'ACTIVE', now(), 1, now(), now()
-  )
+  ),
+  ('20000000-0000-4000-8000-000000000004', '10000000-0000-4000-8000-000000000001', NULL, 'EMPLOYEE', '莉莉', '莉莉', true, 6000, 'ACTIVE', now(), 1, now(), now()),
+  ('20000000-0000-4000-8000-000000000005', '10000000-0000-4000-8000-000000000001', NULL, 'EMPLOYEE', '大卫', '大卫', true, 6000, 'ACTIVE', now(), 1, now(), now())
 ON CONFLICT (id) DO UPDATE SET
   user_id = EXCLUDED.user_id,
   role = EXCLUDED.role,
@@ -96,7 +98,10 @@ INSERT INTO service_items (
   default_commission_bps, position, is_enabled, version, created_at, updated_at
 ) VALUES
   ('30000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '60 分钟深层组织按摩', '深层', 60, 10000, 6000, 1, true, 1, now(), now()),
-  ('30000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001', '60 分钟瑞典按摩', '瑞典', 60, 8000, 6000, 2, true, 1, now(), now())
+  ('30000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001', '60 分钟瑞典按摩', '瑞典', 60, 8000, 6000, 2, true, 1, now(), now()),
+  ('30000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000001', '60 分钟足部按摩', '足疗', 60, 7000, 6000, 3, true, 1, now(), now()),
+  ('30000000-0000-4000-8000-000000000004', '10000000-0000-4000-8000-000000000001', '60 分钟舒缓按摩', '舒缓', 60, 9000, 6000, 4, true, 1, now(), now()),
+  ('30000000-0000-4000-8000-000000000005', '10000000-0000-4000-8000-000000000001', '60 分钟运动按摩', '运动', 60, 11000, 6000, 5, true, 1, now(), now())
 ON CONFLICT (id) DO UPDATE SET
   full_name = EXCLUDED.full_name,
   short_name = EXCLUDED.short_name,
@@ -111,7 +116,10 @@ INSERT INTO service_item_price_options (
   id, service_item_id, duration_minutes, price_cents, position, created_at, updated_at
 ) VALUES
   ('31000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 60, 10000, 0, now(), now()),
-  ('31000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000002', 60, 8000, 0, now(), now())
+  ('31000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000002', 60, 8000, 0, now(), now()),
+  ('31000000-0000-4000-8000-000000000003', '30000000-0000-4000-8000-000000000003', 60, 7000, 0, now(), now()),
+  ('31000000-0000-4000-8000-000000000004', '30000000-0000-4000-8000-000000000004', 60, 9000, 0, now(), now()),
+  ('31000000-0000-4000-8000-000000000005', '30000000-0000-4000-8000-000000000005', 60, 11000, 0, now(), now())
 ON CONFLICT (id) DO UPDATE SET price_cents = EXCLUDED.price_cents, updated_at = now();
 
 INSERT INTO addon_items (
@@ -151,7 +159,7 @@ WHERE id::text LIKE '50000000-0000-4000-8000-0000000000%';
 
 WITH settings AS (
   SELECT (timezone('America/New_York', now()))::date AS demo_today
-), seed (
+), historical_seed (
   id, membership_id, day_offset, start_time, main_amount, addon_amount,
   discount_amount, cash_service, card_service, gift_service,
   cash_tip, card_tip, gift_tip, highlighted, note
@@ -169,6 +177,24 @@ WITH settings AS (
     ('50000000-0000-4000-8000-000000000010'::uuid, '20000000-0000-4000-8000-000000000002'::uuid, -2, '12:00'::time, 10000::bigint, 2000::bigint,    0::bigint,    0::bigint, 4000::bigint,  8000::bigint,    0::bigint,  800::bigint, 1000::bigint, true,  '小美礼卡混合单'),
     ('50000000-0000-4000-8000-000000000011'::uuid, '20000000-0000-4000-8000-000000000002'::uuid, -1, '10:30'::time, 10000::bigint,    0::bigint,    0::bigint, 6000::bigint, 4000::bigint,     0::bigint, 1000::bigint, 1000::bigint, 0::bigint, false, '小美混合付款'),
     ('50000000-0000-4000-8000-000000000012'::uuid, '20000000-0000-4000-8000-000000000003'::uuid, -1, '14:30'::time,  8000::bigint, 2000::bigint,    0::bigint, 10000::bigint,   0::bigint,     0::bigint, 1800::bigint,    0::bigint, 0::bigint, false, '安娜现金加项单')
+), seed AS (
+  SELECT * FROM historical_seed
+  UNION ALL
+  SELECT
+    ('50000000-0000-4000-8000-' || lpad((20 + member_index * 6 + entry_index)::text, 12, '0'))::uuid,
+    ('20000000-0000-4000-8000-' || lpad(member_index::text, 12, '0'))::uuid,
+    0, time '09:00' + (entry_index - 1) * interval '90 minutes',
+    price_cents, 0::bigint, 0::bigint,
+    CASE WHEN entry_index % 3 = 1 THEN price_cents WHEN entry_index % 3 = 0 THEN price_cents / 2 ELSE 0 END,
+    CASE WHEN entry_index % 3 = 2 THEN price_cents WHEN entry_index % 3 = 0 THEN price_cents / 2 ELSE 0 END,
+    0::bigint,
+    CASE WHEN entry_index % 3 = 1 THEN 1500 ELSE 0 END::bigint,
+    CASE WHEN entry_index % 3 <> 1 THEN 2000 ELSE 0 END::bigint,
+    0::bigint, entry_index = 2, '今日演示记工 ' || entry_index
+  FROM (VALUES (1, 3), (2, 4), (3, 5), (4, 6), (5, 4)) AS members(member_index, record_count)
+  CROSS JOIN LATERAL generate_series(1, record_count) AS entries(entry_index)
+  JOIN service_items ON service_items.id =
+    ('30000000-0000-4000-8000-' || lpad((((member_index + entry_index - 2) % 5) + 1)::text, 12, '0'))::uuid
 ), calculated AS (
   SELECT
     seed.*,
@@ -177,9 +203,10 @@ WITH settings AS (
     seed.main_amount + seed.addon_amount - seed.discount_amount AS performance_amount,
     seed.cash_service + seed.card_service + seed.gift_service AS collected_amount,
     seed.cash_tip + seed.card_tip + seed.gift_tip AS total_tip,
-    (seed.main_amount * 6000 / 10000) AS main_wage,
-    (seed.addon_amount * 6000 / 10000) AS addon_wage
+    round(seed.main_amount::numeric * member.default_commission_bps / 10000)::bigint AS main_wage,
+    round(seed.addon_amount::numeric * member.default_commission_bps / 10000)::bigint AS addon_wage
   FROM seed CROSS JOIN settings
+  JOIN store_memberships member ON member.id = seed.membership_id
 ), final AS (
   SELECT
     calculated.*,
@@ -253,18 +280,18 @@ INSERT INTO work_record_service_snapshots (
 SELECT
   md5(work.id::text || ':service')::uuid,
   work.id,
-  CASE WHEN work.main_service_amount_cents = 10000
-    THEN '30000000-0000-4000-8000-000000000001'::uuid
-    ELSE '30000000-0000-4000-8000-000000000002'::uuid END,
+  service.id,
   false,
-  CASE WHEN work.main_service_amount_cents = 10000 THEN '60 分钟深层组织按摩' ELSE '60 分钟瑞典按摩' END,
-  CASE WHEN work.main_service_amount_cents = 10000 THEN '深层' ELSE '瑞典' END,
+  service.full_name,
+  service.short_name,
   work.main_service_amount_cents,
-  60,
-  6000,
-  'service_default',
+  service.duration_minutes,
+  member.default_commission_bps,
+  'employee_default',
   work.main_service_wage_cents
 FROM work_records work
+JOIN store_memberships member ON member.id = work.employee_membership_id
+JOIN service_items service ON service.store_id = work.store_id AND service.price_cents = work.main_service_amount_cents AND service.deleted_at IS NULL
 WHERE work.id::text LIKE '50000000-0000-4000-8000-0000000000%';
 
 INSERT INTO work_record_addon_snapshots (
@@ -281,11 +308,12 @@ SELECT
   '热石',
   work.addon_total_cents,
   15,
-  6000,
-  'addon_default',
+  member.default_commission_bps,
+  'employee_default',
   work.addon_wage_cents,
   1
 FROM work_records work
+JOIN store_memberships member ON member.id = work.employee_membership_id
 WHERE work.id::text LIKE '50000000-0000-4000-8000-0000000000%'
   AND work.addon_total_cents > 0;
 

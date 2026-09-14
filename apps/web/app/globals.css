@@ -1157,27 +1157,6 @@ h2 {
   color: var(--muted);
 }
 
-.employee-row--dragging {
-  opacity: 0.45;
-  outline: 2px dashed var(--brand);
-}
-
-.drag-handle {
-  display: inline-grid;
-  min-height: 38px;
-  place-items: center;
-  padding: 0 9px;
-  border-radius: 9px;
-  background: #f4eee7;
-  color: var(--muted);
-  font-size: .85rem;
-  font-weight: 800;
-  cursor: grab;
-  user-select: none;
-}
-
-.drag-handle:active { cursor: grabbing; }
-
 .hidden-badge {
   margin-left: auto;
   padding: 4px 8px;

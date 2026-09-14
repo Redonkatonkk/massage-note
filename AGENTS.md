@@ -5,3 +5,5 @@
 - 根目录 `VERSION` 是版本号唯一来源。按语义版本递增，同步所有 workspace package、镜像标签和当前文档版本标记；完整范围见 [开发指南](docs/engineering/DEVELOPMENT.md)。
 - 完成前运行 `pnpm version:check`、`git diff --check` 和与修改相称的验证。文档改动检查 Markdown 本地链接。
 - 接手时阅读 [AI 接管指南](docs/engineering/AI_HANDOFF.md)，保留已有改动，不覆盖其他任务的工作。
+
+- 每次完成任何项目改动（包括文档或配置）后，都必须重新启动本地开发测试服务，Web 固定使用 3000 端口，并打开 http://localhost:3000 供用户测试；验证页面和 API 就绪后保持进程运行。先确认端口上的进程属于本项目再重启，不得自动改用其他端口或停止无关进程。此操作是本地测试，不代表 NAS 部署授权。

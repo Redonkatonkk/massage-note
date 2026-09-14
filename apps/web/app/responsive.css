@@ -230,3 +230,54 @@ button, summary { overflow-wrap: anywhere; }
 @media (min-width: 761px) and (max-width: 1099px) {
   .floating-ai-root { position: static; display: flex; justify-content: flex-end; margin: 16px 0; }
 }
+
+
+/* Desktop keeps the original complete, single-row summary. */
+.board-desktop-metrics { display: none; }
+@media (min-width: 901px) {
+  .board-mobile-metrics { display: none; }
+  .board-overview .board-desktop-metrics {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .board-overview .board-desktop-metrics:has(> div:nth-child(6)) {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .board-desktop-metrics strong { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+}
+
+/* Expanded employee rows keep identity and totals beside the record track. */
+@media (min-width: 761px) {
+  .employee-row:not(.employee-row--collapsed) { display: grid; grid-template-columns: 168px minmax(0, 1fr); }
+  .employee-row:not(.employee-row--collapsed) .employee-header {
+    flex-direction: column; align-items: stretch; justify-content: flex-start;
+    border-bottom: 0; border-right: 1px solid var(--line); padding: 10px;
+    background: #fcfaf7;
+  }
+  .employee-row:not(.employee-row--collapsed) .employee-toggle {
+    display: grid; grid-template-columns: 30px minmax(0, 1fr); flex: 0 0 auto;
+    width: 100%; min-height: 44px; padding: 0; gap: 6px;
+  }
+  .employee-row:not(.employee-row--collapsed) .employee-avatar { width: 30px; height: 30px; border-radius: 10px; font-size: .9rem; }
+  .employee-row:not(.employee-row--collapsed) .employee-toggle strong { font-size: 1rem; }
+  .employee-row:not(.employee-row--collapsed) .employee-toggle small { font-size: .75rem; }
+  .employee-row:not(.employee-row--collapsed) .chevron { grid-column: 2; margin-left: 0; font-size: .75rem; }
+  .employee-row:not(.employee-row--collapsed) .hidden-badge { grid-column: 1 / -1; }
+  .employee-row:not(.employee-row--collapsed) .row-tools {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; width: 100%;
+    padding: 4px 0 0; gap: 4px; align-items: center;
+  }
+  .employee-row:not(.employee-row--collapsed) .row-management summary { min-height: 44px; padding: 10px 0; font-size: .75rem; white-space: normal; }
+  .employee-row:not(.employee-row--collapsed) .row-management[open] { grid-column: 1 / -1; }
+  .employee-row:not(.employee-row--collapsed) .row-management > div { gap: 2px; padding: 0; }
+  .employee-row:not(.employee-row--collapsed) .row-tools button { min-height: 44px; padding: 6px; font-size: .75rem; }
+  .employee-row:not(.employee-row--collapsed) .row-work-count { min-height: 44px; padding: 0; gap: 3px; font-size: .75rem; }
+  .employee-row:not(.employee-row--collapsed) .row-closing-action { grid-column: 1 / -1; width: 100%; white-space: normal; }
+  .employee-content { grid-template-columns: minmax(0, 1fr) 156px; }
+  .employee-content--records-only { grid-template-columns: minmax(0, 1fr); }
+  .employee-totals { grid-template-columns: 1fr; grid-template-rows: repeat(3, minmax(0, 1fr)); margin: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; }
+  .employee-totals div { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .employee-totals dt { font-size: .75rem; }
+  .employee-totals dd { margin: 0; max-width: 100%; font-size: .95rem; white-space: normal; overflow-wrap: anywhere; }
+  .record-track { padding: 12px; gap: 10px; }
+}

@@ -13,7 +13,6 @@ import { homeClosingAction } from "../lib/closing";
 import {
   canGenerateDailyRanking,
   dailyRankingActionLabel,
-  employmentTypeLabel,
 } from "../lib/daily-ranking";
 import { financeCashHref, financeClosingHref } from "../lib/navigation";
 import { formatUsd } from "../lib/money";
@@ -126,7 +125,6 @@ export function TodayBoard({
   const [startTime, setStartTime] = useState(currentStoreTime(currentDay.timezone));
   const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
   const [closingEmployee, setClosingEmployee] = useState<{ id: string; displayName: string } | null>(null);
-  const [draggingRowId, setDraggingRowId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -432,20 +430,18 @@ export function TodayBoard({
     await onReload();
   }
 
-  async function dropRow(targetRowId: string) {
-    if (!draggingRowId || draggingRowId === targetRowId) return;
-    const rowIds = board.rows.map((row) => row.id);
-    const source = rowIds.indexOf(draggingRowId);
-    const target = rowIds.indexOf(targetRowId);
-    if (source < 0 || target < 0) return;
-    rowIds.splice(target, 0, rowIds.splice(source, 1)[0]!);
-    setDraggingRowId(null);
-    await saveRowOrder(rowIds);
-  }
-
   return (
     <>
       {canManage && <section className="board-overview" aria-label="今日全店汇总">
+        <div className="summary-strip board-desktop-metrics">
+          <div title="折后服务金额＋礼物卡销售实际收款"><span>营业额（折扣后）</span><strong>{money(board.statistics.revenueCents)}</strong></div>
+            {board.isClosed && board.statistics.recentClosedRevenue && <div><span>{`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`}</span><strong>{money(board.statistics.recentClosedRevenue.averageCents)}</strong></div>}
+            <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
+            <div title="礼物卡销售实际收款"><span>礼物卡总额</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>
+            <div title="营业额（已含卖卡实收）＋小费总额－员工应得－礼物卡核销支出"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
+          <div title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费"><span>总收入</span><strong>{money(board.statistics.totalIncomeCents)}</strong></div>
+        </div>
+        <div className="board-mobile-metrics">
         <div className="summary-strip board-key-metrics">
           <div title="折后服务金额＋礼物卡销售实际收款"><span>营业额（折扣后）</span><strong>{money(board.statistics.revenueCents)}</strong></div>
           <div title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费"><span>总收入</span><strong>{money(board.statistics.totalIncomeCents)}</strong></div>
@@ -459,6 +455,7 @@ export function TodayBoard({
             <div title="营业额（已含卖卡实收）＋小费总额－员工应得－礼物卡核销支出"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
           </div>
         </details>
+        </div>
       </section>}
 
       <section className="board-toolbar" aria-label="今日操作">
@@ -508,7 +505,7 @@ export function TodayBoard({
           });
           const officialPosition = board.rows.filter((candidate) => !candidate.isHidden).findIndex((candidate) => candidate.id === row.id) + 1;
           return (
-            <article className={`employee-row${row.isHidden && canManage ? " employee-row--hidden" : ""}${draggingRowId === row.id ? " employee-row--dragging" : ""}`} key={row.id} onDragOver={canManage && !board.isClosed ? (event) => event.preventDefault() : undefined} onDrop={canManage && !board.isClosed ? () => void run(() => dropRow(row.id)) : undefined}>
+            <article className={`employee-row${isCollapsed ? " employee-row--collapsed" : ""}${row.isHidden && canManage ? " employee-row--hidden" : ""}`} key={row.id}>
               <header className="employee-header">
                 <button
                   className="employee-toggle"
@@ -520,14 +517,13 @@ export function TodayBoard({
                   <span>
                     <strong>{board.ranking.enabled && !row.isHidden && <span className="ranking-number">{officialPosition}</span>}{row.membership.displayName}</strong>
                     <small className={activeRecord ? "on-duty" : "off-duty"}>{workStatus}</small>
-                    {board.ranking.enabled && <small>{employmentTypeLabel(row.membership.employmentType)}</small>}
                   </span>
                   {row.isHidden && canManage && <em className="hidden-badge">已隐藏</em>}
                   <span className="chevron" aria-hidden="true">{isCollapsed ? "展开" : "收起"}</span>
                 </button>
                 <div className="row-tools">
                   {canManage && !board.isClosed && <details className="row-management"><summary>员工操作</summary><div>
-                    {!board.isClosed && <><span className="drag-handle" draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDraggingRowId(row.id); }} onDragEnd={() => setDraggingRowId(null)} title="按住并拖动整行排序">拖动排序</span><button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button><button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button></>}
+                    {!board.isClosed && <><button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button><button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button></>}
                     {board.ranking.enabled && !board.isClosed && <button type="button" disabled={busy} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}/remove`, { method: "POST", idempotent: true, body: { version: row.version } }); setNotice(`已移除 ${row.membership.displayName}`); await onReload(); })}>移除</button>}
                     {!board.isClosed && <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>}
                   </div></details>}

@@ -903,10 +903,7 @@ export function RecordEditor({
         <footer className="editor-actions">
           <button className="delete-record" type="button" disabled={busy || isClosed} onClick={() => run(async () => {
             if (!window.confirm("确认删除这条记工吗？删除后普通页面将隐藏，店长或经理可以恢复。")) return;
-            const answer = window.prompt("删除原因（可不填）");
-            if (answer === null) return;
-            const reason = answer.trim() || undefined;
-            await apiRequest(`/stores/${storeId}/work-records/${record.id}`, { method: "DELETE", idempotent: true, body: { version: record.version, ...(reason ? { reason } : {}) } });
+            await apiRequest(`/stores/${storeId}/work-records/${record.id}`, { method: "DELETE", idempotent: true, body: { version: record.version } });
             await finish();
           })}>删除记录</button>
           <span />

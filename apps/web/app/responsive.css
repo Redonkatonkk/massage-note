@@ -281,3 +281,15 @@ button, summary { overflow-wrap: anywhere; }
   .employee-totals dd { margin: 0; max-width: 100%; font-size: .95rem; white-space: normal; overflow-wrap: anywhere; }
   .record-track { padding: 12px; gap: 10px; }
 }
+
+/* Keep date selection and daily actions together above the board summary. */
+.business-day-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.business-day-toolbar > .history-toolbar { flex: 1 1 auto; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; }
+.business-day-toolbar > .board-toolbar { flex: 0 1 auto; min-width: 0; margin: 0 0 0 auto; }
+.business-day-toolbar .board-more-actions { flex: 0 1 auto; }
+.business-day-toolbar .board-more-actions > summary { white-space: nowrap; }
+@media (max-width: 760px) {
+  .business-day-toolbar > .history-toolbar { flex-basis: 100%; }
+  .business-day-toolbar > .board-toolbar { flex-basis: 100%; margin-left: 0; }
+  .business-day-toolbar .board-more-actions { flex: 1 1 140px; }
+}

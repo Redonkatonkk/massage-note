@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`1.4.34`
+> 适用版本：`1.4.36`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
@@ -108,6 +108,8 @@ MASSAGE_NOTE_TEST_DATABASE_URL='postgresql://massage:massage@localhost:55432/mas
 5. 生产只运行 `prisma migrate deploy`。
 
 ### Web
+
+- 记工页通过 `apps/web/lib/refresh-queue.ts` 串行合并刷新；读取期间收到的新通知必须触发一次后续读取，避免遗漏提交。切店或卸载时取消排队读取并使旧响应失效。员工列表与表格、目录、店铺详情并行读取。
 
 - 全站响应式规则集中在 `apps/web/app/responsive.css`，在组件基础样式之后加载。新增页面应复用共享页头、分区、表单和导航，并检查 320、390、768、1280px 宽度；验收覆盖中英文及展开状态。
 

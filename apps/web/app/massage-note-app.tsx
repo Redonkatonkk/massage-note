@@ -1,5 +1,6 @@
 "use client";
 
+import { createRefreshQueue } from "../lib/refresh-queue";
 import { browserStorage } from "../lib/browser-storage";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -236,7 +237,8 @@ export function MassageNoteApp() {
     } finally { setLoading(false); }
   }, []);
 
-  const loadStore = useCallback(async () => {
+  const refreshQueue = useRef<ReturnType<typeof createRefreshQueue> | null>(null);
+  const readStore = useCallback(async () => {
     if (!membership) return;
     const generation = ++storeLoadGeneration.current;
     const selectedMembership = membership;
@@ -246,14 +248,17 @@ export function MassageNoteApp() {
       const requestedDate = !viewDateRef.current || viewDateRef.current === currentDayRef.current
         ? day.businessDate : viewDateRef.current;
       const targetDate = requestedDate <= day.businessDate ? requestedDate : day.businessDate;
-      const [nextBoard, nextCatalog, nextStoreDetails] = await Promise.all([
+      const [nextBoard, nextCatalog, nextStoreDetails, fetchedMembers] = await Promise.all([
         apiRequest<BoardResponse>(`/stores/${selectedMembership.store.id}/boards/${targetDate}`),
         apiRequest<CatalogResponse>(`/stores/${selectedMembership.store.id}/catalog`),
         apiRequest<StoreDetails>(`/stores/${selectedMembership.store.id}`),
+        selectedMembership.role !== "EMPLOYEE"
+          ? apiRequest<StoreMember[]>(`/stores/${selectedMembership.store.id}/members`)
+          : Promise.resolve(null),
       ]);
       let nextMembers: StoreMember[];
       if (selectedMembership.role !== "EMPLOYEE") {
-        nextMembers = await apiRequest<StoreMember[]>(`/stores/${selectedMembership.store.id}/members`);
+        nextMembers = fetchedMembers!;
       } else {
         nextMembers = nextBoard.rows.map((row) => ({ ...row.membership, version: 1, defaultCommissionBps: null, closingDeliveryEnabled: false, closingDeliveryPhoneE164: null, closingImageLocale: null, deletedAt: null }));
       }
@@ -266,6 +271,20 @@ export function MassageNoteApp() {
       if (generation === storeLoadGeneration.current) setError(errorMessage(caught));
     }
   }, [membership]);
+
+  useEffect(() => {
+    const queue = createRefreshQueue(readStore);
+    refreshQueue.current = queue;
+    return () => {
+      queue.dispose();
+      storeLoadGeneration.current += 1;
+    };
+  }, [readStore]);
+  const loadStore = useCallback(() => {
+    // Invalidate an in-flight response immediately, including a date change.
+    storeLoadGeneration.current += 1;
+    return refreshQueue.current?.request() ?? Promise.resolve();
+  }, [readStore]);
 
   useEffect(() => { void loadMe(); }, [loadMe]);
   useEffect(() => { if (membership) void loadStore(); }, [membership, loadStore]);
@@ -301,9 +320,10 @@ export function MassageNoteApp() {
           <button className="store-switcher" type="button" onClick={() => apiRequest("/auth/session", { method: "DELETE" }).finally(() => window.location.replace("/login"))}>退出</button>
         </div>
       </header>
-      <section className="history-toolbar" aria-label="切换营业日"><div className="history-date-form"><div className="business-date-field"><span>{membership.role === "EMPLOYEE" ? "查看自己的营业日" : "查看营业日"}</span><BusinessDatePicker storeId={membership.store.id} value={viewDate} max={currentDay.businessDate} ariaLabel="查看营业日" onChange={(value) => { viewDateRef.current = value; void loadStore(); }} /></div></div>{viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => { viewDateRef.current = currentDay.businessDate; void loadStore(); }}>返回今天</button>}<span>{viewDate === currentDay.businessDate ? "当前营业日" : membership.role === "EMPLOYEE" ? "历史营业日；只显示你自己的记工" : "历史营业日；已日结时须先取消日结才能修改"}</span></section>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <TodayBoard key={`today-${membership.store.id}-${viewDate}`} membership={membership} store={storeDetails} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} board={board} catalog={catalog} members={members} initialRecordId={initialRecordId || undefined} onInitialRecordOpened={() => { setInitialRecordId(""); const url = new URL(window.location.href); url.searchParams.delete("record"); window.history.replaceState(null, "", `${url.pathname}${url.search}`); }} onReload={loadStore} />
+      <TodayBoard dateControls={
+      <section className="history-toolbar" aria-label="切换营业日"><div className="history-date-form"><div className="business-date-field"><span>{membership.role === "EMPLOYEE" ? "查看自己的营业日" : "查看营业日"}</span><BusinessDatePicker storeId={membership.store.id} value={viewDate} max={currentDay.businessDate} ariaLabel="查看营业日" onChange={(value) => { viewDateRef.current = value; void loadStore(); }} /></div></div>{viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => { viewDateRef.current = currentDay.businessDate; void loadStore(); }}>返回今天</button>}<span>{viewDate === currentDay.businessDate ? "当前营业日" : membership.role === "EMPLOYEE" ? "历史营业日；只显示你自己的记工" : "历史营业日；已日结时须先取消日结才能修改"}</span></section>
+      } key={`today-${membership.store.id}-${viewDate}`} membership={membership} store={storeDetails} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} board={board} catalog={catalog} members={members} initialRecordId={initialRecordId || undefined} onInitialRecordOpened={() => { setInitialRecordId(""); const url = new URL(window.location.href); url.searchParams.delete("record"); window.history.replaceState(null, "", `${url.pathname}${url.search}`); }} onReload={loadStore} />
       <FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} timezone={currentDay.timezone} type="work" onWorkChanged={loadStore} />
       <AppNav active="today" storeId={membership.store.id} />
     </main>

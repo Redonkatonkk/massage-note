@@ -576,9 +576,15 @@ export function TodayBoard({
                           </span>
                         </span>
                         <span className="record-time">{displayTime(record.startAt, currentDay.timezone)}–{displayTime(record.endAt, currentDay.timezone)}</span>
-                        <span className="record-money"><b>{money(record.grossFeeBaseCents)}</b><small>小费 {money(record.totalTipCents)}</small></span>
-                        <span className="record-payment-summary">
-                          <span className="record-payment-row"><span>实收</span><PaymentBreakdown status={record.status} cashCents={record.cashServiceCents} cardCents={record.cardServiceCents} giftCardCents={record.giftCardServiceCents} /></span>
+                        <span className="record-money">
+                          <span className="record-service-amount">
+                            <b className={record.status === "CONFIRMED" && (record.cardServiceCents ?? 0) > 0 ? "record-payment-amount record-payment-amount--card" : undefined}
+                              title={record.status === "CONFIRMED" && (record.cardServiceCents ?? 0) > 0 ? "刷卡" : undefined}>
+                              {money(record.grossFeeBaseCents)}
+                            </b>
+                            {record.status === "CONFIRMED" && (record.cashServiceCents ?? 0) > 0 && ((record.cardServiceCents ?? 0) > 0 || (record.giftCardServiceCents ?? 0) > 0) && <small>现金</small>}
+                            {record.status === "CONFIRMED" && (record.giftCardServiceCents ?? 0) > 0 && <small className="record-payment-amount record-payment-amount--gift-card">礼卡</small>}
+                          </span>
                           <span className="record-payment-row"><span>小费</span><PaymentBreakdown status={record.status} cashCents={record.cashTipCents} cardCents={record.cardTipCents} giftCardCents={record.giftCardTipCents} zeroLabel="0" /></span>
                         </span>
                         {hasPaymentMismatch && (

@@ -297,7 +297,7 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "待填写": "Not entered",
   "礼卡": "Gift card",
   "记工卡片的付款金额中，细线框内是刷卡，未加框是现金；混合付款按“框内刷卡金额 + 无框现金金额”显示，例如刷卡 $30、现金 $50 会显示为 `[30]+50`。礼物卡付款会直接标出“礼卡”。": "On each record card, an outlined amount is a card payment and an unboxed amount is cash. Mixed payments show outlined card + unboxed cash; for example, $30 by card and $50 cash appears as [30]+50. Gift card payments are labeled Gift card.",
-  "记工卡片的付款金额中，细线框内是刷卡，未加框是现金；混合付款按“框内刷卡金额 + 无框现金金额”显示，例如刷卡 $30、现金 $50 会显示为 `[30]+50`。礼物卡付款会直接标出“礼卡”；小费为零时直接显示数字 0。": "On each record card, an outlined amount is a card payment and an unboxed amount is cash. Mixed payments show outlined card + unboxed cash; for example, $30 by card and $50 cash appears as [30]+50. Gift card payments are labeled Gift card, and a zero tip is shown simply as 0.",
+  "记工卡片只显示折前大费与一行小费，不重复显示实收金额；折扣见右上角 off 标记。大费含刷卡付款时加细线框，混合付款另标现金或礼卡；小费按付款方式显示，刷卡加框、现金不加框、礼卡带文字，零小费显示 0。": "Record cards show the pre-discount service amount and one tip row, without repeating collected amounts. Discounts appear in the off badge. Service amounts are outlined when payment includes a card; mixed payments also label cash or gift card. Tips show an outline for card, no outline for cash, and a label for gift card; zero tips show 0.",
   "已确认记录的实收服务费与应收金额不一致时，卡片右下角显示红色“！”。该标记不比较小费，小费为 0 不会触发。": "A red ! appears at the lower right of a confirmed record when collected service fees do not match the amount due. Tips are not part of this check, and a zero tip does not trigger it.",
   "现金＋刷卡": "Cash + card",
   "现金": "Cash",

@@ -357,8 +357,8 @@ h2 {
 .add-record {
   width: 208px;
   min-width: 208px;
-  min-height: 162px;
-  padding: 15px;
+  min-height: 132px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--surface);
@@ -371,7 +371,7 @@ h2 {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 5px;
 }
 
 .record-card:hover,
@@ -406,7 +406,7 @@ h2 {
   border-color: #b88d00;
 }
 
-.record-card--payment-mismatch .record-payment-summary {
+.record-card--payment-mismatch .record-money {
   padding-right: 26px;
 }
 
@@ -513,12 +513,11 @@ h2 {
   color: var(--muted);
 }
 
-.record-payment-summary {
-  display: grid;
+.record-service-amount {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 5px;
-  margin-top: auto;
-  padding-top: 7px;
-  border-top: 1px solid rgba(80, 61, 47, 0.12);
 }
 
 .record-payment-row {

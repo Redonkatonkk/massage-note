@@ -412,10 +412,18 @@ h2 {
   padding-right: 26px;
 }
 
-.record-payment-mismatch-badge {
+.record-card--pending .record-money {
+  padding-right: 54px;
+}
+
+.record-payment-mismatch-badge,
+.record-pending-badge {
   position: absolute;
-  right: 10px;
+  right: 6px;
   bottom: 10px;
+}
+
+.record-payment-mismatch-badge {
   display: grid;
   width: 23px;
   height: 23px;
@@ -427,6 +435,21 @@ h2 {
   font-size: .9rem;
   font-weight: 900;
   line-height: 1;
+}
+
+.record-pending-badge {
+  display: inline-flex;
+  min-height: 23px;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #db8b28;
+  color: #fff;
+  font-size: .75rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .record-card__topline {
@@ -449,16 +472,6 @@ h2 {
   align-items: center;
   justify-content: flex-end;
   gap: 5px;
-}
-
-.record-card__topline em {
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: #db8b28;
-  color: #fff;
-  font-size: .85rem;
-  font-style: normal;
-  font-weight: 800;
 }
 
 .record-addon-badge {

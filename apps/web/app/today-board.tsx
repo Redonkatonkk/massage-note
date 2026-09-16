@@ -572,7 +572,6 @@ export function TodayBoard({
                                 {discountBadgeText(record.discountTotalCents)}
                               </span>
                             )}
-                            {record.status === "PENDING_PAYMENT" && <em>待结账</em>}
                           </span>
                         </span>
                         <span className="record-time">{displayTime(record.startAt, currentDay.timezone)}–{displayTime(record.endAt, currentDay.timezone)}</span>
@@ -590,6 +589,9 @@ export function TodayBoard({
                             aria-label={`付款差额 ${money(Math.abs(record.paymentDifferenceCents ?? 0))}`}
                             title="实收服务费与应收金额不一致"
                           >!</span>
+                        )}
+                        {record.status === "PENDING_PAYMENT" && (
+                          <span className="record-pending-badge">待结账</span>
                         )}
                       </button>
                       );

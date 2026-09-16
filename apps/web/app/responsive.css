@@ -124,7 +124,7 @@ button, summary { overflow-wrap: anywhere; }
   .employee-totals dt { font-size: .75rem; }
   .employee-totals dd { font-size: .9rem; white-space: normal; overflow-wrap: anywhere; }
   .row-tools button, .row-tools .row-closing-action, .row-management summary { min-height: 44px; font-weight: 600; }
-  .record-card, .add-record { width: 208px; min-width: 208px; border-radius: 12px; }
+  .record-card, .add-record { border-radius: 12px; }
   .gift-card-sales__header { flex-wrap: wrap; gap: 10px; }
   .gift-card-sales__header h2 { font-size: 1.2rem; }
   .finance-shell .section-tabs, .manage-shell .section-tabs {
@@ -279,7 +279,7 @@ button, summary { overflow-wrap: anywhere; }
   .employee-totals div { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
   .employee-totals dt { font-size: .75rem; }
   .employee-totals dd { margin: 0; max-width: 100%; font-size: .95rem; white-space: normal; overflow-wrap: anywhere; }
-  .record-track { padding: 12px; gap: 10px; }
+  .record-track { padding: 6px 12px; gap: 10px; }
 }
 
 /* Keep date selection and daily actions together above the board summary. */

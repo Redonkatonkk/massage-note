@@ -355,10 +355,11 @@ h2 {
 
 .record-card,
 .add-record {
-  width: 208px;
-  min-width: 208px;
+  flex: 0 0 177px;
+  width: 177px;
+  min-width: 177px;
   min-height: 132px;
-  padding: 12px;
+  padding: 12px 6px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--surface);
@@ -371,7 +372,8 @@ h2 {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .record-card:hover,
@@ -495,14 +497,16 @@ h2 {
 }
 
 .record-time {
+  white-space: nowrap;
   color: var(--muted);
-  font-size: .85rem;
+  font-size: .95rem;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .record-money {
   display: grid;
-  gap: 2px;
-  margin-top: 4px;
+  gap: 6px;
 }
 
 .record-money b {
@@ -518,6 +522,13 @@ h2 {
   align-items: center;
   flex-wrap: wrap;
   gap: 5px;
+}
+
+.record-service-amount > .record-payment-breakdown,
+.record-service-amount > .record-payment-empty {
+  color: var(--ink);
+  font-size: 1.25rem;
+  font-weight: 850;
 }
 
 .record-payment-row {
@@ -3268,7 +3279,7 @@ body { position: relative; }
 .board-toolbar .board-closing-action { gap: 5px; text-decoration: none; flex-shrink: 0; }
 
 
-.record-track-container { position: relative; min-width: 0; }
+.record-track-container { position: relative; display: grid; min-width: 0; }
 .record-track-jump { display: none; }
 
 @media (min-width: 901px) and (hover: hover) and (pointer: fine) {

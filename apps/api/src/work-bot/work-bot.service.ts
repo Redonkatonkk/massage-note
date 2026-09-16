@@ -706,7 +706,7 @@ export class WorkBotService {
     const details: UpdateWorkRecordInput = { version: record.version };
     if (intent.isHighlighted !== undefined) details.isHighlighted = intent.isHighlighted;
     if (intent.discounts?.length) {
-      details.discounts = record.discountSnapshots.filter(d => !d.isAutomatic).map(d => ({ sourceItemId: d.sourceDiscountItemId, isCustom: d.isCustom, name: d.name, amountCents: Number(d.amountCents) }));
+      details.discounts = record.discountSnapshots.filter(d => !d.isAutomatic).map(d => ({ sourceItemId: d.sourceDiscountItemId, isCustom: d.isCustom, name: d.name, amountCents: Number(d.amountCents), rateBps: d.rateBps }));
       const catalog = await transaction.discountItem.findMany({ where: { storeId: group.storeId, isEnabled: true, deletedAt: null } });
       for (const selection of intent.discounts) {
         if (selection.action === "REMOVE") {

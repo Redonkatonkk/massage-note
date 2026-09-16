@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { displayUsPhone, usPhoneToE164 } from "../../lib/member-closing-delivery";
 import { apiRequest, errorMessage } from "../../lib/api";
 import { formatCommissionRate } from "../../lib/employee-subtotal";
 import { formatUsdPrecise } from "../../lib/money";
@@ -50,7 +51,7 @@ function EmployeeSummaryDeliveryHistory({
                 <tr key={item.id}>
                   <td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td>
                   <td>{paymentLabel(item.paymentScope)}</td>
-                  <td>{item.recipientPhoneE164}</td>
+                  <td>{displayUsPhone(item.recipientPhoneE164)}</td>
                   <td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{deliveryStage(item)}</span></td>
                   <td>{item.attemptCount}</td>
                   <td>{item.lastError || "—"}</td>
@@ -127,14 +128,14 @@ export function EmployeeSubtotalSection({
   run: (action: () => Promise<void>) => Promise<void>;
   onViewDetails: (membershipId: string, label: string) => void;
 }) {
-  const [recipientPhone, setRecipientPhone] = useState(ownerPhone);
+  const [recipientPhone, setRecipientPhone] = useState(displayUsPhone(ownerPhone));
   const [deliveries, setDeliveries] = useState<EmployeeSettlementDeliveryList | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sendMessage, setSendMessage] = useState("");
   const [sending, setSending] = useState(false);
   const loadDeliveries = useCallback(async () => setDeliveries(await apiRequest<EmployeeSettlementDeliveryList>(`/stores/${storeId}/employee-settlements/summary-deliveries`)), [storeId]);
 
-  useEffect(() => { setRecipientPhone((current) => current || ownerPhone); }, [ownerPhone]);
+  useEffect(() => { setRecipientPhone((current) => current || displayUsPhone(ownerPhone)); }, [ownerPhone]);
   useEffect(() => { if (canSend) void loadDeliveries().catch(() => undefined); }, [canSend, loadDeliveries]);
   useEffect(() => {
     if (!deliveries?.deliveries.some((item) => item.status === "QUEUED" || item.status === "CLAIMED")) return;
@@ -155,7 +156,7 @@ export function EmployeeSubtotalSection({
       await apiRequest(`/stores/${storeId}/employee-settlements/summary-deliveries`, {
         method: "POST",
         idempotent: true,
-        body: { ...summary.filters, recipientPhoneE164: recipientPhone.trim() },
+        body: { ...summary.filters, recipientPhoneE164: usPhoneToE164(recipientPhone) },
       });
       await loadDeliveries();
       setSendMessage("员工小计已加入发送队列，可在发送记录中查看进度。");
@@ -186,7 +187,7 @@ export function EmployeeSubtotalSection({
           <p>{summary.filters.dateFrom} 至 {summary.filters.dateTo} · {paymentLabel(summary.filters.paymentMethod)} · {amountLabel(summary.filters.amountType)}。金额保留到美分；提成比例显示员工当前设置。</p>
         </div>
         {canSend && <div className="employee-subtotal-send-panel">
-          <label>接收号码<input type="tel" inputMode="tel" autoComplete="tel" placeholder="例如 +16465551234" value={recipientPhone} onChange={(event) => { setRecipientPhone(event.target.value); setSendMessage(""); }} /></label>
+          <label>接收号码<input type="tel" inputMode="tel" autoComplete="tel-national" value={recipientPhone} onChange={(event) => { setRecipientPhone(displayUsPhone(event.target.value)); setSendMessage(""); }} /></label>
           <button className="primary-action" type="button" disabled={busy || sending || summary.employees.length === 0 || !recipientPhone.trim()} onClick={() => void run(send)}>{sending ? "正在排队…" : "短信发送"}</button>
           <button className="secondary-action settlement-history-button" type="button" onClick={() => setHistoryOpen(true)}>发送记录 <span>{deliveries?.deliveries.length ?? 0}</span></button>
           {sendMessage && <p role="status">{sendMessage}</p>}

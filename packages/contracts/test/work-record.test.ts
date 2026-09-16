@@ -222,3 +222,14 @@ it("详情和付款原子保存必须引用同一版本", () => {
   expect(saveWorkRecordSchema.safeParse({ details: { version: 1, note: "test" }, payment: { version: 2, cashServiceCents: 100 } }).success).toBe(false);
   expect(saveWorkRecordSchema.safeParse({ details: { version: 1, note: "test" }, payment: { version: 1, cashServiceCents: 100 } }).success).toBe(true);
 });
+
+describe("百分比折扣契约", () => {
+  const discount = { isCustom: true, name: "比例优惠", amountCents: 0 };
+  it("保留比例并兼容旧金额请求", () => {
+    expect(updateWorkRecordSchema.parse({ version: 1, discounts: [{ ...discount, rateBps: 1250 }] }).discounts?.[0]?.rateBps).toBe(1250);
+    expect(updateWorkRecordSchema.safeParse({ version: 1, discounts: [discount] }).success).toBe(true);
+  });
+  it.each([-1, 10001, 1.5])("拒绝无效比例 %s", (rateBps) => {
+    expect(updateWorkRecordSchema.safeParse({ version: 1, discounts: [{ ...discount, rateBps }] }).success).toBe(false);
+  });
+});

@@ -1,5 +1,6 @@
 "use client";
 
+import { calculateDiscountAmount, parseDiscountInput } from "@massage-note/domain";
 import { WorkTimeInput } from "./work-time-input";
 import { automaticRecordEnd, recordTimeAfterDuration, recordTimeError } from "../lib/record-time";
 import { browserStorage } from "../lib/browser-storage";
@@ -167,7 +168,7 @@ export function RecordEditor({
         key: item.id,
         sourceItemId: item.sourceDiscountItemId ?? "__custom__",
         name: item.name,
-        amount: dollars(item.amountCents),
+        amount: item.rateBps == null ? dollars(item.amountCents) : `${item.rateBps / 100}%`,
       })),
     [record.discountSnapshots],
   );
@@ -568,7 +569,7 @@ export function RecordEditor({
           item.sourceItemId === "__custom__" ? undefined : item.sourceItemId,
         isCustom: item.sourceItemId === "__custom__",
         name: item.name.trim(),
-        amountCents: cents(item.amount, `折扣“${item.name}”金额`),
+        ...parseDiscountInput(item.amount),
       }));
     }
     if (automaticDiscountSuppressed !== record.automaticDiscountSuppressed) {
@@ -691,10 +692,16 @@ export function RecordEditor({
 
   const draftMainAmount = draftCents(serviceAmount);
   const draftAddonAmounts = addons.map((item) => draftCents(item.amount));
-  const draftDiscountAmounts = discounts.map((item) => draftCents(item.amount));
   const draftGross = draftMainAmount !== null && draftAddonAmounts.every((value) => value !== null)
     ? draftMainAmount + draftAddonAmounts.reduce<number>((sum, value) => sum + (value ?? 0), 0)
     : null;
+  const draftDiscountAmounts = discounts.map((item) => {
+    if (draftGross === null) return null;
+    try {
+      const parsed = parseDiscountInput(item.amount);
+      return Number(calculateDiscountAmount(BigInt(draftGross), BigInt(parsed.amountCents), parsed.rateBps));
+    } catch { return null; }
+  });
   const weekday = new Date(`${businessDate}T00:00:00.000Z`).getUTCDay();
   const draftAutomaticDiscount =
     !automaticDiscountSuppressed &&
@@ -838,6 +845,7 @@ export function RecordEditor({
               <button className="danger-link" type="button" onClick={removeAutomaticDiscount}>移除</button>
             </div>
           )}
+          <p className="field-help">可输入金额或百分比（如 10%）；百分比按大费与全部加项合计计算。</p>
           {discounts.length === 0 && automaticDiscounts.length === 0 && draftAutomaticDiscount === 0 && !automaticDiscountSuppressed && <p className="empty-note">本单没有折扣</p>}
           {discounts.map((item) => (
             <div className="line-item" key={item.key}>
@@ -846,7 +854,7 @@ export function RecordEditor({
                 <option value="__custom__">自定义折扣</option>
               </select>
               {item.sourceItemId === "__custom__" && <input aria-label="折扣名称" value={item.name} onChange={(event) => updateDiscount(item.key, { name: event.target.value })} />}
-              <input aria-label="折扣金额" inputMode="decimal" value={item.amount} onChange={(event) => updateDiscount(item.key, { amount: event.target.value })} />
+              <input aria-label="折扣金额或百分比" inputMode="text" placeholder="例如 10 或 10%" value={item.amount} onChange={(event) => updateDiscount(item.key, { amount: event.target.value })} />
               <button className="danger-link" type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => current.filter((candidate) => candidate.key !== item.key)); }}>移除</button>
             </div>
           ))}

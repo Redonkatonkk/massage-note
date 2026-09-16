@@ -3,6 +3,7 @@ import { ConflictException, ForbiddenException } from "@nestjs/common";
 import type { User } from "@massage-note/database";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaService } from "../src/database/prisma.service.js";
+import { CommissionsService } from "../src/stores/commissions.service.js";
 import { MembershipsService } from "../src/stores/memberships.service.js";
 import { StoreAccessService } from "../src/stores/store-access.service.js";
 import { StoreManagementService } from "../src/stores/store-management.service.js";
@@ -141,6 +142,9 @@ describe.skipIf(!enabled).sequential("成员审批与跨店隔离", () => {
       await prisma.store.updateMany({
         where: { id: { in: [storeId, otherStoreId] } },
         data: { ownerMembershipId: null },
+      });
+      await prisma.employeeDefaultCommission.deleteMany({
+        where: { storeId: { in: [storeId, otherStoreId] } },
       });
       await prisma.storeMembership.deleteMany({
         where: { storeId: { in: [storeId, otherStoreId] } },
@@ -382,6 +386,21 @@ describe.skipIf(!enabled).sequential("成员审批与跨店隔离", () => {
       },
     });
     expect(auditCount).toBe(4);
+  });
+
+  it("店主可修改自己的名字与默认提成，但不能直接变更店主角色", async () => {
+    const current = await prisma.storeMembership.findUniqueOrThrow({ where: { id: ownerMembershipId } });
+    const renamed = await memberships.updateMember(actor(ownerId), storeId, ownerMembershipId,
+      { version: current.version, displayName: "店主新名字" }, "owner-rename");
+    expect(renamed.displayName).toBe("店主新名字");
+    const commissions = new CommissionsService(prisma, access, idempotency);
+    const result = await commissions.setDefault(actor(ownerId), storeId, ownerMembershipId,
+      { version: renamed.version, commissionBps: 5500 }, randomUUID(), "owner-commission");
+    expect(result.membership.defaultCommissionBps).toBe(5500);
+    expect(result.membership.role).toBe("OWNER");
+    await expect(memberships.updateMember(actor(ownerId), storeId, ownerMembershipId,
+      { version: result.membership.version, role: "EMPLOYEE" }, "owner-role-change"))
+      .rejects.toMatchObject({ response: { code: "OWNER_TRANSFER_REQUIRED" } });
   });
 
   it("经理可修改店铺设置，但只有当前 Owner 可以原子转移店主", async () => {

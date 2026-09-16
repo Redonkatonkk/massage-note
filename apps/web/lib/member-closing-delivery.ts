@@ -17,3 +17,17 @@ export function validateClosingDeliveryPhone(
   if (enabled && !phone) throw new Error(CLOSING_DELIVERY_PHONE_REQUIRED_MESSAGE);
   return phone;
 }
+
+/** Show US numbers without the country code; preserve invalid input for validation. */
+export function displayUsPhone(value: string | null | undefined): string {
+  const phone = value?.trim() ?? "";
+  const digits = phone.replace(/[\s().-]/g, "");
+  return /^\+1\d{10}$/.test(digits) ? digits.slice(2)
+    : /^1\d{10}$/.test(digits) ? digits.slice(1) : digits;
+}
+
+export function usPhoneToE164(value: string): string {
+  const digits = displayUsPhone(value);
+  if (!/^\d{10}$/.test(digits)) throw new Error("请输入 10 位美国电话号码");
+  return `+1${digits}`;
+}

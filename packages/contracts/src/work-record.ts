@@ -51,6 +51,7 @@ export const discountInputSchema = z
     isCustom: z.boolean(),
     name: namedAmountFields.name,
     amountCents: namedAmountFields.amountCents,
+    rateBps: commissionBpsSchema.nullable().optional(),
   })
   .superRefine(validateItemSource);
 

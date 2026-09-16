@@ -1003,6 +1003,32 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it("百分比按主要项目和加项合计计算，保留比例并随金额重算", async () => {
+    const created = await workRecords.create(actor(ownerId), storeId, {
+      employeeMembershipId,
+      startAt: new Date().toISOString(),
+      customService: { name: "比例测试", shortName: "比例", amountCents: 10000, durationMinutes: 60 },
+    }, "percent-create-key-0001", "percent-create");
+    const updated = await workRecords.update(actor(ownerId), storeId, created.id, {
+      version: created.version, automaticDiscountSuppressed: true,
+      addons: [{ isCustom: true, name: "热石", shortName: "热石", amountCents: 2000 }],
+      discounts: [{ isCustom: true, name: "百分比", amountCents: 9999, rateBps: 1000 }, { isCustom: true, name: "固定", amountCents: 500 }],
+    }, "percent-update-key-0001", "percent-update");
+    expect(updated.discountTotalCents).toBe(1700n);
+    expect(updated.discountedFeePerformanceCents).toBe(10300n);
+    expect(updated.discountSnapshots[0]).toMatchObject({ rateBps: 1000, amountCents: 1200n });
+    const changed = await workRecords.update(actor(ownerId), storeId, created.id, {
+      version: updated.version, mainServiceAmountCents: 15000,
+    }, "percent-reprice-key-0001", "percent-reprice");
+    expect(changed.discountTotalCents).toBe(2200n);
+    expect(changed.discountSnapshots[0]).toMatchObject({ rateBps: 1000, amountCents: 1700n });
+    const fixed = await workRecords.update(actor(ownerId), storeId, created.id, {
+      version: changed.version, discounts: [{ isCustom: true, name: "固定", amountCents: 1000, rateBps: null }],
+    }, "percent-fixed-key-0001", "percent-fixed");
+    expect(fixed.discountSnapshots[0]).toMatchObject({ rateBps: null, amountCents: 1000n });
+    await workRecords.remove(actor(ownerId), storeId, created.id, { version: fixed.version }, "percent-delete-key-0001", "percent-delete");
+  });
+
   it("详情修改支持多加项、多折扣、单笔提成与人工结算标记", async () => {
     await expect(
       workRecords.update(

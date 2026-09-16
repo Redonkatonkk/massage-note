@@ -19,6 +19,7 @@ import type {
 import {
   DomainError,
   calculateWorkRecordFinance,
+  calculateDiscountAmount,
   canWriteWorkRecord,
   hasStoreCapability,
   multiplyByBps,
@@ -70,6 +71,7 @@ interface DesiredAddonSnapshot {
 }
 
 interface DesiredDiscountSnapshot {
+  rateBps?: number | null;
   sourceDiscountItemId: string | null;
   isCustom: boolean;
   isAutomatic: boolean;
@@ -593,15 +595,16 @@ export class WorkRecordsService {
           const actualDurationMinutes = endAt
             ? Math.round((endAt.getTime() - startAt.getTime()) / 60_000)
             : null;
+          const grossFeeBaseCents =
+            service.amountCents +
+            addons.reduce((total, addon) => total + addon.amountCents, 0n);
           const manualDiscounts = await this.buildDesiredDiscounts(
             transaction,
             storeId,
             record.discountSnapshots,
             input,
+            grossFeeBaseCents,
           );
-          const grossFeeBaseCents =
-            service.amountCents +
-            addons.reduce((total, addon) => total + addon.amountCents, 0n);
           const automaticDiscountSuppressed =
             input.automaticDiscountSuppressed ??
             record.automaticDiscountSuppressed;
@@ -1540,11 +1543,12 @@ export class WorkRecordsService {
     storeId: string,
     current: DesiredDiscountSnapshot[],
     input: UpdateWorkRecordInput,
+    grossFeeBaseCents: bigint,
   ): Promise<DesiredDiscountSnapshot[]> {
     if (input.discounts === undefined) {
       return current
         .filter((discount) => !discount.isAutomatic)
-        .map((discount, position) => ({ ...discount, position }));
+        .map((discount, position) => ({ ...discount, position, amountCents: calculateDiscountAmount(grossFeeBaseCents, discount.amountCents, discount.rateBps) }));
     }
     const result: DesiredDiscountSnapshot[] = [];
     for (const [position, discount] of input.discounts.entries()) {
@@ -1579,7 +1583,8 @@ export class WorkRecordsService {
         isCustom: discount.isCustom,
         isAutomatic: false,
         name,
-        amountCents: BigInt(discount.amountCents),
+        amountCents: calculateDiscountAmount(grossFeeBaseCents, BigInt(discount.amountCents), discount.rateBps),
+        rateBps: discount.rateBps ?? null,
         position,
       });
     }

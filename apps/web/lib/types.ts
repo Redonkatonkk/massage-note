@@ -282,6 +282,7 @@ export interface AddonSnapshot {
 }
 
 export interface DiscountSnapshot {
+  rateBps?: number | null;
   id: string;
   sourceDiscountItemId: string | null;
   isCustom: boolean;

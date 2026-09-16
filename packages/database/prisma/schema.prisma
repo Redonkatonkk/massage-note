@@ -616,6 +616,7 @@ model WorkRecordDiscountSnapshot {
   isAutomatic          Boolean @default(false) @map("is_automatic")
   name                 String
   amountCents          BigInt  @map("amount_cents")
+  rateBps              Int?    @map("rate_bps")
   position             Int
 
   workRecord WorkRecord @relation(fields: [workRecordId], references: [id], onDelete: Cascade)

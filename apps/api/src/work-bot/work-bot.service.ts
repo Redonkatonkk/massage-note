@@ -663,9 +663,13 @@ export class WorkBotService {
       businessDate: record.businessDate, afterJson: { employeeMembershipId: employee.id, requestedByMembershipId: actorBinding.membershipId, alias: alias.alias, serviceItemId: alias.serviceItem.id, durationMinutes, startAt: startAt.toISOString(), endAt: endAt.toISOString(), amountCents: option.priceCents.toString(), status: record.status }, requestId,
     } });
     const now = new Date();
+    const today = businessDateFor({ startAt: now, timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
     const members = await transaction.storeMembership.findMany({
       where: { storeId: store.id, status: "ACTIVE", deletedAt: null, isServiceProvider: true,
         OR: [{ userId: null }, { user: { status: "ACTIVE" } }],
+        dailyRows: { some: { storeId: store.id, isHidden: false,
+          board: { storeId: store.id, businessDate: new Date(`${today}T00:00:00.000Z`) },
+        } },
       },
       orderBy: [{ displayName: "asc" }, { id: "asc" }],
       select: { displayName: true, workRecords: {

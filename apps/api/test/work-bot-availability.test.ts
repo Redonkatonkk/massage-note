@@ -8,6 +8,9 @@ const member = (displayName: string, ...ends: (string | null)[]) => ({
 const reply = (...members: ReturnType<typeof member>[]) => workBotAvailability(members, now, "America/New_York");
 
 describe("上工回复的人员安排", () => {
+  it("今日没有排工时不误报全员上工", () => {
+    expect(reply()).toBe("今日暂无排工");
+  });
   it("只列出空闲人员且不附加无关信息", () => {
     expect(reply(member("Jessica", "2026-09-11T20:00:00Z"), member("Lily"), member("Anna")))
       .toBe("空闲：Lily、Anna");

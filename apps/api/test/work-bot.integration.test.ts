@@ -257,14 +257,43 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     await expect(workBot.handleEvent(`Bearer ${token}`, key("bad-clock"), invalid, "bad-clock")).resolves.toMatchObject({ outcome: "START_TIME_UNCLEAR" });
     const started = await workBot.handleEvent(`Bearer ${token}`, key("stated-clock"), input, "stated-clock");
     expect(started).toMatchObject({ outcome: "WORK_STARTED", reply: expect.stringContaining("开始 13:00，预计 14:00") });
-    expect(started.reply.split("\n")[1]).toContain("空闲：");
-    expect(started.reply.split("\n")[1]).toContain("小王");
-    expect(started.reply.split("\n")[1]).not.toContain("Jessie");
+    expect(started.reply.split("\n")[1]).toBe("全员上工｜最早下工：Jessie 14:00（预计）");
     const record = await prisma.workRecord.findUniqueOrThrow({ where: { id: started.recordId! } });
     expect(record.startAt.toISOString()).toBe("2026-09-09T17:00:00.000Z");
     expect(record.endAt?.toISOString()).toBe("2026-09-09T18:00:00.000Z");
     await expect(workBot.handleEvent(`Bearer ${token}`, key("stated-clock"), input, "stated-clock-retry")).resolves.toEqual(started);
     await workBot.handleEvent(`Bearer ${token}`, key("stated-clock-finish"), event("stated-clock-finish", "Jessie 下工 80 20 现金", new Date("2026-09-09T18:00:00Z")), "stated-clock-finish");
+  });
+
+  it("空闲与最早下工仅统计店铺今日排工，排除未添加、昨日及已移除的员工", async () => {
+    // UTC is already the next day; the store is still on September 11.
+    vi.setSystemTime(new Date("2026-09-12T03:00:00Z"));
+    const today = await prisma.dailyBoard.create({ data: { storeId, businessDate: new Date("2026-09-11T00:00:00Z") } });
+    const yesterday = await prisma.dailyBoard.create({ data: { storeId, businessDate: new Date("2026-09-10T00:00:00Z") } });
+    await prisma.dailyEmployeeRow.createMany({ data: [
+      { boardId: today.id, storeId, membershipId: employeeMembershipId, position: 1, addedBy: ownerId },
+      { boardId: today.id, storeId, membershipId: ambiguousEmployeeOneId, position: 2, addedBy: ownerId, isHidden: true },
+      { boardId: yesterday.id, storeId, membershipId: ambiguousEmployeeTwoId, position: 1, addedBy: ownerId },
+    ] });
+    const start = { ...event("roster-jessie-start", "Jessie 上工 大力", new Date()), parsedIntent: {
+      kind: "START" as const, serviceAlias: "大力", serviceMention: "大力", memberName: "Jessie", memberMention: "Jessie",
+    } };
+    const started = await workBot.handleEvent(`Bearer ${token}`, key(start.messageId), start, start.messageId);
+    expect(started.outcome).toBe("WORK_STARTED");
+    expect(started.reply.split("\n")[1]).toBe("空闲：小王");
+
+    const second = await workBot.handleEvent(`Bearer ${token}`, key("roster-wang-start"),
+      event("roster-wang-start", "上工 脚", new Date()), "roster-wang-start");
+    expect(second.outcome).toBe("WORK_STARTED");
+    expect(second.reply.split("\n")[1]).toBe("全员上工｜最早下工：小王 23:30（预计）");
+    await expect(workBot.handleEvent(`Bearer ${token}`, key(start.messageId), start, "roster-retry")).resolves.toEqual(started);
+
+    for (const [name, suffix] of [["Jessie", "jessie"], ["小王", "wang"]]) {
+      await workBot.handleEvent(`Bearer ${token}`, key(`roster-${suffix}-finish`),
+        { ...event(`roster-${suffix}-finish`, `${name} 下工 100 0 现金`, new Date("2026-09-12T04:00:00Z")), parsedIntent: {
+          kind: "FINISH", memberName: name, memberMention: name, serviceAmount: "100", tipAmount: "0", paymentMethod: "CASH", paymentMention: "现金",
+        } }, `roster-${suffix}-finish`);
+    }
   });
 
   it("上工和现金下工在一条原子账目中区分项目原价、实收大费、小费和实际时长", async () => {

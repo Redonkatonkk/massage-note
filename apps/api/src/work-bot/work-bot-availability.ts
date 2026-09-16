@@ -5,6 +5,7 @@ interface AvailableMember {
 }
 
 export function workBotAvailability(members: AvailableMember[], now: Date, timezone: string): string {
+  if (!members.length) return "今日暂无排工";
   const idle = members.filter(member => !member.workRecords.length);
   if (idle.length) return `空闲：${idle.map(member => member.displayName).join("、")}`;
 

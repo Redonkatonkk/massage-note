@@ -577,9 +577,15 @@ export function TodayBoard({
                         <span className="record-time">{displayTime(record.startAt, currentDay.timezone)}–{displayTime(record.endAt, currentDay.timezone)}</span>
                         <span className="record-money">
                           <span className="record-service-amount">
-                            {record.status === "PENDING_PAYMENT" ? <b>{money(record.grossFeeBaseCents)}</b> : (
-                              <PaymentBreakdown status={record.status} cashCents={record.cashServiceCents} cardCents={record.cardServiceCents} giftCardCents={record.giftCardServiceCents} zeroLabel="0" />
-                            )}
+                            <b>{compactPaymentAmount(record.grossFeeBaseCents)}</b>
+                            <span className="record-service-payment-box">
+                              <span>{record.status === "PENDING_PAYMENT" ? "应收" : "实收"}</span>
+                              {record.status === "PENDING_PAYMENT" ? (
+                                <span className="record-service-due">{compactPaymentAmount(record.discountedFeePerformanceCents)}</span>
+                              ) : (
+                                <PaymentBreakdown status={record.status} cashCents={record.cashServiceCents} cardCents={record.cardServiceCents} giftCardCents={record.giftCardServiceCents} zeroLabel="0" />
+                              )}
+                            </span>
                           </span>
                           <span className="record-payment-row"><span>小费</span><PaymentBreakdown status={record.status} cashCents={record.cashTipCents} cardCents={record.cardTipCents} giftCardCents={record.giftCardTipCents} zeroLabel="0" /></span>
                         </span>

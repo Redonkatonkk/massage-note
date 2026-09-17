@@ -1,6 +1,6 @@
 # LangBot 插件开发与目录
 
-插件版本由 [manifest.yaml](manifest.yaml) 的 `metadata.version` 定义，当前为 1.3.0，与应用版本独立。1.2.0 增加最近对话上下文，要求 API 至少 1.3.7、协议版本 2。
+插件版本由 [manifest.yaml](manifest.yaml) 的 `metadata.version` 定义，当前为 1.4.0，与应用版本独立。1.2.0 增加最近对话上下文，要求 API 至少 1.3.7、协议版本 2。
 
 ## 目录职责
 
@@ -41,12 +41,12 @@ git diff --check
 也可使用原有 LangBot Docker 镜像构建。从本插件目录执行：
 
 ```bash
-docker run --rm --entrypoint /bin/sh -v "$PWD:/plugin" -w /plugin rockchin/langbot:latest -c 'lbp build'
+docker run --rm --entrypoint /bin/sh -v "$PWD:/plugin" -w /plugin rockchin/langbot:latest -c '/app/.venv/bin/lbp build'
 ```
 
 镜像标签沿用本地方案；正式发布应记录实际镜像版本或摘要。构建后检查 `dist/` 中的文件名与包内 manifest 版本，并确认包内不含令牌、环境文件、历史包或运行数据，再通过 LangBot 管理页“插件 → 本地安装”安装。不得用复制运行目录替代可信安装。
 
-1.3.0 插件包需要构建并安装；源码版本不代表已安装版本。安装后的状态以管理页和 `mounted`、`initialized` 日志为准。
+1.4.0 插件包需要构建并安装；源码版本不代表已安装版本。安装后的状态以管理页和 `mounted`、`initialized` 日志为准。
 
 ## 旧包归档
 
@@ -54,10 +54,10 @@ docker run --rm --entrypoint /bin/sh -v "$PWD:/plugin" -w /plugin rockchin/langb
 
 后续新包留在 `dist/` 顶层供选择，旧包移入 `dist/archive/` 并更新清单。不要向源码目录放入 `.env`、数据库、聊天记录或安装后的插件副本。
 
-## 学习记忆（插件 1.3.0 / API 1.6.0）
+## 学习记忆（插件 1.4.0 / API 1.7.0）
 
 歧义和纠正触发 CLARIFY：先说出具体猜测并询问。用户在30分钟内回复“对/是的/确认”等后保存经验；确认只学习，不记账，操作需发送完整指令。纠正会停用同说法旧经验并等待重新确认。最新目录、原文证据、店铺配置和权限校验仍优先，经验不能授权默认时长或付款方式。
 
 记忆使用 LangBot SDK 的 get_plugin_storage/set_plugin_storage 持久保存，按 API 配置、storeId、机器人、群、发送者及绑定姓名隔离；跨日期、重启保留。每个范围保留最近50条经验、30条未理解事件和30条澄清回复（用于去重）。改配置或绑定会切换记忆范围。存储失败会提示，不能宣称已记住。备份包含消息片段，应按运行数据保护。
 
-CLARIFY 只由插件处理，不提交记工 API。需要升级 NAS API 并安装1.3.0插件，旧 API 不启用持久学习。
+CLARIFY 只由插件处理，不提交记工 API。需要升级 NAS API 并安装1.4.0插件，旧 API 不启用持久学习。

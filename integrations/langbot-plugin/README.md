@@ -12,6 +12,10 @@ See [中文配置说明](readme/README_zh_Hans.md) and the repository [developme
 
 History is held only in worker memory, scoped by current store context and plugin configuration, capped at 256 sessions. Turns with either text longer than 4,000 characters are omitted. History does not replace current-message evidence, live database queries or API authorization.
 
-## Learning memory (1.3.0)
+## Learning memory (1.4.0)
 
-Requires API 1.6.0. Ambiguities and corrections trigger a concrete guess and confirmation. Confirmed language examples persist in LangBot plugin storage, isolated by configuration, store, bot, group, sender and binding name. Confirmation expires after 30 minutes and only saves learning; send a complete command to perform work. Each scope retains 50 lessons and 30 unresolved cases and clarification receipts. Live catalog, evidence and authorization remain authoritative; learned examples cannot authorize payment or duration defaults. Backups contain message excerpts and must be treated as runtime data.
+Requires API 1.7.0. Ambiguities and corrections trigger a concrete guess and confirmation. Confirmed language examples persist in LangBot plugin storage, isolated by configuration, store, bot, group, sender and binding name. Confirmation expires after 30 minutes and only saves learning; send a complete command to perform work. Each scope retains 50 lessons and 30 unresolved cases and clarification receipts. Live catalog, evidence and authorization remain authoritative; learned examples cannot authorize payment or duration defaults. Backups contain message excerpts and must be treated as runtime data.
+
+## Multiple employees (1.4.0)
+
+“Ling Jessie 上工 大力” starts work for both named employees. Requires API 1.7.0. BATCH supports 2–10 distinct named START/FINISH/ADJUST actions, validated and committed atomically. Ambiguous payment allocation requires clarification. Reinstall the built plugin after upgrading the API.

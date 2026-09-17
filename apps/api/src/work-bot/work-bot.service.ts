@@ -67,6 +67,10 @@ interface StoreSettings {
   mondayThursdayAutoDiscountAmountCents: bigint;
 }
 
+// Internal-only marker: never accepted from the HTTP payload.
+const batchChild = Symbol("workBotBatchChild");
+type InternalWorkBotInput = WorkBotEventInput & { [batchChild]?: boolean };
+
 const HELP_REPLY = "支持记工和查账：最近 15 天折后大费列表；查询结果含记录编号，可按编号修改、付款、删除和恢复；高亮/取消高亮；折扣和加项添加/移除。示例：绑定店铺 123456、绑定 张三、大力 90、Jessie 脚 30、Lily 下了，收 75/15卡，评论；Lily 加热石；Lily 加评论折扣。信息不完整时不会写账。";
 const AUTO_DISCOUNT_NAME = "周一至周四自动折扣";
 const DELEGATED_SENDER_PREFIX = "__massage_note_delegated__:";
@@ -190,6 +194,24 @@ export class WorkBotService {
         if (duplicate) return this.checkedOperationReply(duplicate, input);
 
         switch (intent.kind) {
+          case "BATCH": {
+            const results: WorkBotReply[] = [];
+            for (const [index, action] of intent.actions.entries()) {
+              const childInput: InternalWorkBotInput = { ...input, messageId: `batch:${createHash("sha256").update(JSON.stringify([input.messageId, index])).digest("hex")}`, [batchChild]: true };
+              const result = action.kind === "START"
+                ? await this.startWork(transaction, secret, childInput, action, requestId)
+                : await this.finishWork(transaction, secret, childInput, action, requestId);
+              if (!["WORK_STARTED", "WORK_FINISHED", "WORK_ADJUSTED"].includes(result.outcome)) {
+                throw new BadRequestException({ code: "WORK_BOT_BATCH_REJECTED", messageZh: `${action.memberName}：${result.reply} 本条多人操作全部未执行。` });
+              }
+              results.push(result);
+            }
+            const group = await this.findGroupBinding(transaction, input);
+            return this.persistReply(transaction, input, intent, {
+              outcome: "BATCH_COMPLETED",
+              reply: results.map((result, index) => `${intent.actions[index]!.memberName}：${intent.actions[index]!.kind === "START" ? result.reply.split("\n")[0] : result.reply}${result.recordId ? `\n编号 ${result.recordId}` : ""}`).join("\n\n"),
+            }, group);
+          }
           case "BIND_STORE":
             return this.bindStore(transaction, input, intent, requestId);
           case "BIND_MEMBER":
@@ -803,7 +825,8 @@ export class WorkBotService {
     return this.operationReply(operation);
   }
 
-  private async persistReply(transaction: Prisma.TransactionClient, input: WorkBotEventInput, intent: WorkBotParsedIntent, result: WorkBotReply, group?: { id: string; storeId: string } | null): Promise<WorkBotReply> {
+  private async persistReply(transaction: Prisma.TransactionClient, input: InternalWorkBotInput, intent: WorkBotParsedIntent, result: WorkBotReply, group?: { id: string; storeId: string } | null): Promise<WorkBotReply> {
+    if (input[batchChild]) return result;
     await transaction.workBotOperation.create({ data: {
       platform: input.platform, botId: input.botId, groupId: input.groupId, senderId: input.senderId,
       messageId: input.messageId, groupBindingId: group?.id ?? null, storeId: group?.storeId ?? null,

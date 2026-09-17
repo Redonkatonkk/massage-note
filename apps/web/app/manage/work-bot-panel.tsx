@@ -17,7 +17,7 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat("zh-CN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
-const intentLabels: Record<string, string> = { BIND_STORE: "绑定店铺", BIND_MEMBER: "绑定员工", START: "上工", FINISH: "下工", ADJUST: "调整记工", QUERY: "查询账目", MANAGE: "管理记工", HELP: "使用帮助" };
+const intentLabels: Record<string, string> = { BIND_STORE: "绑定店铺", BIND_MEMBER: "绑定员工", START: "上工", FINISH: "下工", ADJUST: "调整记工", QUERY: "查询账目", MANAGE: "管理记工", BATCH: "多人操作", HELP: "使用帮助" };
 
 export function WorkBotPanel({ storeId, catalog, settings, busy, run, reload }: Props) {
   const [draft, setDraft] = useState<{ text: string; version: number } | null>(null);

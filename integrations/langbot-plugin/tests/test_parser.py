@@ -23,6 +23,22 @@ parse = namespace["parse_llm_json"]
 
 
 class ParserTest(unittest.TestCase):
+    def test_multiple_employee_batch(self):
+        context = {"members": ["Ling", "Jessie"], "aliases": [{"alias": "deep"}]}
+        actions = [{"kind": "START", "memberName": name, "memberMention": name, "serviceAlias": "deep", "serviceMention": "大力"} for name in context["members"]]
+        batch = {"kind": "BATCH", "actions": actions}
+        self.assertEqual(parse(json.dumps(batch), context), batch)
+        for bad in [[actions[0]], [actions[0], actions[0]], [actions[0], {**actions[1], "memberName": "Unknown"}], [actions[0], batch]]:
+            self.assertIsNone(parse(json.dumps({"kind": "BATCH", "actions": bad}), context))
+
+    def test_explicit_shared_start_names(self):
+        resolve = namespace["explicit_start_targets"]
+        for raw in ["Ling Jessie 上工 大力", "@Bot Ling、Jessie 上工 大力", "Ling 和 Jessie 上工 大力", "Ling and Jessie 上工 大力"]:
+            self.assertEqual([t["memberName"] for t in resolve(raw, ["Ling", "Jessie"])], ["Ling", "Jessie"])
+        for raw in ["Ling 或 Jessie 上工 大力", "Ling 不上工 Jessie 上工 大力", "Ling 上工 大力，Jessie 不上工"]:
+            self.assertEqual(resolve(raw, ["Ling", "Jessie"]), [])
+        self.assertEqual(resolve("Mary Jane 上工 大力", ["Mary Jane"]), [{"memberName": "Mary Jane", "memberMention": "Mary Jane"}])
+
     def test_query_and_management_keep_parameters(self):
         query = {"kind": "QUERY", "days": 15, "groupBy": "DAY", "page": 2}
         self.assertEqual(parse(json.dumps(query), {}), query)
@@ -119,6 +135,16 @@ class LlmIntentTest(unittest.IsolatedAsyncioTestCase):
         messages = invoke.call_args.kwargs["messages"]
         self.assertIn(self.context["instructions"], messages[0].content)
         self.assertEqual(messages[1].content, "@Jeunesse jessica 上工 大力")
+
+    async def test_shared_start_recovers_name_omitted_by_model(self):
+        self.context["members"] = ["Ling", "Jessie"]
+        intent = {**self.intent, "memberName": "Jessie", "memberMention": "Jessie"}
+        invoke = AsyncMock(return_value=SimpleNamespace(content=json.dumps(intent)))
+        listener = SimpleNamespace(plugin=SimpleNamespace(invoke_llm=invoke))
+        result = await self.method(listener, "Ling Jessie 上工 大力", {"model": "test-model"}, self.context)
+        self.assertEqual(result["kind"], "BATCH")
+        self.assertEqual([a["memberName"] for a in result["actions"]], ["Ling", "Jessie"])
+        self.assertTrue(all(a["durationMinutes"] == 60 for a in result["actions"]))
 
     async def test_help_is_reviewed_against_store_instructions(self):
         result, invoke = await self.run_responses([{"kind": "HELP"}, self.intent])

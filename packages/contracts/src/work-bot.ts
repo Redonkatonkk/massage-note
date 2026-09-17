@@ -15,7 +15,7 @@ const workAdjustments = {
   addons: z.array(z.object({ name: z.string().trim().min(1).max(80), mention: z.string().trim().min(1).max(80), action: z.enum(["ADD", "REMOVE"]).optional() })).max(20).optional(),
 };
 
-export const workBotParsedIntentSchema = z.discriminatedUnion("kind", [
+const singleWorkBotIntentSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("BIND_STORE"), storeCode: z.string().regex(/^\d{6}$/) }),
   z.object({
     kind: z.literal("BIND_MEMBER"),
@@ -70,6 +70,19 @@ export const workBotParsedIntentSchema = z.discriminatedUnion("kind", [
     evidence: z.string().trim().min(1).max(1000),
   }).strict(),
   z.object({ kind: z.literal("HELP") }),
+]);
+
+// Batch children must name distinct employees; nested batches and record-ID fanout are forbidden.
+const batchActionSchema = z.discriminatedUnion("kind", [singleWorkBotIntentSchema.options[2], singleWorkBotIntentSchema.options[3], singleWorkBotIntentSchema.options[4]]).refine(
+  intent => Boolean(intent.memberName && intent.memberMention) && !("recordId" in intent && intent.recordId),
+  "批量操作必须指定员工，不能指定记录编号",
+);
+export const workBotParsedIntentSchema = z.union([
+  singleWorkBotIntentSchema,
+  z.object({ kind: z.literal("BATCH"), actions: z.array(batchActionSchema).min(2).max(10) }).strict().refine(
+    batch => new Set(batch.actions.map(action => (action.memberName ?? "").normalize("NFKC").toLowerCase())).size === batch.actions.length,
+    "同一员工不能在一条批量指令中重复出现",
+  ),
 ]);
 
 export const workBotEventSchema = z.object({

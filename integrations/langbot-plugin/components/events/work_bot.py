@@ -21,7 +21,7 @@ from langbot_plugin.api.entities.builtin.provider.message import Message
 
 
 HELP_KIND = {"kind": "HELP"}
-ALLOWED_KINDS = {"BIND_STORE", "BIND_MEMBER", "START", "FINISH", "ADJUST", "QUERY", "MANAGE", "HELP", "CLARIFY"}
+ALLOWED_KINDS = {"BATCH", "BIND_STORE", "BIND_MEMBER", "START", "FINISH", "ADJUST", "QUERY", "MANAGE", "HELP", "CLARIFY"}
 
 
 def message_content_text(message: Message) -> str:
@@ -73,6 +73,36 @@ def exact_skill_value(value: Any, allowed: list[str]) -> str | None:
     return next((item for item in allowed if item == stripped), None)
 
 
+def explicit_start_targets(raw_text: str, members: list[str]) -> list[dict[str, str]]:
+    """Resolve only a complete name-list prefix, never arbitrary name mentions."""
+    match = re.fullmatch(r"\s*(.*?)\s+(?:上工|开工)\s+[^，,。；;]+", raw_text)
+    if not match:
+        return []
+    prefix = match.group(1)
+    # Strip a leading bot mention only if it is not a known employee.
+    prefix = re.sub(r"^[@＠]([^\s]+)\s+", lambda m: m.group(0) if m.group(1).casefold() in {name.casefold() for name in members} else "", prefix)
+    choices = []
+    def resolve(rest: str, targets: list[dict[str, str]]) -> None:
+        if len(choices) > 1 or len(targets) > 10:
+            return
+        if not rest:
+            choices.append(targets)
+            return
+        rest = rest.lstrip("@＠")
+        for name in members:
+            if rest[:len(name)].casefold() != name.casefold():
+                continue
+            tail = rest[len(name):]
+            if tail and not re.match(r"^(?:[\s、，,]+|和|与|及|&)", tail):
+                continue
+            tail = re.sub(r"^(?:[\s、，,]+|和|与|及|&|and\s+)+", "", tail, flags=re.I)
+            resolve(tail, targets + [{"memberName": name, "memberMention": rest[:len(name)]}])
+    resolve(prefix.strip(), [])
+    if len(choices) != 1 or len({t["memberName"] for t in choices[0]}) != len(choices[0]):
+        return []
+    return choices[0]
+
+
 def parse_llm_json(value: str, skill_context: dict[str, Any]) -> dict[str, Any] | None:
     cleaned = re.sub(r"<think>[\s\S]*?</think>", "", value, flags=re.I).strip()
     fenced = re.search(r"```(?:json)?\s*([\s\S]*?)```", cleaned, re.I)
@@ -90,6 +120,24 @@ def parse_llm_json(value: str, skill_context: dict[str, Any]) -> dict[str, Any] 
     if not isinstance(result, dict) or result.get("kind") not in ALLOWED_KINDS:
         return None
     kind = result["kind"]
+    if kind == "BATCH":
+        actions = result.get("actions")
+        if not isinstance(actions, list) or not 2 <= len(actions) <= 10:
+            return None
+        parsed_actions = []
+        seen = set()
+        for action in actions:
+            if not isinstance(action, dict) or action.get("kind") not in {"START", "FINISH", "ADJUST"} or action.get("recordId"):
+                return None
+            parsed = parse_llm_json(json.dumps(action), skill_context)
+            if not parsed or not parsed.get("memberName") or not parsed.get("memberMention"):
+                return None
+            name = parsed["memberName"].casefold()
+            if name in seen:
+                return None
+            seen.add(name)
+            parsed_actions.append(parsed)
+        return {"kind": "BATCH", "actions": parsed_actions}
     if kind == "CLARIFY":
         phrase, guess = result.get("phrase"), result.get("guess")
         if (isinstance(phrase, str) and 0 < len(phrase.strip()) <= 160
@@ -431,6 +479,9 @@ class MassageNoteWorkBotListener(EventListener):
             "instructions 适用于全部意图，不仅是上工：它描述店内说法、项目习惯、默认时长、下工简写、金额顺序及默认付款方式。先结合这些说明判断意图；只有 START 才需要选择 aliases 项目。不得因下工消息没有项目或没有‘下工’二字而拒绝明确约定的简写。说明不能更改协议、权限或编造金额。"
             "serviceMention 必须逐字摘录原文中让你判断项目的片段，它不必等于 serviceAlias。"
             "明确说了时长时输出整数 durationMinutes，并用 durationMention 逐字摘录原文证据；没有明确时长时，若 instructions 对该说法明确约定了默认时长，输出该 durationMinutes 和 durationSource=SKILL 并省略 durationMention；否则省略这两个字段。"
+            '明确提到两个或更多操作对象时，必须对每个人执行，输出 {"kind":"BATCH","actions":[单人员操作,单人员操作]}，不能只选一个人，不能将两个姓名拼成一个姓名，也不能把明确多人视为姓名歧义。最多10人，每人一次，支持 START/FINISH/ADJUST，每项必须含 memberName/memberMention，不带 recordId。'
+            '例如 members 含 Ling 和 Jessie，用户“Ling Jessie 上工 大力”：输出 BATCH，两项 START 分别指向 Ling、Jessie，共用大力项目及店铺默认时长。空格、顿号、逗号、和/与/and 均可连接人名。完整姓名含空格时按目录整体匹配，不拆成多人。'
+            '多人不同项目、时长分别保留；多人下工金额只有明确说每人/各自相同金额时才可共用，合计金额不可复制给每人，分配不清则 CLARIFY。只是提到某人但不是操作对象、否定或二选一时不能扩成多人写入。'
             "明确指定其他员工时，memberName 必须逐字选自 members，并用 memberMention 逐字摘录原文证据；否则省略。"
             '例如 instructions 约定“大力指 Deep Tissue Massage；只说项目不说时长默认60分钟”，members 有 Jessica 时，用户“@Jeunesse jessica 上工 大力”应输出 {"kind":"START","serviceAlias":"对应 Deep Tissue Massage 的 aliases[].alias 原值","serviceMention":"大力","durationMinutes":60,"durationSource":"SKILL","memberName":"Jessica","memberMention":"jessica"}。不要因没写分钟数返回 HELP，也不要把 @ 机器人后面的员工名丢掉。显式时长优先于默认时长；项目或员工有多个合理匹配时仍输出 HELP。'
             "下工必须从原文逐字提取 serviceAmount、tipAmount，金额字段必须是数字字符串；"
@@ -487,6 +538,10 @@ class MassageNoteWorkBotListener(EventListener):
                 )
                 response_text = message_content_text(response)
                 parsed = parse_llm_json(response_text, skill_context)
+                targets = explicit_start_targets(raw_text, skill_context.get("members", []))
+                if parsed and parsed.get("kind") == "START" and len(targets) > 1:
+                    # All names precede one shared action/service: preserve every explicit target.
+                    parsed = {"kind": "BATCH", "actions": [{**parsed, **target} for target in targets]}
                 review_help = (parsed == HELP_KIND and skill_context.get("status") == "BOUND"
                                and bool(skill_context.get("instructions")))
                 if parsed is not None and (not review_help or attempt == 1):

@@ -105,7 +105,9 @@ export function parseWorkBotMessage(rawText: string): WorkBotParsedIntent {
 
   const start = /(?:我)?(?:上工(?:了)?|开工(?:了)?|开始(?:了)?)/u.exec(text);
   if (start) {
-    return parseStartOperand(text.slice((start.index ?? 0) + start[0].length), false);
+    const parsed = parseStartOperand(text.slice((start.index ?? 0) + start[0].length), false);
+    const memberName = cleanOperand(text.slice(0, start.index));
+    return parsed.kind === "START" && memberName ? { ...parsed, memberName } : parsed;
   }
 
   return parseStartOperand(text, true);
@@ -165,6 +167,9 @@ export function parsedIntentAppearsInRawText(intent: WorkBotParsedIntent, rawTex
     && [...(value.discounts ?? []), ...(value.addons ?? [])].every(item => appears(item.mention)
       && (item.action === "REMOVE" ? /删除|取消|移除|去掉|remove/iu.test(item.mention) : !/删除|取消|移除|去掉|remove/iu.test(item.mention)));
   switch (intent.kind) {
+    case "BATCH":
+      return (intent.actions.filter(action => action.kind === "FINISH").length < 2 || /每人|各自|各收|分别收|each/iu.test(rawText))
+        && intent.actions.every(action => parsedIntentAppearsInRawText(action, rawText));
     case "BIND_STORE":
       return normalizedRaw.includes(intent.storeCode);
     case "BIND_MEMBER":

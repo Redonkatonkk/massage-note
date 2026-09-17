@@ -588,4 +588,29 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
   });
 
 
+  it("多人上工、调整与下工保持原子性和消息幂等", async () => {
+    const groupId = "batch-test-group";
+    const send = (id: string, rawText: string, parsedIntent?: any) => workBot.handleEvent(`Bearer ${token}`, key(id), { ...event(id, rawText, new Date()), groupId, ...(parsedIntent ? { parsedIntent } : {}) }, id);
+    await send("batch-bind-store", `绑定店铺 ${storeCode}`);
+    await send("batch-bind-member", "绑定 小王");
+    const first = await prisma.storeMembership.create({ data: { storeId, displayName: "Ling", displayNameNormalized: "ling", role: "EMPLOYEE", isServiceProvider: true } });
+    const second = await prisma.storeMembership.create({ data: { storeId, displayName: "BatchJessie", displayNameNormalized: "batchjessie", role: "EMPLOYEE", isServiceProvider: true } });
+    const actions = ["Ling", "BatchJessie"].map(memberName => ({ kind: "START", memberName, memberMention: memberName, serviceAlias: "大力" }));
+    const raw = "Ling BatchJessie 上工 大力";
+    const started = await send("batch-start", raw, { kind: "BATCH", actions });
+    expect(started.outcome).toBe("BATCH_COMPLETED");
+    expect(await send("batch-start", raw, { kind: "BATCH", actions })).toEqual(started);
+    expect(await prisma.workRecord.count({ where: { employeeMembershipId: { in: [first.id, second.id] } } })).toBe(2);
+    const adjustments = actions.map(action => ({ kind: "ADJUST", memberName: action.memberName, memberMention: action.memberMention, isHighlighted: true, highlightMention: "高亮" }));
+    await send("batch-adjust", "Ling BatchJessie 高亮", { kind: "BATCH", actions: adjustments });
+    expect(await prisma.workRecord.count({ where: { employeeMembershipId: { in: [first.id, second.id] }, isHighlighted: true } })).toBe(2);
+    const finishes = actions.map(action => ({ kind: "FINISH", memberName: action.memberName, memberMention: action.memberMention, serviceAmount: "80", tipAmount: "10", paymentMethod: "CASH" }));
+    await send("batch-finish", "Ling BatchJessie 下工 每人80 10现金", { kind: "BATCH", actions: finishes });
+    expect(await prisma.workRecord.count({ where: { employeeMembershipId: { in: [first.id, second.id] }, status: "CONFIRMED" } })).toBe(2);
+    await expect(send("batch-rollback", "Ling Unknown 上工 大力", { kind: "BATCH", actions: [actions[0], { ...actions[1], memberName: "Unknown", memberMention: "Unknown" }] })).rejects.toMatchObject({ response: { code: "WORK_BOT_BATCH_REJECTED" } });
+    expect(await prisma.workRecord.count({ where: { employeeMembershipId: first.id } })).toBe(1);
+    expect(await prisma.workBotOperation.count({ where: { messageId: "batch-rollback", groupId } })).toBe(0);
+  });
+
+
 });

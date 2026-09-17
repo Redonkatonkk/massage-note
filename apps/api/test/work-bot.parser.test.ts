@@ -108,3 +108,12 @@ describe("记工机器人固定语法", () => {
     }, "做全身一小时")).toBe(false);
   });
 });
+
+describe("多人指令原文证据", () => {
+  it("逐人校验，不能加入原文没有的员工", () => {
+    const actions = ["Ling", "Jessie"].map(memberName => ({ kind: "START" as const, memberName, memberMention: memberName, serviceAlias: "大力" }));
+    expect(parsedIntentAppearsInRawText({ kind: "BATCH", actions }, "Ling Jessie 上工 大力")).toBe(true);
+    expect(parsedIntentAppearsInRawText({ kind: "BATCH", actions }, "Ling 上工 大力")).toBe(false);
+    expect(parseWorkBotMessage("Jessie 上工 大力")).toEqual({ kind: "START", memberName: "Jessie", serviceAlias: "大力" });
+  });
+});

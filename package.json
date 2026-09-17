@@ -1,6 +1,6 @@
 {
   "name": "massage-note",
-  "version": "1.5.3",
+  "version": "1.6.0",
   "private": true,
   "packageManager": "pnpm@11.9.0",
   "scripts": {

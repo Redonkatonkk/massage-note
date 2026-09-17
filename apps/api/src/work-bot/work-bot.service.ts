@@ -120,6 +120,7 @@ export class WorkBotService {
     return {
       status: "BOUND" as const,
       protocolVersion: 2,
+      storeId: group.storeId,
       today: businessDateFor({ startAt: deviceNow(), timezone: group.store.timezone, cutoffLocal: group.store.businessCutoffLocal }),
       timezone: group.store.timezone,
       managementSchema: z.toJSONSchema(workBotParsedIntentSchema),

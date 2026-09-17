@@ -11,3 +11,7 @@ Configure `api_base_url`, `integration_token`, the dedicated `bot`, and parser `
 See [中文配置说明](readme/README_zh_Hans.md) and the repository [development guide](DEVELOPMENT.md). Deploy the required API and migrations before installing the plugin. Never include credentials in a package or rely on custom container environment variables reaching isolated plugin workers.
 
 History is held only in worker memory, scoped by current store context and plugin configuration, capped at 256 sessions. Turns with either text longer than 4,000 characters are omitted. History does not replace current-message evidence, live database queries or API authorization.
+
+## Learning memory (1.3.0)
+
+Requires API 1.6.0. Ambiguities and corrections trigger a concrete guess and confirmation. Confirmed language examples persist in LangBot plugin storage, isolated by configuration, store, bot, group, sender and binding name. Confirmation expires after 30 minutes and only saves learning; send a complete command to perform work. Each scope retains 50 lessons and 30 unresolved cases and clarification receipts. Live catalog, evidence and authorization remain authoritative; learned examples cannot authorize payment or duration defaults. Backups contain message excerpts and must be treated as runtime data.

@@ -212,5 +212,119 @@ class HistoryTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("0", self.listener._history)
 
 
+class LearningTest(unittest.IsolatedAsyncioTestCase):
+    send = HistoryTest.send
+    def setUp(self):
+        HistoryTest.setUp(self)
+        self.storage = {}
+        async def get(key):
+            if key not in self.storage:
+                raise RuntimeError(f"Storage with key {key} not found")
+            return self.storage[key]
+        async def put(key, value):
+            self.storage[key] = value
+        self.listener.plugin.get_plugin_storage = AsyncMock(side_effect=get)
+        self.listener.plugin.set_plugin_storage = AsyncMock(side_effect=put)
+        self.listener._fetch_skill_context.return_value = {"status": "BOUND", "storeId": "store-1"}
+        self.listener.plugin.invoke_llm.return_value.content = json.dumps({
+            "kind": "CLARIFY", "phrase": "走一个", "guess": "开始一次按摩服务，仍需注明项目和时长",
+        })
+
+    def memory(self):
+        return json.loads(next(iter(self.storage.values())))
+
+    async def test_confirmation_persists_without_financial_write_and_is_reused(self):
+        await self.send("a", "走一个")
+        self.assertEqual(len(self.memory()["incidents"]), 1)
+        self.assertFalse(self.memory()["lessons"])
+        await self.send("b", "对")
+        self.assertEqual(self.memory()["lessons"][0]["phrase"], "走一个")
+        self.listener._post_event.assert_not_awaited()
+        # New listener state simulates a worker restart; storage is owned by the host.
+        plugin = self.listener.plugin
+        saved = dict(self.storage)
+        self.setUp()
+        self.storage.update(saved)
+        self.listener.plugin = plugin
+        self.listener.plugin.invoke_llm.return_value.content = '{"kind":"QUERY","days":1}'
+        messages = await self.send("c", "今天的记工")
+        self.assertIn("开始一次按摩服务", messages[0].content)
+        self.listener._post_event.assert_awaited_once()
+        self.assertNotIn("learningMemory", self.listener._post_event.call_args.args[1])
+
+    async def test_correction_suspends_old_lesson_until_confirmed(self):
+        await self.send("a", "走一个")
+        await self.send("b", "对")
+        self.listener.plugin.invoke_llm.return_value.content = json.dumps({
+            "kind": "CLARIFY", "phrase": "走一个", "guess": "结束服务，需要补充金额和付款方式",
+        })
+        await self.send("c", "不对，走一个是结束服务")
+        self.assertEqual(self.memory()["lessons"], [])
+        await self.send("d", "确认")
+        self.assertEqual(len(self.memory()["lessons"]), 1)
+        self.assertIn("结束服务", self.memory()["lessons"][0]["meaning"])
+
+    async def test_memory_is_isolated_and_survives_date_changes(self):
+        await self.send("a", "走一个")
+        await self.send("b", "对")
+        self.listener.plugin.invoke_llm.return_value.content = '{"kind":"QUERY","days":1}'
+        for kwargs in [{"bot": "other"}, {"group": "other"}, {"sender": "other"}]:
+            messages = await self.send("c", "今天的记工", **kwargs)
+            self.assertNotIn("开始一次按摩服务", messages[0].content)
+        self.listener._fetch_skill_context.return_value["today"] = "2030-01-01"
+        self.assertIn("开始一次按摩服务", (await self.send("d", "今天的记工"))[0].content)
+        self.listener._fetch_skill_context.return_value["storeId"] = "other-store"
+        self.assertNotIn("开始一次按摩服务", (await self.send("e", "今天的记工"))[0].content)
+
+    async def test_replay_and_expiry(self):
+        await self.send("a", "走一个")
+        await self.send("a", "走一个")
+        self.assertEqual(len(self.memory()["incidents"]), 1)
+        self.assertEqual(self.listener.plugin.invoke_llm.await_count, 1)
+        self.listener.plugin.invoke_llm.return_value.content = '{"kind":"HELP"}'
+        with patch.object(time, "time", return_value=time.time() + 1801):
+            await self.send("b", "对")
+        self.assertFalse(self.memory()["lessons"])
+
+    async def test_storage_failure_does_not_claim_success_or_write(self):
+        await self.send("a", "走一个")
+        self.listener.plugin.set_plugin_storage.side_effect = RuntimeError("offline")
+        await self.send("b", "对")
+        self.assertIn("保存失败", self.listener._reply.call_args.args[1])
+        self.assertFalse(self.memory()["lessons"])
+        self.listener._post_event.assert_not_awaited()
+
+    async def test_fabricated_phrase_is_rejected(self):
+        await self.send("a", "无关文字")
+        self.assertIn("原文校验", self.listener._reply.call_args.args[1])
+        self.assertFalse(self.storage)
+        self.listener._post_event.assert_not_awaited()
+
+    async def test_mentioned_confirmation_and_explicit_help(self):
+        await self.send("a", "走一个")
+        await self.send("b", "@Jeunesse 对！")
+        self.assertEqual(len(self.memory()["lessons"]), 1)
+        self.listener.plugin.invoke_llm.return_value.content = '{"kind":"HELP"}'
+        await self.send("c", "帮助")
+        self.listener._post_event.assert_awaited_once()
+
+    async def test_backend_rejected_interpretation_is_remembered(self):
+        self.listener.plugin.invoke_llm.return_value.content = '{"kind":"QUERY","days":1}'
+        self.listener._post_event.return_value = {"outcome": "INTENT_EVIDENCE_REJECTED", "reply": "原文校验未通过"}
+        await self.send("a", "查一查")
+        self.assertIn("我猜你是想查询记工", self.listener._reply.call_args.args[1])
+        self.assertEqual(self.memory()["incidents"][0]["text"], "查一查")
+        self.assertFalse(self.memory()["lessons"])
+
+    async def test_unavailable_storage_does_not_overwrite_existing_memory(self):
+        await self.send("a", "走一个")
+        self.listener.plugin.set_plugin_storage.reset_mock()
+        self.listener.plugin.get_plugin_storage.side_effect = RuntimeError("offline")
+        await self.send("b", "对")
+        self.assertIn("无法读取", self.listener._reply.call_args.args[1])
+        self.listener.plugin.set_plugin_storage.assert_not_awaited()
+        self.listener._post_event.assert_not_awaited()
+
+
 if __name__ == "__main__":
     unittest.main()

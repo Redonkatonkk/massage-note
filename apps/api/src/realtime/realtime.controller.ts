@@ -1,4 +1,4 @@
-import { Controller, Headers, Param, Sse, UseGuards } from "@nestjs/common";
+import { Controller, Header, Headers, Param, Sse, UseGuards } from "@nestjs/common";
 import { uuidSchema } from "@massage-note/contracts";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { SessionAuthGuard } from "../auth/session-auth.guard.js";
@@ -12,6 +12,8 @@ export class RealtimeController {
   constructor(private readonly realtime: RealtimeService) {}
 
   @Sse()
+  @Header("X-Accel-Buffering", "no")
+  @Header("Cache-Control", "no-cache, no-store, no-transform")
   stream(
     @CurrentUser() user: AuthenticatedUser,
     @Param("storeId") storeId: string,

@@ -42,9 +42,11 @@ describe.skipIf(process.platform !== "darwin")("个人日结 PNG", () => {
       const svgMarkup = await readFile(svg, "utf8");
       expect(bytes.subarray(1, 4).toString()).toBe("PNG");
       expect(bytes.length).toBeGreaterThan(10_000);
-      expect(svgMarkup).toContain('viewBox="0 0 1170 985"');
-      expect(svgMarkup).toContain('<rect x="0" y="0" width="1170" height="985" fill="url(#bg)"/>');
+      expect(svgMarkup).toContain('viewBox="0 0 1170 719"');
+      expect(svgMarkup).toContain('<rect x="0" y="0" width="1170" height="719" fill="url(#bg)"/>');
       expect(svgMarkup).not.toContain('width="100%"');
+      expect(svgMarkup).not.toContain("大费基数");
+      expect(svgMarkup).not.toContain("应提交现金");
       expect(svgMarkup).toContain('class="card-amount-box"');
       expect(svgMarkup).toContain('20（礼物卡）');
       expect(svgMarkup).toContain('员工大费（折前）');

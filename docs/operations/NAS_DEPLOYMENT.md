@@ -1,6 +1,6 @@
 # GitHub → GHCR → 群晖部署
 
-> 当前版本：`1.4.47` · 镜像：`ghcr.io/redonkatonkk/massage-note`
+> 当前版本：`1.5.2` · 镜像：`ghcr.io/redonkatonkk/massage-note`
 > 历史版本变化统一查看 [`CHANGELOG.md`](../../CHANGELOG.md)，不在本手册重复累积。
 
 标准发布链路：
@@ -273,3 +273,11 @@ shasum -a 256 -c "artifacts/massage-note-$release_version-linux-amd64.tar.sha256
 | root Task Scheduler 返回 105 | 管理员公网新设备会话可能被 Adaptive MFA 限制；先在 DSM 页面完成二次验证/设备信任，再重试，不要跳过备份 |
 | 更新请求返回但线上仍旧版 | `Project.update` 可能只保存 Compose；继续执行 build、等待 stream，并核对容器 `Config.Image` |
 | 上线后像数据丢失 | 先核对项目名与卷名；不要删除任何卷 |
+
+## 多设备同步与 SSE 排查
+
+正式入口必须持续透传 `/api/v1/stores/:storeId/events` 的 `text/event-stream` 响应，不能缓存、聚合或等待请求结束才转发。API 已返回 `X-Accel-Buffering: no` 与禁缓存/转换指令；需要确认群晖及外层代理没有忽略这些头。若管理自有 Nginx，对 SSE 路由关闭 `proxy_buffering`、`proxy_cache`，读取超时建议至少 60 秒，并避免对流做压缩聚合；不要把配置示例直接覆盖到群晖自动生成文件。
+
+排查时用同账号两台设备登录同店，两边保持前台。在开发者工具 Network 中检查 events 请求为 200、类型为 text/event-stream，约每 2 秒收到 heartbeat。请求长时间 pending 属正常；HTTP 已建立但没有持续事件则需分别对比内部 API 与 HTTPS 入口，定位代理缓冲/超时或 API 查询问题。勿复制登录 Cookie 或 token 到日志、文档或工单。
+
+分别验证新增、编辑、删除与恢复能在另一设备约 2–3 秒加请求耗时更新，再验证锁屏、切换应用和网络恢复。前端会在 10 秒无消息后重连，异常期间低频补读，但这不能替代修复代理链路。数据库晚提交的 30 秒兜底同步仍保留。先在本地完成验证；更新 NAS 需独立部署授权，不能仅因更新版本号就发布。

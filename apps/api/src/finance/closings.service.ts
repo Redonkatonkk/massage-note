@@ -158,6 +158,7 @@ export class ClosingsService {
     input: CloseBusinessDayInput,
     idempotencyKey: string,
     requestId: string,
+    automatic = false,
   ) {
     const membership = await this.access.requireCapability(
       actor.id,
@@ -170,7 +171,7 @@ export class ClosingsService {
         userId: actor.id,
         key: idempotencyKey,
         route: "/api/v1/stores/:storeId/closings/:date",
-        payload: { businessDate, input },
+        payload: { businessDate, input, ...(automatic ? { automatic } : {}) },
         responseCode: 201,
       },
       async (transaction) => {
@@ -197,7 +198,7 @@ export class ClosingsService {
         const hasBlockingWarnings = preview.warnings.some(
           (warning) => warning.blocking,
         );
-        if (hasBlockingWarnings && !input.force) {
+        if ((automatic && preview.hasWarnings) || (hasBlockingWarnings && !input.force)) {
           throw new ConflictException({
             code: "CLOSING_WARNINGS_REQUIRE_FORCE",
             messageZh: "日结检查发现异常，请处理后重试，或填写原因后强制日结",
@@ -208,6 +209,9 @@ export class ClosingsService {
           where: { storeId, businessDate: dateAtUtc(businessDate) },
           _max: { cycleNo: true },
         });
+        if (automatic && cycle._max.cycleNo !== null) {
+          throw new ConflictException({ code: "AUTOMATIC_CLOSING_ALREADY_PROCESSED" });
+        }
         const closing = await transaction.businessDayClosing.create({
           data: {
             storeId,
@@ -229,7 +233,7 @@ export class ClosingsService {
             storeId,
             actorUserId: actor.id,
             actorMembershipId: membership.id,
-            source: "api",
+            source: automatic ? "scheduler" : "api",
             action: input.force
               ? "business_day.force_closed"
               : "business_day.closed",
@@ -248,6 +252,35 @@ export class ClosingsService {
             requestId,
           },
         });
+        if (closing.cycleNo === 1) {
+          // Same day lock and transaction as closing: no gap for duplicate sends or lost jobs.
+          const members = await transaction.storeMembership.findMany({
+            where: { storeId, status: "ACTIVE", deletedAt: null, closingDeliveryEnabled: true },
+            include: { user: { select: { phoneE164: true } }, store: { select: { closingDefaultLocale: true } } },
+          });
+          for (const member of members) {
+            const phone = member.closingDeliveryPhoneE164 ?? member.user?.phoneE164;
+            if (!phone || !/^\+[1-9]\d{7,14}$/.test(phone)) continue;
+            const existing = await transaction.employeeClosingDelivery.findFirst({
+              where: { storeId, businessDate: closing.businessDate, membershipId: member.id,
+                status: { in: ["SENT", "QUEUED", "CLAIMED"] } },
+            });
+            if (existing) continue;
+            const snapshot = await this.previewMember(actor, storeId, businessDate, member.id, transaction);
+            const delivery = await transaction.employeeClosingDelivery.create({
+              data: { storeId, businessDate: closing.businessDate, closingId: closing.id,
+                membershipId: member.id, kind: "INITIAL", requestKey: "initial",
+                recipientPhoneE164: phone, locale: member.closingImageLocale ?? member.store.closingDefaultLocale,
+                snapshotJson: snapshot as unknown as Prisma.InputJsonValue, queuedBy: actor.id },
+            });
+            await transaction.auditLog.create({
+              data: { storeId, actorUserId: actor.id, actorMembershipId: membership.id,
+                source: automatic ? "scheduler" : "api", action: "employee_closing.delivery_queued",
+                entityType: "employee_closing_delivery", entityId: delivery.id, businessDate: closing.businessDate,
+                afterJson: { membershipId: member.id, closingId: closing.id, kind: "INITIAL", automatic: true }, requestId },
+            });
+          }
+        }
         return { closing, preview };
       },
     );

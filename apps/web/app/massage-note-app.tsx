@@ -18,6 +18,7 @@ import type {
 } from "../lib/types";
 import { TodayBoard } from "./today-board";
 import { useStoreRealtime } from "../lib/realtime";
+import { boardRefreshScope } from "../lib/realtime-scope";
 import { AppNav } from "./app-nav";
 import { FloatingAiAssistant } from "./floating-ai-assistant";
 import { BusinessDatePicker } from "./business-date-picker";
@@ -237,10 +238,15 @@ export function MassageNoteApp() {
     } finally { setLoading(false); }
   }, []);
 
+  const fullRefreshPending = useRef(true);
+  const lastReadError = useRef<unknown>(null);
   const refreshQueue = useRef<ReturnType<typeof createRefreshQueue> | null>(null);
   const readStore = useCallback(async () => {
     if (!membership) return;
     const generation = ++storeLoadGeneration.current;
+    const full = fullRefreshPending.current;
+    fullRefreshPending.current = false;
+    lastReadError.current = null;
     const selectedMembership = membership;
     setError("");
     try {
@@ -248,6 +254,13 @@ export function MassageNoteApp() {
       const requestedDate = !viewDateRef.current || viewDateRef.current === currentDayRef.current
         ? day.businessDate : viewDateRef.current;
       const targetDate = requestedDate <= day.businessDate ? requestedDate : day.businessDate;
+      if (!full && targetDate === viewDateRef.current) {
+        const nextBoard = await apiRequest<BoardResponse>(`/stores/${selectedMembership.store.id}/boards/${targetDate}`);
+        if (generation !== storeLoadGeneration.current) return;
+        setCurrentDay(day);
+        setBoard(deduplicateBoardRows(nextBoard));
+        return;
+      }
       const [nextBoard, nextCatalog, nextStoreDetails, fetchedMembers] = await Promise.all([
         apiRequest<BoardResponse>(`/stores/${selectedMembership.store.id}/boards/${targetDate}`),
         apiRequest<CatalogResponse>(`/stores/${selectedMembership.store.id}/catalog`),
@@ -268,7 +281,7 @@ export function MassageNoteApp() {
       currentDayRef.current = day.businessDate;
       setCurrentDay(day); setBoard(deduplicateBoardRows(nextBoard)); setCatalog(nextCatalog); setStoreDetails({ ...nextStoreDetails, timezone: day.timezone }); setMembers(nextMembers);
     } catch (caught) {
-      if (generation === storeLoadGeneration.current) setError(errorMessage(caught));
+      if (generation === storeLoadGeneration.current) { lastReadError.current = caught; setError(errorMessage(caught)); }
     }
   }, [membership]);
 
@@ -281,6 +294,7 @@ export function MassageNoteApp() {
     };
   }, [readStore]);
   const loadStore = useCallback(() => {
+    fullRefreshPending.current = true;
     // Invalidate an in-flight response immediately, including a date change.
     storeLoadGeneration.current += 1;
     return refreshQueue.current?.request() ?? Promise.resolve();
@@ -299,7 +313,14 @@ export function MassageNoteApp() {
     window.addEventListener("focus", refreshDate);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", refreshDate); };
   }, [membership, loadStore]);
-  const realtimeState = useStoreRealtime(membership?.store.id, loadStore);
+  const realtimeState = useStoreRealtime(membership?.store.id, async change => {
+    const scope = boardRefreshScope(change, viewDateRef.current);
+    if (scope === "none") return;
+    if (scope === "full") fullRefreshPending.current = true;
+    storeLoadGeneration.current += 1;
+    await refreshQueue.current?.request();
+    if (lastReadError.current) throw lastReadError.current;
+  });
 
   if (loading) return <LoadingPage />;
   if (error && !me) return <main className="center-page"><section className="error-card"><h1>暂时无法打开系统</h1><p>{error}</p><button className="primary-action" onClick={() => window.location.reload()} type="button">重新加载</button></section></main>;

@@ -127,26 +127,54 @@ async function generateClosingImage(
 ): Promise<GeneratedClosingImage> {
   const tr = (value: string) => translateText(value, locale);
   const logicalWidth = Math.max(1, Math.round(window.screen?.width || window.innerWidth));
-  const screenHeight = Math.max(1, Math.round(window.screen?.height || window.innerHeight));
-  const landscape = logicalWidth > screenHeight;
-  const logicalHeight = Math.max(
-    screenHeight,
-    Math.round((landscape ? 430 : 520) + preview.records.length * (landscape ? 74 : 94)),
-  );
+  const scale = logicalWidth / 390;
+  const margin = 24 * scale;
+  const contentWidth = logicalWidth - margin * 2;
   const pixelRatio = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(logicalWidth * pixelRatio);
-  canvas.height = Math.round(logicalHeight * pixelRatio);
   const context = canvas.getContext("2d");
   if (!context) throw new Error("当前设备无法生成图片");
+  const padding = 12 * scale;
+  const leftWidth = (contentWidth - padding * 3) * 0.43;
+  const rightWidth = contentWidth - padding * 3 - leftWidth;
+  const lineHeight = 14 * scale;
+  const wrap = (text: string, width: number, fontSize: number) => {
+    context.font = `800 ${Math.round(fontSize * scale)}px ${imageFont}`;
+    const lines: string[] = [];
+    let line = "";
+    for (const character of text) {
+      if (line && context.measureText(line + character).width > width) {
+        lines.push(line);
+        line = "";
+      }
+      line += character;
+    }
+    if (line) lines.push(line);
+    return lines;
+  };
+  const payments = (label: string, cash: number | null, card: number | null, gift: number | null) => {
+    const values = [["现金", cash], ["刷卡", card], ["礼卡", gift]] as const;
+    return `${tr(label)}  ${values.filter(([, value]) => value !== null && value !== 0)
+      .map(([kind, value]) => `${tr(kind)} ${paymentMoney(value, locale)}`).join(" · ") || "—"}`;
+  };
+  const layouts = preview.records.map((record) => {
+    const names = wrap(recordLabel(record), leftWidth, 11);
+    const metadata = wrap(`${recordTime(record.startAt, preview.storeTimezone, locale)}–${recordTime(record.endAt, preview.storeTimezone, locale)} · ${tr(record.status === "CONFIRMED" ? "已确认" : "待结账")}`, leftWidth, 8);
+    const left = [
+      ...wrap(`${tr("员工大费（折前）")} ${money(record.grossFeeBaseCents, locale)}`, leftWidth, 9),
+      ...wrap(`${tr("本笔收入")} ${paymentMoney(record.employeeIncomeCents, locale)}`, leftWidth, 9),
+    ];
+    const right = [
+      wrap(payments("大费实收", record.cashServiceCents, record.cardServiceCents, record.giftCardServiceCents), rightWidth, 9),
+      wrap(payments("小费", record.cashTipCents, record.cardTipCents, record.giftCardTipCents), rightWidth, 9),
+    ] as const;
+    const height = Math.max(names.length + metadata.length + left.length, right[0].length + right[1].length + 0.5) * lineHeight + 20 * scale;
+    return { names, metadata, left, right, height };
+  });
+  const logicalHeight = Math.ceil(margin * 2 + 290 * scale + layouts.reduce((sum, row) => sum + row.height + 7 * scale, 0));
+  canvas.width = Math.round(logicalWidth * pixelRatio);
+  canvas.height = Math.round(logicalHeight * pixelRatio);
   context.scale(pixelRatio, pixelRatio);
-
-  const scale = Math.max(
-    0.72,
-    Math.min(1.55, logicalWidth / 390, logicalHeight / (landscape ? 500 : 844)),
-  );
-  const margin = Math.max(16, Math.min(52, logicalWidth * 0.06));
-  const contentWidth = logicalWidth - margin * 2;
   const background = context.createLinearGradient(0, 0, logicalWidth, logicalHeight);
   background.addColorStop(0, "#fffaf3");
   background.addColorStop(0.55, "#f9eadf");
@@ -166,7 +194,7 @@ async function generateClosingImage(
   y += 32 * scale;
 
   context.fillStyle = "#211d18";
-  context.font = `900 ${Math.round((landscape ? 25 : 30) * scale)}px ${imageFont}`;
+  context.font = `900 ${Math.round(30 * scale)}px ${imageFont}`;
   context.fillText(preview.employee.displayName, margin, y + 29 * scale, contentWidth);
   y += 42 * scale;
   context.fillStyle = "#6b635a";
@@ -195,11 +223,11 @@ async function generateClosingImage(
     context.textAlign = "left";
     context.fillStyle = "#211d18";
     context.font = `800 ${Math.round(10 * scale)}px ${imageFont}`;
-    context.fillText(row[0], margin + 12 * scale, baseline);
+    context.fillText(row[0], margin + 12 * scale, baseline, labelWidth - 16 * scale);
     [row[1], row[2], row[3]].forEach((value, column) => {
       context.textAlign = "center";
       context.font = `900 ${Math.round(12 * scale)}px ${imageFont}`;
-      context.fillText(compactMoney(value, locale), margin + labelWidth + valueWidth * (column + 0.5), baseline);
+      context.fillText(compactMoney(value, locale), margin + labelWidth + valueWidth * (column + 0.5), baseline, valueWidth - 4 * scale);
     });
   });
   context.strokeStyle = "#eee4dd";
@@ -209,62 +237,50 @@ async function generateClosingImage(
   context.lineTo(margin + tableWidth - 8 * scale, y + 75 * scale);
   context.stroke();
   const totalX = margin + tableWidth + 2 * scale;
-  fillRoundedRect(context, totalX, y + 12 * scale, totalWidth, summaryHeight - 24 * scale, 14 * scale, "#8e3e2f");
+  fillRoundedRect(context, totalX, y + 12 * scale, totalWidth, summaryHeight - 24 * scale, 14 * scale, "#f8dfcc");
   context.textAlign = "left";
-  context.fillStyle = "rgba(255,255,255,.78)";
-  context.font = `800 ${Math.round(9 * scale)}px ${imageFont}`;
+  context.fillStyle = "#72311f";
+  context.font = `800 ${Math.round(11 * scale)}px ${imageFont}`;
   context.fillText(tr("今日总收入"), totalX + 12 * scale, y + 42 * scale, totalWidth - 24 * scale);
-  context.fillStyle = "#fff";
-  context.font = `900 ${Math.round(16 * scale)}px ${imageFont}`;
+  context.fillStyle = "#632719";
+  context.font = `900 ${Math.round(23 * scale)}px ${imageFont}`;
   context.fillText(money(preview.employee.confirmedIncomeCents, locale), totalX + 12 * scale, y + 86 * scale, totalWidth - 24 * scale);
   y += summaryHeight + 10 * scale;
-
-  const handoffHeight = 48 * scale;
-  fillRoundedRect(context, margin, y, contentWidth, handoffHeight, 14 * scale, "#fff1de");
-  context.fillStyle = "#8a4b08";
-  context.font = `700 ${Math.round(9 * scale)}px ${imageFont}`;
-  context.fillText(tr("大费基数"), margin + 13 * scale, y + 17 * scale);
-  context.fillText(tr("应提交现金"), margin + contentWidth / 2, y + 17 * scale);
-  context.fillStyle = "#211d18";
-  context.font = `900 ${Math.round(14 * scale)}px ${imageFont}`;
-  context.fillText(money(preview.employee.grossFeeBaseCents, locale), margin + 13 * scale, y + 38 * scale);
-  context.fillText(money(preview.employee.cashToSubmitToStoreCents, locale), margin + contentWidth / 2, y + 38 * scale);
-  y += handoffHeight + 14 * scale;
 
   context.fillStyle = "#6b635a";
   context.font = `800 ${Math.round(11 * scale)}px ${imageFont}`;
   context.fillText(`${tr("逐笔记工")} · ${preview.records.length} ${tr("条")}`, margin, y + 12 * scale);
   y += 22 * scale;
-  const recordHeight = (landscape ? 64 : 84) * scale;
-  preview.records.forEach((record) => {
-    fillRoundedRect(context, margin, y, contentWidth, recordHeight, 13 * scale, "rgba(255,255,255,.88)");
+  layouts.forEach((row) => {
+    fillRoundedRect(context, margin, y, contentWidth, row.height, 13 * scale, "rgba(255,255,255,.88)");
+    let leftY = y + 18 * scale;
+    context.textAlign = "left";
     context.fillStyle = "#211d18";
     context.font = `900 ${Math.round(11 * scale)}px ${imageFont}`;
-    context.fillText(recordLabel(record), margin + 12 * scale, y + 18 * scale, contentWidth * 0.58);
-    context.fillStyle = record.status === "CONFIRMED" ? "#176b45" : "#9a5a0c";
-    context.font = `800 ${Math.round(9 * scale)}px ${imageFont}`;
-    context.textAlign = "right";
-    context.fillText(
-      tr(record.status === "CONFIRMED" ? "已确认" : "待结账"),
-      margin + contentWidth - 12 * scale,
-      y + 18 * scale,
-    );
-    context.textAlign = "left";
+    row.names.forEach((line) => { context.fillText(line, margin + padding, leftY); leftY += lineHeight; });
     context.fillStyle = "#756b62";
-    context.font = `700 ${Math.round(8 * scale)}px ${imageFont}`;
-    const time = `${recordTime(record.startAt, preview.storeTimezone, locale)}–${recordTime(record.endAt, preview.storeTimezone, locale)}`;
-    const grossFee = `${tr("员工大费（折前）")} ${money(record.grossFeeBaseCents, locale)}`;
-    const servicePayments = `${tr("大费实收")} ${tr("现金")} ${paymentMoney(record.cashServiceCents, locale)} · ${tr("刷卡")} ${paymentMoney(record.cardServiceCents, locale)} · ${tr("礼卡")} ${paymentMoney(record.giftCardServiceCents, locale)}`;
-    const tipPayments = `${tr("小费")} ${tr("现金")} ${paymentMoney(record.cashTipCents, locale)} · ${tr("刷卡")} ${paymentMoney(record.cardTipCents, locale)} · ${tr("礼卡")} ${paymentMoney(record.giftCardTipCents, locale)}`;
-    context.fillText(time, margin + 12 * scale, y + 34 * scale, contentWidth * 0.28);
-    context.fillStyle = "#211d18";
+    context.font = `800 ${Math.round(8 * scale)}px ${imageFont}`;
+    row.metadata.forEach((line) => { context.fillText(line, margin + padding, leftY); leftY += lineHeight; });
+    row.left.forEach((line) => {
+      context.fillStyle = "#8e3e2f";
+      context.font = `800 ${Math.round(9 * scale)}px ${imageFont}`;
+      context.fillText(line, margin + padding, leftY);
+      leftY += lineHeight;
+    });
+    const rightX = margin + padding * 2 + leftWidth;
+    context.strokeStyle = "#eadfd7";
+    context.beginPath();
+    context.moveTo(rightX - padding / 2, y + 10 * scale);
+    context.lineTo(rightX - padding / 2, y + row.height - 10 * scale);
+    context.stroke();
+    let rightY = y + 18 * scale;
     context.font = `800 ${Math.round(9 * scale)}px ${imageFont}`;
-    context.fillText(grossFee, margin + contentWidth * 0.32, y + 34 * scale, contentWidth * 0.62);
-    context.fillStyle = "#756b62";
-    context.font = `700 ${Math.round(8 * scale)}px ${imageFont}`;
-    context.fillText(servicePayments, margin + 12 * scale, y + 52 * scale, contentWidth - 24 * scale);
-    context.fillText(tipPayments, margin + 12 * scale, y + (landscape ? 64 : 72) * scale, contentWidth - 24 * scale);
-    y += recordHeight + 7 * scale;
+    context.fillStyle = "#514a43";
+    row.right.forEach((lines) => {
+      lines.forEach((line) => { context.fillText(line, rightX, rightY); rightY += lineHeight; });
+      rightY += lineHeight / 2;
+    });
+    y += row.height + 7 * scale;
   });
 
   const footerY = logicalHeight - margin;

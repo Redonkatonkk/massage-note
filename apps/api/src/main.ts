@@ -65,6 +65,7 @@ async function bootstrap(): Promise<void> {
       "X-Request-Id",
       "X-Device-Timezone",
       "X-Device-Time",
+      "Last-Event-ID",
     ],
   });
   app.setGlobalPrefix("api/v1");

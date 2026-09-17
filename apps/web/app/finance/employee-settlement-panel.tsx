@@ -14,10 +14,8 @@ const shiftDate = (value: string, days: number) => { const date = new Date(`${va
 const time = (value: string | null, timezone: string) => value ? new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)) : "—";
 const recordName = (record: EmployeeSettlementPreview["records"][number]) => [record.serviceShortName || record.serviceName, ...record.addons.map((item) => item.shortName || item.name)].join(" ＋ ");
 
-function paymentParts(record: EmployeeSettlementPreview["records"][number], kind: "service" | "tip") {
-  const values = kind === "service"
-    ? [["现金", record.cashServiceCents], ["刷卡", record.cardServiceCents], ["礼物卡", record.giftCardServiceCents]] as const
-    : [["现金", record.cashTipCents], ["刷卡", record.cardTipCents], ["礼物卡", record.giftCardTipCents]] as const;
+function tipPaymentParts(record: EmployeeSettlementPreview["records"][number]) {
+  const values = [["现金", record.cashTipCents], ["刷卡", record.cardTipCents], ["礼物卡", record.giftCardTipCents]] as const;
   return values.filter(([, value]) => value > 0).map(([label, value]) => `${label} ${money(value)}`).join(" / ") || "—";
 }
 
@@ -98,19 +96,15 @@ function SettlementRecordCard({
   return (
     <article className="employee-settlement-record-card">
       <div className="employee-settlement-record-card__topline">
-        <strong>{recordName(record)}</strong>
+        <div>
+          <strong>{recordName(record)}</strong>
+          <span className="record-time">{time(record.startAt, preview.storeTimezone)}–{time(record.endAt, preview.storeTimezone)}</span>
+        </div>
         <span>{locale === "en-US" ? `#${index + 1}` : `第 ${index + 1} 笔`}</span>
       </div>
-      <span className="record-time">
-        {time(record.startAt, preview.storeTimezone)}–{time(record.endAt, preview.storeTimezone)}
-      </span>
-      <div className="employee-settlement-record-card__amount">
-        <small>大费基数</small>
-        <strong>{money(record.grossFeeBaseCents)}</strong>
-      </div>
       <div className="employee-settlement-record-card__payments">
-        <span><small>大费实收</small><b>{paymentParts(record, "service")}</b></span>
-        <span><small>小费</small><b>{paymentParts(record, "tip")}</b></span>
+        <span><small>大费基数</small><b>{money(record.grossFeeBaseCents)}</b></span>
+        <span><small>小费</small><b>{tipPaymentParts(record)}</b></span>
       </div>
       {notice && <small className="settlement-payment-notice">{notice}</small>}
       <dl className="employee-settlement-record-card__income">
@@ -149,7 +143,6 @@ function SettlementDaySummaryCard({
         <strong>当日总结</strong>
         <span>{locale === "en-US" ? `${summary.recordCount} records` : `${summary.recordCount} 笔`}</span>
       </div>
-      <span className="record-time">本日合计</span>
       <div className="employee-settlement-record-card__amount">
         <small>{paymentScope === "ALL" ? "当日总收入" : cash ? "现金工资合计" : "非现金工资合计"}</small>
         <strong>{money(total)}</strong>

@@ -2625,9 +2625,10 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 .employee-settlement-day > header span { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
 .employee-settlement-day > header > strong { flex: 0 0 auto; color: var(--brand); font-size: .85rem; }
 .employee-settlement-day-track { display: flex; min-width: 0; gap: 12px; overflow-x: auto; padding: 0 20px 4px; scroll-padding-inline: 20px; scroll-snap-type: x proximity; scrollbar-color: #d9b9a7 transparent; }
-.employee-settlement-record-card { display: flex; width: 276px; min-width: 276px; min-height: 286px; flex-direction: column; gap: 7px; padding: 15px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 7px 20px rgba(83,54,31,.055); scroll-snap-align: start; }
+.employee-settlement-record-card { display: flex; width: 276px; min-width: 276px; min-height: 286px; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 7px 20px rgba(83,54,31,.055); scroll-snap-align: start; }
 .employee-settlement-record-card__topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.employee-settlement-record-card__topline > strong { min-width: 0; overflow-wrap: anywhere; font-size: .94rem; line-height: 1.3; }
+.employee-settlement-record-card__topline > div { display: grid; min-width: 0; gap: 3px; }
+.employee-settlement-record-card__topline strong { min-width: 0; overflow-wrap: anywhere; font-size: .94rem; line-height: 1.3; }
 .employee-settlement-record-card__topline > span { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; background: #f4eee8; color: var(--muted); font-size: .85rem; font-weight: 850; }
 .employee-settlement-record-card__amount { display: grid; gap: 2px; margin-top: 3px; }
 .employee-settlement-record-card__amount small { color: var(--muted); font-size: .85rem; font-weight: 750; }
@@ -2636,14 +2637,15 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 .employee-settlement-record-card__payments > span { display: grid; grid-template-columns: 56px minmax(0,1fr); gap: 7px; align-items: baseline; }
 .employee-settlement-record-card__payments small { color: var(--muted); font-size: .85rem; font-weight: 750; }
 .employee-settlement-record-card__payments b { min-width: 0; overflow-wrap: anywhere; font-size: .85rem; font-weight: 750; line-height: 1.4; }
-.employee-settlement-record-card__income { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 5px; margin: auto 0 0; padding-top: 9px; border-top: 1px solid rgba(80,61,47,.12); }
+.employee-settlement-record-card__income { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; margin: auto 0 0; padding-top: 8px; border-top: 1px solid rgba(80,61,47,.12); }
 .employee-settlement-record-card__income > div { display: grid; min-width: 0; gap: 4px; padding: 7px 5px; border-radius: 9px; background: #fbf6f1; }
-.employee-settlement-record-card__income > div.total { background: var(--brand-soft); }
+.employee-settlement-record-card__income > div.total { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; background: var(--brand-soft); }
+.employee-settlement-record-card__income > div.total dd { color: var(--brand); font-size: 1.1rem; text-align: right; }
 .employee-settlement-record-card__income dt { color: var(--muted); font-size: .85rem; font-weight: 800; line-height: 1.25; }
 .employee-settlement-record-card__income dd { margin: 0; overflow-wrap: anywhere; font-size: .85rem; font-weight: 900; font-variant-numeric: tabular-nums; }
 .employee-settlement-record-card--summary { border-color: color-mix(in srgb,var(--brand) 44%,var(--line)); background: linear-gradient(145deg,#fff7ee 0%,#f8e3da 100%); box-shadow: 0 9px 24px rgba(142,62,47,.12); }
 .employee-settlement-record-card--summary .employee-settlement-record-card__topline > span { background: var(--brand); color: #fff; }
-.employee-settlement-record-card--summary .employee-settlement-record-card__amount { margin-top: 13px; padding: 13px; border-radius: 13px; background: var(--brand); }
+.employee-settlement-record-card--summary .employee-settlement-record-card__amount { margin-top: 0; padding: 10px 12px; border-radius: 13px; background: var(--brand); }
 .employee-settlement-record-card--summary .employee-settlement-record-card__amount small { color: rgba(255,255,255,.76); }
 .employee-settlement-record-card--summary .employee-settlement-record-card__amount strong { color: #fff; font-size: 1.58rem; }
 .employee-settlement-record-card__daily-summary { display: grid; gap: 7px; margin: auto 0 0; padding: 11px 12px; border: 1px solid rgba(142,62,47,.14); border-radius: 12px; background: rgba(255,255,255,.72); }
@@ -3180,7 +3182,8 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 
 .employee-subtotal-card > header { padding: 12px; }
 .employee-subtotal-card > header button { min-height: 48px; }
 .employee-settlement-record-card { width: 320px; min-width: 320px; min-height: 0; }
-.employee-settlement-record-card__payments > span { grid-template-columns: 70px minmax(0,1fr); }
+.employee-settlement-record-card__payments > span { grid-template-columns: minmax(0,1fr) minmax(0,2fr); }
+.employee-settlement-record-card__payments b { text-align: right; font-variant-numeric: tabular-nums; }
 .floating-ai-button { box-shadow: 0 3px 12px rgba(71,32,23,.15); }
 @media (min-width: 1100px) {
   .finance-metric-group--emphasis .finance-cards { grid-template-columns: repeat(5,minmax(0,1fr)); }
@@ -3208,7 +3211,7 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 
   .finance-summary-card__main strong { font-size: 1.15rem; }
   .finance-advanced-filters > summary { flex-wrap: wrap; gap: 4px; }
   .employee-subtotal-equation { padding: 10px 7px; }
-  .employee-settlement-record-card { width: min(320px,85vw); min-width: min(320px,85vw); }
+  .employee-settlement-record-card { width: min(320px,calc(100vw - 88px)); min-width: min(320px,calc(100vw - 88px)); }
   .bottom-nav__item { font-size: .85rem; }
   .floating-ai-root { bottom: 84px; }
 }

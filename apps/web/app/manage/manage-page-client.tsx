@@ -30,6 +30,7 @@ import type {
   WorkBotSettings,
 } from "../../lib/types";
 import { useStoreRealtime } from "../../lib/realtime";
+import { isWorkRecordChange } from "../../lib/realtime-scope";
 import { AppNav } from "../app-nav";
 import { useLanguage } from "../language-provider";
 import { WorkBotPanel } from "./work-bot-panel";
@@ -212,7 +213,13 @@ export function ManagePageClient() {
       else setError(errorMessage(caught));
     }).finally(() => setLoading(false));
   }, [loadAll]);
-  const realtimeState = useStoreRealtime(membership?.store.id, loadAll);
+  const realtimeState = useStoreRealtime(membership?.store.id, async change => {
+    if (isWorkRecordChange(change) && membership) {
+      if (canManage) setDeletedRecords(await apiRequest<DeletedWorkRecord[]>(`/stores/${membership.store.id}/work-records/deleted`));
+      return;
+    }
+    await loadAll();
+  });
 
   async function run(action: () => Promise<void>) {
     setBusy(true);

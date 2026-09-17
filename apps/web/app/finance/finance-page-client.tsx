@@ -26,6 +26,7 @@ import type {
   WorkRecord,
 } from "../../lib/types";
 import { useStoreRealtime } from "../../lib/realtime";
+import { isWorkRecordChange } from "../../lib/realtime-scope";
 import { AppNav } from "../app-nav";
 import { ClosingDeliveryQueue } from "../closing-delivery-queue";
 import { EmployeeClosingSummary } from "../employee-closing";
@@ -220,7 +221,9 @@ export function FinancePageClient() {
     return new URLSearchParams(appliedFinanceQuery.current ?? financeParams().toString());
   }, [financeParams, summary]);
 
+  const appliedDetailOverride = useRef<FinanceRangeOverride>({});
   const loadDetails = useCallback(async (override: FinanceRangeOverride = {}) => {
+    appliedDetailOverride.current = override;
     if (!membership) return;
     const isCurrent = detailRequests.begin();
     const params = currentFinanceParams();
@@ -301,8 +304,17 @@ export function FinancePageClient() {
     );
   }, [membership, canManage]);
 
-  const realtimeState = useStoreRealtime(membership?.store.id, async () => {
-    await Promise.all([loadSummary({}, true), loadCash(), loadPayroll(), loadClosing(), loadGiftCards()]);
+  const realtimeState = useStoreRealtime(membership?.store.id, async change => {
+    const workOnly = isWorkRecordChange(change);
+    const cashAffected = !workOnly || change.changes.some(item => !item.businessDate || item.businessDate.slice(0, 10) === cashDate);
+    await Promise.all([
+      loadSummary({}, true),
+      ...(details ? [loadDetails(appliedDetailOverride.current)] : []),
+      ...(cashAffected ? [loadCash(), loadClosing()] : []),
+      // Historical record edits also affect payroll's history-changed indicator.
+      loadPayroll(),
+      ...(!workOnly ? [loadGiftCards()] : []),
+    ]);
   });
 
   useEffect(() => {

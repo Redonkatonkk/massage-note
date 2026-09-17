@@ -1,3 +1,4 @@
+import { ClosingSchedulerService } from "./closing-scheduler.service.js";
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
@@ -30,6 +31,7 @@ import { EmployeeSettlementsService } from "./employee-settlements.service.js";
   ],
   providers: [
     ClosingsService,
+    ClosingSchedulerService,
     CashSettlementsService,
     PayrollSettlementsService,
     FinanceQueriesService,

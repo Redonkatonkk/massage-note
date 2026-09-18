@@ -73,6 +73,14 @@ def exact_skill_value(value: Any, allowed: list[str]) -> str | None:
     return next((item for item in allowed if item == stripped), None)
 
 
+def parse_member(result: dict[str, Any], members: list[str]) -> dict[str, str] | None:
+    member = exact_skill_value(result.get("memberName"), members)
+    mention = result.get("memberMention")
+    if not member or not isinstance(mention, str) or not mention.strip():
+        return None
+    return {"memberName": member, "memberMention": mention.strip()[:80]}
+
+
 def explicit_start_targets(raw_text: str, members: list[str]) -> list[dict[str, str]]:
     """Resolve only a complete name-list prefix, never arbitrary name mentions."""
     match = re.fullmatch(r"\s*(.*?)\s+(?:上工|开工)\s+[^，,。；;]+", raw_text)
@@ -115,7 +123,7 @@ def parse_llm_json(value: str, skill_context: dict[str, Any]) -> dict[str, Any] 
         cleaned = match.group(0)
     try:
         result = json.loads(cleaned)
-    except (TypeError, ValueError, json.JSONDecodeError):
+    except (TypeError, ValueError):
         return None
     if not isinstance(result, dict) or result.get("kind") not in ALLOWED_KINDS:
         return None
@@ -157,11 +165,8 @@ def parse_llm_json(value: str, skill_context: dict[str, Any]) -> dict[str, Any] 
     members = [item for item in skill_context.get("members", []) if isinstance(item, str)]
     aliases = [item.get("alias") for item in skill_context.get("aliases", []) if isinstance(item, dict) and isinstance(item.get("alias"), str)]
     if kind == "BIND_MEMBER":
-        member_name = exact_skill_value(result.get("memberName"), members)
-        member_mention = result.get("memberMention")
-        if member_name and isinstance(member_mention, str) and member_mention.strip():
-            return {"kind": kind, "memberName": member_name, "memberMention": member_mention.strip()[:80]}
-        return None
+        member = parse_member(result, members)
+        return {"kind": kind, **member} if member else None
     if kind == "START":
         service_alias = exact_skill_value(result.get("serviceAlias"), aliases)
         service_mention = result.get("serviceMention")
@@ -190,21 +195,18 @@ def parse_llm_json(value: str, skill_context: dict[str, Any]) -> dict[str, Any] 
             else:
                 parsed_start["durationMention"] = duration_mention.strip()[:80]
         if member_name is not None:
-            canonical_member = exact_skill_value(member_name, members)
-            member_mention = result.get("memberMention")
-            if not canonical_member or not isinstance(member_mention, str) or not member_mention.strip():
+            member = parse_member(result, members)
+            if member is None:
                 return None
-            parsed_start["memberName"] = canonical_member
-            parsed_start["memberMention"] = member_mention.strip()[:80]
+            parsed_start.update(member)
         return parsed_start
     adjustments: dict[str, Any] = {}
     if kind in {"FINISH", "ADJUST"}:
         if result.get("memberName") is not None:
-            member = exact_skill_value(result.get("memberName"), members)
-            mention = result.get("memberMention")
-            if not member or not isinstance(mention, str) or not mention.strip():
+            member = parse_member(result, members)
+            if member is None:
                 return None
-            adjustments.update(memberName=member, memberMention=mention.strip()[:80])
+            adjustments.update(member)
         if "recordId" in result:
             if not isinstance(result["recordId"], str) or not re.fullmatch(r"[0-9a-fA-F-]{36}", result["recordId"]):
                 return None

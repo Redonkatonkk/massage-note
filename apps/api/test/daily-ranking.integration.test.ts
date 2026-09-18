@@ -15,7 +15,7 @@ const enabled = process.env.DATABASE_INTEGRATION_TESTS === "1";
 const prisma = new PrismaService();
 const access = new StoreAccessService(prisma);
 const idempotency = new IdempotencyService(prisma);
-const ranking = new DailyRankingService(prisma, access, idempotency);
+const ranking = new DailyRankingService(access, idempotency);
 const boards = new BoardsService(prisma, access, idempotency);
 const memberships = new MembershipsService(prisma, access);
 const workRecords = new WorkRecordsService(prisma, access, idempotency);

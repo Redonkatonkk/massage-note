@@ -18,7 +18,7 @@ docs/
 | 确认角色、流程或金额口径 | [`PRODUCT.md`](product/PRODUCT.md) | 对应领域测试 |
 | 定位模块、路由或写入链路 | [`ARCHITECTURE.md`](engineering/ARCHITECTURE.md) | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.md) |
 | 修改代码或数据库 | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.md) | [`ARCHITECTURE.md`](engineering/ARCHITECTURE.md)、对应测试 |
-| 查看本轮审查与修复结果 | [`CODE_REVIEW_2026-09-08.md`](engineering/CODE_REVIEW_2026-09-08.md) | 根目录 [`CHANGELOG.md`](../CHANGELOG.md) |
+| 追溯 1.0.7 审查与修复记录 | [`CODE_REVIEW_2026-09-08.md`](archive/CODE_REVIEW_2026-09-08.md) | 根目录 [`CHANGELOG.md`](../CHANGELOG.md) |
 | 调用或修改 HTTP 接口 | [`API.md`](engineering/API.md) | 共享契约、Controller 和集成测试 |
 | 普通 Linux 生产部署 | [`DEPLOYMENT.md`](operations/DEPLOYMENT.md) | [`SECURITY.md`](operations/SECURITY.md) |
 | 群晖发布或升级 | [`NAS_DEPLOYMENT.md`](operations/NAS_DEPLOYMENT.md) | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md) |
@@ -80,9 +80,9 @@ docs/
 
 ## 维护约定
 
-- 一个概念只指定一份主要文档；其他文档用链接引用，避免复制整段规则。
-- `PRODUCT.md` 写“应该做什么”，`ARCHITECTURE.md` 写“现在如何组成”，`API.md` 写“如何调用”。
-- `DEPLOYMENT.md` 与 `NAS_DEPLOYMENT.md` 写“如何上线”，`OPERATIONS.md` 写通用运行手册，`MESSAGES_AGENT.md` 只写 Mac 代理。
-- 部署手册不累积每个历史版本的发布说明；版本变化统一写入 `CHANGELOG.md`。
-- 命令、路径、环境变量或接口变化必须在同一次修改中更新对应当前文档。
-- 新文档加入本索引；过时材料移入 `archive/` 并加醒目的归档说明。
+- 一个概念只指定一份主要文档；其他文档用链接引用，避免复制整段规则。保留原因：避免同一规则在多处更新后出现矛盾。
+- `PRODUCT.md` 写“应该做什么”，`ARCHITECTURE.md` 写“现在如何组成”，`API.md` 写“如何调用”。保留原因：让业务含义、代码结构和调用约定各有明确事实来源。
+- `DEPLOYMENT.md` 与 `NAS_DEPLOYMENT.md` 写“如何上线”，`OPERATIONS.md` 写通用运行手册，`MESSAGES_AGENT.md` 只写 Mac 代理。保留原因：避免平台专项操作混入通用发布流程。
+- 部署手册不累积每个历史版本的发布说明；版本变化统一写入 `CHANGELOG.md`。保留原因：防止旧版本安装要求继续被当作当前操作。
+- 命令、路径、环境变量或接口变化必须在同一次修改中更新对应当前文档。保留原因：让读者可以按文档实际运行命令和调用接口。
+- 新文档加入本索引；过时材料移入 `archive/` 并加醒目的归档说明。保留原因：保证入口可发现，同时区分现行规则与历史证据。

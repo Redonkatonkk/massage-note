@@ -444,8 +444,8 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     );
     closingVersion = closed.closing.version;
     expect(closed.closing).toMatchObject({ status: "CLOSED", cycleNo: 1 });
-    const firstBatch = await closingDeliveries.queueBatch(actor(managerId), storeId, businessDate, "batch-first", "batch-first-request");
-    const duplicateBatch = await closingDeliveries.queueBatch(actor(managerId), storeId, businessDate, "batch-second", "batch-second-request");
+    const firstBatch = await closingDeliveries.queueBatch(actor(managerId), storeId, businessDate, "batch-first-request");
+    const duplicateBatch = await closingDeliveries.queueBatch(actor(managerId), storeId, businessDate, "batch-second-request");
     expect(firstBatch).toMatchObject({ queuedCount: 1, skippedCount: 0 });
     expect(duplicateBatch.queuedCount).toBe(1);
     expect(await prisma.employeeClosingDelivery.count({ where: { closingId: closed.closing.id } })).toBe(1);

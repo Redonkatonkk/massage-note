@@ -14,6 +14,10 @@
 - 代理不模拟键盘、不使用剪贴板或相册、不激活“信息”窗口，也不读写聊天数据库。
 - AppleScript 返回只表示“信息”接受了发送指令，不等于运营商已经送达；结果不明确时不得自动重发。真实验收以 Messages 送达状态为准。
 
+个人日结短信使用 `apps/messages-agent/src/render.ts` 生成附件，宽度固定为原有 **1170 像素**，高度随逐笔内容增长；不显示“大费基数／应提交现金”汇总栏，总收入为浅底深色大字，大费实收与小费位于逐笔卡片右侧。长内容换行，不通过改变图片宽度压缩布局。
+
+网页图片和短信附件由不同运行环境生成。修改源码、重启 Web 或部署 NAS 都不会更新已安装的 Mac 代理；若短信仍显示旧版，先核对 `~/Library/Application Support/Massage Note Messages Agent/app/package.json` 与 `app/dist/render.js`，获得代理更新授权后按下方安装流程升级。已发送附件不会随模板更新而变化。
+
 ## 安装前准备
 
 1. 安装 Node.js 24 LTS 和仓库声明的 pnpm 版本，确认新的登录 shell 中 `node --version`、`pnpm --version` 可用。LaunchAgent 不应依赖 Codex、IDE 或临时缓存目录里的 Node。

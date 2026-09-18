@@ -65,7 +65,7 @@ export class ClosingDeliveriesService {
     };
   }
 
-  async queueBatch(actor: User, storeId: string, businessDate: string, requestKey: string, requestId: string) {
+  async queueBatch(actor: User, storeId: string, businessDate: string, requestId: string) {
     const actorMembership = await this.access.requireCapability(actor.id, storeId, "DAY_CLOSE_MANAGE");
     const closing = await this.activeClosing(storeId, businessDate);
     const previousSent = await this.prisma.employeeClosingDelivery.count({

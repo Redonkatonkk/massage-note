@@ -6,7 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, type StoreMembership, type User } from "@massage-note/database";
+import { Prisma, type User } from "@massage-note/database";
 import type {
   AddBoardRowInput,
   CalendarDateRangeQuery,

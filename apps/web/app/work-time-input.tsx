@@ -53,18 +53,3 @@ export function WorkTimeInput({ id, value, onChange, onValidityChange, optional 
     </select>
   </span>;
 }
-
-export function WorkDateTimeInput({ value, fallbackDate, onChange, onValidityChange, optional = false }: WorkTimeInputProps & { fallbackDate: string }) {
-  const [emptyDate, setEmptyDate] = useState<string | null>(null);
-  const date = value ? value.slice(0, 10) : emptyDate ?? fallbackDate;
-  const time = value ? value.slice(11) : "";
-  return <span className="work-date-time-field">
-    <input type="date" aria-label="日期 / Date" value={date} onChange={(event) => {
-      if (!event.target.value) return;
-      setEmptyDate(event.target.value);
-      onChange(event.target.value && time ? `${event.target.value}T${time}` : "");
-    }} />
-    <WorkTimeInput value={time} optional={optional} onValidityChange={onValidityChange}
-      onChange={(next) => onChange(next ? `${date}T${next}` : "")} />
-  </span>;
-}

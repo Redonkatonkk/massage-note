@@ -1,6 +1,5 @@
 export type AppLocale = "zh-CN" | "en-US";
 
-export const DEFAULT_LOCALE: AppLocale = "zh-CN";
 export const LOCALE_COOKIE = "massage_note_locale";
 export const LOCALE_STORAGE_KEY = "massage_note_locale";
 
@@ -480,6 +479,12 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "正在确认…": "Confirming…",
   "保存并重新确认付款": "Save and reconfirm payment",
   "保存并确认付款": "Save and confirm payment",
+  "店里应发给员工的现金大费工资；现金小费由员工自行收取。": "Cash service-fee wages payable by the store; employees collect cash tips directly.",
+  "已确认项目按折前金额和提成比例计算，混合付款按现金占比分摊；折扣由店里承担。": "Confirmed services use pre-discount amounts and commission rates, allocated by the cash share of mixed payments. The store covers discounts.",
+  "已结现金：当天现金大费工资已发放": "Cash settled: cash service-fee wages for this day have been paid",
+  "每位员工可从今日员工行或财务页查看自己的个人日结；其中“现金大费”是店里应发给员工的现金大费工资，按折前金额和提成比例计算，混合付款按现金占比分摊；折扣由店里承担，现金小费由员工自行收取。": "Employees can open their daily closing from Today or Finance. Cash service fees show wages payable by the store, using pre-discount amounts and commission rates, allocated by the cash share of mixed payments. The store covers discounts; employees collect cash tips directly.",
+  "店主和经理可在个人日结页面随时发送短信，无需先日结；也可点击“已结现金”或取消，标记当天现金大费工资是否已发放。": "Owners and managers can send an employee closing message before or after closing the day, and mark or undo payment of cash service-fee wages.",
+  "这里只显示你自己的收入、现金大费和非现金分红，不会加载或展示全店及其他员工日结。": "Only your earnings, cash service-fee wages, and non-cash allocation are shown. Store-wide and other employee data is not loaded or displayed.",
   "现金大费": "Cash service fees",
   "刷卡大费": "Card service fees",
   "现金小费": "Cash tips",

@@ -1,3 +1,4 @@
+import { automaticDiscounts } from "../common/automatic-discounts.js";
 import { businessDateFor, deviceNow } from "../common/device-time.js";
 import { workBotAvailability } from "./work-bot-availability.js";
 import { workBotStartTime } from "./work-bot-start-time.js";
@@ -9,7 +10,6 @@ import { workBotDateRange } from "./work-bot-query.js";
 import { WorkRecordsService } from "../work-records/work-records.service.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { updateWorkRecordSchema, confirmPaymentSchema } from "@massage-note/contracts";
-import { toJsonSafe } from "../common/json-safe.interceptor.js";
 import { createHash, timingSafeEqual } from "node:crypto";
 import {
   BadRequestException,
@@ -33,7 +33,6 @@ import {
   DomainError,
   hasStoreCapability,
   canWriteWorkRecord,
-  calculateWorkRecordFinance,
   multiplyByBps,
   resolveCommission,
 } from "@massage-note/domain";
@@ -72,7 +71,6 @@ const batchChild = Symbol("workBotBatchChild");
 type InternalWorkBotInput = WorkBotEventInput & { [batchChild]?: boolean };
 
 const HELP_REPLY = "支持记工和查账：最近 15 天折后大费列表；查询结果含记录编号，可按编号修改、付款、删除和恢复；高亮/取消高亮；折扣和加项添加/移除。示例：绑定店铺 123456、绑定 张三、大力 90、Jessie 脚 30、Lily 下了，收 75/15卡，评论；Lily 加热石；Lily 加评论折扣。信息不完整时不会写账。";
-const AUTO_DISCOUNT_NAME = "周一至周四自动折扣";
 const DELEGATED_SENDER_PREFIX = "__massage_note_delegated__:";
 
 @Injectable()
@@ -200,7 +198,7 @@ export class WorkBotService {
               const childInput: InternalWorkBotInput = { ...input, messageId: `batch:${createHash("sha256").update(JSON.stringify([input.messageId, index])).digest("hex")}`, [batchChild]: true };
               const result = action.kind === "START"
                 ? await this.startWork(transaction, secret, childInput, action, requestId)
-                : await this.finishWork(transaction, secret, childInput, action, requestId);
+                : await this.finishWork(transaction, childInput, action, requestId);
               if (!["WORK_STARTED", "WORK_FINISHED", "WORK_ADJUSTED"].includes(result.outcome)) {
                 throw new BadRequestException({ code: "WORK_BOT_BATCH_REJECTED", messageZh: `${action.memberName}：${result.reply} 本条多人操作全部未执行。` });
               }
@@ -220,7 +218,7 @@ export class WorkBotService {
             return this.startWork(transaction, secret, input, intent, requestId);
           case "ADJUST":
           case "FINISH":
-            return this.finishWork(transaction, secret, input, intent, requestId);
+            return this.finishWork(transaction, input, intent, requestId);
           case "QUERY":
             return this.queryWork(transaction, input, intent);
           case "MANAGE":
@@ -636,7 +634,7 @@ export class WorkBotService {
     const employeeDefaultBps = await this.resolveEmployeeDefaultCommission(transaction, store.id, employee.id, employee.defaultCommissionBps, startAt);
     const employeeItemBps = await this.resolveEmployeeItemCommission(transaction, store.id, employee.id, alias.serviceItem.id, startAt);
     const commission = resolveCommission({ employeeItemBps, itemDefaultBps: alias.serviceItem.defaultCommissionBps, employeeDefaultBps, storeDefaultBps: store.globalCommissionBps });
-    const discounts = this.automaticDiscounts(store, businessDate, option.priceCents);
+    const discounts = automaticDiscounts(store, businessDate, option.priceCents);
     const discountTotal = discounts.reduce((sum, discount) => sum + discount.amountCents, 0n);
     const wage = multiplyByBps(option.priceCents, commission.bps);
     const endAt = new Date(startAt.getTime() + durationMinutes * 60_000);
@@ -709,7 +707,7 @@ export class WorkBotService {
     }, group);
   }
 
-  private async finishWork(transaction: Prisma.TransactionClient, secret: string, input: WorkBotEventInput, intent: Extract<WorkBotParsedIntent, { kind: "FINISH" | "ADJUST" }>, requestId: string) {
+  private async finishWork(transaction: Prisma.TransactionClient, input: WorkBotEventInput, intent: Extract<WorkBotParsedIntent, { kind: "FINISH" | "ADJUST" }>, requestId: string) {
     const context = await this.requireBoundMember(transaction, input, intent);
     if ("reply" in context) return context.reply;
     const { group, binding } = context;
@@ -896,12 +894,6 @@ export class WorkBotService {
     return history?.commissionBps ?? null;
   }
 
-  private automaticDiscounts(store: StoreSettings, businessDate: string, gross: bigint, position = 0) {
-    const weekday = new Date(`${businessDate}T00:00:00.000Z`).getUTCDay();
-    const amount = store.mondayThursdayAutoDiscountAmountCents;
-    if (!store.mondayThursdayAutoDiscountEnabled || weekday < 1 || weekday > 4 || store.mondayThursdayAutoDiscountThresholdCents <= 0n || amount <= 0n || amount > store.mondayThursdayAutoDiscountThresholdCents || gross < store.mondayThursdayAutoDiscountThresholdCents) return [];
-    return [{ sourceDiscountItemId: null, isCustom: false, isAutomatic: true, name: AUTO_DISCOUNT_NAME, amountCents: amount, position }];
-  }
 
   private async reopenCashSettlements(transaction: Prisma.TransactionClient, storeId: string, businessDate: string, actorId: string, membershipId: string, requestId: string) {
     const date = new Date(`${businessDate}T00:00:00.000Z`);

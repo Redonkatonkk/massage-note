@@ -388,7 +388,6 @@ export function TodayBoard({
           currentDay.businessDate,
           startTime,
           currentDay.timezone,
-          currentDay.businessCutoffLocal,
         ),
         isHighlighted: quickHighlighted,
         ...serviceSelection,
@@ -578,7 +577,7 @@ export function TodayBoard({
                         <span className="record-money">
                           <span className="record-service-amount">
                             <b>{compactPaymentAmount(record.grossFeeBaseCents)}</b>
-                            <span className="record-service-payment-box">
+                            <span className={`record-service-payment-box${record.status === "PENDING_PAYMENT" ? " record-service-payment-box--pending" : ""}`}>
                               <span>{record.status === "PENDING_PAYMENT" ? "应收" : "实收"}</span>
                               {record.status === "PENDING_PAYMENT" ? (
                                 <span className="record-service-due">{compactPaymentAmount(record.discountedFeePerformanceCents)}</span>

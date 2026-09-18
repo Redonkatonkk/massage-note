@@ -84,7 +84,7 @@ describe("12 小时记工", () => {
   });
   it("推断后的下午时间仍按店铺营业日转换和计算下工", () => {
     const time = parseWorkTime("8:30")!;
-    expect(businessTimeToIso("2026-09-09", time, "America/New_York", "22:00")).toBe("2026-09-10T00:30:00.000Z");
+    expect(businessTimeToIso("2026-09-09", time, "America/New_York")).toBe("2026-09-10T00:30:00.000Z");
     expect(endLocalDateTimeForDuration("2026-09-09T20:30", 60, "America/New_York")).toBe("2026-09-09T21:30");
   });
 });
@@ -103,6 +103,6 @@ describe("分栏时间输入", () => {
   });
 });
 
-it.each(["00:00", "18:00", "22:00"])("晚间输入不因旧截止 %s 倒退一天", (cutoff) => {
-  expect(businessTimeToIso("2026-09-09", "23:30", "America/New_York", cutoff)).toBe("2026-09-10T03:30:00.000Z");
+it("晚间输入保留所选自然日期", () => {
+  expect(businessTimeToIso("2026-09-09", "23:30", "America/New_York")).toBe("2026-09-10T03:30:00.000Z");
 });

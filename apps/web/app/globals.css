@@ -545,11 +545,14 @@ h2 {
   align-items: center;
   gap: 4px;
   padding: 2px 5px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
   color: var(--muted);
   font-size: .75rem;
   line-height: 1.35;
+}
+
+.record-service-payment-box--pending {
+  border: 1px solid var(--line);
+  border-radius: 5px;
 }
 
 .record-service-payment-box .record-payment-breakdown,
@@ -3095,8 +3098,7 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
   .work-bot-member { gap: 10px; }
 }
 
-.work-time-field,
-.work-date-time-field {
+.work-time-field {
   display: grid;
   gap: 6px;
   min-width: 0;
@@ -3107,8 +3109,7 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 }
 
 .work-time-field input,
-.work-time-field select,
-.work-date-time-field input {
+.work-time-field select {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;

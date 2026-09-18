@@ -1,156 +1,28 @@
 # AI 接管指南
 
-> 最后核对：2026-09-14（America/New_York） · 当前版本：`1.7.0`
-> 目标：用最少上下文安全维护 Massage note；历史过程查 Git 和 [`CHANGELOG.md`](../../CHANGELOG.md)。
+> 最后核对：2026-09-17（America/New_York） · 当前版本：`1.7.4`
 
-## 1. 接手顺序
+## 接手
 
-1. 运行 `git status --short --branch`，区分用户改动、生成物和本轮任务；不要覆盖不属于当前任务的变化。
-2. 阅读 [`docs/README.md`](../README.md) 的文档索引，再按任务阅读当前产品、架构、开发或 API 文档。
-3. 用 `rg` 定位相关代码、契约、schema 和测试。文档与实现冲突时，按文档索引的事实优先级核对并同步修正文档。
-4. 修改后按 [`DEVELOPMENT.md`](DEVELOPMENT.md) 运行相称验证；正式发布使用完整发布清单。
-5. 每次修改调整，包括纯文档，都更新相关项目文档、按语义版本迭代并更新 `CHANGELOG.md`；不以提交或部署为前提。根目录 [`AGENTS.md`](../../AGENTS.md) 是固定维护规则。
+1. 查看 `git status --short --branch`，遵循根目录 [维护规则](../../AGENTS.md)。保留原因：避免覆盖现有改动，版本、验证和本地服务要求只在一处维护。
+2. 从 [文档索引](../README.md) 选择当前任务文档，再用 `rg` 核对代码、契约和测试；归档不作为现行规则。保留原因：旧设计和历史发布记录不代表当前实现。
+3. 业务口径查 [产品规则](../product/PRODUCT.md)，模块及事务查 [架构](ARCHITECTURE.md)，接口查 [API](API.md)，修改与验证查 [开发指南](DEVELOPMENT.md)。保留原因：避免在接管指南复制财务公式、权限和接口，从而再次产生不同版本的规则。
 
-默认只完成修改与验证，不自动部署。需要更新 NAS 项目才能生效时，必须在完成说明中提醒用户一句；只有用户明确要求部署时才执行发布流程。更新文档和版本号本身不构成部署授权。
+## 需要重点核对的边界
 
-用户说“更新部署”时，默认完成项目文档整理、push 当前发布提交并部署到 NAS；用户自行做业务验收，不要把浏览器验收作为部署完成条件。发布本身仍须完成本地自动化验证、对应 commit 的 CI/GHCR 核对、部署前备份以及 NAS 容器和健康检查。
+| 规则 | 实现依据与保留原因 |
+| --- | --- |
+| 财务计算使用整数美分和领域函数；历史按快照读取 | `packages/domain/src/finance.ts`、`work-records.service.ts`；避免浮点误差和目录调整重写历史。 |
+| 营业日按设备时区自然日期、午夜换日，无设备上下文时回退店铺时区 | `common/device-time.ts`、`packages/domain/src/business-day.ts`；旧截止字段仍用于兼容和快照，不能恢复按截止时间倒推日期的旧逻辑。 |
+| 写入保留权限、对象归属、营业日锁、版本、幂等、事务内审计与 outbox | `StoreAccessService`、`business-day-lock.ts`、`IdempotencyService` 和数据库触发器；避免越权、重放和半笔账。 |
+| AI 预览经确认再执行；机器人按受限意图、原文证据和绑定身份执行 | `ai.service.ts`、`work-bot.service.ts`、`WorkBotAccess`；两个入口的确认流程不同，但均不能由模型授予权限或编造财务事实。 |
+| 最近对话与学习经验不能替代实时目录和本次原文证据 | `integrations/langbot-plugin/components/events/work_bot.py`；防止历史金额、姓名或未确认猜测变成新记工。 |
+| 生产凭据不进入源码、日志或镜像；开发登录在生产关闭 | [安全说明](../operations/SECURITY.md) 及认证配置；避免泄密及开发入口进入生产。 |
+| 已发布迁移只向前追加，生产用 `prisma migrate deploy`；恢复不覆盖未经授权的数据库 | `packages/database/prisma/migrations`、[运维手册](../operations/OPERATIONS.md)；保留迁移可重放性与业务数据。 |
+| Mac 信息代理保持后台发送和受限附件暂存 | [代理手册](../operations/MESSAGES_AGENT.md)、`apps/messages-agent`；现有实现依赖指定 App 的权限身份，不能用键盘自动化或读写聊天数据库替代。 |
 
-不要使用 `docs/archive/` 判断当前路由、目录或待办；那里只保留初始设计背景。
+## 交接
 
-## 2. 项目定位
-
-Massage note 是面向美国按摩店的中英文记工与财务 Web 应用。它是 pnpm workspace 模块化单体，不是微服务：
-
-```text
-apps/web             Next.js App Router Web 应用
-apps/api             NestJS REST、SSE、认证、AI 与领域编排
-packages/domain      金额、提成、营业日和权限纯函数
-packages/contracts   前后端共享 Zod 输入契约
-packages/database    Prisma schema、迁移和数据库约束测试
-docker               生产数据库加固与 NAS 入口
-scripts              测试库、版本、备份、恢复和维护脚本
-```
-
-当前模块、路由、依赖方向和数据流只在 [`ARCHITECTURE.md`](ARCHITECTURE.md) 维护。不要编辑 `dist`、`.next`、`out`、Prisma 生成客户端或 `tsconfig.tsbuildinfo`。
-
-## 3. 不可破坏的业务规则
-
-### 财务与历史
-
-- PostgreSQL 是唯一业务真相来源；前端状态、本地草稿和 SSE 不构成第二套账。
-- 所有持久金额使用整数美分，领域层最终计算使用 `bigint`；提成以 basis points 表示。禁止用 JavaScript 浮点数完成最终财务计算。
-- 财务公式事实来源为 `packages/domain/src/finance.ts`。先改纯函数和测试，再改服务、查询、UI 与 [`PRODUCT.md`](../product/PRODUCT.md)。
-- 记工保存项目名称、时长、价格、折扣、提成及来源、工资、店铺时区和营业日截止快照。目录变化不能改写已日结历史。
-- 提成优先级固定为：员工项目专属 → 员工默认 → 项目默认 → 全店默认。
-- 折扣由店铺承担，不减少员工大费工资。
-- 角色和“是否参与记工”是两个维度；Owner 可有服务收入但不成为自己的工资结算对象，参与记工的 Manager 与 Employee 一样结算。
-
-核心公式：
-
-```text
-折前大费       = 主要项目 + 额外项目
-折后大费       = 折前大费 - 折扣
-实收服务费     = 现金大费 + 刷卡大费 + 礼物卡大费
-小费           = 现金小费 + 刷卡小费 + 礼物卡小费
-员工总收入     = 各项目分别舍入后的大费工资 + 小费
-营业额        = 折后大费 + 礼物卡销售实际收款（不扣核销）
-今日/总流水    = 折后大费 + 礼物卡销售 - 礼物卡核销支出
-店铺收入       = 营业额（已含卖卡实收）+ 小费 - 员工总收入 - 礼物卡核销支出
-信用卡手续费   = 未高亮记工刷卡金额 × 2.5% + 含刷卡付款的高亮记工数量 × $3
-店铺总结算收入 = 店铺收入 + 店长总收入 + 经理总收入 - 信用卡手续费
-```
-
-礼物卡销售记录面值、折扣规则和实际收款快照；使用侧记录序列号和每次金额，但当前不维护或强制校验余额。个人日结“应提交现金”和每日现金结算是不同口径，不能互相替换；详细定义以产品文档为准。
-
-### 营业日、权限与状态
-
-- 营业日按设备本地自然日期计算、午夜换日，不受关门时间影响；请求设备时间上下文在 `apps/api/src/common/device-time.ts`，自然日期规则在 `packages/domain/src/business-day.ts`。无设备信息时回退店铺时区。历史营业日不自动重算。
-- 权限事实来源是 `packages/domain/src/permission.ts`；活跃成员与对象归属在 `store-access.service.ts` 再校验。
-- Employee 可写当前营业日全员记工，但不能写历史、管理设置或查看他人历史财务。
-- 日结后当日业务数据只读；Owner/Manager 必须先取消日结。取消日结会让相关现金结算失效重做，但保留工资账本。
-- 店铺、成员、目录、记工、礼物卡销售和工资结算使用软删除/恢复，不直接物理删除业务历史。
-- 待认领员工的 `userId` 可为空；自动认领只能按账号注册 First Name 与本店待认领显示名规范化精确匹配。
-
-## 4. 写入一致性
-
-Controller 只做 HTTP 适配。权限、对象归属、状态与事务放在 Service 或 domain；跨表写入必须在同一 Prisma transaction 完成业务数据、审计日志和 outbox。
-
-同一店铺营业日的记工、表格、日结和现金结算写入必须使用 `apps/api/src/common/business-day-lock.ts` 的事务级 advisory lock。不要另建锁键，也不要在锁外检查日结状态。
-
-所有关键写入还要保持：
-
-- `Idempotency-Key`：同键同请求返回原结果，同键不同请求返回 409。
-- `version` 乐观锁：更新、删除、恢复和结算不能无条件覆盖。
-- 租户与对象归属：每个业务 Service 都验证 `storeId`、成员状态和能力。
-- 审计与 outbox：必须和业务变化同事务。
-- JSON 安全：BigInt 通过 `JsonSafeInterceptor` 转换，冲突响应的 `latestResource` 也不能退化为 500。
-- SSE：只发送变化通知，客户端收到后重新请求 REST。
-
-常规 API 修改顺序见 [`DEVELOPMENT.md`](DEVELOPMENT.md)。字段事实来源为 `packages/contracts/src`，端点说明在 [`API.md`](API.md)。
-
-## 5. 认证与安全
-
-- 生产链路统一为 Firebase ID token → `POST /auth/session` → 服务端 `Secure`、`HttpOnly`、`SameSite=Lax` 会话 Cookie。
-- 密码使用带随机盐的 `scrypt-v1`，长度 8–72；任何响应都不能返回密码摘要。
-- 登录初始化使用双提交 CSRF；其他 Cookie 写请求要求 `Origin` 精确匹配 `WEB_ORIGIN`。
-- 开发登录必须同时满足非生产环境、API `DEV_AUTH_ENABLED=true` 和 Web `NEXT_PUBLIC_DEV_AUTH_ENABLED=true`；生产双侧关闭。
-- 不记录或提交手机号、OTP、Cookie、token、私钥、数据库 URL、短信正文或 AI 密钥。
-- Firebase 验证码只用于认证，不用于加入审批等自定义业务短信。
-
-完整租户隔离和部署责任见 [`SECURITY.md`](../operations/SECURITY.md)。当前不启用依赖连接会话变量的不完整 PostgreSQL RLS。
-
-## 6. AI 与外部服务
-
-AI 是可选增强；未配置时手动记工和确定性财务必须正常工作。
-
-- 记工：模型理解 → 服务端保存 canonical preview → 用户核对 → 明确确认 → 重新鉴权与幂等写入。
-- 财务：后端确定性查询负责数字，模型只解释；AI 没有任意 SQL、URL、文件或通用写工具。
-- 文字和语音遵循 `locale`；语音为 6–60 秒 MP4/AAC，最多 8 MB，应用不持久化原音频。
-- 外部凭据只通过秘密环境变量注入，不能进入镜像层、文档或前端 bundle。
-
-## 7. 数据库与部署
-
-- Prisma schema 位于 `packages/database/prisma/schema.prisma`；迁移只向前追加，生产只使用 `prisma migrate deploy`。
-- 删除列、改类型和大规模变换采用 expand → backfill → contract。
-- 管理账号负责迁移，应用账号只做业务 DML，不得成为 superuser、表拥有者或 `BYPASSRLS`。
-- 普通生产部署见 [`DEPLOYMENT.md`](../operations/DEPLOYMENT.md)，群晖流程见 [`NAS_DEPLOYMENT.md`](../operations/NAS_DEPLOYMENT.md)，备份恢复见 [`OPERATIONS.md`](../operations/OPERATIONS.md)。
-
-当用户明确说“更新部署”时，视为完整发布授权：同步文档与版本，只提交本次项目文件，push 后等待该 commit 的 CI 与 GHCR 版本镜像成功，再按 NAS 手册备份、迁移、升级项目 `mn` 并完成线上验收。不能把它缩减为只改本地代码，也不能跳过 CI、备份或健康检查。
-
-Mac“信息”代理的安装与排障以 [`MESSAGES_AGENT.md`](../operations/MESSAGES_AGENT.md) 为准。正式实现必须后台静默运行：禁止模拟键盘、粘贴剪贴板、激活 Messages 窗口或按相册“最近项”猜测附件。新 Mac 只给 `Massage Note Attachment Stager.app` 完全磁盘访问；LaunchAgent 必须通过 LaunchServices 以该 App 身份启动暂存，不能直接执行 App 内二进制。暂存程序验证路径、任务 UUID、固定文件名及 PNG/JPEG 文件头，再写入 Messages 自有附件目录，并只返回与任务 UUID 绑定的结果。个人日结发送一张 PNG；员工区间结算只发送一张专门重新排版的 JPEG 长图，顶部保留三张汇总卡，下面按营业日分组排列记工卡片并以“当日总结”收尾；同日卡片必须自动换行，任何项目或付款文字都不得用省略号截断。不生成 PDF、独立摘要图或分页拼接图。不得扩大为 Node/终端全盘访问，也不得读写聊天数据库。
-
-真实部署秘密只可从被 Git 忽略且权限受限的本地文件或系统钥匙串读取，不得复制到文档、输出或 GitHub。恢复具有覆盖性，只能对明确确认的目标数据库执行；未经授权不要删除任何开发或生产数据卷。
-
-## 8. 验证与交接
-
-本地完整基线：
-
-```bash
-pnpm version:check
-pnpm typecheck
-pnpm test
-pnpm test:integration
-pnpm build
-```
-
-测试数字会随用例变化，不在本文件维护易过时的“最近通过 N 项”。交接时报告实际命令结果、未验证的外部依赖和任何迁移边界。
-
-版本事实源是根目录 `VERSION`；需要同步的文件清单和文档分工见 [`DEVELOPMENT.md`](DEVELOPMENT.md)。
-
-每次完成任何改动后，按开发指南重新启动本地 `pnpm dev`，打开固定 3000 端口的页面供用户测试，确认 Web 和 API 就绪并保持服务运行。只重启已确认属于本项目的进程，不自动换端口。
-
-## 9. 明确不在当前范围
-
-- 工资税、W-2、1099、报税或法律合规计算。
-- 退款和负金额；未来应做独立冲正流程。
-- 离线业务写入与自动冲突合并。
-- 店内共用设备 PIN、原生 iOS 应用。
-- 自动维护礼物卡余额或会员余额。
-- 依赖连接变量的 RLS。
-- AI 直接执行 SQL、访问任意 URL/文件或绕过预览写财务。
-
-进入这些范围前先做产品和技术设计，不要在现有接口中悄悄扩大语义。
-
-个人日结逐人短信不要求先日结，未日结任务可无 closingId；批量发送仍要求日结。个人现金标记沿用每日现金结算，取消日结与取消已结现金均不要求理由。
-
-自动日结：API 内置调度按店铺时区 23:30 执行，任何日结异常都阻止自动日结，已取消的日期不自动重结。首次日结与小结排队在营业日锁及同一事务内完成；去重必须包含当天未关联 closingId 的手动发送。规则详见产品文档“定时日结与首次日结发送”。
+- 按 [开发指南](DEVELOPMENT.md) 报告实际验证及外部依赖边界。保留原因：本地测试不能证明微信、短信或 NAS 已升级。
+- 明确要求“更新部署”时，按 [NAS 手册](../operations/NAS_DEPLOYMENT.md) 完成提交、push、对应 commit 的 CI/GHCR、备份、迁移和健康检查，业务验收由用户进行。保留原因：这些是当前发布链路的必要步骤，不能把发布请求缩成仅修改本地文件。
+- 当前产品范围以 [产品规则](../product/PRODUCT.md) 为准，不在清理中扩展功能。保留原因：清理应保持现有行为和数据契约，不借重构引入新业务。

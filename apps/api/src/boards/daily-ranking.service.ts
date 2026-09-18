@@ -9,7 +9,6 @@ import type { RankBoardInput } from "@massage-note/contracts";
 import { rankRotationCandidates } from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
-import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
@@ -17,7 +16,6 @@ const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 @Injectable()
 export class DailyRankingService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly access: StoreAccessService,
     private readonly idempotency: IdempotencyService,
   ) {}

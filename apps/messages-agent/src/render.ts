@@ -92,6 +92,7 @@ export async function renderClosingPng(snapshot: ClosingSnapshot, locale: Locale
     records: "逐笔记工", confirmed: "已确认", pending: "待结账",
     cash: "现金", card: "刷卡", total: "合计", employeeFee: "员工大费（折前）", actualFee: "大费实收", tip: "小费", recordIncome: "本笔收入", footer: "Massage Note · 数据以系统保存的营业日快照为准",
   };
+  // Messages attachments keep their original pixel width; only content height varies.
   const width = 1170;
   let nextY = 490;
   const rows = snapshot.records.map((record) => {

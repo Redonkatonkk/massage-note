@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`1.7.0`
+> 适用版本：`1.7.4`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
@@ -84,40 +84,16 @@ POSTGRES_HOST_PORT=55432 REDIS_HOST_PORT=56379 pnpm docker:up
 MASSAGE_NOTE_TEST_DATABASE_URL='postgresql://massage:massage@localhost:55432/massage_note_test' pnpm test:integration
 ```
 
-不要为了测试停止、删除或重建不属于本项目的容器与数据卷。
+不要为了测试停止、删除或重建不属于本项目的容器与数据卷。保留原因：集成测试已有独立测试库，不需要影响其他数据。
 
-## 修改顺序
+## 修改规则
 
-### 接口或业务写入
-
-1. 修改 `packages/contracts` 的 Zod 输入契约与测试。
-2. 修改纯领域规则与测试；财务公式必须先在 `packages/domain` 固化。
-3. 修改 Controller 的 HTTP 适配。
-4. 修改 Service 的权限、对象归属、营业日锁和事务。
-5. 在同一事务补齐审计与 outbox；保持幂等和乐观锁。
-6. 同步 Web 手写类型、API 调用和中英文 UI。
-7. 更新 `PRODUCT.md` 或 `API.md` 中唯一负责该概念的说明。
-8. 添加正常、越权、跨店、冲突、幂等和历史快照测试。
-
-### 数据库
-
-1. 先修改 Prisma schema。
-2. 用描述性时间戳目录新增向前迁移，不编辑已经发布的迁移。
-3. 复杂约束写在 SQL migration，并用数据库集成测试覆盖。
-4. 删除列、改类型或大规模数据变化使用 expand → backfill → contract 的多次发布。
-5. 生产只运行 `prisma migrate deploy`。
-
-### Web
-
-- 记工页通过 `apps/web/lib/refresh-queue.ts` 串行合并刷新；读取期间收到的新通知必须触发一次后续读取，避免遗漏提交。切店或卸载时取消排队读取并使旧响应失效。员工列表与表格、目录、店铺详情并行读取。
-
-- 全站响应式规则集中在 `apps/web/app/responsive.css`，在组件基础样式之后加载。新增页面应复用共享页头、分区、表单和导航，并检查 320、390、768、1280px 宽度；验收覆盖中英文及展开状态。
-
-- 同时检查 `zh-CN` 与 `en-US`。
-- 检查手机、iPad/横屏和桌面，确保宽表只在自身容器滚动。
-- 保持触控尺寸、loading、重复点击保护和 409 刷新流程。
-- 不在浏览器端重新发明财务公式或权限判断。
-- 业务页和敏感响应不得加入持久离线缓存。
+- 接口修改同步共享契约、Controller、Service、Web 调用及对应主文档；财务公式先在领域函数固化。保留原因：这些层分别负责输入、传输、业务和展示，契约漂移会让请求在运行时失败。
+- 业务写入保持权限、归属、营业日锁、事务内审计/outbox、幂等和版本检查，并验证正常及失败路径。保留原因：现有服务依赖这些控制防止越权、重放和部分写入。
+- 数据库变化使用描述性前向迁移，不改已发布迁移；生产只运行 `prisma migrate deploy`，破坏性变化分阶段迁移。保留原因：已有数据库必须能从原版本安全升级，不能靠重建数据恢复一致。
+- Web 记工刷新沿用 `apps/web/lib/refresh-queue.ts`，切店和卸载使旧结果失效。保留原因：现有 SSE 只发通知，串行合并和后续读取避免漏更新或跨店旧响应覆盖。
+- 响应式样式放在 `apps/web/app/responsive.css`，复用共享组件，检查 320、390、768、1280px、中英文及展开状态。保留原因：同一页面用于手机、平板和桌面，长文本及宽表不能撑破布局。
+- 保留 loading、重复点击保护和 409 重新核对流程，不在浏览器另算财务或持久缓存敏感业务响应。保留原因：服务端是业务事实来源，过期页面和重复操作会误导用户。
 
 ## 完成前验证
 
@@ -131,19 +107,18 @@ pnpm test:integration
 pnpm build
 ```
 
-文档整理也至少运行版本检查、Markdown 链接检查和 `git diff --check`。若文档修改涉及命令、路由、契约、金额或部署事实，还要运行相应代码验证；正式发布遵循完整 [`RELEASE_CHECKLIST.md`](../operations/RELEASE_CHECKLIST.md)。
+文档整理也至少运行版本检查、Markdown 链接检查和 `git diff --check`。若文档修改涉及命令、路由、契约、金额或部署事实，还要运行相应代码验证；正式发布遵循完整 [`RELEASE_CHECKLIST.md`](../operations/RELEASE_CHECKLIST.md)。保留原因：验证应覆盖改动影响，发布还需要目标环境的检查。
 
-## 版本规则
+## 版本同步位置
 
-根目录 `VERSION` 是唯一版本号来源。每次代码、配置、文档或其他项目调整都必须递增语义版本并更新相关项目文档，不以是否提交或部署为前提。该要求也记录在根目录 [`AGENTS.md`](../../AGENTS.md)。版本需要同步：
+修改与版本规则以 [AGENTS.md](../../AGENTS.md) 为准。以下清单保留，因为 `scripts/check-version.mjs` 会逐项校验：
 
-- 根目录和所有 workspace 的 `package.json`
-- `CHANGELOG.md`
-- `Dockerfile` 的 `APP_VERSION`
-- `docker-compose.nas.yml` 和 `.env.nas.example` 的镜像标签
-- README、当前产品/开发/架构/接管文档中的版本标记
+- 根目录 `VERSION`、根目录及所有 workspace 的 `package.json`。
+- `CHANGELOG.md`、`Dockerfile` 的 `APP_VERSION`。
+- `docker-compose.nas.yml` 和 `.env.nas.example` 的镜像标签。
+- README、当前产品、API、架构、开发、接管及 NAS 文档的版本标记。
 
-最后运行 `pnpm version:check`。不要覆盖已经发布的版本镜像标签。
+已发布镜像不覆盖旧版本标签。保留原因：部署和回滚需要能定位原始产物。
 
 ## 文档分工
 
@@ -159,25 +134,17 @@ pnpm build
 | 安全边界 | `docs/operations/SECURITY.md` |
 | 已发布变化 | `CHANGELOG.md` |
 
-不要把一次性容器 ID、PID、临时 tunnel、真实域名凭据或逐日开发流水写入当前文档。历史设计需要保留时移到 `docs/archive/`，并明确标为归档。
+不要把一次性容器 ID、PID、临时 tunnel、真实域名凭据或逐日开发流水写入当前文档。历史设计需要保留时移到 `docs/archive/`，并明确标为归档。保留原因：临时运行状态和历史决策不能成为当前维护要求。
 
 ## 修改后的本地测试服务
 
-每次完成任何项目改动，包括代码、配置和文档，都要重新运行 `pnpm dev`，保持 Web 使用 `http://localhost:3000`，并打开页面供用户测试。先检查 3000/4000 端口的进程归属，只重启本项目服务；端口被其他项目占用时不得擅自终止或改用其他端口。确认 Web 可访问以及 API `/api/v1/health/ready` 就绪后，保持开发进程运行。该要求不授予 NAS 部署权限。
+每次完成任何项目改动，包括代码、配置和文档，都要重新运行 `pnpm dev`，保持 Web 使用 `http://localhost:3000`，并打开页面供用户测试。先检查 3000/4000 端口的进程归属，只重启本项目服务；端口被其他项目占用时不得擅自终止或改用其他端口。确认 Web 可访问以及 API `/api/v1/health/ready` 就绪后，保持开发进程运行。该要求不授予 NAS 部署权限。保留原因：让用户在固定入口测试本次代码，同时避免影响其他项目进程。
 
 ## 改动交接
 
-默认只完成修改与验证，不自动部署。需要更新 NAS 项目才能生效时，必须在完成说明中提醒用户一句；只有用户明确要求部署时才执行发布流程。更新文档和版本号本身不构成部署授权。
-
-交接说明至少包含：
-
-- 改了什么，以及没有改什么。
-- 受影响的文件或模块。
-- 实际运行过的验证命令与结果。
-- 尚未验证的外部依赖，例如真实 OTP、MiniMax、GHCR 或 NAS。
-- 若有迁移：迁移名、兼容策略和回滚边界。
-
-提交前检查 `git status --short` 和 `git diff`，只处理当前任务文件，保留工作区中不属于本次修改的内容。
+- 报告修改模块、实际验证结果、尚未验证的外部依赖和必要的迁移边界。保留原因：用户需要知道本地结果是否足以发布，以及哪些链路仍待目标环境验证。
+- 提交前检查 `git status --short` 和 `git diff`，只处理本次任务文件。保留原因：其他未提交工作不属于本次清理。
+- 发布授权与 NAS 提醒遵循 [AGENTS.md](../../AGENTS.md)。保留原因：保持本地修改与线上生效的边界清楚。
 
 ## LangBot 插件目录
 

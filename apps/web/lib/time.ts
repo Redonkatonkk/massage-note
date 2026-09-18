@@ -115,7 +115,6 @@ export function businessTimeToIso(
   businessDate: string,
   time: string,
   timezone: string,
-  cutoffLocal: string,
 ): string {
   return zonedLocalToIso(`${businessDate}T${time}`, timezone);
 }

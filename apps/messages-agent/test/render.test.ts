@@ -42,6 +42,9 @@ describe.skipIf(process.platform !== "darwin")("个人日结 PNG", () => {
       const svgMarkup = await readFile(svg, "utf8");
       expect(bytes.subarray(1, 4).toString()).toBe("PNG");
       expect(bytes.length).toBeGreaterThan(10_000);
+      // Check the actual PNG IHDR, not just the SVG source dimensions.
+      expect(bytes.readUInt32BE(16)).toBe(1170);
+      expect(bytes.readUInt32BE(20)).toBe(719);
       expect(svgMarkup).toContain('viewBox="0 0 1170 719"');
       expect(svgMarkup).toContain('<rect x="0" y="0" width="1170" height="719" fill="url(#bg)"/>');
       expect(svgMarkup).not.toContain('width="100%"');
@@ -59,4 +62,25 @@ describe.skipIf(process.platform !== "darwin")("个人日结 PNG", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+  it.each(["zh_CN", "en_US"] as const)("%s 多笔短信附件保持 1170 像素宽及完整换行", async (locale) => {
+    const directory = await mkdtemp(join(tmpdir(), "closing-layout-test-"));
+    try {
+      const svg = join(directory, "closing.svg");
+      const png = join(directory, "closing.png");
+      const record = { ...snapshot.records[0]!, serviceShortName: "Deep tissue massage + Hot stone massage + Aromatherapy", cardServiceCents: 3000 };
+      await renderClosingPng({ ...snapshot, records: Array.from({ length: 12 }, () => record) }, locale, svg, png);
+      const bytes = await readFile(png);
+      const markup = await readFile(svg, "utf8");
+      expect(bytes.readUInt32BE(16)).toBe(1170);
+      expect(bytes.readUInt32BE(20)).toBeGreaterThan(719);
+      expect(markup).not.toMatch(/大费基数|应提交现金|Service-fee base|Cash to submit/);
+      expect(markup).toContain('fill="#f8dfcc"');
+      expect(markup.match(/class="gross-value"/g)).toHaveLength(12);
+      expect(markup.match(/x="605"[^>]+class="payment-label"/g)).toHaveLength(24);
+      expect(markup).not.toContain("…");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
 });

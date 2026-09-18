@@ -451,12 +451,12 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
       </header>
 
       <section className="employee-closing-handoff" aria-labelledby="employee-closing-settlement-title">
-        <div><h3 id="employee-closing-settlement-title">现金交接</h3><p>员工需要交给店铺的现金，不属于工资收入。</p></div>
-        <article><span>应提交现金</span><strong>{money(employee.cashToSubmitToStoreCents, locale)}</strong><small>含现金大费的已确认项目，折前大费基数 × 40%</small></article>
+        <div><h3 id="employee-closing-settlement-title">现金交接</h3><p>店里应发给员工的现金大费工资；现金小费由员工自行收取。</p></div>
+        <article><span>现金大费</span><strong>{money(employee.cashLargeFeeDividendCents, locale)}</strong><small>已确认项目按折前金额和提成比例计算，混合付款按现金占比分摊；折扣由店里承担。</small></article>
       </section>
 
       <div className="employee-closing-image-actions">
-        <span role="status">{cashSettlement.status === "SETTLED" ? "已结现金：当天现金大费和小费已结清" : "现金尚未结清"}</span>
+        <span role="status">{cashSettlement.status === "SETTLED" ? "已结现金：当天现金大费工资已发放" : "现金尚未结清"}</span>
         {canSend && preview.records.length > 0 && <button className="secondary-action" type="button" disabled={settlingCash} onClick={() => void toggleCashSettlement()}>{settlingCash ? "正在保存…" : cashSettlement.status === "SETTLED" ? "取消已结现金" : "已结现金"}</button>}
       </div>
 

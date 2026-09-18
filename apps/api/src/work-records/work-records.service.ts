@@ -1,3 +1,4 @@
+import { automaticDiscounts, type MondayThursdayAutoDiscountSettings } from "../common/automatic-discounts.js";
 import { businessDateFor, deviceNow, deviceTimezone } from "../common/device-time.js";
 import type { SaveWorkRecordInput } from "@massage-note/contracts";
 import {
@@ -37,12 +38,6 @@ interface StoreBusinessSettings {
   timezone: string;
   businessCutoffLocal: string;
   globalCommissionBps: number;
-}
-
-interface MondayThursdayAutoDiscountSettings {
-  mondayThursdayAutoDiscountEnabled: boolean;
-  mondayThursdayAutoDiscountThresholdCents: bigint;
-  mondayThursdayAutoDiscountAmountCents: bigint;
 }
 
 interface DesiredServiceSnapshot {
@@ -90,9 +85,6 @@ type CompatibleConfirmedPayment = Omit<
       "giftCardSerialNumber" | "giftCardServiceCents" | "giftCardTipCents"
     >
   >;
-
-const MONDAY_THURSDAY_AUTO_DISCOUNT_NAME = "周一至周四自动折扣";
-
 const recordInclude = {
   employee: {
     select: { id: true, displayName: true, role: true, isServiceProvider: true },
@@ -1602,30 +1594,9 @@ export class WorkRecordsService {
       isAutomatic: false,
       position,
     }));
-    const weekday = new Date(`${businessDate}T00:00:00.000Z`).getUTCDay();
-    const isMondayThroughThursday = weekday >= 1 && weekday <= 4;
-    const threshold = settings.mondayThursdayAutoDiscountThresholdCents;
-    const amount = settings.mondayThursdayAutoDiscountAmountCents;
-    if (
-      !settings.mondayThursdayAutoDiscountEnabled ||
-      !isMondayThroughThursday ||
-      threshold <= 0n ||
-      amount <= 0n ||
-      amount > threshold ||
-      grossFeeBaseCents < threshold
-    ) {
-      return discounts;
-    }
     return [
       ...discounts,
-      {
-        sourceDiscountItemId: null,
-        isCustom: false,
-        isAutomatic: true,
-        name: MONDAY_THURSDAY_AUTO_DISCOUNT_NAME,
-        amountCents: amount,
-        position: discounts.length,
-      },
+      ...automaticDiscounts(settings, businessDate, grossFeeBaseCents, discounts.length),
     ];
   }
 

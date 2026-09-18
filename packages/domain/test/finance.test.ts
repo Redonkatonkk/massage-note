@@ -287,6 +287,21 @@ describe("单条记工财务", () => {
 });
 
 describe("日现金结算与工资余额", () => {
+  it("个人小结现金大费由店里按折前提成发放，不受实收现金不足限制且不含现金小费", () => {
+    const finance = calculateWorkRecordFinance(record({
+      mainServiceAmountCents: 10_000n,
+      mainServiceCommissionBps: 6_000,
+      discountAmountsCents: [6_000n],
+      cashServiceCents: 4_000n,
+      cardServiceCents: 0n,
+      cashTipCents: 2_000n,
+    }));
+    const dividends = calculatePersonalClosingPaymentDividends([finance]);
+    expect(dividends.cashLargeFeeDividendCents).toBe(6_000n);
+    expect(dividends.cashTipDividendCents).toBe(2_000n);
+    expect(dividends.cardLargeFeeDividendCents).toBe(0n);
+  });
+
   it("个人日结按现金大费项目的折前基数计算店铺四成", () => {
     expect(
       calculatePersonalClosingCashToSubmit([

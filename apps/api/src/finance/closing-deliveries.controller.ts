@@ -27,7 +27,10 @@ export class ClosingDeliveriesController {
 
   @Post("batch")
   batch(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Param("businessDate") businessDate: string, @Headers("idempotency-key") key: string | undefined, @Res({ passthrough: true }) response: Response) {
-    return this.deliveries.queueBatch(user, parseRequest(uuidSchema, storeId), parseRequest(businessDateSchema, businessDate), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
+    const parsedStoreId = parseRequest(uuidSchema, storeId);
+    const parsedBusinessDate = parseRequest(businessDateSchema, businessDate);
+    parseRequest(idempotencyKeySchema, key);
+    return this.deliveries.queueBatch(user, parsedStoreId, parsedBusinessDate, response.locals.requestId as string);
   }
 
   @Post("members/:membershipId")

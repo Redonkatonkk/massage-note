@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.7.0`
+> 适用版本：`1.7.4`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -9,11 +9,11 @@
 
 - 首次注册由 Firebase Phone Auth 验证手机号，并在 `POST /auth/session` 中同时提交姓名和 8 至 72 字符的密码；密码仅以随机盐 `scrypt` 摘要保存。
 - 老用户可以用密码换取 Firebase Custom Token，也可以继续使用验证码。客户端最终都把 Firebase ID Token 提交到 `POST /auth/session`，服务端返回 `HttpOnly` 会话 Cookie。
-- 浏览器后续请求必须携带 Cookie。除健康检查、CSRF 初始化和登录外，接口都需要有效会话。
+- 浏览器业务请求携带会话 Cookie；LangBot 和 Mac 发送代理接口分别使用独立 Bearer 凭据。保留原因：这些入口的身份体系不同，不能将集成接口误记为浏览器会话接口。
 - 已有店铺内的关键写入必须发送 `Idempotency-Key` 请求头；建议使用 UUID。相同键和相同请求会返回首次结果，相同键配不同内容会返回冲突。创建店铺尚无 `storeId`，因此以“店主＋自选店铺代码＋相同配置”做语义去重；加入申请以“用户＋店铺＋待审状态”去重。
 - 修改、删除和恢复请求中的 `version` 是乐观锁版本。若资源已被其他设备修改，接口返回 `409` 和最新资源，客户端应刷新后让用户重新核对。
-- 所有店铺业务路径都包含 `storeId`。服务端会再次校验成员关系、角色能力和对象归属，不能依赖前端隐藏按钮实现权限。
-- 请求和响应均为 JSON；CSV 导出例外。错误格式为 `{ code, messageZh, requestId, latestResource? }`。版本冲突的 `latestResource` 也必须经过 JSON 安全转换，数据库 `BigInt` 金额不能让应有的 409 响应退化为 500。
+- 网页店铺业务路径包含 `storeId`；集成接口从受限绑定或代理身份确定店铺。服务端校验成员关系、角色能力和对象归属，不能依赖前端隐藏按钮实现权限。保留原因：客户端参数和界面都不能证明租户归属。
+- 普通请求和响应使用 JSON；CSV 导出、音频上传和 SSE 流使用对应格式。错误格式为 `{ code, messageZh, requestId, latestResource? }`。版本冲突的 `latestResource` 也必须经过 JSON 安全转换。保留原因：数据库 `BigInt` 金额不能让应有的 409 响应退化为 500，也不能将流或二进制请求按 JSON 处理。
 
 ## 主要端点
 
@@ -69,7 +69,7 @@
 | GET | `/stores/:storeId/gift-card-sales/deleted` | 店长查看已删除卖卡记录 |
 | POST | `/stores/:storeId/gift-card-sales/:saleId/restore` | 恢复已删除卖卡记录 |
 | GET | `/stores/:storeId/closings/:businessDate/preview` | 全店日结预览 |
-| GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人；返回目标员工按开始时间排序的逐笔记工、项目/加项名称、逐笔 `grossFeeBaseCents` 折前大费、现金/刷卡/礼物卡实收拆分、单笔工资收入，以及现金/刷卡大费分红、现金/刷卡小费分红和对应合计；仅计已确认付款；应提交现金按含现金大费的已确认项目折前基数合计 × 40% 计算；不含全店或他人数据 |
+| GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人；返回目标员工按开始时间排序的逐笔记工、项目/加项名称、逐笔 `grossFeeBaseCents` 折前大费、现金/刷卡/礼物卡实收拆分、单笔工资收入，以及现金/刷卡大费分红、现金/刷卡小费分红和对应合计；仅计已确认付款；每日小结“现金大费”使用 `cashLargeFeeDividendCents` 表示店里应付员工的现金大费工资（折前提成按现金付款占比分摊，不含现金小费）；`cashToSubmitToStoreCents` 仅保留旧口径兼容；不含全店或他人数据 |
 | POST | `/stores/:storeId/closings/:businessDate`、`.../cancel` | 正常/强制日结与取消日结；取消仅需 `version`，`reason` 可省略 |
 | GET | `/stores/:storeId/closings/:businessDate/deliveries` | 店主或经理查看个人日结短信发送历史、错误和 Mac 代理状态 |
 | POST | `/stores/:storeId/closings/:businessDate/deliveries/batch` | 日结后把所有已开启、号码有效且当天有记工的成员幂等加入发送队列 |
@@ -175,7 +175,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 设为 `true` 后，服务端删除该笔自动折扣快照并持久保留停用状态，之后再次编辑也不会自动加回；设为 `false` 时按当前营业日、折前大费和店铺设置重新判断。该字段走既有记工权限、营业日锁、版本冲突、幂等、审计与现金结算回退规则。
 
-快速记工和详情修改都可提交布尔字段 `isHighlighted`。它只控制首页黄色卡片提示和财务查询筛选，不进入任何金额公式。财务汇总、明细和 CSV 必须使用相同的 `highlightFilter` 值。
+快速记工和详情修改都可提交布尔字段 `isHighlighted`，用于黄色卡片、财务筛选及信用卡手续费计算：未高亮刷卡金额按 2.5%，含刷卡付款的高亮记工每笔 $3。财务汇总、明细和 CSV 使用同一 `highlightFilter`。保留原因：领域层已有高亮手续费分支，旧说法“不进入任何金额公式”会误导财务查询和改动。
 
 确认付款可在原有现金与刷卡字段之外提交礼物卡拆分：
 
@@ -269,7 +269,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 - 发送代理的授权、检查点、完成和失败回写均检查未过期租约及当前令牌；租约失效返回 `DELIVERY_LEASE_INVALID`。
 - 员工小计发送的幂等内容包含日期、员工列表、付款方式、金额类型、高亮筛选及接收号码；相同键更换筛选返回 `IDEMPOTENCY_KEY_REUSED`。
 
-### 完整微信记工与数据查询（1.3.7）
+### 完整微信记工与数据查询
 
 `POST /integrations/langbot/work-context` 返回协议版本 2、店铺当前营业日期/时区、员工 ID 和实时意图 JSON Schema。`work-events` 扩展 QUERY 与 MANAGE；QUERY 支持最近 1–366 个营业日或完整起止日期、员工/状态/高亮筛选、按记录/天/员工分组及每页 20 条分页。总计覆盖完整范围。MANAGE 支持 CREATE、UPDATE、PAYMENT、DELETE、RESTORE，输入事实须有原文依据，编辑与付款共用事务；完整契约见 `packages/contracts/src/work-bot.ts`。
 

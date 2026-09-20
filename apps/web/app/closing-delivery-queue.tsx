@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ClosingDeliveryItem, ClosingDeliveryList, ClosingDeliveryStatus } from "../lib/types";
 
 const statusLabels: Record<ClosingDeliveryStatus, string> = {
@@ -69,18 +70,22 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
 
 export function ClosingDeliveryQueueButton(props: ClosingDeliveryQueueProps) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  // Keep the modal outside auto-closing details: a hidden open dialog still
+  // makes the rest of the document inert. Resolve body only after hydration.
+  useEffect(() => setPortalTarget(document.body), []);
   const sentCount = props.value.deliveries.filter((item) => item.status === "SENT").length;
 
   return <>
     <button className="secondary-action board-closing-action" type="button" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
       <span>短信队列</span> · <span>已发送</span> <strong>{sentCount}</strong>
     </button>
-    <dialog ref={dialog} className="board-delivery-dialog" aria-label="短信发送队列详情" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
+    {portalTarget && createPortal(<dialog ref={dialog} className="board-delivery-dialog" aria-label="短信发送队列详情" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
       <div className="modal-heading">
         <h2>短信发送队列详情</h2>
         <button className="close-button" type="button" onClick={() => dialog.current?.close()}>关闭</button>
       </div>
       {props.value.deliveries.length === 0 ? <p>还没有短信发送记录。</p> : <ClosingDeliveryQueue {...props} expanded />}
-    </dialog>
+    </dialog>, portalTarget)}
   </>;
 }

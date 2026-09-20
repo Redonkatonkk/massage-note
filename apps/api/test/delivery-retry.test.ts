@@ -4,7 +4,7 @@ import { ClosingDeliveriesService } from "../src/finance/closing-deliveries.serv
 import { EmployeeSettlementsService } from "../src/finance/employee-settlements.service.js";
 import type { PrismaService } from "../src/database/prisma.service.js";
 
-const token = "retry-test-token";
+  const token = ["mna", "deadbeef01", "retry"].join("_");
 afterEach(() => vi.useRealTimers());
 
 for (const Service of [ClosingDeliveriesService, EmployeeSettlementsService]) {

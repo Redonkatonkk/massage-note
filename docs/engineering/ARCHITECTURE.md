@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.7.4` 代码结构核对。
+> 状态：与 `1.8.1` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -176,3 +176,8 @@ Web 表单
 浏览器只有收到实际事件/心跳且 REST 读取成功才显示已同步。连续通知在 250 毫秒窗口内合并，读取中收到变化会排队补读；失败读取即使心跳正常也会低频重试。记工页的已知记工/表格事件只重读所选日期的表格，财务页重读相关汇总、明细与结算，管理页只更新已删除记工列表；未知事件与重连仍完整刷新。不重新挂载记工编辑器，保留草稿及版本冲突校验。
 
 记工与机器人上工共用 `apps/api/src/common/automatic-discounts.ts` 的自动折扣判断。保留原因：同一店铺、营业日期和金额应生成相同折扣快照，避免两个入口各自维护规则。
+
+
+### 经营分析
+
+`FinanceAnalyticsService` 在 RepeatableRead 只读事务中验证店铺财务权限并读取当前店铺有效记工、卖卡及去重后的已日结日期。领域函数 `calculateFinanceAnalytics` 负责历史时区小时分组、自然日补零及整数美分平均；共享契约 `FinanceAnalyticsResponse` 仅传输聚合结果。Web独立分析标签按需加载，通过既有实时通道与刷新队列合并事件，并使切店、日期变化和卸载后的旧请求失效。无需数据库迁移。

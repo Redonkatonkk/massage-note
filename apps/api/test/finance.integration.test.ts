@@ -923,8 +923,28 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     });
     expect(pending.status).toBe("PENDING_PAYMENT");
   });
+  async function addClosingRecord(date: string) {
+    const record = await workRecords.create(actor(managerId), storeId, {
+      employeeMembershipId, serviceItemId,
+      startAt: `${date}T15:00:00.000Z`,
+    }, `closing-record-${date}`, "closing-record");
+    await workRecords.confirmPayment(actor(managerId), storeId, record.id, {
+      version: record.version, cashServiceCents: 10_000, cardServiceCents: 0,
+      cashTipCents: 0, cardTipCents: 0,
+    }, `closing-payment-${date}`, "closing-payment");
+  }
+
+  it("无记工的营业日正常自动日结但不发送短信", async () => {
+    await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { closingDeliveryEnabled: true } });
+    const closed = await closings.close(actor(ownerId), storeId, "2026-01-01", { force: false }, "empty-auto", "empty-auto", true);
+    expect(closed.closing.status).toBe("CLOSED");
+    expect(await prisma.employeeClosingDelivery.count({ where: { closingId: closed.closing.id } })).toBe(0);
+  });
+
   it("首次日结原子排队，幂等与取消重结不重复发送", async () => {
     const date = "2026-01-02";
+    await addClosingRecord(date);
+    await prisma.storeMembership.update({ where: { id: managerMembershipId }, data: { closingDeliveryEnabled: true } });
     await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { closingDeliveryEnabled: true } });
     const close = () => closings.close(actor(managerId), storeId, date, { force: false }, "auto-summary-first", "auto-summary-test");
     const results = await Promise.all([close(), close()]);
@@ -943,6 +963,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
   it("自动日结跳过已发送、待发和关闭接收的成员，支持未绑定账号的号码", async () => {
     for (const [index, status] of ["SENT", "QUEUED", "CLAIMED"].entries()) {
       const date = `2026-01-${10 + index}`;
+      await addClosingRecord(date);
       const existing = await closingDeliveries.queueMember(actor(managerId), storeId, date, employeeMembershipId, `before-close-${status}`, "auto-summary-test");
       await prisma.employeeClosingDelivery.update({ where: { id: existing.id }, data: { status: status as "SENT" | "QUEUED" | "CLAIMED" } });
       const closed = await closings.close(actor(ownerId), storeId, date, { force: false }, `auto-skip-${status}`, "auto-summary-test", true);
@@ -950,9 +971,11 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       expect(await prisma.employeeClosingDelivery.count({ where: { closingId: closed.closing.id } })).toBe(0);
     }
     await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { closingDeliveryEnabled: false } });
+    await addClosingRecord("2026-01-13");
     const closed = await closings.close(actor(ownerId), storeId, "2026-01-13", { force: false }, "auto-disabled", "auto-summary-test", true);
     expect(await prisma.employeeClosingDelivery.count({ where: { closingId: closed.closing.id } })).toBe(0);
     await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { closingDeliveryEnabled: true, userId: null, closingDeliveryPhoneE164: "+16465550123" } });
+    await addClosingRecord("2026-01-14");
     const pending = await closings.close(actor(ownerId), storeId, "2026-01-14", { force: false }, "auto-unclaimed", "auto-summary-test", true);
     expect(await prisma.employeeClosingDelivery.count({ where: { closingId: pending.closing.id } })).toBe(1);
     await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { userId: employeeId, closingDeliveryPhoneE164: null } });
@@ -960,6 +983,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
 
   it("创建小结失败时回滚日结，恢复后可重试", async () => {
     const date = "2026-01-15";
+    await addClosingRecord(date);
     const snapshot = vi.spyOn(closings, "previewMember").mockRejectedValueOnce(new Error("snapshot unavailable"));
     try {
       await expect(closings.close(actor(ownerId), storeId, date, { force: false }, "auto-rollback", "auto-summary-test", true)).rejects.toThrow("snapshot unavailable");

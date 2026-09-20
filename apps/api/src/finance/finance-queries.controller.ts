@@ -1,6 +1,7 @@
+import { FinanceAnalyticsService } from "./finance-analytics.service.js";
 import { Controller, Get, Param, Query, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
-import { financeQuerySchema, uuidSchema } from "@massage-note/contracts";
+import { financeAnalyticsQuerySchema, financeQuerySchema, uuidSchema } from "@massage-note/contracts";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { SessionAuthGuard } from "../auth/session-auth.guard.js";
 import type { AuthenticatedUser } from "../auth/auth.types.js";
@@ -10,7 +11,12 @@ import { FinanceQueriesService } from "./finance-queries.service.js";
 @Controller("stores/:storeId/finance")
 @UseGuards(SessionAuthGuard)
 export class FinanceQueriesController {
-  constructor(private readonly finance: FinanceQueriesService) {}
+  constructor(private readonly finance: FinanceQueriesService, private readonly analysis: FinanceAnalyticsService) {}
+
+  @Get("analytics")
+  analytics(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Query() query: unknown) {
+    return this.analysis.analytics(user, parseRequest(uuidSchema, storeId), parseRequest(financeAnalyticsQuerySchema, query));
+  }
 
   @Get("summary")
   summary(

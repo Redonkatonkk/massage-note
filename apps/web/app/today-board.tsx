@@ -38,6 +38,7 @@ import { WorkTimeInput } from "./work-time-input";
 import { BoardEmployeePicker } from "./board-employee-picker";
 import { RecordTrack } from "./record-track";
 import { RecordEditor } from "./record-editor";
+import { AutoCloseDetails } from "./auto-close-details";
 
 interface TodayBoardProps {
   dateControls: ReactNode;
@@ -446,7 +447,7 @@ export function TodayBoard({
           {canManage && (board.isClosed
             ? <a className="primary-action board-closing-action" href={financeCashHref(membership.store.id, currentDay.businessDate)}>现金结算</a>
             : <button className="primary-action board-closing-action" type="button" disabled={busy} onClick={() => run(closeBusinessDay)}>日结</button>)}
-          {(canManage || canGenerateRanking) && <details className="board-more-actions">
+          {(canManage || canGenerateRanking) && <AutoCloseDetails className="board-more-actions">
             <summary>更多操作</summary>
             <div className="board-more-actions__body">
               {canManage && board.isClosed && <button className="secondary-action" type="button" disabled={busy || deliveryList?.batchAllowed === false} title={deliveryList?.batchBlockedReason ?? undefined} onClick={() => run(queueEmployeeClosings)}>{deliveryList?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>}
@@ -454,7 +455,7 @@ export function TodayBoard({
               {canGenerateRanking && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(rankBoard)}>{dailyRankingActionLabel(board.ranking.rankedAt)}</button>}
               {canManage && board.isClosed && <button className="secondary-action board-reopen-action" type="button" disabled={busy} onClick={() => run(cancelBusinessDayClosing)}>取消日结</button>}
             </div>
-          </details>}
+          </AutoCloseDetails>}
 
         </div>
       </section>
@@ -528,11 +529,11 @@ export function TodayBoard({
                   <span className="chevron" aria-hidden="true">{isCollapsed ? "展开" : "收起"}</span>
                 </button>
                 <div className="row-tools">
-                  {canManage && !board.isClosed && <details className="row-management"><summary>员工操作</summary><div>
+                  {canManage && !board.isClosed && <AutoCloseDetails className="row-management"><summary>员工操作</summary><div>
                     {!board.isClosed && <><button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button><button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button></>}
                     {board.ranking.enabled && !board.isClosed && <button type="button" disabled={busy} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}/remove`, { method: "POST", idempotent: true, body: { version: row.version } }); setNotice(`已移除 ${row.membership.displayName}`); await onReload(); })}>移除</button>}
                     {!board.isClosed && <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>}
-                  </div></details>}
+                  </div></AutoCloseDetails>}
                   <span className="row-work-count" title="记工数" aria-label={`${row.workRecords.length} 条记工`}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="16" rx="2" /><path d="M9 5V3h6v2M9 11h6M9 16h6" /></svg>
                     <strong>{row.workRecords.length}</strong>

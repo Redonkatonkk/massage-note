@@ -1,3 +1,4 @@
+import { withDeliveryCooldown } from "./delivery-cooldown.js";
 import { loadJournal, saveJournal, type Journal } from "./journal.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -133,12 +134,19 @@ const journal = await loadJournal(journalPath);
 await heartbeat();
 let lastHeartbeat = Date.now();
 while (!stopped) {
+  let handledJob = false;
   try {
     const settlementJob = await request<SettlementJob | null>("/employee-settlement-delivery-agent/jobs/claim", { method: "POST" });
-    if (settlementJob) await processSettlementJob(settlementJob);
+    if (settlementJob) {
+      handledJob = true;
+      await withDeliveryCooldown(() => processSettlementJob(settlementJob));
+    }
     else {
       const job = await request<Job | null>("/closing-delivery-agent/jobs/claim", { method: "POST" });
-      if (job) await processJob(job, journal);
+      if (job) {
+        handledJob = true;
+        await withDeliveryCooldown(() => processJob(job, journal));
+      }
     }
     if (Date.now() - lastHeartbeat > 60_000) { await heartbeat(); await cleanupOutbox(outboxDir); lastHeartbeat = Date.now(); }
   } catch (error) {
@@ -146,5 +154,5 @@ while (!stopped) {
     process.stderr.write(`${new Date().toISOString()} ${message}\n`);
     if (Date.now() - lastHeartbeat > 60_000) { await heartbeat(message); await cleanupOutbox(outboxDir); lastHeartbeat = Date.now(); }
   }
-  await new Promise((resolve) => setTimeout(resolve, 10_000));
+  if (!handledJob) await new Promise((resolve) => setTimeout(resolve, 10_000));
 }

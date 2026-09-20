@@ -255,7 +255,8 @@ export class ClosingsService {
         if (closing.cycleNo === 1) {
           // Same day lock and transaction as closing: no gap for duplicate sends or lost jobs.
           const members = await transaction.storeMembership.findMany({
-            where: { storeId, status: "ACTIVE", deletedAt: null, closingDeliveryEnabled: true },
+            where: { storeId, status: "ACTIVE", deletedAt: null, closingDeliveryEnabled: true,
+              id: { in: preview.employees.filter(employee => employee.recordCount > 0).map(employee => employee.membershipId) } },
             include: { user: { select: { phoneE164: true } }, store: { select: { closingDefaultLocale: true } } },
           });
           for (const member of members) {

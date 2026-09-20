@@ -20,7 +20,7 @@ export function AppNav({ active, storeId }: { active: AppNavPage; storeId?: stri
 
   const storeQuery = storeId ? `?store=${encodeURIComponent(storeId)}` : "";
   const items: Array<{ page: AppNavPage; href: string; icon: string; label: string }> = [
-    { page: "today", href: "/", icon: "今", label: "今日" },
+    { page: "today", href: "/", icon: "记", label: "记工" },
     { page: "finance", href: `/finance${storeQuery}`, icon: "账", label: "财务" },
     { page: "manage", href: `/manage${storeQuery}`, icon: "店", label: "店铺设置" },
     { page: "profile", href: "/profile", icon: "我", label: "我的" },

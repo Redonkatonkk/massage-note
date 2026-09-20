@@ -1,5 +1,7 @@
 "use client";
 
+import { AnalyticsPanel } from "./analytics-panel";
+
 import { browserStorage } from "../../lib/browser-storage";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -43,7 +45,7 @@ import {
   type FinanceSummaryMetricKey,
 } from "./summary-metrics";
 
-type FinanceTab = "summary" | "cash" | "closing" | "giftCards" | "payroll";
+type FinanceTab = "analytics" | "summary" | "cash" | "closing" | "giftCards" | "payroll";
 type FinanceRangeOverride = { dateFrom?: string; dateTo?: string; memberIds?: string[] };
 
 function money(cents: number | null | undefined): string {
@@ -339,7 +341,7 @@ export function FinancePageClient() {
         );
         setDay(current);
         const requestedTab = new URL(window.location.href).searchParams.get("tab");
-        if (["summary", "cash", "closing", "payroll"].includes(requestedTab ?? "") || (requestedTab === "giftCards" && selected.role !== "EMPLOYEE")) {
+        if (["summary", "cash", "closing", "payroll"].includes(requestedTab ?? "") || (["giftCards", "analytics"].includes(requestedTab ?? "") && selected.role !== "EMPLOYEE")) {
           setTab(requestedTab as FinanceTab);
         }
         const requestedDate = new URL(window.location.href).searchParams.get("date");
@@ -453,7 +455,10 @@ export function FinancePageClient() {
     ["cash", "现金结算"],
     ["closing", canManage ? "日结" : "我的日结"],
   ];
-  if (canManage) financeTabs.push(["giftCards", "礼物卡"]);
+  if (canManage) {
+    financeTabs.splice(1, 0, ["analytics", locale === "en-US" ? "Business analytics" : "经营分析"]);
+    financeTabs.push(["giftCards", "礼物卡"]);
+  }
   financeTabs.push(["payroll", canManage ? "工资结算" : "工资结算明细"]);
   const closingHasBlockingWarnings = closing
     ? hasBlockingClosingWarnings(closing.warnings)
@@ -474,6 +479,8 @@ export function FinancePageClient() {
         ))}
       </nav>
       {error && <p className="form-error" role="alert">{error}</p>}
+
+      {tab === "analytics" && canManage && <AnalyticsPanel key={membership.store.id} storeId={membership.store.id} today={day.businessDate} />}
 
       {tab === "summary" && summary && (
         <section className="finance-section">

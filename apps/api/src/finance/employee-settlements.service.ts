@@ -378,10 +378,11 @@ export class EmployeeSettlementsService {
   async fail(authorization: string | undefined, deliveryId: string, input: ClosingDeliveryFailureInput) {
     const agent = await this.authenticateAgent(authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, input.leaseToken);
-    const retry = input.retryable && job.attemptCount < 3;
+    // attemptCount includes the initial attempt: allow three additional retries.
+    const retry = input.retryable && job.attemptCount < 4;
     requireDeliveryLease(await this.prisma.employeeSettlementDelivery.updateMany({
       where: claimedDeliveryWhere(agent.storeId, job.id, input.leaseToken),
-      data: { status: retry ? "QUEUED" : "FAILED", leaseToken: null, leaseExpiresAt: null, nextAttemptAt: retry ? new Date(Date.now() + 30_000 * job.attemptCount) : new Date(), lastErrorCode: input.code, lastError: input.message },
+      data: { status: retry ? "QUEUED" : "FAILED", leaseToken: null, leaseExpiresAt: null, nextAttemptAt: retry ? new Date(Date.now() + 60_000) : new Date(), lastErrorCode: input.code, lastError: input.message },
     }));
     return { retryScheduled: retry };
   }

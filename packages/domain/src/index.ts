@@ -6,3 +6,4 @@ export * from "./finance.js";
 export * from "./money.js";
 export * from "./permission.js";
 export * from "./discount.js";
+export * from "./finance-analytics.js";

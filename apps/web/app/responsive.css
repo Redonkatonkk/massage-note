@@ -293,3 +293,34 @@ button, summary { overflow-wrap: anywhere; }
   .business-day-toolbar > .board-toolbar { flex-basis: 100%; margin-left: 0; }
   .business-day-toolbar .board-more-actions { flex: 1 1 140px; }
 }
+
+/* Business analytics keeps long timelines inside their own scrolling cards. */
+.analytics-panel { min-width: 0; }
+.analytics-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.analytics-card { min-width: 0; padding: 24px; border: 1px solid #e4ddd4; border-radius: 18px; background: #fffdf9; }
+.analytics-card h2 { margin: 0 0 8px; font-size: 20px; }
+.analytics-description, .analytics-legend { color: #706456; font-size: 14px; line-height: 1.6; }
+.analytics-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.analytics-scroll svg { display: block; min-width: 100%; }
+.analytics-scroll svg text { font-size: 11px; fill: #706456; }
+.analytics-hit { cursor: pointer; }
+.analytics-hit:hover, .analytics-hit:focus { fill: rgba(154, 75, 37, .08); outline: 2px solid #287e79; outline-offset: -2px; }
+.analytics-readout { min-height: 44px; font-size: 14px; padding: 12px; border-radius: 8px; background: #f5eee5; line-height: 1.5; overflow-wrap: anywhere; }
+.analytics-card summary { cursor: pointer; padding: 8px 0; }
+.analytics-heat-table { border-spacing: 3px; min-width: 950px; width: 100%; font-size: 12px; }
+.analytics-heat-table th { white-space: nowrap; font-weight: 500; text-align: center; }
+.analytics-heat-table th:first-child { text-align: left; min-width: 110px; }
+.analytics-heat-table td { padding: 0; }
+.analytics-heat-table button { width: 100%; min-width: 30px; height: 40px; border: 0; border-radius: 5px; padding: 0; font-size: 12px; cursor: pointer; }
+.analytics-heat-table button:focus-visible { outline: 3px solid #287e79; outline-offset: 1px; }
+.analytics-panel .quick-ranges button[aria-pressed="true"] { background: #583b28; color: white; }
+@media (min-width: 1100px) { .analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .analytics-heatmap { grid-column: 1 / -1; } }
+@media (max-width: 600px) { .analytics-card { padding: 14px; } .analytics-panel .filter-panel { display: flex; flex-direction: column; align-items: stretch; } .analytics-panel .quick-ranges { display: flex; flex-wrap: wrap; } }
+
+.analytics-panel .quick-ranges { display: flex; flex-wrap: wrap; }
+.analytics-panel .quick-ranges button { flex: 1 0 110px; white-space: nowrap; }
+.analytics-panel .filter-panel { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+.analytics-panel .filter-panel > .quick-ranges { grid-column: 1 / -1; }
+.analytics-panel .filter-panel > .filter-panel__heading { grid-column: 1 / -1; grid-row: 1; }
+.analytics-panel .filter-panel > .quick-ranges { grid-row: 2; }
+.analytics-panel .filter-panel > label, .analytics-panel .filter-panel > .primary-action { grid-row: 3; }

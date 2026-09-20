@@ -1,3 +1,4 @@
+import { FinanceAnalyticsService } from "./finance-analytics.service.js";
 import { ClosingSchedulerService } from "./closing-scheduler.service.js";
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module.js";
@@ -35,6 +36,7 @@ import { EmployeeSettlementsService } from "./employee-settlements.service.js";
     CashSettlementsService,
     PayrollSettlementsService,
     FinanceQueriesService,
+    FinanceAnalyticsService,
     IdempotencyService,
     ClosingDeliveriesService,
     EmployeeSettlementsService,

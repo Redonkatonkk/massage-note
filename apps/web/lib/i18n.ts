@@ -8,6 +8,8 @@ export function isAppLocale(value: unknown): value is AppLocale {
 }
 
 const ENGLISH_TRANSLATIONS: Record<string, string> = {
+  "记工": "Work log",
+  "记": "Log",
   "更多汇总": "More totals",
   "更多操作": "More actions",
   "选择今日上班员工": "Choose today's staff",

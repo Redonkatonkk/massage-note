@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma, type User } from "@massage-note/database";
+import { rankingExplanationSchema } from "@massage-note/contracts";
 import type {
   AddBoardRowInput,
   CalendarDateRangeQuery,
@@ -305,6 +306,9 @@ export class BoardsService {
           ? false
           : store.automaticDispatchEnabled,
         rankedAt: personalHistoryMembershipId ? null : board?.rankedAt ?? null,
+        explanation: hasStoreCapability(actorMembership.role, "MEMBERSHIP_MANAGE")
+          ? rankingExplanationSchema.safeParse(board?.rankingExplanation).data ?? null
+          : null,
       },
     };
   }

@@ -41,3 +41,22 @@ export type UpdateBoardRowInput = z.input<typeof updateBoardRowSchema>;
 export type ReorderBoardInput = z.input<typeof reorderBoardSchema>;
 export type RankBoardInput = z.input<typeof rankBoardSchema>;
 export type RemoveBoardRowInput = z.input<typeof removeBoardRowSchema>;
+
+export const rankingExplanationSchema = z.object({
+  schemaVersion: z.literal(1),
+  generatedAt: z.string(),
+  entries: z.array(z.object({
+    membershipId: z.string(),
+    displayName: z.string(),
+    employmentType: z.enum(["FULL_TIME", "PART_TIME"]),
+    lastPosition: z.number().int().positive().nullable(),
+    lastBusinessDate: z.string().nullable(),
+    generatedPosition: z.number().int().positive(),
+    ties: z.array(z.object({
+      membershipId: z.string(),
+      ahead: z.boolean(),
+      rule: z.enum(["EMPLOYMENT_TYPE", "RECENT_ATTENDANCE", "STABLE_ID"]),
+    })),
+  })),
+});
+export type RankingExplanation = z.infer<typeof rankingExplanationSchema>;

@@ -1,19 +1,21 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { errorMessage } from "../lib/api";
 import type { StoreMember } from "../lib/types";
 import { toggleOrderedSelection, addEmployeesInOrder } from "../lib/employee-selection";
 
 interface BoardEmployeePickerProps {
   members: StoreMember[];
+  rankingAction?: { label: string; onClick: () => void } | undefined;
+  rankingHelp?: ReactNode;
   empty: boolean;
   disabled: boolean;
   onAdd: (membershipId: string) => Promise<void>;
   onReload: () => Promise<void>;
 }
 
-export function BoardEmployeePicker({ members, empty, disabled, onAdd, onReload }: BoardEmployeePickerProps) {
+export function BoardEmployeePicker({ members, rankingAction, rankingHelp, empty, disabled, onAdd, onReload }: BoardEmployeePickerProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const submitting = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -52,7 +54,7 @@ export function BoardEmployeePicker({ members, empty, disabled, onAdd, onReload 
   }
 
   return <>
-    {members.length > 0 && <section className="add-employee-panel">
+    {(members.length > 0 || rankingAction) && <section className="add-employee-panel">
       <label className="field-label">手动添加员工到今日表格
         {empty
           ? <button className="employee-picker-trigger" type="button" aria-haspopup="dialog" disabled={busy || disabled} onClick={openPicker}><span>请选择员工</span><span aria-hidden="true">⌄</span></button>
@@ -61,7 +63,10 @@ export function BoardEmployeePicker({ members, empty, disabled, onAdd, onReload 
             {members.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
           </select>}
       </label>
-      <button className="secondary-action" type="button" disabled={busy || disabled || (!empty && !singleId)} onClick={() => empty ? openPicker() : void submit([singleId], false)}>添加员工</button>
+      <div className="add-employee-actions">
+        <button className="secondary-action" type="button" disabled={busy || disabled || members.length === 0 || (!empty && !singleId)} onClick={() => empty ? openPicker() : void submit([singleId], false)}>添加员工</button>
+        {rankingAction && <div className="ranking-action-group"><button className="secondary-action" type="button" disabled={busy || disabled} onClick={rankingAction.onClick}>{rankingAction.label}</button>{rankingHelp}</div>}
+      </div>
     </section>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <dialog ref={dialog} className="board-delivery-dialog employee-picker-dialog" aria-labelledby="employee-picker-title" onCancel={(event) => { if (busy) event.preventDefault(); }}>

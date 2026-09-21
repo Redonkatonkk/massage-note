@@ -2556,7 +2556,6 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 .closing-delivery-panel .closing-delivery-queue { grid-column: 1 / -1; }
 .closing-delivery-queue { width: 100%; }
 
-.ranking-number { display: inline-grid; place-items: center; min-width: 28px; height: 28px; margin-right: 8px; border-radius: 50%; color: white; background: var(--brand); font-size: .85rem; }
 .delivery-queue-details { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
 .delivery-queue-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; color: var(--brand); font-size: .85rem; font-weight: 800; cursor: pointer; list-style: none; }
 .delivery-queue-details > summary::-webkit-details-marker { display: none; }

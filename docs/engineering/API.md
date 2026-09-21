@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.8.4`
+> 适用版本：`1.9.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -339,3 +339,11 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 统计口径见[产品规则](../product/PRODUCT.md)第15.0节。后端在一致性读取事务内排除删除业务并读取窗口前6天；不传输记工明细、不写账、不新增数据库表。
 
 小时统计接口仍返回完整24小时；前端两张小时图共同裁掉首尾无记工小时，保留中间零值。
+
+### 排序解释快照
+
+`GET /stores/:storeId/boards/:businessDate` 的 `ranking.explanation` 返回最后一次生成时的解释快照，未保存时为 `null`。仅具有 `MEMBERSHIP_MANAGE` 能力的成员可读取，其他成员始终返回 `null`，包括个人历史视图。
+
+快照遵循共享契约 `RankingExplanation`：`schemaVersion: 1`、`generatedAt` 和 `entries`；每项包含 `membershipId`、生成时 `displayName`/`employmentType`、`lastBusinessDate`/`lastPosition`、`generatedPosition` 及 `ties`。同位比较项记录对方 `membershipId`、本成员是否在前 `ahead` 和原因 `EMPLOYMENT_TYPE` / `RECENT_ATTENDANCE` / `STABLE_ID`。
+
+现有 `POST .../rank` 在原有营业日锁、版本检查和幂等事务中同时保存顺序与快照。重新生成替换快照，手动调序、员工行变化和成员资料变更不改写快照。前端根据当前名单对比展示变化，不能用当前资料重新推算当时原因。旧数据不回填推测解释。

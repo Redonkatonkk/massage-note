@@ -266,6 +266,7 @@ model DailyBoard {
   businessDate DateTime @map("business_date") @db.Date
   version      Int      @default(1)
   rankedAt     DateTime? @map("ranked_at") @db.Timestamptz(3)
+  rankingExplanation Json? @map("ranking_explanation")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 

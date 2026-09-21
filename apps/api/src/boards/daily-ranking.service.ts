@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { Prisma, type User } from "@massage-note/database";
 import type { RankBoardInput } from "@massage-note/contracts";
-import { rankRotationCandidates } from "@massage-note/domain";
+import { explainRotationCandidates } from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
@@ -177,11 +177,11 @@ export class DailyRankingService {
               lastPosition: visiblePosition,
               lastBusinessDate:
                 previous?.board.businessDate.toISOString().slice(0, 10) ?? null,
-              addedAt: row.createdAt.toISOString(),
             };
           }),
         );
-        const visibleOrder = rankRotationCandidates(histories);
+        const explained = explainRotationCandidates(histories);
+        const visibleOrder = explained.map((entry) => entry.membershipId);
         const hiddenOrder = board.rows
           .filter((row) => row.isHidden)
           .map((row) => row.membershipId);
@@ -191,7 +191,18 @@ export class DailyRankingService {
 
         const changed = await transaction.dailyBoard.updateMany({
           where: { id: board.id, version: input.version },
-          data: { rankedAt, version: { increment: 1 } },
+          data: {
+            rankedAt,
+            rankingExplanation: {
+              schemaVersion: 1,
+              generatedAt: rankedAt.toISOString(),
+              entries: explained.map((entry) => ({
+                ...entry,
+                displayName: activeRows.find((row) => row.membershipId === entry.membershipId)!.membership.displayName,
+              })),
+            },
+            version: { increment: 1 },
+          },
         });
         if (changed.count !== 1) {
           throw new ConflictException({

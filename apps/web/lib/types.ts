@@ -1,3 +1,4 @@
+import type { RankingExplanation } from "@massage-note/contracts";
 export type StoreRole = "OWNER" | "MANAGER" | "EMPLOYEE";
 
 export interface StoreSummary {
@@ -444,6 +445,7 @@ export interface BoardResponse {
   ranking: {
     enabled: boolean;
     rankedAt: string | null;
+    explanation: RankingExplanation | null;
   };
 }
 

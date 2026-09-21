@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { rankRotationCandidates } from "../src/daily-ranking.js";
+import { rankRotationCandidates, explainRotationCandidates } from "../src/daily-ranking.js";
 
 const candidate = (
   membershipId: string,
   lastPosition: number | null,
   employmentType: "FULL_TIME" | "PART_TIME" = "PART_TIME",
   lastBusinessDate = "2026-09-03",
-) => ({ membershipId, lastPosition, employmentType, lastBusinessDate, addedAt: membershipId });
+) => ({ membershipId, lastPosition, employmentType, lastBusinessDate });
 
 describe("daily opening ranking", () => {
   it("rotates a complete A B C D list to B C D A", () => {
@@ -38,10 +38,41 @@ describe("daily opening ranking", () => {
     ])).toEqual(["C", "D", "A"]);
   });
 
-  it("uses stable arrival and membership ordering for new employees", () => {
-    expect(rankRotationCandidates([
-      { ...candidate("later", null), addedAt: "2026-09-04T09:01:00Z" },
-      { ...candidate("earlier", null), addedAt: "2026-09-04T09:00:00Z" },
-    ])).toEqual(["earlier", "later"]);
+  it.each([null, 1, 2])("ignores arrival time and input order for tied position %s", (position) => {
+    const employees = [
+      { ...candidate("A", position), addedAt: "2026-09-04T09:01:00Z" },
+      { ...candidate("B", position), addedAt: "2026-09-04T09:00:00Z" },
+    ];
+    expect(rankRotationCandidates(employees)).toEqual(["A", "B"]);
+    expect(rankRotationCandidates([...employees].reverse())).toEqual(["A", "B"]);
+    expect(rankRotationCandidates(employees.map((employee, index) => ({
+      ...employee, addedAt: employees[1 - index]!.addedAt,
+    })))).toEqual(["A", "B"]);
+  });
+});
+
+describe("ranking explanations", () => {
+  it("explains ABC → BC → CBA using each person's own most recent attendance", () => {
+    const secondDay = rankRotationCandidates([candidate("B", 2, "FULL_TIME"), candidate("C", 3)]);
+    expect(secondDay).toEqual(["B", "C"]);
+    const result = explainRotationCandidates([
+      candidate("A", 1, "FULL_TIME", "2026-09-01"),
+      candidate("B", 1, "FULL_TIME", "2026-09-02"),
+      candidate("C", 2, "PART_TIME", "2026-09-02"),
+    ]);
+    expect(result.map((entry) => entry.membershipId)).toEqual(["C", "B", "A"]);
+    expect(result[0]?.ties).toEqual([]);
+    expect(result[1]?.ties).toEqual([{ membershipId: "A", ahead: true, rule: "RECENT_ATTENDANCE" }]);
+    expect(result[2]?.ties).toEqual([{ membershipId: "B", ahead: false, rule: "RECENT_ATTENDANCE" }]);
+  });
+  it("explains employment priority and exact ties among newcomers", () => {
+    const result = explainRotationCandidates([
+      candidate("C", null, "PART_TIME"), candidate("B", null, "FULL_TIME"), candidate("A", null, "FULL_TIME"),
+    ]);
+    expect(result.map((entry) => entry.membershipId)).toEqual(["A", "B", "C"]);
+    expect(result[0]?.ties).toEqual([
+      { membershipId: "B", ahead: true, rule: "STABLE_ID" },
+      { membershipId: "C", ahead: true, rule: "EMPLOYMENT_TYPE" },
+    ]);
   });
 });

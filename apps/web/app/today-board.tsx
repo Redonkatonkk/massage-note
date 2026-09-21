@@ -35,6 +35,7 @@ import { ClosingDeliveryQueueButton } from "./closing-delivery-queue";
 import { EmployeeClosingModal } from "./employee-closing";
 import { GiftCardSales } from "./gift-card-sales";
 import { WorkTimeInput } from "./work-time-input";
+import { RankingExplanationButton } from "./ranking-explanation";
 import { BoardEmployeePicker } from "./board-employee-picker";
 import { RecordTrack } from "./record-track";
 import { RecordEditor } from "./record-editor";
@@ -452,7 +453,6 @@ export function TodayBoard({
             <div className="board-more-actions__body">
               {canManage && board.isClosed && <button className="secondary-action" type="button" disabled={busy || deliveryList?.batchAllowed === false} title={deliveryList?.batchBlockedReason ?? undefined} onClick={() => run(queueEmployeeClosings)}>{deliveryList?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>}
               {canManage && deliveryList && <ClosingDeliveryQueueButton key={currentDay.businessDate} value={deliveryList} busy={busy} onCancel={(delivery) => void run(() => cancelEmployeeClosingDelivery(delivery))} />}
-              {canGenerateRanking && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(rankBoard)}>{dailyRankingActionLabel(board.ranking.rankedAt)}</button>}
               {canManage && board.isClosed && <button className="secondary-action board-reopen-action" type="button" disabled={busy} onClick={() => run(cancelBusinessDayClosing)}>取消日结</button>}
             </div>
           </AutoCloseDetails>}
@@ -510,7 +510,6 @@ export function TodayBoard({
             viewerMembershipId: membership.id,
             rowMembershipId: row.membershipId,
           });
-          const officialPosition = board.rows.filter((candidate) => !candidate.isHidden).findIndex((candidate) => candidate.id === row.id) + 1;
           return (
             <article className={`employee-row${isCollapsed ? " employee-row--collapsed" : ""}${row.isHidden && canManage ? " employee-row--hidden" : ""}`} key={row.id}>
               <header className="employee-header">
@@ -522,7 +521,7 @@ export function TodayBoard({
                 >
                   <span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span>
                   <span>
-                    <strong>{board.ranking.enabled && !row.isHidden && <span className="ranking-number">{officialPosition}</span>}{row.membership.displayName}</strong>
+                    <strong>{row.membership.displayName}</strong>
                     <small className={activeRecord ? "on-duty" : "off-duty"}>{workStatus}</small>
                   </span>
                   {row.isHidden && canManage && <em className="hidden-badge">已隐藏</em>}
@@ -640,6 +639,8 @@ export function TodayBoard({
       {canManage && !board.isClosed && <BoardEmployeePicker
         key={`${membership.store.id}:${currentDay.businessDate}`}
         members={availableMembers}
+        rankingAction={canGenerateRanking ? { label: dailyRankingActionLabel(board.ranking.rankedAt), onClick: () => run(rankBoard) } : undefined}
+        rankingHelp={<RankingExplanationButton board={board} />}
         empty={activeRowCount === 0}
         disabled={busy}
         onAdd={async (membershipId) => {

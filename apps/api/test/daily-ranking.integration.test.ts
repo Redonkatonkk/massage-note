@@ -1,6 +1,7 @@
 import { randomInt, randomUUID } from "node:crypto";
 import { ConflictException, ForbiddenException } from "@nestjs/common";
 import type { User } from "@massage-note/database";
+import { rankingExplanationSchema } from "@massage-note/contracts";
 import { businessDateFor } from "@massage-note/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BoardsService } from "../src/boards/boards.service.js";
@@ -210,6 +211,22 @@ describe.skipIf(!enabled).sequential("每日开门排位", () => {
     expect(result.rankedAt).not.toBeNull();
   });
 
+  it("persists generation facts through manual reorder and member edits, with manager-only access", async () => {
+    const original = await currentBoard();
+    const snapshot = rankingExplanationSchema.parse(original.rankingExplanation);
+    expect(snapshot.entries.map((entry) => entry.displayName)).toEqual(["B", "C", "A", "D"]);
+    expect(snapshot.entries[0]).toMatchObject({ lastBusinessDate: yesterday, lastPosition: 2, generatedPosition: 1 });
+    expect(snapshot.entries[1]).toMatchObject({ lastBusinessDate: olderDay, lastPosition: 2 });
+    expect(snapshot.entries[3]).toMatchObject({ lastPosition: null, lastBusinessDate: null });
+    expect((await boards.getBoard(actor(ownerId), storeId, today)).ranking.explanation).toEqual(snapshot);
+    expect((await boards.getBoard(actor(employeeUserId), storeId, today)).ranking.explanation).toBeNull();
+    const rows = await prisma.dailyEmployeeRow.findMany({ where: { boardId: original.id }, orderBy: { position: "desc" } });
+    await boards.reorder(actor(ownerId), storeId, today, { version: original.version, rowIds: rows.map((row) => row.id) }, "explanation-reorder-0001", "explanation-reorder");
+    await prisma.storeMembership.update({ where: { id: employeeIds[1] }, data: { displayName: "B renamed", employmentType: "PART_TIME" } });
+    expect((await boards.getBoard(actor(ownerId), storeId, today)).ranking.explanation).toEqual(snapshot);
+    await prisma.storeMembership.update({ where: { id: employeeIds[1] }, data: { displayName: "B", employmentType: "FULL_TIME" } });
+  });
+
   it("does not couple ordinary or AI-compatible work records to ranking", async () => {
     const record = await workRecords.create(
       actor(employeeUserId),
@@ -248,6 +265,7 @@ describe.skipIf(!enabled).sequential("每日开门排位", () => {
       "daily-ranking-replay-0001", "daily-ranking-replay-second",
     );
     expect(replay.version).toBe(first.version);
+    expect(replay.rankingExplanation).toEqual(first.rankingExplanation);
     expect((await currentBoard()).version).toBe(first.version);
   });
 

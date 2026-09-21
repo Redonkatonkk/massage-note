@@ -16,6 +16,12 @@ describe("经营分析历史口径", () => {
     expect(result.weekdays[0]).toMatchObject({ closedDayCount: 2, calendarDayCount: 2, averageCents: "12500" });
     expect(result.weekdays[1]!.averageCents).toBeNull();
     expect(result.hours[11]!.count).toBe(2);
+    expect(result.days[0]!.hours[11]).toBe(1);
+    expect(result.days[1]!.hours[11]).toBe(1);
+    expect(result.days[7]!.hours).toEqual(Array(24).fill(0));
+    for (const hour of result.hours) {
+      expect(result.days.reduce((sum, day) => sum + day.hours[hour.hour]!, 0)).toBe(hour.count);
+    }
     expect(result.hours.reduce((sum, h) => sum + h.count, 0)).toBe(2);
     expect(result.weekdays[0]!.hours[11]).toBe(1);
   });
@@ -28,10 +34,13 @@ describe("经营分析历史口径", () => {
     expect(result.hours[21]!.count).toBe(1);
     expect(result.weekdays[0]!.hours[0]).toBe(1);
     expect(result.days[0]!.count).toBe(2);
+    expect(result.days[0]!.hours[0]).toBe(1);
+    expect(result.days[0]!.hours[21]).toBe(1);
   });
   it("夏令时重复小时合并，春季缺失小时为零", () => {
     const fall = calculateFinanceAnalytics({ dateFrom: "2025-11-02", dateTo: "2025-11-02", records: [record("2025-11-02", "2025-11-02T05:30:00Z"), record("2025-11-02", "2025-11-02T06:30:00Z")], sales: [], closedDates: [] });
     expect(fall.hours[1]!.count).toBe(2);
+    expect(fall.days[0]!.hours[1]).toBe(2);
     const spring = calculateFinanceAnalytics({ dateFrom: "2026-03-08", dateTo: "2026-03-08", records: [record("2026-03-08", "2026-03-08T06:30:00Z"), record("2026-03-08", "2026-03-08T07:30:00Z")], sales: [], closedDates: [] });
     expect(spring.hours[1]!.count).toBe(1); expect(spring.hours[2]!.count).toBe(0); expect(spring.hours[3]!.count).toBe(1);
   });

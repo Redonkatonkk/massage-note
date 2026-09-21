@@ -18,6 +18,7 @@ export function calculateFinanceAnalytics(input: {
   const closed = new Set(input.closedDates);
   const revenue = new Map<string, bigint>();
   const counts = new Map<string, number>();
+  const dailyHours = new Map<string, number[]>();
   const hours = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }));
   const weekdays = Array.from({ length: 7 }, (_, weekday) => ({ weekday, closedDayCount: 0, calendarDayCount: 0, averageCents: null as string | null, hours: Array<number>(24).fill(0) }));
   const formatters = new Map<string, Intl.DateTimeFormat>();
@@ -32,6 +33,9 @@ export function calculateFinanceAnalytics(input: {
     }
     const hour = Number(formatter.format(row.startAt));
     hours[hour]!.count++;
+    const dateHours = dailyHours.get(row.businessDate) ?? Array<number>(24).fill(0);
+    dateHours[hour]!++;
+    dailyHours.set(row.businessDate, dateHours);
     weekdays[weekday(row.businessDate)]!.hours[hour]!++;
   }
   for (const row of input.sales) revenue.set(row.businessDate, (revenue.get(row.businessDate) ?? 0n) + row.revenueCents);
@@ -49,7 +53,7 @@ export function calculateFinanceAnalytics(input: {
         if (closed.has(previous)) window.push(revenue.get(previous) ?? 0n);
       }
     }
-    days.push({ businessDate: date, count: counts.get(date) ?? 0, revenueCents: amount?.toString() ?? null,
+    days.push({ businessDate: date, hours: dailyHours.get(date) ?? Array<number>(24).fill(0), count: counts.get(date) ?? 0, revenueCents: amount?.toString() ?? null,
       averageCents: calculateAverageRevenue(window)?.toString() ?? null, averageDayCount: window.length });
   }
   for (const row of weekdays) {

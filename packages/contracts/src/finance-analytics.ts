@@ -13,6 +13,6 @@ export interface FinanceAnalyticsResponse {
   dateTo: string;
   hasData: boolean;
   hours: { hour: number; count: number }[];
-  days: { businessDate: string; count: number; revenueCents: string | null; averageCents: string | null; averageDayCount: number }[];
+  days: { businessDate: string; hours: number[]; count: number; revenueCents: string | null; averageCents: string | null; averageDayCount: number }[];
   weekdays: { weekday: number; closedDayCount: number; calendarDayCount: number; averageCents: string | null; hours: number[] }[];
 }

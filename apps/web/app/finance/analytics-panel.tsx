@@ -14,7 +14,7 @@ function shiftDate(date: string, offset: number) {
   value.setUTCDate(value.getUTCDate() + offset);
   return value.toISOString().slice(0, 10);
 }
-type Point = { label: string; value: number | null; secondary?: number | null; detail: string };
+type Point = { label: string; value: number | null; secondary?: number | null; detail: string; dailyDetails?: { date: string; count: number }[] };
 
 function Chart({ title, description, points, bars = false, currency = false, legend }: {
   title: string; description: string; points: Point[]; bars?: boolean; currency?: boolean; legend?: string;
@@ -59,7 +59,7 @@ function Chart({ title, description, points, bars = false, currency = false, leg
       </svg>
     </div>
     <p className="analytics-readout" aria-live="polite">{selected !== null && points[selected] ? points[selected].detail : en ? "Tap or focus a point to see its value." : "点击或聚焦图中位置查看具体数值。"}</p>
-    <details><summary>{en ? "View data table" : "查看数据表"}</summary><div className="table-scroll"><table className="data-table"><thead><tr><th>{en ? "Period" : "时间"}</th><th>{en ? "Details" : "统计明细"}</th></tr></thead><tbody>{points.map(p => <tr key={p.label}><td>{p.label}</td><td>{p.detail}</td></tr>)}</tbody></table></div></details>
+    <details><summary>{en ? "View data table" : "查看数据表"}</summary><div className="table-scroll"><table className="data-table"><thead><tr><th>{en ? "Period" : "时间"}</th><th>{en ? "Details" : "统计明细"}</th></tr></thead><tbody>{points.map(p => <tr key={p.label}><td>{p.label}</td><td>{p.detail}{p.dailyDetails?.map(day => <div key={day.date}>{day.date} · {day.count} {en ? "records" : "笔"}</div>)}</td></tr>)}</tbody></table></div></details>
   </section>;
 }
 
@@ -117,7 +117,7 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
     {error && <p className="form-error" role="alert">{error} <button type="button" onClick={() => void queue.current?.request()}>{t("重试", "Retry")}</button></p>}
     {data && <><p>{data.dateFrom} — {data.dateTo} · {t("数量含待结账记工；营业额只计已日结日期，含卖卡实收、不含小费。", "Counts include pending payments. Revenue includes only closed days, including card sales and excluding tips.")}</p>
       {!data.hasData ? <p className="empty-state">{t("当前范围没有经营数据。", "No business data in this range.")}</p> : <div className="analytics-grid" key={`${scope}:${locale}`}>
-        <Chart title={t("按小时上工数量", "Service starts by hour")} description={t("仅显示所选日期内最早至最晚上工小时，中间空小时保留。", "Hours span the earliest to latest service starts in the selected dates, including empty hours between.")} points={visibleHours.map(h => ({ label: `${h.hour}:00`, value: h.count, detail: `${h.hour}:00–${h.hour}:59 · ${count(h.count)}` }))} />
+        <Chart title={t("按小时上工数量", "Service starts by hour")} description={t("仅显示所选日期内最早至最晚上工小时，中间空小时保留；展开数据表查看各时段每天的笔数。", "Hours span the earliest to latest service starts in the selected dates, including empty hours between. Expand the data table for daily counts in each hour.")} points={visibleHours.map(h => ({ label: `${h.hour}:00`, value: h.count, detail: `${h.hour}:00–${h.hour}:59 · ${count(h.count)}`, dailyDetails: data.days.map(day => ({ date: day.businessDate, count: day.hours[h.hour] ?? 0 })) }))} />
         <Chart title={t("每日记工数量", "Daily service count")} description={t("按营业日统计，没有记工的日期按零显示。", "Records per business day, including zero-record dates.")} bars points={data.days.map(d => ({ label: d.businessDate, value: d.count, detail: `${d.businessDate} · ${count(d.count)}` }))} />
         <Chart title={t("星期平均营业额", "Average revenue by weekday")} description={t("只统计已日结日期；空日结计零，没有样本显示破折号。", "Closed days only; empty closed days count as zero. No sample is shown as a dash.")} bars currency points={data.weekdays.map(w => ({ label: names[w.weekday]!, value: dollars(w.averageCents), detail: `${names[w.weekday]} · ${money(w.averageCents)} · ${samples(w.closedDayCount)}` }))} />
         <Chart title={t("每日营业额趋势", "Daily revenue trend")} description={t("未日结留空；均线统计当日及此前6天内已日结日期。", "Open days are gaps. The average uses closed days within each trailing 7-day window.")} currency legend={t("棕色实线：营业额 · 绿色虚线：7日移动平均", "Brown solid: revenue · Green dashed: 7-day moving average")} points={data.days.map(d => ({ label: d.businessDate, value: dollars(d.revenueCents), secondary: dollars(d.averageCents), detail: `${d.businessDate} · ${t("营业额", "Revenue")} ${money(d.revenueCents)} · ${t("7日均线", "7-day average")} ${money(d.averageCents)} · ${samples(d.averageDayCount)}` }))} />

@@ -16,7 +16,7 @@ export function recordTimeError(start: string, end: string): string | null {
 
 /** Preserve recorded actual duration; fill missing end times from service snapshots. */
 export function automaticRecordEnd(start: string, end: string, durationMinutes: number, timezone: string): string {
-  return end || recordTimeAfterDuration(start, durationMinutes, timezone);
+  return end || sameDayRecordTimeAfterDuration(start, durationMinutes, timezone);
 }
 
 /** Calculate a clock value from a duration without retaining an earlier adjustment. */
@@ -31,4 +31,10 @@ export function recordTimeAfterDuration(
     new Date(instant.getTime() + durationMinutes * 60_000).toISOString(),
     timezone,
   );
+}
+
+/** Clock edits never choose a different service date, even across midnight. */
+export function sameDayRecordTimeAfterDuration(reference: string, durationMinutes: number, timezone: string): string {
+  const adjusted = recordTimeAfterDuration(reference, durationMinutes, timezone);
+  return adjusted && reference ? `${reference.slice(0, 10)}T${adjusted.slice(11)}` : adjusted;
 }

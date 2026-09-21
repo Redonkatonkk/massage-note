@@ -3362,3 +3362,28 @@ body { position: relative; }
 .employee-picker-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; position: sticky; bottom: -20px; padding: 16px 0; background: var(--surface); }
 
 .finance-daily-table :is(th, td):nth-child(-n+2) { width: 1%; padding-inline: 10px; }
+
+/* Keep editor failures above the dialog, independent of its scroll position. */
+.record-error-toast {
+  position: fixed;
+  z-index: 10000;
+  top: max(20px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 14px 20px;
+  border: 1px solid #b42318;
+  border-radius: 12px;
+  background: #b42318;
+  color: #fff;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  box-shadow: 0 8px 28px #0003;
+  pointer-events: none;
+  animation: record-error-dismiss 1.25s ease-in forwards;
+}
+@keyframes record-error-dismiss {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0; }
+}

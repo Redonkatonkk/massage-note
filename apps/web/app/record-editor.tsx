@@ -1,8 +1,9 @@
 "use client";
 
 import { calculateDiscountAmount, parseDiscountInput } from "@massage-note/domain";
+import { createPortal } from "react-dom";
 import { WorkTimeInput } from "./work-time-input";
-import { automaticRecordEnd, recordTimeAfterDuration, recordTimeError } from "../lib/record-time";
+import { automaticRecordEnd, sameDayRecordTimeAfterDuration, recordTimeError } from "../lib/record-time";
 import { browserStorage } from "../lib/browser-storage";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -308,12 +309,12 @@ export function RecordEditor({
 
   function changeStartAt(value: string) {
     setStartAt(value);
-    if (value) setEndAt(recordTimeAfterDuration(value, configuredDuration(), timezone));
+    if (value) setEndAt(sameDayRecordTimeAfterDuration(value, configuredDuration(), timezone));
   }
 
   function changeEndAt(value: string) {
     setEndAt(value);
-    if (value) setStartAt(recordTimeAfterDuration(value, -configuredDuration(), timezone));
+    if (value) setStartAt(sameDayRecordTimeAfterDuration(value, -configuredDuration(), timezone));
   }
 
   function changeServiceDuration(value: string) {
@@ -321,7 +322,7 @@ export function RecordEditor({
     const nextDuration = serviceDurationValue(value);
     if (nextDuration === null) return;
     lastValidServiceDuration.current = nextDuration;
-    if (startAt) setEndAt(recordTimeAfterDuration(startAt, configuredDuration(value), timezone));
+    if (startAt) setEndAt(sameDayRecordTimeAfterDuration(startAt, configuredDuration(value), timezone));
   }
 
   function chooseService(value: string) {
@@ -365,7 +366,7 @@ export function RecordEditor({
     ));
     updateAddon(key, { durationMinutes });
     if (startAt) {
-      setEndAt(recordTimeAfterDuration(
+      setEndAt(sameDayRecordTimeAfterDuration(
         startAt,
         configuredDuration(serviceDuration, nextAddons),
         timezone,
@@ -385,7 +386,7 @@ export function RecordEditor({
       };
       updateAddon(key, nextAddon);
       if (startAt) {
-        setEndAt(recordTimeAfterDuration(
+        setEndAt(sameDayRecordTimeAfterDuration(
           startAt,
           configuredDuration(serviceDuration, addons.map((item) => (
             item.key === key ? { ...item, ...nextAddon } : item
@@ -407,7 +408,7 @@ export function RecordEditor({
     };
     updateAddon(key, nextAddon);
     if (startAt) {
-      setEndAt(recordTimeAfterDuration(
+      setEndAt(sameDayRecordTimeAfterDuration(
         startAt,
         configuredDuration(serviceDuration, addons.map((item) => (
           item.key === key ? { ...item, ...nextAddon } : item
@@ -435,7 +436,7 @@ export function RecordEditor({
     setDraftDirty(true);
     setAddons((current) => [...current, nextAddon]);
     if (startAt) {
-      setEndAt(recordTimeAfterDuration(
+      setEndAt(sameDayRecordTimeAfterDuration(
         startAt,
         configuredDuration(serviceDuration, [...addons, nextAddon]),
         timezone,
@@ -447,7 +448,7 @@ export function RecordEditor({
     setDraftDirty(true);
     setAddons((current) => current.filter((candidate) => candidate.key !== item.key));
     if (startAt) {
-      setEndAt(recordTimeAfterDuration(
+      setEndAt(sameDayRecordTimeAfterDuration(
         startAt,
         configuredDuration(
           serviceDuration,
@@ -582,9 +583,6 @@ export function RecordEditor({
   }
 
   async function saveDetails(): Promise<WorkRecord> {
-    if (!startTimeValid || !endTimeValid) throw new Error("请选择有效的开始和结束时间");
-    const timeError = recordTimeError(startAt, endAt);
-    if (timeError) throw new Error(timeError);
     try {
       const updated = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/${record.id}`, {
         method: "PATCH",
@@ -682,6 +680,9 @@ export function RecordEditor({
 
   async function saveRecord() {
     if (isClosed) return;
+    if (!startTimeValid || !endTimeValid) throw new Error("请选择有效的开始和结束时间");
+    const timeError = recordTimeError(startAt, endAt);
+    if (timeError) throw new Error(timeError);
     if (willConfirmPayment) {
       await saveAndConfirmPayment();
       return;
@@ -907,7 +908,12 @@ export function RecordEditor({
             : "付款尚未填写；点击保存只保存记工，之后仍可补录付款。"}
         </p>
 
-        {error && <p className="form-error" role="alert">{error}</p>}
+        {error && createPortal(
+          <div className="record-error-toast" role="alert" aria-atomic="true" onAnimationEnd={() => setError("")}>
+            {error}
+          </div>,
+          document.body,
+        )}
         <footer className="editor-actions">
           <button className="delete-record" type="button" disabled={busy || isClosed} onClick={() => run(async () => {
             if (!window.confirm("确认删除这条记工吗？删除后普通页面将隐藏，店长或经理可以恢复。")) return;

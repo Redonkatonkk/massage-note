@@ -39,7 +39,7 @@ export function BusinessDatePicker({
 }: {
   storeId: string;
   value: string;
-  max: string;
+  max?: string | undefined;
   onChange: (value: string) => void;
   ariaLabel: string;
 }) {
@@ -127,7 +127,7 @@ export function BusinessDatePicker({
           <header>
             <button type="button" aria-label="上个月" onClick={() => setMonth((current) => shiftMonth(current, -1))}>‹</button>
             <strong>{monthLabel(month)}</strong>
-            <button type="button" aria-label="下个月" disabled={shiftMonth(month, 1) > max.slice(0, 7)} onClick={() => setMonth((current) => shiftMonth(current, 1))}>›</button>
+            <button type="button" aria-label="下个月" disabled={max !== undefined && shiftMonth(month, 1) > max.slice(0, 7)} onClick={() => setMonth((current) => shiftMonth(current, 1))}>›</button>
           </header>
           <div className="business-date-picker__weekdays" aria-hidden="true">
             {["日", "一", "二", "三", "四", "五", "六"].map((day) => <span key={day}>{day}</span>)}
@@ -142,7 +142,7 @@ export function BusinessDatePicker({
                 <button
                   key={date}
                   type="button"
-                  disabled={date > max}
+                  disabled={max !== undefined && date > max}
                   className={(date === value ? "selected" : "") + (marked ? " has-open-work" : "") + (amount !== undefined ? " has-closed-revenue" : "")}
                   aria-label={dateLabel(date) + (marked ? "，有记工但未日结" : "")}
                   onClick={() => { onChange(date); setOpen(false); }}

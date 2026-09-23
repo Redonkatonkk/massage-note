@@ -363,23 +363,47 @@ button, summary { overflow-wrap: anywhere; }
 @media (max-width: 390px) { .ranking-action-group { width: 100%; } .ranking-action-group > .secondary-action { flex: 1; } }
 
 
-/* Store-level projects share the board width and stack on narrow screens. */
+/* Store projects stay side by side; a populated project takes the spare width. */
 .board-store-projects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; align-items: start; }
 .board-store-projects > .gift-card-sales { min-width: 0; margin-top: 0; }
 .board-store-projects .gift-card-sales__header { flex-wrap: wrap; gap: 10px; }
 .lost-customers { min-width: 0; overflow: hidden; border: 1px solid #d6b4a5; border-radius: 22px; background: #fffaf7; box-shadow: var(--shadow); }
 .lost-customers h2 { color: #8c4438; }
-.lost-customers__empty { padding: 0 18px 14px; margin: 0; color: var(--muted); font-size: .85rem; }
 .lost-customers__list { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0 18px 16px; }
-.lost-customers__list button { display: grid; gap: 5px; min-height: 64px; padding: 10px 14px; border: 1px solid #dfc3b6; border-radius: 12px; color: #823b30; background: #fff; cursor: pointer; }
+.lost-customers__list li { min-width: 0; max-width: 100%; }
+.lost-customers__list button { max-width: 100%; text-align: left; display: grid; gap: 5px; min-height: 64px; padding: 10px 14px; border: 1px solid #dfc3b6; border-radius: 12px; color: #823b30; background: #fff; cursor: pointer; }
 .lost-customers__list button:disabled { opacity: 1; cursor: default; }
 .lost-customers__list time { font-weight: 700; }
 .lost-customers__list span { color: var(--muted); font-size: .8rem; }
 .lost-customers__form { display: grid; gap: 12px; margin: 0 18px 18px; padding-top: 12px; border-top: 1px solid #ead6cb; }
+.lost-customers__note { max-width: 320px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.lost-customers__form textarea { box-sizing: border-box; width: 100%; min-height: 78px; resize: vertical; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
+.lost-customers__form .work-time-field { max-width: 360px; }
 .lost-customers__form label { display: grid; gap: 8px; }
 .lost-customers__actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .lost-customers > .form-error, .lost-customers > .success-banner { margin: 0 18px 16px; }
 .analytics-lost-count { fill: #823b30; font-size: 11px; font-weight: 700; }
-@media (max-width: 767px) {
-  .board-store-projects { grid-template-columns: minmax(0, 1fr); }
+
+/* Equal widths when both are empty or both contain records. */
+.board-store-projects:has(> .gift-card-sales--empty):has(> .lost-customers[data-empty="true"]) { align-items: stretch; }
+.board-store-projects:has(> .gift-card-sales--empty):has(> .lost-customers[data-empty="false"]) { grid-template-columns: min(240px, 40%) minmax(0, 1fr); }
+.board-store-projects:has(> .gift-card-sales:not(.gift-card-sales--empty)):has(> .lost-customers[data-empty="true"]) { grid-template-columns: minmax(0, 1fr) min(240px, 40%); }
+.board-store-projects > .gift-card-sales--empty { align-content: start; }
+.board-store-projects .gift-card-sales__compact-header button { white-space: normal; max-width: 100%; }
+.board-store-projects .gift-card-sales__compact-header h2 { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .board-store-projects { gap: 8px; }
+  .board-store-projects .gift-card-sales__compact-header { flex-direction: column; align-items: stretch; padding: 12px 10px; }
+  .board-store-projects .gift-card-sales__compact-header button { margin-left: 0; }
+  .board-store-projects .gift-card-sales__header { padding: 12px 10px 0; }
+  .board-store-projects .gift-card-sales__summary { min-width: 0; }
+  .board-store-projects .gift-card-sales__track { padding: 0 10px 12px; }
+  .lost-customers__form { margin-left: 10px; margin-right: 10px; }
+  .lost-customers__form .work-time-field { grid-template-columns: minmax(0, 1fr); }
+  .lost-customers__list { padding-left: 10px; padding-right: 10px; }
+  .lost-customers__heading h2 { flex-shrink: 1; }
 }
+
+.lost-customers__heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.lost-customers__heading h2 { flex-shrink: 0; }
+.lost-customers .lost-customers__heading p { margin: 0; }

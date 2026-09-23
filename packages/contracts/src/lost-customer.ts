@@ -6,10 +6,12 @@ export const listLostCustomersQuerySchema = z.object({ businessDate: businessDat
 export const createLostCustomerSchema = z.object({
   businessDate: businessDateSchema,
   occurredTime: occurredTimeSchema,
+  note: z.string().trim().max(500).optional(),
 }).strict();
 export const updateLostCustomerSchema = z.object({
   version: versionSchema,
   occurredTime: occurredTimeSchema,
+  note: z.string().trim().max(500).optional(),
 }).strict();
 export const deleteLostCustomerSchema = z.object({ version: versionSchema }).strict();
 export const lostCustomerSchema = z.object({
@@ -17,6 +19,7 @@ export const lostCustomerSchema = z.object({
   storeId: uuidSchema,
   businessDate: businessDateSchema,
   occurredTime: occurredTimeSchema,
+  note: z.string().max(500),
   version: versionSchema,
 });
 

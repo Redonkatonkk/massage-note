@@ -685,6 +685,7 @@ model LostCustomer {
   storeId     String    @map("store_id") @db.Uuid
   businessDate DateTime @map("business_date") @db.Date
   occurredTime String  @map("occurred_time") @db.VarChar(5)
+  note         String  @default("") @db.VarChar(500)
   version     Int       @default(1)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
   deletedBy   String?   @map("deleted_by") @db.Uuid

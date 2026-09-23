@@ -102,13 +102,13 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
   let saleId = "";
   let saleVersion = 0;
 
-  it("员工可记录当前营业日卖卡，总额由现金和刷卡相加且幂等", async () => {
+  it("员工可记录实收与折后应付不一致的卖卡并保持幂等", async () => {
     businessDate = (await boards.currentBusinessDay(actor(employeeId), storeId)).businessDate;
     const input = {
       businessDate,
       faceValueCents: 10_000,
       cashCents: 4_000,
-      cardCents: 5_500,
+      cardCents: 5_700,
       operatorMembershipId: employeeMembershipId,
     };
     const [created, replayed] = await Promise.all([
@@ -139,8 +139,8 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     expect(Number(created.discountThresholdCents)).toBe(10_000);
     expect(Number(created.discountCents)).toBe(500);
     expect(Number(created.cashCents)).toBe(4_000);
-    expect(Number(created.cardCents)).toBe(5_500);
-    expect(Number(created.amountCents)).toBe(9_500);
+    expect(Number(created.cardCents)).toBe(5_700);
+    expect(Number(created.amountCents)).toBe(9_700);
     await expect(prisma.giftCardSale.count({ where: { storeId } })).resolves.toBe(1);
   });
 
@@ -165,27 +165,46 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     });
   });
 
-  it("修改付款拆分后自动重算总额，并进入今日店铺收入", async () => {
+  it("修改付款拆分后按实收重算总额，并进入今日店铺收入", async () => {
+    await expect(
+      giftCards.update(
+        actor(employeeId),
+        storeId,
+        saleId,
+        { version: saleVersion, cashCents: 0, cardCents: 0 },
+        "gift-card-update-zero-key-0001",
+        "gift-card-update-zero",
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: "GIFT_CARD_PAYMENT_REQUIRED" }),
+    });
+
     const updated = await giftCards.update(
       actor(employeeId),
       storeId,
       saleId,
-      { version: saleVersion, cashCents: 2_500, cardCents: 7_000 },
+      { version: saleVersion, cashCents: 2_500, cardCents: 6_800 },
       "gift-card-update-key-0001",
       "gift-card-update",
     );
     saleVersion = updated.version;
-    expect(updated).toMatchObject({ cashCents: 2_500n, cardCents: 7_000n, amountCents: 9_500n });
+    expect(updated).toMatchObject({
+      faceValueCents: 10_000n,
+      discountCents: 500n,
+      cashCents: 2_500n,
+      cardCents: 6_800n,
+      amountCents: 9_300n,
+    });
 
     const board = await boards.getBoard(actor(ownerId), storeId, businessDate);
     expect(board.giftCardSales).toHaveLength(1);
     expect(board.statistics).toMatchObject({
       giftCardSaleCount: 1,
       giftCardCashCents: 2_500n,
-      giftCardCardCents: 7_000n,
-      giftCardSalesAmountCents: 9_500n,
-      storeIncomeCents: 9_500n,
-      totalIncomeCents: 9_500n,
+      giftCardCardCents: 6_800n,
+      giftCardSalesAmountCents: 9_300n,
+      storeIncomeCents: 9_300n,
+      totalIncomeCents: 9_300n,
     });
   });
 
@@ -250,7 +269,7 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     expect(restored.deletedAt).toBeNull();
     const board = await boards.getBoard(actor(ownerId), storeId, businessDate);
     expect(board.giftCardSales).toHaveLength(1);
-    expect(board.statistics.giftCardSalesAmountCents).toBe(9_500n);
+    expect(board.statistics.giftCardSalesAmountCents).toBe(9_300n);
   });
 
   it("并发卖卡会连续分配不同序列号，台账按序列号排序", async () => {
@@ -356,45 +375,45 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     expect(board.statistics).toMatchObject({
       recordCount: 2,
       giftCardSaleCount: 3,
-      giftCardSalesAmountCents: 28_500n,
+      giftCardSalesAmountCents: 28_300n,
       giftCardRedemptionCents: 2_500n,
-      storeIncomeCents: 26_800n,
-      totalIncomeCents: 26_800n,
+      storeIncomeCents: 26_600n,
+      totalIncomeCents: 26_600n,
     });
     expect(summary.filters.paymentMethod).toBe("ALL");
     expect(summary.totals).toMatchObject({
       itemCount: 5,
       recordCount: 2,
       giftCardSaleCount: 3,
-      customerTotalPaidCents: 31_000n,
+      customerTotalPaidCents: 30_800n,
       giftCardSaleCashCents: 21_500n,
-      giftCardSaleCardCents: 7_000n,
-      giftCardSalesAmountCents: 28_500n,
+      giftCardSaleCardCents: 6_800n,
+      giftCardSalesAmountCents: 28_300n,
       giftCardRedemptionCents: 2_500n,
-      storeIncomeCents: 26_800n,
-      totalTurnoverCents: 28_000n,
+      storeIncomeCents: 26_600n,
+      totalTurnoverCents: 27_800n,
       ownerWorkerIncomeCents: 0n,
       managerWorkerIncomeCents: 0n,
-      giftCardNetIncomeCents: 26_000n,
-      totalIncomeCents: 26_800n,
+      giftCardNetIncomeCents: 25_800n,
+      totalIncomeCents: 26_600n,
     });
     expect(summary.days).toEqual([
       expect.objectContaining({
         businessDate,
         itemCount: 5,
-        customerTotalPaidCents: 31_000n,
-        dailyTurnoverCents: 28_000n,
-        totalIncomeCents: 26_800n,
+        customerTotalPaidCents: 30_800n,
+        dailyTurnoverCents: 27_800n,
+        totalIncomeCents: 26_600n,
       }),
     ]);
     expect(details.records).toHaveLength(2);
     expect(details.giftCardSales).toHaveLength(3);
     expect(closing.storeTotals).toMatchObject({
       itemCount: 5,
-      customerTotalPaidCents: 31_000,
-      giftCardSalesAmountCents: 28_500,
+      customerTotalPaidCents: 30_800,
+      giftCardSalesAmountCents: 28_300,
       giftCardRedemptionCents: 2_500,
-      storeIncomeCents: 26_800,
+      storeIncomeCents: 26_600,
     });
 
     const employeeOnly = await finance.summary(

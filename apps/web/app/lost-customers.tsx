@@ -13,6 +13,7 @@ interface LostCustomer {
   storeId: string;
   businessDate: string;
   occurredTime: string;
+  note: string;
   version: number;
 }
 
@@ -29,6 +30,7 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
   const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState<LostCustomer | null | undefined>();
   const [time, setTime] = useState("");
+  const [note, setNote] = useState("");
   const [valid, setValid] = useState(false);
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
@@ -50,10 +52,16 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
     void refresh.request();
     return () => { active = false; alive.current = false; refresh.dispose(); };
   }, [path, businessDate]);
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(""), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
   useStoreRealtime(storeId, () => queue.current?.request());
 
   function open(record: LostCustomer | null) {
     setEditing(record);
+    setNote(record?.note ?? "");
     setTime(record?.occurredTime ?? currentStoreTime(Intl.DateTimeFormat().resolvedOptions().timeZone));
     setValid(true); setError(""); setNotice("");
   }
@@ -67,8 +75,8 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
         method: remove ? "DELETE" : editing ? "PATCH" : "POST",
         idempotent: true,
         body: remove ? { version: editing!.version } : editing
-          ? { version: editing.version, occurredTime: time }
-          : { businessDate, occurredTime: time },
+          ? { version: editing.version, occurredTime: time, note }
+          : { businessDate, occurredTime: time, note },
       });
       if (!alive.current) return;
       setEditing(undefined);
@@ -87,20 +95,20 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
     }
   }
 
-  return <section className="lost-customers" aria-label={t("跑客记录", "Lost customers")}>
+  return <section className="lost-customers" data-empty={!loading && !loadError && records.length === 0} aria-label={t("跑客记录", "Lost customers")}>
     <header className="gift-card-sales__compact-header">
-      <div><h2>{t("跑客记录", "Lost customers")}</h2><p>{loading ? t("正在加载…", "Loading…") : t(`${records.length} 位 · 每条记录一位客人`, `${records.length} ${records.length === 1 ? "customer" : "customers"} · One per record`)}</p></div>
+      <div className="lost-customers__heading"><h2>{t("跑客记录", "Lost customers")}</h2><p>{loading ? t("正在加载…", "Loading…") : t(`${records.length} 位 · 每条记录一位客人`, `${records.length} ${records.length === 1 ? "customer" : "customers"} · One per record`)}</p></div>
       {canEdit && <button className="secondary-action compact" type="button" disabled={busy || loading || !!loadError} onClick={() => open(null)}>＋ {t("记录跑客", "Record lost customer")}</button>}
     </header>
     {loadError && <p className="form-error" role="alert">{loadError} <button type="button" onClick={() => void queue.current?.request()}>{t("重试", "Retry")}</button></p>}
-    {!loading && !loadError && records.length === 0 && <p className="lost-customers__empty">{t("当天暂无跑客记录", "No lost customers recorded for this date")}</p>}
     {records.length > 0 && <ul className="lost-customers__list">{records.map(record => <li key={record.id}>
       <button type="button" disabled={!canEdit || busy} onClick={() => open(record)} aria-label={t(`修改 ${formatWorkTime(record.occurredTime)} 的跑客记录`, `Edit lost customer at ${formatWorkTime(record.occurredTime)}`)}>
-        <time dateTime={`${businessDate}T${record.occurredTime}`}>{formatWorkTime(record.occurredTime)}</time><span>{t("1 位", "1 customer")}</span>
+        <time dateTime={`${businessDate}T${record.occurredTime}`}>{formatWorkTime(record.occurredTime)}</time><span>{t("1 位", "1 customer")}</span>{record.note && <span className="lost-customers__note">{record.note}</span>}
       </button>
     </li>)}</ul>}
     {editing !== undefined && canEdit && <form className="lost-customers__form" onSubmit={event => { event.preventDefault(); void save(); }}>
       <label htmlFor="lost-customer-time">{t("跑客时间", "Time customer left")}<WorkTimeInput id="lost-customer-time" value={time} onChange={setTime} onValidityChange={setValid} /></label>
+      <label htmlFor="lost-customer-note">{t("备注（可选）", "Note (optional)")}<textarea id="lost-customer-note" rows={2} maxLength={500} value={note} disabled={busy} onChange={event => setNote(event.target.value)} placeholder={t("例如：等待时间太长", "For example: wait was too long")} /></label>
       <div className="lost-customers__actions">
         <button className="primary-action compact" type="submit" disabled={busy || !valid}>{busy ? t("保存中…", "Saving…") : t("保存", "Save")}</button>
         <button className="secondary-action compact" type="button" disabled={busy} onClick={() => setEditing(undefined)}>{t("取消", "Cancel")}</button>

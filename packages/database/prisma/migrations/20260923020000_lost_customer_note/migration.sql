@@ -1,0 +1,2 @@
+ALTER TABLE "lost_customers"
+  ADD COLUMN "note" VARCHAR(500) NOT NULL DEFAULT '';

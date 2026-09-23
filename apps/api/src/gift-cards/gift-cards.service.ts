@@ -166,7 +166,8 @@ export class GiftCardsService {
             discountThresholdCents,
             discountRateBps,
           );
-          this.assertPaymentMatches(pricing.amountCents, cashCents, cardCents);
+          this.assertPaymentReceived(cashCents, cardCents);
+          const paidAmountCents = cashCents + cardCents;
           const sale = await transaction.giftCardSale.create({
             data: {
               storeId,
@@ -179,7 +180,7 @@ export class GiftCardsService {
               discountCents: pricing.discountCents,
               cashCents,
               cardCents,
-              amountCents: pricing.amountCents,
+              amountCents: paidAmountCents,
               operatorMembershipId: input.operatorMembershipId,
               createdBy: actor.id,
               updatedBy: actor.id,
@@ -247,7 +248,8 @@ export class GiftCardsService {
             current.discountThresholdCents,
             current.discountRateBps,
           );
-          this.assertPaymentMatches(pricing.amountCents, cashCents, cardCents);
+          this.assertPaymentReceived(cashCents, cardCents);
+          const paidAmountCents = cashCents + cardCents;
           const changed = await transaction.giftCardSale.updateMany({
             where: { id: saleId, storeId, deletedAt: null, version: input.version },
             data: {
@@ -257,7 +259,7 @@ export class GiftCardsService {
               discountCents: pricing.discountCents,
               cashCents,
               cardCents,
-              amountCents: pricing.amountCents,
+              amountCents: paidAmountCents,
               operatorMembershipId,
               updatedBy: actor.id,
               version: { increment: 1 },
@@ -634,18 +636,14 @@ export class GiftCardsService {
       faceValueCents >= discountThresholdCents
         ? multiplyByBps(faceValueCents, discountRateBps)
         : 0n;
-    return { discountCents, amountCents: faceValueCents - discountCents };
+    return { discountCents };
   }
 
-  private assertPaymentMatches(
-    expectedAmountCents: bigint,
-    cashCents: bigint,
-    cardCents: bigint,
-  ) {
-    if (cashCents + cardCents !== expectedAmountCents) {
+  private assertPaymentReceived(cashCents: bigint, cardCents: bigint) {
+    if (cashCents + cardCents <= 0n) {
       throw new BadRequestException({
-        code: "GIFT_CARD_PAYMENT_MISMATCH",
-        messageZh: "现金与刷卡合计必须等于礼物卡折后应付金额",
+        code: "GIFT_CARD_PAYMENT_REQUIRED",
+        messageZh: "礼物卡付款总额必须大于 0",
       });
     }
   }

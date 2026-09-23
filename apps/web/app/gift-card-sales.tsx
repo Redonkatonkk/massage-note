@@ -143,9 +143,9 @@ export function GiftCardSales({
       };
       if (!input.operatorMembershipId) throw new Error("请选择操作人");
       if (input.faceValueCents <= 0) throw new Error("礼物卡总金额必须大于 0");
-      if (payableCents === null || input.cashCents + input.cardCents !== payableCents) {
-        throw new Error("现金与刷卡合计必须等于折后应付金额");
-      }
+      if (input.cashCents + input.cardCents <= 0) throw new Error("礼物卡付款总额必须大于 0");
+      if (input.cashCents + input.cardCents !== payableCents &&
+        !window.confirm("实际收款与折后应付金额不一致，是否按实际收款保存？")) return;
       if (editing) {
         const editedSerialNumber = serialNumber.trim();
         if (!editedSerialNumber) throw new Error("请填写礼物卡序列号");
@@ -273,7 +273,7 @@ export function GiftCardSales({
               <label className="field-label">刷卡付款（美元）<input inputMode="decimal" placeholder="可留空，按 0 计算" value={cardAmount} onChange={(event) => setCardAmount(event.target.value)} /></label>
               <label className="field-label">操作人<select value={operatorMembershipId} onChange={(event) => setOperatorMembershipId(event.target.value)}><option value="">请选择员工</option>{activeMembers.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
               <div className="gift-card-sale-total"><span>折后应付金额</span><strong>{payableCents === null ? "请先输入礼物卡总金额" : money(payableCents)}</strong></div>
-              <div className={`gift-card-sale-payment-check${totalCents !== null && payableCents !== null && totalCents === payableCents ? " matched" : ""}`}><span>现金＋刷卡</span><strong>{totalCents === null ? "请检查付款金额" : money(totalCents)}</strong></div>
+              <div className="gift-card-sale-payment-check"><span>现金＋刷卡</span><strong>{totalCents === null ? "请检查付款金额" : money(totalCents)}</strong></div>
             </div>
             {error && <p className="form-error" role="alert">{error}</p>}
             <footer className="editor-actions gift-card-sale-actions">

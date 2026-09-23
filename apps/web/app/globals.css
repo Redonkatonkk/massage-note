@@ -1409,7 +1409,7 @@ h2 {
 .gift-card-sale-discount small,
 .gift-card-sale-payment-check span { color: var(--muted); font-size: .85rem; }
 
-.gift-card-sale-payment-check.matched { border-color: #a9d1bb; background: #f5fcf8; }
+.gift-card-sale-payment-check { background: #fff; }
 
 .gift-card-sale-total {
   display: flex;

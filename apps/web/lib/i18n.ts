@@ -1241,6 +1241,8 @@ Object.assign(ENGLISH_TRANSLATIONS, {
 Object.assign(ENGLISH_TRANSLATIONS, {
   // Gift-card sales and gift-card payments.
   "礼物卡": "Gift card",
+  "跑客记录": "Lost customers",
+  "记工页的礼物卡销售旁可记录跑客时间，每条代表一位客人；点击时间可以修改或删除。电脑上两栏各占一半，手机上上下排列。经营分析的每日记工数量图会在记工柱上方叠加跑客数量，没有跑客时不显示；跑客不影响收入、工资和结算。": "Record when a customer left next to Gift card sales on the work board. Each record represents one customer; select its time to edit or delete it. The panels share the width on desktop and stack on mobile. Daily service counts in Business analytics show lost customers stacked above service records only when present. Lost customers do not affect revenue, wages, or settlements.",
   "礼物卡销售": "Gift card sales",
   "店铺礼物卡销售": "Store gift card sales",
   "店铺项目": "Store item",
@@ -1764,6 +1766,11 @@ export function translateText(value: string, locale: AppLocale): string {
 }
 
 const API_ERROR_ENGLISH: Record<string, string> = {
+  LOST_CUSTOMER_HISTORY_FORBIDDEN: "Employees can only view lost customers for today.",
+  LOST_CUSTOMER_FUTURE_DATE: "Lost customers cannot be recorded for a future date.",
+  LOST_CUSTOMER_WRITE_FORBIDDEN: "Employees can only change lost customers for today.",
+  LOST_CUSTOMER_NOT_FOUND: "The lost customer record was not found.",
+  LOST_CUSTOMER_VERSION_CONFLICT: "The lost customer record changed. Refresh and try again.",
   ACCOUNT_ALREADY_EXISTS: "This phone number is already registered. Sign in with a password or SMS code.",
   ACCOUNT_DISABLED: "This account is disabled. Contact the administrator.",
   ACCOUNT_NOT_INITIALIZED: "Your account profile has not been initialized. Sign in again.",

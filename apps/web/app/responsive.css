@@ -361,3 +361,25 @@ button, summary { overflow-wrap: anywhere; }
 .ranking-explanation-entry ul { margin-bottom: 0; padding-left: 20px; line-height: 1.65; }
 .ranking-change-notice { padding: 12px; border-left: 3px solid var(--brand); background: var(--surface, white); line-height: 1.6; }
 @media (max-width: 390px) { .ranking-action-group { width: 100%; } .ranking-action-group > .secondary-action { flex: 1; } }
+
+
+/* Store-level projects share the board width and stack on narrow screens. */
+.board-store-projects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; align-items: start; }
+.board-store-projects > .gift-card-sales { min-width: 0; margin-top: 0; }
+.board-store-projects .gift-card-sales__header { flex-wrap: wrap; gap: 10px; }
+.lost-customers { min-width: 0; overflow: hidden; border: 1px solid #d6b4a5; border-radius: 22px; background: #fffaf7; box-shadow: var(--shadow); }
+.lost-customers h2 { color: #8c4438; }
+.lost-customers__empty { padding: 0 18px 14px; margin: 0; color: var(--muted); font-size: .85rem; }
+.lost-customers__list { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0 18px 16px; }
+.lost-customers__list button { display: grid; gap: 5px; min-height: 64px; padding: 10px 14px; border: 1px solid #dfc3b6; border-radius: 12px; color: #823b30; background: #fff; cursor: pointer; }
+.lost-customers__list button:disabled { opacity: 1; cursor: default; }
+.lost-customers__list time { font-weight: 700; }
+.lost-customers__list span { color: var(--muted); font-size: .8rem; }
+.lost-customers__form { display: grid; gap: 12px; margin: 0 18px 18px; padding-top: 12px; border-top: 1px solid #ead6cb; }
+.lost-customers__form label { display: grid; gap: 8px; }
+.lost-customers__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.lost-customers > .form-error, .lost-customers > .success-banner { margin: 0 18px 16px; }
+.analytics-lost-count { fill: #823b30; font-size: 11px; font-weight: 700; }
+@media (max-width: 767px) {
+  .board-store-projects { grid-template-columns: minmax(0, 1fr); }
+}

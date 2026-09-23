@@ -8,6 +8,7 @@ export * from "./closing-delivery.js";
 export * from "./employee-settlement.js";
 export * from "./finance.js";
 export * from "./gift-card.js";
+export * from "./lost-customer.js";
 export * from "./store.js";
 export * from "./user.js";
 export * from "./work-record.js";

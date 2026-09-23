@@ -33,6 +33,7 @@ import type {
 } from "../lib/types";
 import { ClosingDeliveryQueueButton } from "./closing-delivery-queue";
 import { EmployeeClosingModal } from "./employee-closing";
+import { LostCustomers } from "./lost-customers";
 import { GiftCardSales } from "./gift-card-sales";
 import { WorkTimeInput } from "./work-time-input";
 import { RankingExplanationButton } from "./ranking-explanation";
@@ -622,7 +623,7 @@ export function TodayBoard({
         })}
       </section>
 
-      {(canManage || isCurrentBusinessDay) && <GiftCardSales
+      {(canManage || isCurrentBusinessDay) && <div className="board-store-projects"><GiftCardSales
         storeId={membership.store.id}
         businessDate={currentDay.businessDate}
         sales={board.giftCardSales}
@@ -632,7 +633,12 @@ export function TodayBoard({
         defaultOperatorMembershipId={membership.id}
         canEdit={!board.isClosed && (isCurrentBusinessDay || canManage)}
         onReload={onReload}
-      />}
+      /><LostCustomers
+        key={`${membership.store.id}:${currentDay.businessDate}`}
+        storeId={membership.store.id}
+        businessDate={currentDay.businessDate}
+        canEdit={!board.isClosed && !isFutureBusinessDay && (isCurrentBusinessDay || canManage)}
+      /></div>}
 
       {hiddenRows.length > 0 && <section className="hidden-rows-panel" aria-label="已隐藏员工管理">
         <header><div><strong>已隐藏员工 · {hiddenRows.length}</strong><p>隐藏只影响表格显示，不会删除记工。可在这里直接恢复。</p></div><button className="secondary-action compact" type="button" onClick={() => setShowHidden((value) => !value)}>{showHidden ? "收起隐藏内容" : "查看隐藏内容"}</button></header>

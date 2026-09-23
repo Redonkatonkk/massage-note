@@ -48,4 +48,18 @@ describe("经营分析历史口径", () => {
     const result = calculateFinanceAnalytics({ dateFrom: "2026-09-14", dateTo: "2026-09-14", records: [record("2026-09-13", "2026-09-13T12:00:00Z")], sales: [], closedDates: ["2026-09-13"] });
     expect(result.hasData).toBe(false); expect(result.hours).toHaveLength(24); expect(result.weekdays).toHaveLength(7);
   });
+  it("统计跑客数量，不影响成功记工和小时；只有跑客时也算有数据", () => {
+    const result = calculateFinanceAnalytics({ dateFrom: "2026-09-14", dateTo: "2026-09-15",
+      records: [record("2026-09-14", "2026-09-14T15:00:00Z")], sales: [], closedDates: [],
+      lostCustomers: [{ businessDate: "2026-09-14" }, { businessDate: "2026-09-14" }, { businessDate: "2026-09-15" }],
+    });
+    expect(result.days.map(day => day.lostCustomerCount)).toEqual([2, 1]);
+    expect(result.days[0]!.count).toBe(1);
+    expect(result.hours.reduce((sum, hour) => sum + hour.count, 0)).toBe(1);
+    const lostOnly = calculateFinanceAnalytics({ dateFrom: "2026-09-14", dateTo: "2026-09-14", records: [], sales: [], closedDates: [], lostCustomers: [{ businessDate: "2026-09-14" }] });
+    expect(lostOnly.hasData).toBe(true);
+    expect(lostOnly.days[0]).toMatchObject({ count: 0, lostCustomerCount: 1, revenueCents: null });
+    const none = calculateFinanceAnalytics({ dateFrom: "2026-09-14", dateTo: "2026-09-14", records: [], sales: [], closedDates: [] });
+    expect(none.days[0]!.lostCustomerCount).toBe(0);
+  });
 });

@@ -10,10 +10,10 @@ import { useStoreRealtime } from "../../lib/realtime";
 import { useLanguage } from "../language-provider";
 import { shiftDate } from "./date-utils";
 
-type Point = { label: string; value: number | null; secondary?: number | null; detail: string; dailyDetails?: { date: string; count: number }[] };
+type Point = { label: string; value: number | null; secondary?: number | null; lostCount?: number; detail: string; dailyDetails?: { date: string; count: number }[] };
 
 function Chart({ title, description, points, bars = false, currency = false, legend }: {
-  title: string; description: string; points: Point[]; bars?: boolean; currency?: boolean; legend?: string;
+  title: string; description: string; points: Point[]; bars?: boolean; currency?: boolean; legend?: string | undefined;
 }) {
   const { locale } = useLanguage();
   const en = locale === "en-US";
@@ -21,7 +21,7 @@ function Chart({ title, description, points, bars = false, currency = false, leg
   const selectedPoint = points.find(point => point.label === selected);
   const width = Math.max(600, points.length * 26 + 80);
   const height = 270, left = 65, right = width - 20, bottom = 225, top = 20;
-  const max = Math.max(1, ...points.flatMap(p => [p.value ?? 0, p.secondary ?? 0]));
+  const max = Math.max(1, ...points.flatMap(p => [(p.value ?? 0) + (bars ? p.lostCount ?? 0 : 0), p.secondary ?? 0]));
   const ceiling = currency ? Math.ceil(max / 5) * 5 : Math.max(4, Math.ceil(max / 4) * 4);
   const x = (i: number) => left + (i + .5) * (right - left) / Math.max(1, points.length);
   const y = (value: number) => bottom - value / ceiling * (bottom - top);
@@ -47,6 +47,10 @@ function Chart({ title, description, points, bars = false, currency = false, leg
         {!bars && <><path d={path(false)} fill="none" stroke="#9a4b25" strokeWidth="2.5" /><path d={path(true)} fill="none" stroke="#287e79" strokeWidth="2.5" strokeDasharray="6 4" /></>}
         {points.map((point, i) => <g key={point.label}>
           {point.value !== null && (bars ? <rect x={x(i) - Math.min(22, (right - left) / points.length * .32)} y={y(point.value)} width={Math.min(44, (right - left) / points.length * .64)} height={bottom - y(point.value)} fill="#ad603a" rx="3" /> : <circle cx={x(i)} cy={y(point.value)} r="3" fill="#9a4b25" />)}
+          {bars && (point.lostCount ?? 0) > 0 && <g data-lost-count={point.lostCount}>
+            <rect x={x(i) - Math.min(22, (right - left) / points.length * .32)} y={y((point.value ?? 0) + point.lostCount!)} width={Math.min(44, (right - left) / points.length * .64)} height={y(point.value ?? 0) - y((point.value ?? 0) + point.lostCount!)} fill="#c65f60" rx="2" />
+            <text className="analytics-lost-count" x={x(i)} y={y((point.value ?? 0) + point.lostCount!) - 5} textAnchor="middle">+{point.lostCount}</text>
+          </g>}
           {bars && point.value === null && <text x={x(i)} y={bottom - 8} textAnchor="middle">—</text>}
           {point.secondary != null && <circle cx={x(i)} cy={y(point.secondary)} r="2.5" fill="#287e79" />}
           {(i % Math.max(1, Math.ceil(points.length / (width / 75))) === 0 || i === points.length - 1) && <text x={x(i)} y={bottom + 23} textAnchor="middle">{point.label.length === 10 ? point.label.slice(5) : point.label}</text>}
@@ -129,7 +133,7 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
     {data && <><p>{data.dateFrom} — {data.dateTo} · {t("数量含待结账记工；营业额只计已日结日期，含卖卡实收、不含小费。", "Counts include pending payments. Revenue includes only closed days, including card sales and excluding tips.")}</p>
       {!data.hasData ? <p className="empty-state">{t("当前范围没有经营数据。", "No business data in this range.")}</p> : <div className="analytics-grid" key={`${scope}:${locale}`}>
         <Chart title={t("按小时上工数量", "Service starts by hour")} description={t("仅显示所选日期内最早至最晚上工小时，中间空小时保留；选择图中时段后，展开记工明细查看该时段每天的笔数，隐藏 0 笔日期。", "Hours span the earliest to latest service starts in the selected dates, including empty hours between. Select an hour, then expand its record details to see dates with service starts.")} points={visibleHours.map(h => ({ label: `${h.hour}:00`, value: h.count, detail: `${h.hour}:00–${h.hour}:59 · ${count(h.count)}`, dailyDetails: data.days.map(day => ({ date: day.businessDate, count: day.hours[h.hour] ?? 0 })) }))} />
-        <Chart title={t("每日记工数量", "Daily service count")} description={t("按营业日统计，没有记工的日期按零显示。", "Records per business day, including zero-record dates.")} bars points={data.days.map(d => ({ label: d.businessDate, value: d.count, detail: `${d.businessDate} · ${count(d.count)}` }))} />
+        <Chart title={t("每日记工数量", "Daily service count")} description={t("按营业日统计；跑客数量叠加在记工上方，无跑客时不显示。", "Counts by business day. Lost customers stack above service records and are hidden when zero.")} legend={data.days.some(d => d.lostCustomerCount > 0) ? t("棕色：记工 · 红色：跑客（上方数字）", "Brown: service records · Red: lost customers (number above)") : undefined} bars points={data.days.map(d => ({ label: d.businessDate, value: d.count, lostCount: d.lostCustomerCount, detail: `${d.businessDate} · ${t("记工", "Service records")} ${count(d.count)}${d.lostCustomerCount > 0 ? t(` · 跑客 ${d.lostCustomerCount} 位`, ` · ${d.lostCustomerCount} lost ${d.lostCustomerCount === 1 ? "customer" : "customers"}`) : ""}` }))} />
         <Chart title={t("星期平均营业额", "Average revenue by weekday")} description={t("只统计已日结日期；空日结计零，没有样本显示破折号。", "Closed days only; empty closed days count as zero. No sample is shown as a dash.")} bars currency points={data.weekdays.map(w => ({ label: names[w.weekday]!, value: dollars(w.averageCents), detail: `${names[w.weekday]} · ${money(w.averageCents)} · ${samples(w.closedDayCount)}` }))} />
         <Chart title={t("每日营业额趋势", "Daily revenue trend")} description={t("未日结留空；均线统计当日及此前6天内已日结日期。", "Open days are gaps. The average uses closed days within each trailing 7-day window.")} currency legend={t("棕色实线：营业额 · 绿色虚线：7日移动平均", "Brown solid: revenue · Green dashed: 7-day moving average")} points={data.days.map(d => ({ label: d.businessDate, value: dollars(d.revenueCents), secondary: dollars(d.averageCents), detail: `${d.businessDate} · ${t("营业额", "Revenue")} ${money(d.revenueCents)} · ${t("7日均线", "7-day average")} ${money(d.averageCents)} · ${samples(d.averageDayCount)}` }))} />
         <section className="analytics-card analytics-heatmap"><h2>{t("星期 × 小时热力图", "Weekday × hour heatmap")}</h2><p className="analytics-description">{t("显示实际最早至最晚上工小时；颜色越深，累计笔数越多；括号内为自然日数。", "Actual earliest-to-latest start hours. Darker cells mean more starts; parentheses show calendar days.")}</p>

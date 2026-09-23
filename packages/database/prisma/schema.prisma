@@ -154,6 +154,7 @@ model Store {
   discountItems        DiscountItem[]
   workRecords          WorkRecord[]
   giftCardSales        GiftCardSale[]
+  lostCustomers        LostCustomer[]
   closings             BusinessDayClosing[]
   closingDeliveries    EmployeeClosingDelivery[]
   settlementDeliveries EmployeeSettlementDelivery[]
@@ -677,6 +678,25 @@ model GiftCardSale {
   @@index([storeId, serialNumberNormalized])
   @@index([operatorMembershipId, businessDate])
   @@map("gift_card_sales")
+}
+
+model LostCustomer {
+  id          String    @id @default(uuid()) @db.Uuid
+  storeId     String    @map("store_id") @db.Uuid
+  businessDate DateTime @map("business_date") @db.Date
+  occurredTime String  @map("occurred_time") @db.VarChar(5)
+  version     Int       @default(1)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedBy   String?   @map("deleted_by") @db.Uuid
+  createdBy   String   @map("created_by") @db.Uuid
+  updatedBy   String   @map("updated_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([storeId, businessDate, deletedAt, occurredTime])
+  @@map("lost_customers")
 }
 
 model BusinessDayClosing {

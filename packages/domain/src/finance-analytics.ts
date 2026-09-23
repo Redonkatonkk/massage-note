@@ -12,16 +12,21 @@ export function calculateFinanceAnalytics(input: {
   dateFrom: string; dateTo: string;
   records: { businessDate: string; startAt: Date; timezone: string; revenueCents: bigint }[];
   sales: { businessDate: string; revenueCents: bigint }[];
+  lostCustomers?: { businessDate: string }[];
   closedDates: string[];
 }) {
   const { dateFrom, dateTo } = input;
   const closed = new Set(input.closedDates);
   const revenue = new Map<string, bigint>();
   const counts = new Map<string, number>();
+  const lostCustomerCounts = new Map<string, number>();
   const dailyHours = new Map<string, number[]>();
   const hours = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }));
   const weekdays = Array.from({ length: 7 }, (_, weekday) => ({ weekday, closedDayCount: 0, calendarDayCount: 0, averageCents: null as string | null, hours: Array<number>(24).fill(0) }));
   const formatters = new Map<string, Intl.DateTimeFormat>();
+  for (const row of input.lostCustomers ?? []) {
+    lostCustomerCounts.set(row.businessDate, (lostCustomerCounts.get(row.businessDate) ?? 0) + 1);
+  }
   for (const row of input.records) {
     revenue.set(row.businessDate, (revenue.get(row.businessDate) ?? 0n) + row.revenueCents);
     if (row.businessDate < dateFrom || row.businessDate > dateTo) continue;
@@ -53,7 +58,8 @@ export function calculateFinanceAnalytics(input: {
         if (closed.has(previous)) window.push(revenue.get(previous) ?? 0n);
       }
     }
-    days.push({ businessDate: date, hours: dailyHours.get(date) ?? Array<number>(24).fill(0), count: counts.get(date) ?? 0, revenueCents: amount?.toString() ?? null,
+    const lostCustomerCount = lostCustomerCounts.get(date) ?? 0;
+    days.push({ businessDate: date, hours: dailyHours.get(date) ?? Array<number>(24).fill(0), count: counts.get(date) ?? 0, lostCustomerCount, revenueCents: amount?.toString() ?? null,
       averageCents: calculateAverageRevenue(window)?.toString() ?? null, averageDayCount: window.length });
   }
   for (const row of weekdays) {
@@ -61,5 +67,5 @@ export function calculateFinanceAnalytics(input: {
     row.averageCents = calculateAverageRevenue(weekdayAmounts[row.weekday]!)?.toString() ?? null;
   }
   const inRange = (date: string) => date >= dateFrom && date <= dateTo;
-  return { dateFrom, dateTo, hasData: input.records.some(r => inRange(r.businessDate)) || input.sales.some(r => inRange(r.businessDate)) || input.closedDates.some(inRange), hours, days, weekdays };
+  return { dateFrom, dateTo, hasData: input.records.some(r => inRange(r.businessDate)) || input.sales.some(r => inRange(r.businessDate)) || input.lostCustomers?.some(r => inRange(r.businessDate)) === true || input.closedDates.some(inRange), hours, days, weekdays };
 }

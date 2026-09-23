@@ -39,6 +39,7 @@ import { GiftCardLedger } from "./gift-card-ledger";
 import { BusinessDatePicker } from "../business-date-picker";
 import { EmployeeSettlementPanel } from "./employee-settlement-panel";
 import { EmployeeSubtotalSection } from "./employee-subtotal-section";
+import { dateOnly, shiftDate } from "./date-utils";
 import {
   financeSummaryGroups,
   financeSummaryMetrics,
@@ -59,18 +60,8 @@ function cents(value: string, label: string, signed = false): number {
   return Math.round(Number(value) * 100);
 }
 
-function dateOnly(value: string): string {
-  return value.slice(0, 10);
-}
-
 function payrollMethodText(value: PayrollSettlement["paymentMethod"]): string {
   return ({ CASH: "现金", CARD: "刷卡", CHECK: "支票", ZELLE: "Zelle", OTHER: "其他" } as const)[value];
-}
-
-function shiftDate(value: string, days: number): string {
-  const date = new Date(`${value}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
 }
 
 function weekday(value: string, locale: "zh-CN" | "en-US"): string {

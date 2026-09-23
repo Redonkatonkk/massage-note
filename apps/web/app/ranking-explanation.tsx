@@ -17,15 +17,16 @@ export function RankingExplanationButton({ board }: { board: BoardResponse }) {
   const ids = [...visible.map((row) => row.membershipId), ...board.rows.filter((row) => row.isHidden).map((row) => row.membershipId), ...(snapshot?.entries.filter((entry) => !currentIds.includes(entry.membershipId)).map((entry) => entry.membershipId) ?? [])];
 
   return <>
-    <button className="ranking-help-button" type="button" aria-label={text("查看今日排序依据", "View today's ranking explanation")} title={text("为什么这样排序？", "Why this order?")} aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>?</button>
+    <button className="ranking-help-button" type="button" aria-label={text("查看所选日期排序依据", "View selected date's ranking explanation")} title={text("为什么这样排序？", "Why this order?")} aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>?</button>
     <dialog ref={dialog} className="board-delivery-dialog ranking-explanation-dialog" aria-labelledby="ranking-explanation-title" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
       <div className="modal-heading">
-        <h2 id="ranking-explanation-title">{text("今日排序依据", "Today's ranking explanation")}</h2>
+        <h2 id="ranking-explanation-title">{text("排序依据", "Ranking explanation")}</h2>
         <button className="close-button" type="button" onClick={() => dialog.current?.close()}>{text("关闭", "Close")}</button>
       </div>
       {!snapshot ? <p>{board.ranking.rankedAt
-        ? text("上次生成时尚未保存排序依据。重新生成今日顺序后即可查看；重新生成会覆盖手动顺序。", "The previous ranking has no saved explanation. Generate the order again to save one; this will replace manual ordering.")
-        : text("尚未生成今日顺序。生成后，这里会逐人说明排位原因。", "No order has been generated today. Generate it to see an explanation for each employee.")}</p> : <>
+        ? text("上次生成时尚未保存排序依据。重新生成所选日期顺序后即可查看；重新生成会覆盖手动顺序。", "The previous ranking has no saved explanation. Generate the order again to save one; this will replace manual ordering.")
+        : text("尚未生成所选日期顺序。生成后，这里会逐人说明排位原因。", "No order has been generated for this date. Generate it to see an explanation for each employee.")}</p> : <>
+        <p className="field-help">{board.businessDate}</p>
         <p className="field-help">{text("生成时间：", "Generated: ")}{new Date(snapshot.generatedAt).toLocaleString(locale, { hour12: false })}</p>
         {changed && <p className="ranking-change-notice" role="status">{text("生成后名单或顺序已调整。下方区分当前位置与生成时名次；原排序依据保持不变。", "The list or order has changed since generation. Current and generated positions are shown separately; the original explanation is preserved.")}</p>}
         <div className="ranking-explanation-list">

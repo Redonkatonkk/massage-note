@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`1.9.1`
+> 适用版本：`1.9.4`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
@@ -67,7 +67,7 @@ pnpm dev
 | `pnpm typecheck` | 检查全部 workspace 类型 |
 | `pnpm test` | 运行领域、契约、Web 辅助函数和 API 非数据库测试 |
 | `pnpm test:integration` | 创建/迁移独立测试库并运行数据库与 API 集成测试 |
-| `python3 -m unittest discover -s integrations/langbot-plugin/tests -v` | 运行 LangBot 插件边界与解析测试，CI 同步执行 |
+| `python3 -m unittest discover -s integrations/langbot-plugin/tests -v` | 运行 LangBot 插件边界与解析测试（CI 当前未执行） |
 | `pnpm build` | 检查版本一致性并构建全部 workspace |
 | `pnpm db:generate` | 生成 Prisma Client |
 | `pnpm db:validate` | 校验 Prisma schema |
@@ -84,16 +84,16 @@ POSTGRES_HOST_PORT=55432 REDIS_HOST_PORT=56379 pnpm docker:up
 MASSAGE_NOTE_TEST_DATABASE_URL='postgresql://massage:massage@localhost:55432/massage_note_test' pnpm test:integration
 ```
 
-不要为了测试停止、删除或重建不属于本项目的容器与数据卷。保留原因：集成测试已有独立测试库，不需要影响其他数据。
+不要为了测试停止、删除或重建不属于本项目的容器与数据卷。
 
 ## 修改规则
 
-- 接口修改同步共享契约、Controller、Service、Web 调用及对应主文档；财务公式先在领域函数固化。保留原因：这些层分别负责输入、传输、业务和展示，契约漂移会让请求在运行时失败。
-- 业务写入保持权限、归属、营业日锁、事务内审计/outbox、幂等和版本检查，并验证正常及失败路径。保留原因：现有服务依赖这些控制防止越权、重放和部分写入。
-- 数据库变化使用描述性前向迁移，不改已发布迁移；生产只运行 `prisma migrate deploy`，破坏性变化分阶段迁移。保留原因：已有数据库必须能从原版本安全升级，不能靠重建数据恢复一致。
-- Web 记工刷新沿用 `apps/web/lib/refresh-queue.ts`，切店和卸载使旧结果失效。保留原因：现有 SSE 只发通知，串行合并和后续读取避免漏更新或跨店旧响应覆盖。
-- 响应式样式放在 `apps/web/app/responsive.css`，复用共享组件，检查 320、390、768、1280px、中英文及展开状态。保留原因：同一页面用于手机、平板和桌面，长文本及宽表不能撑破布局。
-- 保留 loading、重复点击保护和 409 重新核对流程，不在浏览器另算财务或持久缓存敏感业务响应。保留原因：服务端是业务事实来源，过期页面和重复操作会误导用户。
+- 接口修改同步共享契约、Controller、Service、Web 调用及对应主文档；财务公式先在领域函数固化。
+- 业务写入保持权限、归属、营业日锁、事务内审计/outbox、幂等和版本检查，并验证正常及失败路径。
+- 数据库变化使用描述性前向迁移，不改已发布迁移；生产只运行 `prisma migrate deploy`，破坏性变化分阶段迁移。
+- Web 记工刷新沿用 `apps/web/lib/refresh-queue.ts`，切店和卸载使旧结果失效。
+- 响应式样式放在 `apps/web/app/responsive.css`，复用共享组件，检查 320、390、768、1280px、中英文及展开状态。
+- 保留 loading、重复点击保护和 409 重新核对流程，不在浏览器另算财务或持久缓存敏感业务响应。
 
 ## 完成前验证
 
@@ -107,7 +107,7 @@ pnpm test:integration
 pnpm build
 ```
 
-文档整理也至少运行版本检查、Markdown 链接检查和 `git diff --check`。若文档修改涉及命令、路由、契约、金额或部署事实，还要运行相应代码验证；正式发布遵循完整 [`RELEASE_CHECKLIST.md`](../operations/RELEASE_CHECKLIST.md)。保留原因：验证应覆盖改动影响，发布还需要目标环境的检查。
+文档整理也至少运行版本检查、Markdown 链接检查和 `git diff --check`。若文档修改涉及命令、路由、契约、金额或部署事实，还要运行相应代码验证；正式发布遵循完整 [`RELEASE_CHECKLIST.md`](../operations/RELEASE_CHECKLIST.md)。
 
 ## 版本同步位置
 
@@ -118,7 +118,7 @@ pnpm build
 - `docker-compose.nas.yml` 和 `.env.nas.example` 的镜像标签。
 - README、当前产品、API、架构、开发、接管及 NAS 文档的版本标记。
 
-已发布镜像不覆盖旧版本标签。保留原因：部署和回滚需要能定位原始产物。
+已发布镜像不覆盖旧版本标签。
 
 ## 文档分工
 
@@ -134,17 +134,17 @@ pnpm build
 | 安全边界 | `docs/operations/SECURITY.md` |
 | 已发布变化 | `CHANGELOG.md` |
 
-不要把一次性容器 ID、PID、临时 tunnel、真实域名凭据或逐日开发流水写入当前文档。历史设计需要保留时移到 `docs/archive/`，并明确标为归档。保留原因：临时运行状态和历史决策不能成为当前维护要求。
+不要把一次性容器 ID、PID、临时 tunnel、真实域名凭据或逐日开发流水写入当前文档。历史设计需要保留时移到 `docs/archive/`，并明确标为归档。
 
 ## 修改后的本地测试服务
 
-每次完成任何项目改动，包括代码、配置和文档，都要重新运行 `pnpm dev`，保持 Web 使用 `http://localhost:3000`，并打开页面供用户测试。先检查 3000/4000 端口的进程归属，只重启本项目服务；端口被其他项目占用时不得擅自终止或改用其他端口。确认 Web 可访问以及 API `/api/v1/health/ready` 就绪后，保持开发进程运行。该要求不授予 NAS 部署权限。保留原因：让用户在固定入口测试本次代码，同时避免影响其他项目进程。
+每次完成任何项目改动，包括代码、配置和文档，都要重新运行 `pnpm dev`，保持 Web 使用 `http://localhost:3000`，并打开页面供用户测试。先检查 3000/4000 端口的进程归属，只重启本项目服务；端口被其他项目占用时不得擅自终止或改用其他端口。确认 Web 可访问以及 API `/api/v1/health/ready` 就绪后，保持开发进程运行。该要求不授予 NAS 部署权限。
 
 ## 改动交接
 
-- 报告修改模块、实际验证结果、尚未验证的外部依赖和必要的迁移边界。保留原因：用户需要知道本地结果是否足以发布，以及哪些链路仍待目标环境验证。
-- 提交前检查 `git status --short` 和 `git diff`，只处理本次任务文件。保留原因：其他未提交工作不属于本次清理。
-- 发布授权与 NAS 提醒遵循 [AGENTS.md](../../AGENTS.md)。保留原因：保持本地修改与线上生效的边界清楚。
+- 报告修改模块、实际验证结果、尚未验证的外部依赖和必要的迁移边界。
+- 提交前检查 `git status --short` 和 `git diff`，只处理本次任务文件。
+- 发布授权与 NAS 提醒遵循 [AGENTS.md](../../AGENTS.md)。
 
 ## LangBot 插件目录
 

@@ -7,6 +7,8 @@ import {
 
 describe("daily ranking UI", () => {
   it("uses distinct first-run and rerun labels", () => {
+    expect(dailyRankingActionLabel(null, false)).toBe("生成所选日期顺序");
+    expect(dailyRankingActionLabel("2026-09-04T09:00:00Z", false)).toBe("重新生成所选日期顺序");
     expect(dailyRankingActionLabel(null)).toBe("生成今日顺序");
     expect(dailyRankingActionLabel("2026-09-04T09:00:00Z")).toBe("重新生成今日顺序");
   });
@@ -20,6 +22,8 @@ describe("daily ranking UI", () => {
       activeRowCount: 3,
     };
     expect(canGenerateDailyRanking(allowed)).toBe(true);
+    expect(canGenerateDailyRanking({ ...allowed, isCurrentBusinessDay: false, isFutureBusinessDay: true })).toBe(true);
+    expect(canGenerateDailyRanking({ ...allowed, isFutureBusinessDay: true, isClosed: true })).toBe(false);
     expect(canGenerateDailyRanking({ ...allowed, canManage: false })).toBe(false);
     expect(canGenerateDailyRanking({ ...allowed, isCurrentBusinessDay: false })).toBe(false);
     expect(canGenerateDailyRanking({ ...allowed, isClosed: true })).toBe(false);

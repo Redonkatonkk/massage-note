@@ -1,12 +1,9 @@
 import type { GiftCardLedgerResponse } from "../../lib/types";
 import { formatUsd } from "../../lib/money";
+import { dateOnly } from "./date-utils";
 
 function money(cents: number): string {
   return formatUsd(cents);
-}
-
-function dateOnly(value: string): string {
-  return value.slice(0, 10);
 }
 
 function paymentMethod(cashCents: number, cardCents: number): string {

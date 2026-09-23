@@ -1,8 +1,8 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";
+import { escapeXml, localeName, money, time as recordTime, type Locale } from "./render-format.js";
 
-type Locale = "zh_CN" | "en_US";
 type Scope = "CASH" | "NON_CASH" | "ALL";
 
 interface SettlementRecord {
@@ -24,12 +24,8 @@ export interface SettlementSnapshot {
   records: SettlementRecord[];
 }
 
-const escapeXml = (value: unknown) => String(value).replace(/[<>&"']/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[character]!);
-const localeName = (locale: Locale) => locale === "zh_CN" ? "zh-CN" : "en-US";
-const money = (cents: number, locale: Locale) => new Intl.NumberFormat(localeName(locale), { style: "currency", currency: "USD" }).format(cents / 100);
 const scopeLabel = (scope: Scope, locale: Locale) => locale === "en_US" ? ({ CASH: "Cash", NON_CASH: "Card + gift card", ALL: "All" } as const)[scope] : ({ CASH: "现金", NON_CASH: "刷卡＋礼物卡", ALL: "全部" } as const)[scope];
 const recordName = (record: SettlementRecord) => [record.serviceShortName || record.serviceName, ...record.addons.map((item) => item.shortName || item.name)].join(" + ");
-const recordTime = (value: string | null, timezone: string, locale: Locale) => value ? new Intl.DateTimeFormat(localeName(locale), { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)) : "—";
 const hasPaymentBreakdown = (record: SettlementRecord) => record.cardServiceCents !== undefined || record.giftCardServiceCents !== undefined || record.cardTipCents !== undefined || record.giftCardTipCents !== undefined;
 const paymentParts = (record: SettlementRecord, kind: "service" | "tip", locale: Locale) => {
   const en = locale === "en_US";

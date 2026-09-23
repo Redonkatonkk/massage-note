@@ -69,10 +69,10 @@ export class DailyRankingService {
           timezone: store.timezone,
           cutoffLocal: store.businessCutoffLocal,
         });
-        if (businessDate !== currentBusinessDate) {
+        if (businessDate < currentBusinessDate) {
           throw new ConflictException({
-            code: "DAILY_RANKING_CURRENT_DAY_ONLY",
-            messageZh: "只能生成当前营业日的员工顺序",
+            code: "DAILY_RANKING_PAST_DAY_NOT_ALLOWED",
+            messageZh: "只能生成今天或未来日期的员工顺序",
           });
         }
         const closing = await transaction.businessDayClosing.findFirst({

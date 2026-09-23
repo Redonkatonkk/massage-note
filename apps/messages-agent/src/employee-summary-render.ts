@@ -1,8 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";
-
-type Locale = "zh_CN" | "en_US";
+import { escapeXml, localeName, money, type Locale } from "./render-format.js";
 
 export interface EmployeeSummarySnapshot {
   documentType: "EMPLOYEE_SUMMARY";
@@ -32,9 +31,6 @@ export interface EmployeeSummarySnapshot {
 
 const MAX_HEIGHT = 32_760;
 const MAX_BYTES = 4 * 1024 * 1024;
-const escapeXml = (value: unknown) => String(value).replace(/[<>&"']/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[character]!);
-const localeName = (locale: Locale) => locale === "zh_CN" ? "zh-CN" : "en-US";
-const money = (cents: number, locale: Locale) => new Intl.NumberFormat(localeName(locale), { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
 const percentage = (commissionBps: number | null | undefined, locale: Locale) => typeof commissionBps !== "number"
   ? locale === "en_US" ? "Uses item/store rate" : "跟随项目/店铺"
   : `${new Intl.NumberFormat(localeName(locale), { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(commissionBps / 100)}%`;
@@ -62,7 +58,7 @@ function layout(employeeCount: number) {
   return { width: 1920, columns: 5 };
 }
 
-function employeeCard(snapshot: EmployeeSummarySnapshot, employee: EmployeeSummarySnapshot["employees"][number], index: number, x: number, y: number, width: number, locale: Locale) {
+function employeeCard(employee: EmployeeSummarySnapshot["employees"][number], index: number, x: number, y: number, width: number, locale: Locale) {
   const en = locale === "en_US";
   const rate = percentage(employee.defaultCommissionBps, locale);
   const variation = employee.hasDifferentItemCommission
@@ -111,7 +107,7 @@ function buildSvg(snapshot: EmployeeSummarySnapshot, locale: Locale) {
   snapshot.employees.forEach((employee, index) => {
     const column = index % columns;
     const row = Math.floor(index / columns);
-    parts.push(employeeCard(snapshot, employee, index, margin + column * (cardWidth + gap), headerHeight + row * (252 + gap), cardWidth, locale));
+    parts.push(employeeCard(employee, index, margin + column * (cardWidth + gap), headerHeight + row * (252 + gap), cardWidth, locale));
   });
   parts.push(`<text x="${width - margin}" y="${height - 9}" text-anchor="end" class="footer">${escapeXml(en ? "Commission shows the employee setting; service wage + tips = period income" : "提成比例显示员工设置；大费工资 ＋ 小费工资 = 阶段总收入")}</text>`);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fffaf3"/><stop offset="1" stop-color="#f2d7cb"/></linearGradient><filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#7a4432" flood-opacity=".10"/></filter><style>text{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;fill:#211d18}.eyebrow{font-size:23px;font-weight:750;fill:#8e3e2f}.title{font-size:48px;font-weight:900}.meta{font-size:21px;font-weight:650;fill:#6b635a}.scope{font-size:17px;font-weight:750;fill:#fff}.name{font-size:25px;font-weight:900}.badge{font-size:14px;font-weight:800;fill:#8e3e2f}.label{font-size:14px;font-weight:750;fill:#756b62}.operator{font-size:19px;font-weight:900;fill:#a28f82}.amount{font-weight:900}.formula{font-weight:850}.total{font-weight:900;fill:#8e3e2f}.index{font-size:10px;font-weight:800;fill:#b9aaa0}.footer{font-size:13px;font-weight:650;fill:#756b62}</style></defs><rect width="${width}" height="${height}" fill="url(#bg)"/>${parts.join("")}</svg>`;

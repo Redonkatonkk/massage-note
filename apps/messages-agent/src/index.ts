@@ -1,6 +1,6 @@
 import { withDeliveryCooldown } from "./delivery-cooldown.js";
 import { loadJournal, saveJournal, type Journal } from "./journal.js";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { messagesServices, sendMessagesAttachment } from "./messages.js";
@@ -9,6 +9,8 @@ import { renderClosingPng, type ClosingSnapshot } from "./render.js";
 import { renderSettlementLongImage, type SettlementSnapshot } from "./settlement-render.js";
 import { renderEmployeeSummaryImage, type EmployeeSummarySnapshot } from "./employee-summary-render.js";
 import { messagesStagerReady, stageMessagesAttachment } from "./stager.js";
+
+const { version } = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
 
 const apiUrl = process.env.MASSAGE_NOTE_API_URL?.replace(/\/$/, "");
 const agentToken = process.env.MASSAGE_NOTE_AGENT_TOKEN;
@@ -42,7 +44,7 @@ async function heartbeat(lastError: string | null = null) {
     diagnosticError = error instanceof Error ? error.message : String(error);
   }
   try {
-    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: stagerReady && services.some((item) => ["iMessage", "RCS", "SMS"].includes(item)), serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version: "1.0.7", lastError: diagnosticError }) });
+    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: stagerReady && services.some((item) => ["iMessage", "RCS", "SMS"].includes(item)), serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version, lastError: diagnosticError }) });
   } catch (error) {
     process.stderr.write(`heartbeat: ${error instanceof Error ? error.message : String(error)}\n`);
   }

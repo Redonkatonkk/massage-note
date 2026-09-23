@@ -18,41 +18,14 @@ docs/
 | 确认角色、流程或金额口径 | [`PRODUCT.md`](product/PRODUCT.md) | 对应领域测试 |
 | 定位模块、路由或写入链路 | [`ARCHITECTURE.md`](engineering/ARCHITECTURE.md) | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.md) |
 | 修改代码或数据库 | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.md) | [`ARCHITECTURE.md`](engineering/ARCHITECTURE.md)、对应测试 |
-| 追溯 1.0.7 审查与修复记录 | [`CODE_REVIEW_2026-09-08.md`](archive/CODE_REVIEW_2026-09-08.md) | 根目录 [`CHANGELOG.md`](../CHANGELOG.md) |
 | 调用或修改 HTTP 接口 | [`API.md`](engineering/API.md) | 共享契约、Controller 和集成测试 |
 | 普通 Linux 生产部署 | [`DEPLOYMENT.md`](operations/DEPLOYMENT.md) | [`SECURITY.md`](operations/SECURITY.md) |
 | 群晖发布或升级 | [`NAS_DEPLOYMENT.md`](operations/NAS_DEPLOYMENT.md) | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md) |
 | 监控、数据库备份或恢复 | [`OPERATIONS.md`](operations/OPERATIONS.md) | [`SECURITY.md`](operations/SECURITY.md) |
 | 安装或排查 Mac“信息”代理 | [`MESSAGES_AGENT.md`](operations/MESSAGES_AGENT.md) | [`SECURITY.md`](operations/SECURITY.md) |
-| 安装或排查微信记工机器人 | [`LANGBOT_WORK_BOT.md`](operations/LANGBOT_WORK_BOT.md) | [`SECURITY.md`](operations/SECURITY.md)、[`API.md`](engineering/API.md) |
+| 安装或排查微信记工机器人 | [`LANGBOT_WORK_BOT.md`](operations/LANGBOT_WORK_BOT.md) | [`SECURITY.md`](operations/SECURITY.md)、[`API.md`](engineering/API.md)、[插件开发指南](../integrations/langbot-plugin/DEVELOPMENT.md) |
 | 准备正式发布 | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md) | 根目录 [`CHANGELOG.md`](../CHANGELOG.md) |
 | 让 AI 接管维护 | [`AI_HANDOFF.md`](engineering/AI_HANDOFF.md) | 按具体任务选择上面的文档 |
-
-## 文档分区
-
-### 产品与设计
-
-- [`product/PRODUCT.md`](product/PRODUCT.md)：产品范围、角色权限、记工流程和财务口径；回答“应该怎样工作”。
-- [`engineering/ARCHITECTURE.md`](engineering/ARCHITECTURE.md)：当前代码结构、依赖方向、请求链路和数据一致性；回答“系统现在怎样组成”。
-
-### 开发与接口
-
-- [`engineering/DEVELOPMENT.md`](engineering/DEVELOPMENT.md)：本地环境、修改顺序、测试、版本和交接规则。
-- [`engineering/API.md`](engineering/API.md)：HTTP 约定、端点、请求示例、财务筛选和错误语义。
-- [`engineering/AI_HANDOFF.md`](engineering/AI_HANDOFF.md)：给维护型 AI 的最短上下文与不可破坏规则，不替代上面两份事实文档。
-
-### 部署与运行
-
-- [`operations/DEPLOYMENT.md`](operations/DEPLOYMENT.md)：普通 Linux Docker Compose 的生产部署。
-- [`operations/NAS_DEPLOYMENT.md`](operations/NAS_DEPLOYMENT.md)：GitHub Actions、GHCR 与群晖 Container Manager 的发布和升级。
-- [`operations/OPERATIONS.md`](operations/OPERATIONS.md)：服务监控、数据库备份、恢复演练和通用故障处理。
-- [`operations/MESSAGES_AGENT.md`](operations/MESSAGES_AGENT.md)：固定 Mac“信息”代理的安装、权限、路由和专项排障。
-- [`operations/LANGBOT_WORK_BOT.md`](operations/LANGBOT_WORK_BOT.md)：LangBot 插件、微信群绑定、黑话配置和上线验收。
-- [`operations/SECURITY.md`](operations/SECURITY.md)：已实施控制、租户隔离、部署责任和已知边界。
-- [`operations/RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md)：发布前、业务验收和上线后检查。
-- 根目录 [`CHANGELOG.md`](../CHANGELOG.md)：按版本记录已经交付的变化。
-
-- [`../integrations/langbot-plugin/DEVELOPMENT.md`](../integrations/langbot-plugin/DEVELOPMENT.md)：插件目录、验证、打包与旧包归档。
 
 ## 事实来源优先级
 
@@ -73,16 +46,9 @@ docs/
 
 - [`INITIAL_ARCHITECTURE_PLAN.md`](archive/INITIAL_ARCHITECTURE_PLAN.md)：编码前的架构、ER 图、路由设想和阶段计划。
 - [`INITIAL_AI_DEVELOPMENT_PROMPT.md`](archive/INITIAL_AI_DEVELOPMENT_PROMPT.md)：最初用于启动项目的一次性 AI 提示。
-
+- [`CODE_REVIEW_2026-09-08.md`](archive/CODE_REVIEW_2026-09-08.md)：1.0.7 审查与修复记录。
 - [`LANGBOT_MASSAGE_NOTE_WORK_BOT_IMPLEMENTATION.md`](archive/LANGBOT_MASSAGE_NOTE_WORK_BOT_IMPLEMENTATION.md)：早期 1.0.2 跨项目对接记录。
 
 归档文档中的路由、目录和“待实现”内容可能已经过时，不参与当前事实优先级。
 
-## 维护约定
-
-- 一个概念只指定一份主要文档；其他文档用链接引用，避免复制整段规则。保留原因：避免同一规则在多处更新后出现矛盾。
-- `PRODUCT.md` 写“应该做什么”，`ARCHITECTURE.md` 写“现在如何组成”，`API.md` 写“如何调用”。保留原因：让业务含义、代码结构和调用约定各有明确事实来源。
-- `DEPLOYMENT.md` 与 `NAS_DEPLOYMENT.md` 写“如何上线”，`OPERATIONS.md` 写通用运行手册，`MESSAGES_AGENT.md` 只写 Mac 代理。保留原因：避免平台专项操作混入通用发布流程。
-- 部署手册不累积每个历史版本的发布说明；版本变化统一写入 `CHANGELOG.md`。保留原因：防止旧版本安装要求继续被当作当前操作。
-- 命令、路径、环境变量或接口变化必须在同一次修改中更新对应当前文档。保留原因：让读者可以按文档实际运行命令和调用接口。
-- 新文档加入本索引；过时材料移入 `archive/` 并加醒目的归档说明。保留原因：保证入口可发现，同时区分现行规则与历史证据。
+文档职责见上方任务索引；版本、验证与本地开发服务规则以根目录 [`AGENTS.md`](../AGENTS.md) 和 [`DEVELOPMENT.md`](engineering/DEVELOPMENT.md) 为准。

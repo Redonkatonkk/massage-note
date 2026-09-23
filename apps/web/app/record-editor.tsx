@@ -7,8 +7,9 @@ import { automaticRecordEnd, sameDayRecordTimeAfterDuration, recordTimeError } f
 import { browserStorage } from "../lib/browser-storage";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiRequest, errorMessage } from "../lib/api";
+import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
+import { closedRecordBusinessDate, reopenRecordBusinessDay } from "../lib/record-closing";
 import { shouldConfirmPaymentOnSave } from "../lib/record-payment";
 import {
   localDateTimeValue,
@@ -17,7 +18,6 @@ import {
 import type {
   AddonItem,
   CatalogResponse,
-  ClosingPreview,
   DiscountItem,
   StoreDetails,
   StoreMember,
@@ -146,6 +146,9 @@ export function RecordEditor({
   onChanged,
 }: RecordEditorProps) {
   const actionInFlight = useRef(false);
+  const [blockedBusinessDate, setBlockedBusinessDate] = useState<string | null>(null);
+  const closedBusinessDate = blockedBusinessDate ?? (isClosed ? record.businessDate.slice(0, 10) : null);
+  const dayClosed = closedBusinessDate !== null;
   const [recordVersion, setRecordVersion] = useState(record.version);
   const service = record.serviceSnapshot;
   const initialStart = localDateTimeValue(record.startAt, timezone);
@@ -605,6 +608,9 @@ export function RecordEditor({
     try {
       await action();
     } catch (caught) {
+      if (caught instanceof ApiError && caught.code === "BUSINESS_DAY_CLOSED") {
+        setBlockedBusinessDate(closedRecordBusinessDate(caught.latestResource, record.businessDate));
+      }
       setError(errorMessage(caught));
     } finally {
       actionInFlight.current = false;
@@ -666,20 +672,13 @@ export function RecordEditor({
   });
 
   async function reopenDay() {
-    const path = `/stores/${storeId}/closings/${businessDate}`;
-    const preview = await apiRequest<ClosingPreview>(`${path}/preview`);
-    if (preview.isClosed && preview.activeClosing) {
-      await apiRequest(`${path}/cancel`, {
-        method: "POST",
-        idempotent: true,
-        body: { version: preview.activeClosing.version },
-      });
-    }
+    await reopenRecordBusinessDay(storeId, closedBusinessDate ?? record.businessDate.slice(0, 10));
+    setBlockedBusinessDate(null);
     await onChanged();
   }
 
   async function saveRecord() {
-    if (isClosed) return;
+    if (dayClosed) return;
     if (!startTimeValid || !endTimeValid) throw new Error("请选择有效的开始和结束时间");
     const timeError = recordTimeError(startAt, endAt);
     if (timeError) throw new Error(timeError);
@@ -900,8 +899,9 @@ export function RecordEditor({
         </section>
         {draftMismatchText && <p className="mismatch-warning" role="status">{draftMismatchText}</p>}
 
+        {closedBusinessDate && <p className="record-save-help">{closedBusinessDate} · 取消日结</p>}
         <p className="record-save-help">
-          {isClosed
+          {dayClosed
             ? "这个营业日已经日结，请先取消日结再保存。"
             : willConfirmPayment
             ? "点击保存会校验付款信息；完整时同时确认付款。小费留空按 0 处理。"
@@ -915,15 +915,15 @@ export function RecordEditor({
           document.body,
         )}
         <footer className="editor-actions">
-          <button className="delete-record" type="button" disabled={busy || isClosed} onClick={() => run(async () => {
+          <button className="delete-record" type="button" disabled={busy || dayClosed} onClick={() => run(async () => {
             if (!window.confirm("确认删除这条记工吗？删除后普通页面将隐藏，店长或经理可以恢复。")) return;
             await apiRequest(`/stores/${storeId}/work-records/${record.id}`, { method: "DELETE", idempotent: true, body: { version: record.version } });
             await finish();
           })}>删除记录</button>
           <span />
           <div className="editor-save-actions">
-            {isClosed && canManage && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(reopenDay)}>取消日结</button>}
-            <button className="primary-action" type="button" disabled={busy || isClosed} onClick={() => run(saveRecord)}>{busy ? "处理中…" : "保存"}</button>
+            {dayClosed && canManage && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(reopenDay)}>取消日结</button>}
+            <button className="primary-action" type="button" disabled={busy || dayClosed} onClick={() => run(saveRecord)}>{busy ? "处理中…" : "保存"}</button>
           </div>
         </footer>
       </section>

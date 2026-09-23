@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.9.1` 代码结构核对。
+> 状态：与 `1.9.4` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -44,6 +44,7 @@ flowchart LR
 
 ```text
 apps/web ────────> packages/contracts
+apps/web ────────> packages/domain
 apps/api ────────> packages/contracts
 apps/api ────────> packages/domain
 apps/api ────────> packages/database
@@ -65,6 +66,8 @@ packages/contracts  只依赖 Zod
 | `/login` | `login-form.tsx` | 手机验证码、密码和受控开发登录 |
 | `/assistant` | `assistant-page-client.tsx` | 兼容旧书签；主入口是业务页悬浮助手 |
 | `/help`、`/offline` | 页面组件 | 中英文帮助和断网说明 |
+
+财务页面内部复用的日期截取与 UTC 日期加减放在 `apps/web/app/finance/date-utils.ts`。
 
 `apps/web/lib` 放共享客户端能力：
 
@@ -88,10 +91,13 @@ packages/contracts  只依赖 Zod
 | `boards` | 营业日、班次、每日表格行和每日开门排位 |
 | `work-records` | 记工快照、付款确认、软删除与恢复 |
 | `gift-cards` | 卖卡、序列号、折扣快照和使用台账 |
+| `work-bot` | 微信机器人群/员工绑定、受限意图提交、查询与管理 |
 | `finance` | 财务查询、日结、现金结算和工资账本 |
 | `audit` | 按店查询不可变审计日志 |
 | `realtime` | PostgreSQL outbox 的 SSE 事件流 |
 | `ai` | 记工预览、确定性财务解释和短录音转写 |
+
+`work-bot` 的金额解析与回复格式化放在 `work-bot-format.ts`，Service 保留权限和事务编排；Mac 附件的 XML 转义、金额和时间显示由 `apps/messages-agent/src/render-format.ts` 共用，各渲染器保留布局职责。
 
 Controller 只负责 HTTP 适配和共享契约解析。权限、对象归属、状态与事务放在 Service 或领域函数中；金额最终值不信任前端合计。
 

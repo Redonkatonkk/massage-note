@@ -1719,6 +1719,7 @@ export class WorkRecordsService {
       throw new ConflictException({
         code: "BUSINESS_DAY_CLOSED",
         messageZh: "该营业日已经日结，请先取消日结再修改记工",
+        latestResource: { businessDate },
       });
     }
     const currentBusinessDate = businessDateFor({

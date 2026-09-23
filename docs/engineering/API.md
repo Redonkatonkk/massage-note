@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.9.1`
+> 适用版本：`1.9.4`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -55,7 +55,7 @@
 | POST | `/stores/:storeId/boards/:businessDate/rows` | 新增每日员工行 |
 | PATCH | `/stores/:storeId/boards/:businessDate/rows/:rowId` | 更新每日员工行；日结后必须先取消日结 |
 | POST | `/stores/:storeId/boards/:businessDate/reorder` | 原子调整每日员工行顺序 |
-| POST | `/stores/:storeId/boards/:businessDate/rank` | 店长或经理按最近一次可见出勤名次生成当前营业日员工顺序；使用营业日锁、表格版本和幂等键 |
+| POST | `/stores/:storeId/boards/:businessDate/rank` | 店长或经理按最近一次可见出勤名次生成今天或未来日期员工顺序（过去日期返回 DAILY_RANKING_PAST_DAY_NOT_ALLOWED）；使用营业日锁、表格版本和幂等键 |
 | POST | `/stores/:storeId/boards/:businessDate/rows/:rowId/remove` | 移除尚无当天活动的误加员工 |
 | POST | `/stores/:storeId/work-records` | 快速创建预设或自定义记工；每日排位不会增加记工字段或限制记工入口 |
 | GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改高亮及其他字段与软删除 |
@@ -100,11 +100,10 @@
 | POST | `/stores/:storeId/ai/work/transcribe` | 语音转文字 |
 | GET/DELETE | `/stores/:storeId/ai/previews/:previewId` | 查看或取消一次性 AI 预览 |
 | POST | `/stores/:storeId/ai/previews/:previewId/confirm` | 重新鉴权并一次性确认 AI 预览 |
-| POST | `/integrations/langbot/work-events` | LangBot 使用独立 Bearer 令牌和精确微信消息幂等键提交受限记工事件 |
 | GET | `/stores/:storeId/work-bot` | Owner/Manager 查看群绑定、员工绑定、项目黑话和最近机器人操作 |
 | POST/PATCH/DELETE | `/stores/:storeId/work-bot/aliases...` | Owner/Manager 管理店铺级项目黑话及其项目、时长映射 |
 | POST | `/integrations/langbot/work-context` | 使用专用 Bearer 令牌读取当前群的实时黑话技能供模型理解 |
-| POST | `/integrations/langbot/work-events` | 使用专用 Bearer 令牌提交模型解析后的受限记工事件 |
+| POST | `/integrations/langbot/work-events` | 使用专用 Bearer 令牌提交受限记工事件；插件按原文解析并使用微信消息幂等键 |
 | DELETE | `/stores/:storeId/work-bot/groups/:bindingId`、`members/:bindingId` | Owner/Manager 解除群或员工微信绑定；有机器人进行中记录时拒绝解除 |
 
 LangBot 的 `work-context` 同时返回启用的 `discounts`、`addons` 名称和简称。`FINISH` 支持 `memberName/memberMention` 指定员工，以及 `discounts/addons: [{ name, mention }]`；新增 `ADJUST` 使用相同可选字段单独添加折扣或加项。操作按同店在职员工唯一待付款记录定位，包含人工记工；多条匹配不写账，预设金额和提成由服务端读取。

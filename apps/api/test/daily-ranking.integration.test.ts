@@ -41,6 +41,7 @@ const relativeDate = (days: number) => {
 };
 const yesterday = relativeDate(-1);
 const olderDay = relativeDate(-3);
+const tomorrow = relativeDate(1);
 const serviceItemId = randomUUID();
 let workRecordId = "";
 
@@ -290,6 +291,51 @@ describe.skipIf(!enabled).sequential("每日开门排位", () => {
     await expect(
       ranking.rank(actor(ownerId), storeId, yesterday, { version: oldBoard.version }, "past-ranking-0001", "past-ranking"),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it("generates and regenerates a future board from the latest visible history", async () => {
+    const historical = await currentBoard();
+    const historicalRows = await prisma.dailyEmployeeRow.findMany({
+      where: { boardId: historical.id, isHidden: false },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    });
+    await prisma.dailyBoard.create({
+      data: {
+        storeId,
+        businessDate: new Date(`${tomorrow}T00:00:00.000Z`),
+        rows: {
+          create: employeeIds.map((membershipId, index) => ({
+            storeId,
+            membershipId,
+            position: index + 1,
+            addedBy: ownerId,
+          })),
+        },
+      },
+    });
+
+    const first = await ranking.rank(
+      actor(ownerId), storeId, tomorrow, { version: 1 },
+      "future-ranking-generate-0001", "future-ranking-generate",
+    );
+    const snapshot = rankingExplanationSchema.parse(first.rankingExplanation);
+    expect(first.businessDate.toISOString().slice(0, 10)).toBe(tomorrow);
+    expect(snapshot.entries).toHaveLength(employeeIds.length);
+    for (const entry of snapshot.entries) {
+      const previous = historicalRows.find((row) => row.membershipId === entry.membershipId);
+      expect(entry).toMatchObject({
+        lastBusinessDate: today,
+        lastPosition: previous ? historicalRows.indexOf(previous) + 1 : null,
+      });
+    }
+
+    const regenerated = await ranking.rank(
+      actor(ownerId), storeId, tomorrow, { version: first.version },
+      "future-ranking-regenerate-0001", "future-ranking-regenerate",
+    );
+    expect(regenerated.version).toBe(first.version + 1);
+    expect(regenerated.businessDate.toISOString().slice(0, 10)).toBe(tomorrow);
+    expect(rankingExplanationSchema.parse(regenerated.rankingExplanation).entries).toEqual(snapshot.entries);
   });
 
   it("rejects missing employment types during every membership lifecycle", async () => {

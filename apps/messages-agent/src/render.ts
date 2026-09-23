@@ -1,10 +1,9 @@
 import { execFile } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
+import { escapeXml, money, time, type Locale } from "./render-format.js";
 
 const execFileAsync = promisify(execFile);
-
-type Locale = "zh_CN" | "en_US";
 
 interface ClosingRecord {
   startAt: string | null;
@@ -44,8 +43,6 @@ export interface ClosingSnapshot {
   records: ClosingRecord[];
 }
 
-const escapeXml = (value: unknown) => String(value).replace(/[<>&"']/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[character]!);
-const money = (cents: number | null, locale: Locale) => cents === null ? "—" : new Intl.NumberFormat(locale === "zh_CN" ? "zh-CN" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 const compactAmount = (cents: number, locale: Locale) => new Intl.NumberFormat(locale === "zh_CN" ? "zh-CN" : "en-US", { minimumFractionDigits: cents % 100 === 0 ? 0 : 2, maximumFractionDigits: 2 }).format(cents / 100);
 
 function paymentAmounts(cashCents: number | null, cardCents: number | null, giftCardCents: number | null, locale: Locale, startX: number, baselineY: number, maxWidth = 340) {
@@ -74,11 +71,6 @@ function paymentAmounts(cashCents: number | null, cardCents: number | null, gift
   }).join("");
   return { markup, height: y - baselineY + 38 };
 
-}
-
-function time(value: string | null, timezone: string, locale: Locale) {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat(locale === "zh_CN" ? "zh-CN" : "en-US", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value));
 }
 
 export async function renderClosingPng(snapshot: ClosingSnapshot, locale: Locale, svgPath: string, pngPath: string) {

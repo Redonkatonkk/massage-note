@@ -7,6 +7,7 @@ import { z } from "zod";
 import { workBotParsedIntentSchema } from "@massage-note/contracts";
 import { WorkBotAccess } from "./work-bot-access.js";
 import { workBotDateRange } from "./work-bot-query.js";
+import { formatWorkBotMoney, formatWorkBotTime, parseWorkBotDollars } from "./work-bot-format.js";
 import { WorkRecordsService } from "../work-records/work-records.service.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { updateWorkRecordSchema, confirmPaymentSchema } from "@massage-note/contracts";
@@ -280,7 +281,7 @@ export class WorkBotService {
       ...(intent.highlightedOnly ? { isHighlighted: true } : {}),
     };
     const page = intent.page ?? 1, size = 20;
-    const money = (amount: bigint | null) => this.formatMoney(amount ?? 0n);
+    const money = (amount: bigint | null) => formatWorkBotMoney(amount ?? 0n);
     let lines: string[], count: number;
     const totals = await transaction.workRecord.aggregate({ where, _sum: { discountedFeePerformanceCents: true, discountTotalCents: true, totalTipCents: true, actualServiceCollectedCents: true } });
     if (intent.groupBy === "DAY" || intent.groupBy === "EMPLOYEE") {
@@ -292,7 +293,7 @@ export class WorkBotService {
     } else {
       count = await transaction.workRecord.count({ where });
       const rows = await transaction.workRecord.findMany({ where, orderBy: [{ businessDate: "asc" }, { startAt: "asc" }, { id: "asc" }], skip: (page - 1) * size, take: size, include: { employee: { select: { displayName: true } }, serviceSnapshot: true, addonSnapshots: true, discountSnapshots: true } });
-      lines = rows.map(row => `${row.businessDate.toISOString().slice(0, 10)} ${this.formatTime(row.startAt, store.timezone)}｜${row.employee.displayName}｜${row.serviceSnapshot?.shortName ?? "项目缺失"}${row.isHighlighted ? " ★高亮" : ""}｜${row.status === "CONFIRMED" ? "已付款" : "待付款"}\n折后大费 ${money(row.discountedFeePerformanceCents)}｜折扣 ${money(row.discountTotalCents)}｜加项 ${money(row.addonTotalCents)}｜实收 ${row.actualServiceCollectedCents === null ? "未收款" : money(row.actualServiceCollectedCents)}｜小费 ${money(row.totalTipCents)}\n折扣项：${row.discountSnapshots.map(d => d.name).join("、") || "无"}；加项：${row.addonSnapshots.map(a => a.name).join("、") || "无"}\n编号 ${row.id}`);
+      lines = rows.map(row => `${row.businessDate.toISOString().slice(0, 10)} ${formatWorkBotTime(row.startAt, store.timezone)}｜${row.employee.displayName}｜${row.serviceSnapshot?.shortName ?? "项目缺失"}${row.isHighlighted ? " ★高亮" : ""}｜${row.status === "CONFIRMED" ? "已付款" : "待付款"}\n折后大费 ${money(row.discountedFeePerformanceCents)}｜折扣 ${money(row.discountTotalCents)}｜加项 ${money(row.addonTotalCents)}｜实收 ${row.actualServiceCollectedCents === null ? "未收款" : money(row.actualServiceCollectedCents)}｜小费 ${money(row.totalTipCents)}\n折扣项：${row.discountSnapshots.map(d => d.name).join("、") || "无"}；加项：${row.addonSnapshots.map(a => a.name).join("、") || "无"}\n编号 ${row.id}`);
     }
     const pages = Math.max(1, Math.ceil(count / size));
     const result = { outcome: "WORK_QUERY", reply: `${store.name} · ${storeAccess && !intent.memberName ? "全店" : intent.memberName ?? member.displayName}\n营业日 ${range.from} 至 ${range.to}（${store.timezone}；${intent.status ?? "CONFIRMED"}）\n${lines.join("\n\n") || "本页没有记录"}\n\n全范围折后大费合计 ${money(totals._sum.discountedFeePerformanceCents)}；折扣 ${money(totals._sum.discountTotalCents)}；实收 ${money(totals._sum.actualServiceCollectedCents)}；小费 ${money(totals._sum.totalTipCents)}\n共 ${count} ${intent.groupBy && intent.groupBy !== "RECORD" ? "组" : "笔"}，第 ${page}/${pages} 页${page < pages ? "。更多请重复查询并注明第 " + (page + 1) + " 页。" : "。"}` };
@@ -333,7 +334,7 @@ export class WorkBotService {
     } else if (intent.operation === "PAYMENT") throw new BadRequestException("请提供付款明细");
     await transaction.auditLog.create({ data: { storeId: group.storeId, actorUserId: null, actorMembershipId: binding.membershipId, source: "langbot", action: `work_bot.${intent.operation.toLowerCase()}`, entityType: "work_record", entityId: record.id, afterJson: { messageId: input.messageId, operation: intent.operation }, requestId } });
     const updated = await transaction.workRecord.findUniqueOrThrow({ where: { id: record.id } });
-    return this.persistReply(transaction, input, intent, { outcome: "WORK_MANAGED", recordId: record.id, businessDate: updated.businessDate.toISOString().slice(0, 10), reply: `✅ 记工${intent.operation === "DELETE" ? "已删除" : intent.operation === "RESTORE" ? "已恢复" : "已更新"}：${record.id}\n折后大费 ${this.formatMoney(updated.discountedFeePerformanceCents)}；实收 ${updated.actualServiceCollectedCents === null ? "未收款" : this.formatMoney(updated.actualServiceCollectedCents)}；${updated.isHighlighted ? "已高亮" : "未高亮"}。` }, group);
+    return this.persistReply(transaction, input, intent, { outcome: "WORK_MANAGED", recordId: record.id, businessDate: updated.businessDate.toISOString().slice(0, 10), reply: `✅ 记工${intent.operation === "DELETE" ? "已删除" : intent.operation === "RESTORE" ? "已恢复" : "已更新"}：${record.id}\n折后大费 ${formatWorkBotMoney(updated.discountedFeePerformanceCents)}；实收 ${updated.actualServiceCollectedCents === null ? "未收款" : formatWorkBotMoney(updated.actualServiceCollectedCents)}；${updated.isHighlighted ? "已高亮" : "未高亮"}。` }, group);
   }
 
   async getSettings(actor: User, storeId: string) {
@@ -702,7 +703,7 @@ export class WorkBotService {
     });
     const availability = workBotAvailability(members, now, store.timezone);
     return this.persistReply(transaction, input, intent, {
-      outcome: "WORK_STARTED", reply: `✅ ${employee.displayName} 已上工：${alias.serviceItem.shortName} ${durationMinutes} 分钟，开始 ${this.formatTime(startAt, store.timezone)}，预计 ${this.formatTime(endAt, store.timezone)}。\n${availability}`,
+      outcome: "WORK_STARTED", reply: `✅ ${employee.displayName} 已上工：${alias.serviceItem.shortName} ${durationMinutes} 分钟，开始 ${formatWorkBotTime(startAt, store.timezone)}，预计 ${formatWorkBotTime(endAt, store.timezone)}。\n${availability}`,
       recordId: record.id, businessDate,
     }, group);
   }
@@ -766,10 +767,10 @@ export class WorkBotService {
     if (intent.kind === "FINISH") {
       const cash = intent.paymentMethod === "CASH";
       await service.confirmPayment(actor, group.storeId, record.id, confirmPaymentSchema.parse({ version: updated.version,
-        cashServiceCents: cash ? Number(this.parseDollars(intent.serviceAmount)) : 0,
-        cardServiceCents: cash ? 0 : Number(this.parseDollars(intent.serviceAmount)),
-        cashTipCents: cash ? Number(this.parseDollars(intent.tipAmount)) : 0,
-        cardTipCents: cash ? 0 : Number(this.parseDollars(intent.tipAmount)),
+        cashServiceCents: cash ? Number(parseWorkBotDollars(intent.serviceAmount)) : 0,
+        cardServiceCents: cash ? 0 : Number(parseWorkBotDollars(intent.serviceAmount)),
+        cashTipCents: cash ? Number(parseWorkBotDollars(intent.tipAmount)) : 0,
+        cardTipCents: cash ? 0 : Number(parseWorkBotDollars(intent.tipAmount)),
       }), key, requestId, transaction);
     }
     const final = await transaction.workRecord.findUniqueOrThrow({ where: { id: record.id }, include: { discountSnapshots: true, addonSnapshots: true } });
@@ -777,30 +778,30 @@ export class WorkBotService {
     if (intent.kind === "FINISH") {
       const amounts: string[] = [];
       if (final.mainServiceAmountCents !== final.actualServiceCollectedCents) {
-        amounts.push(`项目金额 ${this.formatMoney(final.mainServiceAmountCents)}`);
+        amounts.push(`项目金额 ${formatWorkBotMoney(final.mainServiceAmountCents)}`);
       }
       const details: string[] = [];
       if (final.addonSnapshots.length || final.addonTotalCents !== 0n) {
-        amounts.push(`加项 ${this.formatMoney(final.addonTotalCents)}`);
+        amounts.push(`加项 ${formatWorkBotMoney(final.addonTotalCents)}`);
         if (final.addonSnapshots.length) details.push(`加项：${final.addonSnapshots.map(a => a.name).join("、")}`);
       }
       if (final.discountSnapshots.length || final.discountTotalCents !== 0n) {
-        amounts.push(`折扣 ${this.formatMoney(final.discountTotalCents)}`);
+        amounts.push(`折扣 ${formatWorkBotMoney(final.discountTotalCents)}`);
         if (final.discountSnapshots.length) details.push(`折扣项：${final.discountSnapshots.map(d => d.name).join("、")}`);
       }
       const lines = [
         `✅ ${record.employee.displayName} 已下工`,
         ...(amounts.length ? [amounts.join("；")] : []),
-        `实收 ${final.actualServiceCollectedCents === null ? "未收款" : this.formatMoney(final.actualServiceCollectedCents)}；小费 ${this.formatMoney(final.totalTipCents ?? 0n)}${final.isHighlighted ? "；已高亮" : ""}`,
+        `实收 ${final.actualServiceCollectedCents === null ? "未收款" : formatWorkBotMoney(final.actualServiceCollectedCents)}；小费 ${formatWorkBotMoney(final.totalTipCents ?? 0n)}${final.isHighlighted ? "；已高亮" : ""}`,
       ];
       if (details.length) lines.push(details.join("；"));
       if (final.actualServiceCollectedCents !== null && final.actualServiceCollectedCents !== final.discountedFeePerformanceCents) {
         const difference = final.actualServiceCollectedCents - final.discountedFeePerformanceCents;
-        lines.push(`⚠️ 金额不一致：应收 ${this.formatMoney(final.discountedFeePerformanceCents)}，${difference < 0n ? "少收" : "多收"} ${this.formatMoney(difference < 0n ? -difference : difference)}`);
+        lines.push(`⚠️ 金额不一致：应收 ${formatWorkBotMoney(final.discountedFeePerformanceCents)}，${difference < 0n ? "少收" : "多收"} ${formatWorkBotMoney(difference < 0n ? -difference : difference)}`);
       }
       return this.persistReply(transaction, input, intent, { outcome: "WORK_FINISHED", recordId: record.id, businessDate: record.businessDate.toISOString().slice(0, 10), reply: lines.join("\n") }, group);
     }
-    return this.persistReply(transaction, input, intent, { outcome: "WORK_ADJUSTED", recordId: record.id, businessDate: record.businessDate.toISOString().slice(0, 10), reply: `✅ ${record.employee.displayName} 记工已更新\n项目金额 ${this.formatMoney(final.mainServiceAmountCents)}；加项 ${this.formatMoney(final.addonTotalCents)}；折扣 ${this.formatMoney(final.discountTotalCents)}；折后大费 ${this.formatMoney(final.discountedFeePerformanceCents)}\n实收 ${final.actualServiceCollectedCents === null ? "未收款" : this.formatMoney(final.actualServiceCollectedCents)}；小费 ${this.formatMoney(final.totalTipCents ?? 0n)}；${final.isHighlighted ? "已高亮" : "未高亮"}\n折扣项：${final.discountSnapshots.map(d => d.name).join("、") || "无"}；加项：${final.addonSnapshots.map(a => a.name).join("、") || "无"}\n编号 ${record.id}` }, group);
+    return this.persistReply(transaction, input, intent, { outcome: "WORK_ADJUSTED", recordId: record.id, businessDate: record.businessDate.toISOString().slice(0, 10), reply: `✅ ${record.employee.displayName} 记工已更新\n项目金额 ${formatWorkBotMoney(final.mainServiceAmountCents)}；加项 ${formatWorkBotMoney(final.addonTotalCents)}；折扣 ${formatWorkBotMoney(final.discountTotalCents)}；折后大费 ${formatWorkBotMoney(final.discountedFeePerformanceCents)}\n实收 ${final.actualServiceCollectedCents === null ? "未收款" : formatWorkBotMoney(final.actualServiceCollectedCents)}；小费 ${formatWorkBotMoney(final.totalTipCents ?? 0n)}；${final.isHighlighted ? "已高亮" : "未高亮"}\n折扣项：${final.discountSnapshots.map(d => d.name).join("、") || "无"}；加项：${final.addonSnapshots.map(a => a.name).join("、") || "无"}\n编号 ${record.id}` }, group);
   }
 
   private async requireBoundMember(transaction: Prisma.TransactionClient, input: WorkBotEventInput, intent: WorkBotParsedIntent): Promise<{ group: Awaited<ReturnType<WorkBotService["findGroupBinding"]>> & {}; binding: NonNullable<Awaited<ReturnType<typeof transaction.workBotMemberBinding.findUnique>>> } | { reply: WorkBotReply }> {
@@ -921,23 +922,6 @@ export class WorkBotService {
   private integrationActorId(secret: string): string {
     const hex = createHash("sha256").update(`massage-note-work-bot:${secret}`).digest("hex").slice(0, 32);
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
-  }
-
-  private parseDollars(value: string): bigint {
-    const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value);
-    if (!match) throw new BadRequestException({ code: "WORK_BOT_AMOUNT_INVALID", messageZh: "金额必须是整数或最多两位小数" });
-    const cents = BigInt(match[1]!) * 100n + BigInt((match[2] ?? "").padEnd(2, "0") || "0");
-    if (cents > BigInt(Number.MAX_SAFE_INTEGER)) throw new BadRequestException({ code: "AMOUNT_TOTAL_TOO_LARGE", messageZh: "金额超出系统允许范围" });
-    return cents;
-  }
-
-  private formatMoney(value: bigint): string {
-    const absolute = value < 0n ? -value : value;
-    return `${value < 0n ? "-" : ""}$${absolute / 100n}.${(absolute % 100n).toString().padStart(2, "0")}`;
-  }
-
-  private formatTime(value: Date, timezone: string): string {
-    return new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(value);
   }
 
   private aliasNotFound(): never { throw new NotFoundException({ code: "WORK_BOT_ALIAS_NOT_FOUND", messageZh: "没有找到这个记工黑话" }); }

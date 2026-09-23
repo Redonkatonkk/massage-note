@@ -47,6 +47,7 @@ interface TodayBoardProps {
   store: StoreDetails;
   currentDay: CurrentBusinessDay;
   isCurrentBusinessDay: boolean;
+  isFutureBusinessDay: boolean;
   board: BoardResponse;
   catalog: CatalogResponse;
   members: StoreMember[];
@@ -101,6 +102,7 @@ export function TodayBoard({
   store,
   currentDay,
   isCurrentBusinessDay,
+  isFutureBusinessDay,
   board,
   catalog,
   members,
@@ -233,6 +235,7 @@ export function TodayBoard({
   const canGenerateRanking = canGenerateDailyRanking({
     canManage,
     enabled: board.ranking.enabled,
+    isFutureBusinessDay,
     isCurrentBusinessDay,
     isClosed: board.isClosed,
     activeRowCount,
@@ -408,7 +411,7 @@ export function TodayBoard({
 
   async function rankBoard() {
     await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rank`, { method: "POST", idempotent: true, body: { version: board.version } });
-    setNotice("已按历史名次生成今日顺序");
+    setNotice(isCurrentBusinessDay ? "已按历史名次生成今日顺序" : "已按历史名次生成所选日期顺序");
     await onReload();
   }
 
@@ -639,7 +642,7 @@ export function TodayBoard({
       {canManage && !board.isClosed && <BoardEmployeePicker
         key={`${membership.store.id}:${currentDay.businessDate}`}
         members={availableMembers}
-        rankingAction={canGenerateRanking ? { label: dailyRankingActionLabel(board.ranking.rankedAt), onClick: () => run(rankBoard) } : undefined}
+        rankingAction={canGenerateRanking ? { label: dailyRankingActionLabel(board.ranking.rankedAt, isCurrentBusinessDay), onClick: () => run(rankBoard) } : undefined}
         rankingHelp={<RankingExplanationButton board={board} />}
         empty={activeRowCount === 0}
         disabled={busy}

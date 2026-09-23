@@ -93,7 +93,7 @@ tail -n 50 "$HOME/Library/Application Support/Massage Note Messages Agent/agent-
 | macOS 26 账户枚举报 `-10000` | 逐账户读取 `service type` 时必须各自包在 `try` 内，忽略无法转换的额外账户类型 |
 | PNG 显示 `0 KB / 原大小`，或出现 `fileTransfer rejected error 30`、`IMFileTransfer error 15` | 确认交给 AppleScript 的路径位于 Messages 专用附件目录，再运行暂存程序 `--diagnose` |
 | 非 Apple 号码图片失败 | iPhone 短信转发、运营商 MMS/RCS 和已连接 SMS 账户 |
-| 结算长图无法发送 | 确认代理为 `0.12.46` 或更高，并检查图片是否超过 32,760 像素或 4 MB；超限时缩短结算区间 |
+| 结算长图无法发送 | 确认已按本手册更新代理（心跳版本读取随包 `package.json`），并检查图片是否超过 32,760 像素或 4 MB；超限时缩短结算区间 |
 
 遇到附件读取问题时，不要改用模拟键盘、剪贴板粘贴、相册最近项、复制私有 `com.apple.macl` 属性，或操作 Messages/Photos 数据库。正式代理不需要“辅助功能”权限。
 

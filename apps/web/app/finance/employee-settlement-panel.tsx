@@ -6,11 +6,10 @@ import { groupEmployeeSettlementRecordsByDay, type EmployeeSettlementDaySummary 
 import { formatUsdPrecise } from "../../lib/money";
 import type { EmployeeSettlementDelivery, EmployeeSettlementDeliveryList, EmployeeSettlementPaymentScope, EmployeeSettlementPreview, StoreMember } from "../../lib/types";
 import { useLanguage } from "../language-provider";
+import { dateOnly, shiftDate } from "./date-utils";
 
 const money = (value: number) => formatUsdPrecise(value);
-const dateOnly = (value: string) => value.slice(0, 10);
 const scopeLabel = (scope: EmployeeSettlementPaymentScope) => scope === "CASH" ? "现金" : scope === "NON_CASH" ? "刷卡＋礼物卡" : "全部";
-const shiftDate = (value: string, days: number) => { const date = new Date(`${value}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + days); return date.toISOString().slice(0, 10); };
 const time = (value: string | null, timezone: string) => value ? new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)) : "—";
 const recordName = (record: EmployeeSettlementPreview["records"][number]) => [record.serviceShortName || record.serviceName, ...record.addons.map((item) => item.shortName || item.name)].join(" ＋ ");
 

@@ -237,14 +237,18 @@ export function GiftCardSales({
                 disabled={!canEdit}
                 onClick={() => openEdit(sale)}
               >
-                <span><small>序列号</small><strong>{sale.serialNumber}</strong></span>
+                <span className="gift-card-sale-card__serial"><small>序列号</small><strong title={sale.serialNumber}>{sale.serialNumber}</strong></span>
                 <b>面值 {money(sale.faceValueCents)}</b>
-                <span className="gift-card-sale-card__payments">{giftCardActualDiscount(sale.faceValueCents, sale.amountCents)} · 实收 {money(sale.amountCents)}</span>
+                {sale.discountRateBps > 0 && (
+                  <span className="gift-card-sale-card__payments">{giftCardActualDiscount(sale.faceValueCents, sale.amountCents)}</span>
+                )}
                 <span className="gift-card-sale-card__payments gift-card-sale-card__payment-methods">
-                  {sale.cashCents > 0 && <span>现金 {money(sale.cashCents)}</span>}
-                  {sale.cardCents > 0 && <span>刷卡 <span className="gift-card-sale-card__card-amount">{money(sale.cardCents)}</span></span>}
+                  <span>实收</span>
+                  {sale.cashCents > 0 && <span aria-label={`现金 ${money(sale.cashCents)}`}>{money(sale.cashCents)}</span>}
+                  {sale.cashCents > 0 && sale.cardCents > 0 && <span aria-hidden="true">＋</span>}
+                  {sale.cardCents > 0 && <span className="gift-card-sale-card__card-amount" aria-label={`刷卡 ${money(sale.cardCents)}`}>{money(sale.cardCents)}</span>}
                 </span>
-                <span className="gift-card-sale-card__operator">操作人 · {sale.operator.displayName}</span>
+                <span className="gift-card-sale-card__operator" title={`操作人 · ${sale.operator.displayName}`}>操作人 · {sale.operator.displayName}</span>
               </button>
             ))}
             {canEdit && (

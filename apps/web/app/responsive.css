@@ -410,5 +410,14 @@ button, summary { overflow-wrap: anywhere; }
 
 .lost-customers__form input[type="number"] { box-sizing: border-box; width: 100%; max-width: 180px; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: var(--surface); color: var(--ink); }
 
-.gift-card-sale-card__payment-methods { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.gift-card-sale-card { min-height: 132px; padding: 8px 12px; gap: 3px; align-content: center; line-height: 1.25; }
+.gift-card-sale-card b { font-size: 1.125rem; }
+.gift-card-sale-card > .gift-card-sale-card__serial:first-child { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.gift-card-sale-card__serial small { flex-shrink: 0; }
+.gift-card-sale-card__operator { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gift-card-sale-card__payment-methods { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: center; }
+.gift-card-sales__add { min-height: 132px; }
+@media (max-width: 640px) {
+  .gift-card-sale-card, .gift-card-sales__add { min-height: 138px; }
+}
 .gift-card-sale-card__card-amount { display: inline-block; border: 1px solid currentColor; border-radius: 4px; padding: 2px 6px; }

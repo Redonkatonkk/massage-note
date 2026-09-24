@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
-import { giftCardSerialNumberForCreate } from "../lib/gift-card";
+import { giftCardActualDiscount, giftCardSerialNumberForCreate } from "../lib/gift-card";
 import { formatMoneyInput, formatUsd } from "../lib/money";
 import type { GiftCardSale, StoreDetails, StoreMember } from "../lib/types";
 
@@ -68,6 +68,12 @@ export function GiftCardSales({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(""), 3_000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
   const cashCents = cashAmount.trim() === ""
     ? 0
     : /^\d+(?:\.\d{0,2})?$/.test(cashAmount.trim())
@@ -107,6 +113,7 @@ export function GiftCardSales({
   const payableCents = faceValueCents === null ? null : faceValueCents - discountCents;
 
   function openCreate() {
+    setNotice("");
     setEditing(null);
     setSerialNumber(nextSerialNumber);
     setSerialNumberWasEdited(false);
@@ -122,6 +129,7 @@ export function GiftCardSales({
   }
 
   function openEdit(sale: GiftCardSale) {
+    setNotice("");
     setEditing(sale);
     setSerialNumber(sale.serialNumber);
     setFaceValueAmount(dollars(sale.faceValueCents));
@@ -210,7 +218,6 @@ export function GiftCardSales({
         <header className="gift-card-sales__compact-header">
           <div>
             <h2>礼物卡销售</h2>
-            <p><span>{sales.length} 张 · 实际收入</span> <strong>{money(0)}</strong></p>
           </div>
           {canEdit && <button className="secondary-action compact" type="button" onClick={openCreate}><span aria-hidden="true">＋</span>记录卖卡</button>}
         </header>
@@ -218,13 +225,7 @@ export function GiftCardSales({
         <>
           <header className="gift-card-sales__header">
             <div>
-              <p className="eyebrow">店铺项目</p>
               <h2>礼物卡销售</h2>
-              <p>先输入礼物卡面值，系统按售出时的折扣规则计算应付；实际收款计入店铺收入，不参与员工分成。</p>
-            </div>
-            <div className="gift-card-sales__summary">
-              <span>{sales.length} 张 · 实际收入</span>
-              <strong>{money(sales.reduce((sum, sale) => sum + sale.amountCents, 0))}</strong>
             </div>
           </header>
           <div className="gift-card-sales__track">
@@ -238,8 +239,11 @@ export function GiftCardSales({
               >
                 <span><small>序列号</small><strong>{sale.serialNumber}</strong></span>
                 <b>面值 {money(sale.faceValueCents)}</b>
-                <span className="gift-card-sale-card__payments">折扣 -{money(sale.discountCents)} · 实收 {money(sale.amountCents)}</span>
-                <span className="gift-card-sale-card__payments">现金 {money(sale.cashCents)} · 刷卡 {money(sale.cardCents)}</span>
+                <span className="gift-card-sale-card__payments">{giftCardActualDiscount(sale.faceValueCents, sale.amountCents)} · 实收 {money(sale.amountCents)}</span>
+                <span className="gift-card-sale-card__payments gift-card-sale-card__payment-methods">
+                  {sale.cashCents > 0 && <span>现金 {money(sale.cashCents)}</span>}
+                  {sale.cardCents > 0 && <span>刷卡 <span className="gift-card-sale-card__card-amount">{money(sale.cardCents)}</span></span>}
+                </span>
                 <span className="gift-card-sale-card__operator">操作人 · {sale.operator.displayName}</span>
               </button>
             ))}
@@ -265,7 +269,7 @@ export function GiftCardSales({
               {!editing && <p className="field-help gift-card-sale-form__serial-help">默认使用系统建议号码；也可以直接修改为自定义号码，保存时会检查同店重复。多人同时使用默认号码时，以保存后的号码为准。</p>}
               <label className="field-label gift-card-sale-form__face-value">礼物卡总金额（美元）<input autoFocus={!editing} inputMode="decimal" placeholder="例如 100" value={faceValueAmount} onChange={(event) => setFaceValueAmount(event.target.value)} /></label>
               <div className="gift-card-sale-discount">
-                <span>自动折扣</span>
+                <span>规则折扣</span>
                 <strong>{discountCents > 0 ? `${(discountRateBps / 100).toFixed(2)}% · -${money(discountCents)}` : "本单无折扣"}</strong>
                 {discountRateBps > 0 && discountCents === 0 && <small>面值满 {money(discountThresholdCents)} 时应用 {(discountRateBps / 100).toFixed(2)}%</small>}
               </div>
@@ -274,6 +278,7 @@ export function GiftCardSales({
               <label className="field-label">操作人<select value={operatorMembershipId} onChange={(event) => setOperatorMembershipId(event.target.value)}><option value="">请选择员工</option>{activeMembers.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
               <div className="gift-card-sale-total"><span>折后应付金额</span><strong>{payableCents === null ? "请先输入礼物卡总金额" : money(payableCents)}</strong></div>
               <div className="gift-card-sale-payment-check"><span>现金＋刷卡</span><strong>{totalCents === null ? "请检查付款金额" : money(totalCents)}</strong></div>
+              <div className="gift-card-sale-payment-check"><span>实际折扣</span><strong>{faceValueCents !== null && faceValueCents > 0 && totalCents !== null && totalCents > 0 ? giftCardActualDiscount(faceValueCents, totalCents) : "填写面值和实收后自动计算"}</strong></div>
             </div>
             {error && <p className="form-error" role="alert">{error}</p>}
             <footer className="editor-actions gift-card-sale-actions">

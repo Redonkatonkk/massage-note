@@ -59,16 +59,19 @@ describe.skipIf(!enabled).sequential("跑客记录", () => {
       lostCustomers.create(actor(employeeId), storeId, input, "lost-customer-create-key-01", "lost-create-2"),
     ]);
     expect(replayed.id).toBe(created.id);
+    expect(created.customerCount).toBe(1);
     expect(created.note).toBe("带客户了解礼物卡");
     expect(await prisma.auditLog.count({ where: { storeId, entityType: "lost_customer", entityId: created.id, action: "lost_customer.created" } })).toBe(1);
     expect(await prisma.domainOutbox.count({ where: { storeId, aggregateType: "lost_customer", aggregateId: created.id } })).toBe(1);
     expect(await lostCustomers.list(actor(employeeId), storeId, { businessDate })).toMatchObject([{ id: created.id, occurredTime: "09:05", note: "带客户了解礼物卡", version: 1 }]);
-    const updated = await lostCustomers.update(actor(employeeId), storeId, created.id, { version: 1, occurredTime: "09:20", note: "客户考虑中" }, "lost-customer-update-key-01", "lost-update");
+    const updated = await lostCustomers.update(actor(employeeId), storeId, created.id, { version: 1, occurredTime: "09:20", note: "客户考虑中", customerCount: 4 }, "lost-customer-update-key-01", "lost-update");
     expect(updated).toMatchObject({ occurredTime: "09:20", note: "客户考虑中", version: 2 });
     const updatedAudit = await prisma.auditLog.findFirstOrThrow({ where: { storeId, entityType: "lost_customer", entityId: created.id, action: "lost_customer.updated" } });
     expect(updatedAudit.beforeJson).toMatchObject({ note: "带客户了解礼物卡" });
-    expect(updatedAudit.afterJson).toMatchObject({ note: "客户考虑中" });
+    expect(updatedAudit.afterJson).toMatchObject({ note: "客户考虑中", customerCount: 4 });
     const preserved = await lostCustomers.update(actor(employeeId), storeId, created.id, { version: 2, occurredTime: "09:25" }, "lost-customer-update-key-02", "lost-update-preserve");
+    expect(preserved.customerCount).toBe(4);
+    expect((await lostCustomers.list(actor(employeeId), storeId, { businessDate }))[0]!.customerCount).toBe(4);
     expect(preserved.note).toBe("客户考虑中");
     const cleared = await lostCustomers.update(actor(employeeId), storeId, created.id, { version: 3, occurredTime: "09:25", note: "" }, "lost-customer-update-key-03", "lost-update-clear");
     expect(cleared.note).toBe("");

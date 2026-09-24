@@ -21,7 +21,7 @@ describe.skipIf(!enabled).sequential("经营分析数据库与权限", () => {
     await prisma.giftCardSale.createMany({ data: [false, true].map((deleted, index) => ({ storeId, businessDate: date, serialNumber: `analytics-${index}`, serialNumberNormalized: `analytics-${index}`, faceValueCents: 5000n, amountCents: 4500n, discountCents: 500n, cashCents: 4500n, cardCents: 0n, operatorMembershipId: memberId, createdBy: owner, updatedBy: owner, deletedAt: deleted ? new Date() : null })) });
     await prisma.lostCustomer.createMany({ data: [
       { businessDate: new Date("2026-01-04T00:00:00Z"), occurredTime: "09:30", deletedAt: null },
-      { businessDate: date, occurredTime: "10:30", deletedAt: null },
+      { businessDate: date, occurredTime: "10:30", customerCount: 3, deletedAt: null },
       { businessDate: date, occurredTime: "11:30", deletedAt: null },
       { businessDate: date, occurredTime: "12:30", deletedAt: new Date() },
     ].map(row => ({ storeId, ...row, createdBy: owner, updatedBy: owner })) });
@@ -41,7 +41,7 @@ describe.skipIf(!enabled).sequential("经营分析数据库与权限", () => {
     expect(result.dateFrom).toBe("2026-01-04");
     expect(result.hours[10]!.count).toBe(2);
     expect(result.days[0]).toMatchObject({ count: 0, lostCustomerCount: 1, revenueCents: null });
-    expect(result.days[1]).toMatchObject({ count: 2, lostCustomerCount: 2, revenueCents: null });
+    expect(result.days[1]).toMatchObject({ count: 2, lostCustomerCount: 4, revenueCents: null });
     await expect(service.analytics(actor(employee), storeId, {})).rejects.toThrow();
     await expect(service.analytics(actor(outsider), storeId, {})).rejects.toThrow();
     await expect(service.analytics(actor(owner), storeId, { dateFrom: "2026-01-06", dateTo: "2026-01-05" })).rejects.toThrow();

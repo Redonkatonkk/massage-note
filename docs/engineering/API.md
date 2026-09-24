@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.11.4`
+> 适用版本：`1.12.1`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -51,9 +51,9 @@
 | GET | `/stores/:storeId/business-days/current` | 设备当前营业日、设备时区及兼容旧截止字段 |
 | GET | `/stores/:storeId/business-days/open-work-dates` | 查询日期范围内有有效记工但尚未日结的营业日，供今日记工和财务日结日历标记；`dateFrom`、`dateTo` 必填，均包含端点，范围最多 63 天；Owner/Manager 返回全店日期，员工仅返回自己的记工日期 |
 | GET | `/stores/:storeId/boards/:businessDate` | 今日或历史记工表；包含该日有效礼物卡销售和店铺销售汇总；普通员工查看历史时仅返回本人行、班次、记工和本人统计，不返回全店卖卡记录 |
-| GET | `/stores/:storeId/lost-customers?businessDate=YYYY-MM-DD` | 读取所选营业日的有效跑客记录，按发生时间排序，返回 `id`、`storeId`、`businessDate`、`occurredTime`（设备本地 `HH:mm`）、`note`（备注，默认为空字符串）和 `version`；当前营业日对所有活跃成员开放，历史日期仅拥有者和经理可读 |
-| POST | `/stores/:storeId/lost-customers` | 记录一位跑客；body 为 `{ "businessDate": "YYYY-MM-DD", "occurredTime": "HH:mm", "note": "可选备注" }`，需 `Idempotency-Key` |
-| PATCH/DELETE | `/stores/:storeId/lost-customers/:recordId` | 修改跑客时间、备注或软删除；备注最多 500 字符并去除首尾空白，PATCH 省略 `note` 保留原备注，传空字符串清空；使用 `version`、`Idempotency-Key`、营业日锁，并在事务中写审计与 outbox |
+| GET | `/stores/:storeId/lost-customers?businessDate=YYYY-MM-DD` | 读取所选营业日的有效跑客记录，按发生时间排序，返回 `id`、`storeId`、`businessDate`、`occurredTime`（设备本地 `HH:mm`）、`customerCount`（客人数）、`note`（备注，默认为空字符串）和 `version`；当前营业日对所有活跃成员开放，历史日期仅拥有者和经理可读 |
+| POST | `/stores/:storeId/lost-customers` | 记录一次跑客；body 为 `{ "businessDate": "YYYY-MM-DD", "occurredTime": "HH:mm", "customerCount": 1, "note": "可选备注" }`，需 `Idempotency-Key` |
+| PATCH/DELETE | `/stores/:storeId/lost-customers/:recordId` | 修改跑客时间、人数、备注或软删除；`customerCount` 可选，1–999 整数，新增省略时为 1，修改省略时保留原人数；备注最多 500 字符并去除首尾空白，PATCH 省略 `note` 保留原备注，传空字符串清空；使用 `version`、`Idempotency-Key`、营业日锁，并在事务中写审计与 outbox |
 | POST | `/stores/:storeId/shifts/clock-in`、`shifts/:shiftId/clock-out` | 上下班；当前 Web 只向符合条件的普通员工显示“上班” |
 | POST | `/stores/:storeId/boards/:businessDate/rows` | 新增每日员工行 |
 | PATCH | `/stores/:storeId/boards/:businessDate/rows/:rowId` | 更新每日员工行；日结后必须先取消日结 |
@@ -336,7 +336,7 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 
 查询为独立的 `FinanceAnalyticsQuery`：可选 `dateFrom`、`dateTo`（ISO营业日期，包含两端）。省略起日取最早有效业务/日结日，省略止日取当前营业日；没有历史时起日等于止日。拒绝反向、未来结束日期和其他筛选参数。
 
-响应 `FinanceAnalyticsResponse`：`dateFrom`、`dateTo`、`hasData`，以及 `hours`（24项hour/count）、`days`（businessDate/count/lostCustomerCount/hours/revenueCents/averageCents/averageDayCount）、`weekdays`（7项weekday/closedDayCount/calendarDayCount/averageCents/hours）。weekday以0代表星期一；金额为整美分十进制字符串，无日结金额/无平均样本为null；weekdays.hours为24项累计笔数；days.hours为该营业日的24项小时笔数，记工和跑客均无数据的日期补零，只有跑客的日期仍返回，小时沿用记工时区快照。每日数量图把跑客数量显示在记工数量上方，0笔跑客不绘制额外区段。
+响应 `FinanceAnalyticsResponse`：`dateFrom`、`dateTo`、`hasData`，以及 `hours`（24项hour/count）、`days`（businessDate/count/lostCustomerCount/hours/revenueCents/averageCents/averageDayCount）、`weekdays`（7项weekday/closedDayCount/calendarDayCount/averageCents/hours）。weekday以0代表星期一；金额为整美分十进制字符串，无日结金额/无平均样本为null；weekdays.hours为24项累计笔数；days.hours为该营业日的24项小时笔数，记工和跑客均无数据的日期补零，只有跑客的日期仍返回，小时沿用记工时区快照。每日跑客数量按有效记录的 `customerCount` 求和；每日数量图把跑客数量显示在记工数量上方，0笔跑客不绘制额外区段。
 
 跑客写入沿用记工营业日权限：普通员工仅可写当前营业日，拥有者和经理可写未日结历史营业日；未来日期不允许写入，日结营业日锁定。发生时间使用设备本地 `HH:mm` 墙上时间，与记工页营业日的设备时区规则一致。跑客仅记录人数、发生时间和可选备注，不形成服务、收入、工资或其他财务金额。
 

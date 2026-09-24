@@ -51,9 +51,9 @@ describe("经营分析历史口径", () => {
   it("统计跑客数量，不影响成功记工和小时；只有跑客时也算有数据", () => {
     const result = calculateFinanceAnalytics({ dateFrom: "2026-09-14", dateTo: "2026-09-15",
       records: [record("2026-09-14", "2026-09-14T15:00:00Z")], sales: [], closedDates: [],
-      lostCustomers: [{ businessDate: "2026-09-14" }, { businessDate: "2026-09-14" }, { businessDate: "2026-09-15" }],
+      lostCustomers: [{ businessDate: "2026-09-14", customerCount: 3 }, { businessDate: "2026-09-14", customerCount: 2 }, { businessDate: "2026-09-15" }],
     });
-    expect(result.days.map(day => day.lostCustomerCount)).toEqual([2, 1]);
+    expect(result.days.map(day => day.lostCustomerCount)).toEqual([5, 1]);
     expect(result.days[0]!.count).toBe(1);
     expect(result.hours.reduce((sum, hour) => sum + hour.count, 0)).toBe(1);
     const lostOnly = calculateFinanceAnalytics({ dateFrom: "2026-09-14", dateTo: "2026-09-14", records: [], sales: [], closedDates: [], lostCustomers: [{ businessDate: "2026-09-14" }] });

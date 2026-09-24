@@ -1242,7 +1242,7 @@ Object.assign(ENGLISH_TRANSLATIONS, {
   // Gift-card sales and gift-card payments.
   "礼物卡": "Gift card",
   "跑客记录": "Lost customers",
-  "记工页礼物卡与跑客始终并排，仅一栏有记录时该栏占主要宽度，两栏都有记录或都为空时各占一半；保存和删除提示 3 秒后消失。每条代表一位客人，可填写时间和可选备注（最多 500 字符）；点击记录可以修改时间、备注或删除。经营分析的每日记工数量图会在记工柱上方叠加跑客数量，没有跑客时不显示；跑客不影响收入、工资和结算。": "Gift card sales and lost customers stay side by side. When only one has records, it takes most of the width; when both have records or both are empty, each takes half. Save and delete notices disappear after 3 seconds. Each record represents one customer with a time and optional note (up to 500 characters); select a record to edit its time or note, or delete it. Daily service counts in Business analytics show lost customers stacked above service records only when present. Lost customers do not affect revenue, wages, or settlements.",
+  "记工页礼物卡与跑客始终并排，仅一栏有记录时该栏占主要宽度，两栏都有记录或都为空时各占一半；保存和删除提示 3 秒后消失。每条可设置客人数（默认 1 位），填写时间和可选备注（最多 500 字符）；点击记录可以修改人数、时间、备注或删除。经营分析的每日记工数量图会在记工柱上方叠加跑客数量，没有跑客时不显示；跑客不影响收入、工资和结算。": "Gift card sales and lost customers stay side by side. When only one has records, it takes most of the width; when both have records or both are empty, each takes half. Save and delete notices disappear after 3 seconds. Each record has an editable customer count (default 1), a time and an optional note (up to 500 characters); select a record to edit its customer count, time or note, or delete it. Daily service counts in Business analytics show lost customers stacked above service records only when present. Lost customers do not affect revenue, wages, or settlements.",
   "礼物卡销售": "Gift card sales",
   "店铺礼物卡销售": "Store gift card sales",
   "店铺项目": "Store item",

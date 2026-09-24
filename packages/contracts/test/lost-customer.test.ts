@@ -28,3 +28,16 @@ describe("跑客备注契约", () => {
     expect(updateLostCustomerSchema.parse({ version: 1, occurredTime: "09:20", note: "" }).note).toBe("");
   });
 });
+
+
+describe("跑客人数", () => {
+  it("兼容省略人数，允许正整数并拒绝零、负数、小数和超限值", () => {
+    const input = { businessDate: "2026-09-23", occurredTime: "13:00" };
+    expect(createLostCustomerSchema.parse(input).customerCount).toBeUndefined();
+    expect(createLostCustomerSchema.parse({ ...input, customerCount: 3 }).customerCount).toBe(3);
+    for (const customerCount of [0, -1, 1.5, 1000]) {
+      expect(createLostCustomerSchema.safeParse({ ...input, customerCount }).success).toBe(false);
+      expect(updateLostCustomerSchema.safeParse({ version: 1, occurredTime: "13:00", customerCount }).success).toBe(false);
+    }
+  });
+});

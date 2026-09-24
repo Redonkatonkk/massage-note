@@ -12,7 +12,7 @@ export function calculateFinanceAnalytics(input: {
   dateFrom: string; dateTo: string;
   records: { businessDate: string; startAt: Date; timezone: string; revenueCents: bigint }[];
   sales: { businessDate: string; revenueCents: bigint }[];
-  lostCustomers?: { businessDate: string }[];
+  lostCustomers?: { businessDate: string; customerCount?: number }[];
   closedDates: string[];
 }) {
   const { dateFrom, dateTo } = input;
@@ -25,7 +25,7 @@ export function calculateFinanceAnalytics(input: {
   const weekdays = Array.from({ length: 7 }, (_, weekday) => ({ weekday, closedDayCount: 0, calendarDayCount: 0, averageCents: null as string | null, hours: Array<number>(24).fill(0) }));
   const formatters = new Map<string, Intl.DateTimeFormat>();
   for (const row of input.lostCustomers ?? []) {
-    lostCustomerCounts.set(row.businessDate, (lostCustomerCounts.get(row.businessDate) ?? 0) + 1);
+    lostCustomerCounts.set(row.businessDate, (lostCustomerCounts.get(row.businessDate) ?? 0) + (row.customerCount ?? 1));
   }
   for (const row of input.records) {
     revenue.set(row.businessDate, (revenue.get(row.businessDate) ?? 0n) + row.revenueCents);

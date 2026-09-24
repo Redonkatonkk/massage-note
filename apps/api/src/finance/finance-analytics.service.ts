@@ -36,12 +36,12 @@ export class FinanceAnalyticsService {
         client.workRecord.findMany({ where: { ...base, businessDate }, select: { businessDate: true, startAt: true, storeTimezoneSnapshot: true, discountedFeePerformanceCents: true } }),
         client.giftCardSale.findMany({ where: { ...base, businessDate }, select: { businessDate: true, amountCents: true } }),
         client.businessDayClosing.findMany({ where: { ...closingBase, businessDate }, select: { businessDate: true }, distinct: ["businessDate"] }),
-        client.lostCustomer.findMany({ where: { ...base, businessDate }, select: { businessDate: true } }),
+        client.lostCustomer.findMany({ where: { ...base, businessDate }, select: { businessDate: true, customerCount: true } }),
       ]);
       return calculateFinanceAnalytics({ dateFrom, dateTo,
         records: records.map(r => ({ businessDate: dateOnly(r.businessDate), startAt: r.startAt, timezone: r.storeTimezoneSnapshot, revenueCents: r.discountedFeePerformanceCents })),
         sales: sales.map(r => ({ businessDate: dateOnly(r.businessDate), revenueCents: r.amountCents })),
-        lostCustomers: lostCustomers.map(r => ({ businessDate: dateOnly(r.businessDate) })),
+        lostCustomers: lostCustomers.map(r => ({ businessDate: dateOnly(r.businessDate), customerCount: r.customerCount })),
         closedDates: closings.map(r => dateOnly(r.businessDate)),
       });
     }, { isolationLevel: "RepeatableRead", timeout: 30000 });

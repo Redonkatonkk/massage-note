@@ -246,6 +246,9 @@ button, summary { overflow-wrap: anywhere; }
   .board-desktop-metrics strong { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 }
 
+/* Card-start snapping would override the add card's right-aligned home position. */
+.record-track { scroll-snap-type: none; }
+
 /* Expanded employee rows keep identity and totals beside the record track. */
 @media (min-width: 761px) {
   .employee-row:not(.employee-row--collapsed) { display: grid; grid-template-columns: 168px minmax(0, 1fr); }
@@ -421,3 +424,9 @@ button, summary { overflow-wrap: anywhere; }
   .gift-card-sale-card, .gift-card-sales__add { min-height: 138px; }
 }
 .gift-card-sale-card__card-amount { display: inline-block; border: 1px solid currentColor; border-radius: 4px; padding: 2px 6px; }
+
+@media (max-width: 480px) {
+  .employee-closing-record { grid-template-columns: minmax(0, 1fr) 116px; gap: 6px; padding: 10px 8px; }
+  .employee-closing-record-amounts { gap: 4px; }
+  .employee-closing-record-amount > strong { font-size: 1.1rem; padding: 2px 5px; }
+}

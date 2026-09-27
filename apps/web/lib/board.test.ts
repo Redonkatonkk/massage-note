@@ -6,9 +6,25 @@ import {
   deduplicateMembershipRows,
   discountBadgeText,
   recordPaymentDisplay,
+  recordTrackItems,
 } from "./board";
 
 describe("今日表格行整理", () => {
+  it("普通记工在左、新增居中，高亮按原时间顺序从右向左排列且不修改源记录", () => {
+    const records = [
+      { id: "early-highlight", isHighlighted: true },
+      { id: "ordinary", isHighlighted: false },
+      { id: "late-highlight", isHighlighted: true },
+    ];
+    expect(recordTrackItems(records, true).map((record) => record?.id ?? "add"))
+      .toEqual(["ordinary", "add", "late-highlight", "early-highlight"]);
+    expect(recordTrackItems(records, false).map((record) => record?.id))
+      .toEqual(["ordinary", "late-highlight", "early-highlight"]);
+    expect(records[0]?.id).toBe("early-highlight");
+    expect(recordTrackItems([], true)).toEqual([null]);
+    expect(recordTrackItems([], false)).toEqual([]);
+  });
+
   it("实时刷新异常返回重复成员时只保留第一行并保持顺序", () => {
     expect(deduplicateMembershipRows([
       { id: "row-1", membershipId: "member-1" },

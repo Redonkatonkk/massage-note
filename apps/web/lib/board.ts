@@ -1,5 +1,14 @@
 import { formatWholeDollarAmount } from "./money";
 
+/** API records are chronological; highlighted records read from right to left. */
+export function recordTrackItems<T extends { isHighlighted: boolean }>(records: readonly T[], canAdd: boolean): Array<T | null> {
+  return [
+    ...records.filter((record) => !record.isHighlighted),
+    ...(canAdd ? [null] : []),
+    ...records.filter((record) => record.isHighlighted).reverse(),
+  ];
+}
+
 export function deduplicateMembershipRows<T extends { membershipId: string }>(rows: T[]): T[] {
   const seen = new Set<string>();
   return rows.filter((row) => {

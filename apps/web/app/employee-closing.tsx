@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
 import { type AppLocale, translateText } from "../lib/i18n";
-import { formatUsd } from "../lib/money";
+import { formatUsd, formatWholeDollarAmount } from "../lib/money";
 import type { EmployeeClosingPreview, EmployeeClosingRecord } from "../lib/types";
 import { useStoreRealtime } from "../lib/realtime";
 import { useLanguage } from "./language-provider";
@@ -72,8 +72,15 @@ function recordLabel(record: EmployeeClosingRecord): string {
   return [record.serviceShortName || record.serviceName, ...addons].join(" ＋ ");
 }
 
-function paymentMoney(cents: number | null, locale: AppLocale = "zh-CN"): string {
-  return cents === null ? "—" : money(cents, locale);
+function recordAmounts(record: EmployeeClosingRecord) {
+  return [
+    { label: "大费", value: record.grossFeeBaseCents, card: (record.cardServiceCents ?? 0) > 0, gift: (record.giftCardServiceCents ?? 0) > 0 },
+    { label: "小费", value: record.totalTipCents, card: (record.cardTipCents ?? 0) > 0, gift: (record.giftCardTipCents ?? 0) > 0 },
+  ];
+}
+
+function recordAmount(value: number | null) {
+  return value === null ? "—" : formatWholeDollarAmount(value);
 }
 
 function roundedRect(
@@ -152,24 +159,11 @@ async function generateClosingImage(
     if (line) lines.push(line);
     return lines;
   };
-  const payments = (label: string, cash: number | null, card: number | null, gift: number | null) => {
-    const values = [["现金", cash], ["刷卡", card], ["礼卡", gift]] as const;
-    return `${tr(label)}  ${values.filter(([, value]) => value !== null && value !== 0)
-      .map(([kind, value]) => `${tr(kind)} ${paymentMoney(value, locale)}`).join(" · ") || "—"}`;
-  };
   const layouts = preview.records.map((record) => {
     const names = wrap(recordLabel(record), leftWidth, 11);
-    const metadata = wrap(`${recordTime(record.startAt, preview.storeTimezone, locale)}–${recordTime(record.endAt, preview.storeTimezone, locale)} · ${tr(record.status === "CONFIRMED" ? "已确认" : "待结账")}`, leftWidth, 8);
-    const left = [
-      ...wrap(`${tr("员工大费（折前）")} ${money(record.grossFeeBaseCents, locale)}`, leftWidth, 9),
-      ...wrap(`${tr("本笔收入")} ${paymentMoney(record.employeeIncomeCents, locale)}`, leftWidth, 9),
-    ];
-    const right = [
-      wrap(payments("大费实收", record.cashServiceCents, record.cardServiceCents, record.giftCardServiceCents), rightWidth, 9),
-      wrap(payments("小费", record.cashTipCents, record.cardTipCents, record.giftCardTipCents), rightWidth, 9),
-    ] as const;
-    const height = Math.max(names.length + metadata.length + left.length, right[0].length + right[1].length + 0.5) * lineHeight + 20 * scale;
-    return { names, metadata, left, right, height };
+    const metadata = wrap(`${recordTime(record.startAt, preview.storeTimezone, locale)}–${recordTime(record.endAt, preview.storeTimezone, locale)}${record.status === "CONFIRMED" ? "" : ` · ${tr("待结账")}`}`, leftWidth, 8);
+    const height = Math.max((names.length + metadata.length) * lineHeight + 20 * scale, 76 * scale);
+    return { names, metadata, amounts: recordAmounts(record), height };
   });
   const logicalHeight = Math.ceil(margin * 2 + 290 * scale + layouts.reduce((sum, row) => sum + row.height + 7 * scale, 0));
   canvas.width = Math.round(logicalWidth * pixelRatio);
@@ -249,7 +243,7 @@ async function generateClosingImage(
 
   context.fillStyle = "#6b635a";
   context.font = `800 ${Math.round(11 * scale)}px ${imageFont}`;
-  context.fillText(`${tr("逐笔记工")} · ${preview.records.length} ${tr("条")}`, margin, y + 12 * scale);
+  context.fillText(`${tr("逐笔记工")} · ${preview.records.length} ${tr("条")} · ${tr("方框表示含刷卡")}`, margin, y + 12 * scale);
   y += 22 * scale;
   layouts.forEach((row) => {
     fillRoundedRect(context, margin, y, contentWidth, row.height, 13 * scale, "rgba(255,255,255,.88)");
@@ -261,25 +255,30 @@ async function generateClosingImage(
     context.fillStyle = "#756b62";
     context.font = `800 ${Math.round(8 * scale)}px ${imageFont}`;
     row.metadata.forEach((line) => { context.fillText(line, margin + padding, leftY); leftY += lineHeight; });
-    row.left.forEach((line) => {
-      context.fillStyle = "#8e3e2f";
-      context.font = `800 ${Math.round(9 * scale)}px ${imageFont}`;
-      context.fillText(line, margin + padding, leftY);
-      leftY += lineHeight;
-    });
     const rightX = margin + padding * 2 + leftWidth;
-    context.strokeStyle = "#eadfd7";
-    context.beginPath();
-    context.moveTo(rightX - padding / 2, y + 10 * scale);
-    context.lineTo(rightX - padding / 2, y + row.height - 10 * scale);
-    context.stroke();
-    let rightY = y + 18 * scale;
-    context.font = `800 ${Math.round(9 * scale)}px ${imageFont}`;
-    context.fillStyle = "#514a43";
-    row.right.forEach((lines) => {
-      lines.forEach((line) => { context.fillText(line, rightX, rightY); rightY += lineHeight; });
-      rightY += lineHeight / 2;
+    const columnWidth = rightWidth / 2;
+    row.amounts.forEach((amount, index) => {
+      const centerX = rightX + columnWidth * (index + 0.5);
+      context.textAlign = "center";
+      context.fillStyle = "#756b62";
+      context.font = `600 ${Math.round(9 * scale)}px ${imageFont}`;
+      context.fillText(tr(amount.label), centerX, y + 19 * scale, columnWidth - 4 * scale);
+      context.fillStyle = "#211d18";
+      context.font = `800 ${Math.round(18 * scale)}px ${imageFont}`;
+      context.fillText(recordAmount(amount.value), centerX, y + 43 * scale, columnWidth - 12 * scale);
+      if (amount.card) {
+        context.strokeStyle = "#756b62";
+        context.lineWidth = scale;
+        roundedRect(context, centerX - columnWidth / 2 + 3 * scale, y + 25 * scale, columnWidth - 6 * scale, 25 * scale, 3 * scale);
+        context.stroke();
+      }
+      if (amount.gift) {
+        context.fillStyle = "#756b62";
+        context.font = `600 ${Math.round(8 * scale)}px ${imageFont}`;
+        context.fillText(tr("礼卡"), centerX, y + 63 * scale, columnWidth - 4 * scale);
+      }
     });
+    context.textAlign = "left";
     y += row.height + 7 * scale;
   });
 
@@ -462,7 +461,7 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
 
       <section className="employee-closing-records" aria-labelledby="employee-closing-records-title">
         <div className="employee-closing-section-heading">
-          <div><h3 id="employee-closing-records-title">逐笔记工</h3><p>员工大费显示折扣前金额；实收付款拆分仅供核对。</p></div>
+          <div><h3 id="employee-closing-records-title">逐笔记工</h3><p>大费为折前金额 · 方框表示含刷卡</p></div>
           <strong>{preview.records.length} 条</strong>
         </div>
         <div className="employee-closing-record-list">
@@ -473,29 +472,19 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
                   <span>#{index + 1} · {recordTime(record.startAt, preview.storeTimezone, locale)}–{recordTime(record.endAt, preview.storeTimezone, locale)}</span>
                   <strong>{recordLabel(record)}</strong>
                 </div>
-                <em>{record.status === "CONFIRMED" ? "已确认" : "待结账"}</em>
+                {record.status !== "CONFIRMED" && <em>待结账</em>}
               </header>
-              <div className="employee-closing-record-gross">
-                <span>员工大费（折前）</span>
-                <strong>{money(record.grossFeeBaseCents, locale)}</strong>
+              <div className="employee-closing-record-amounts">
+                {recordAmounts(record).map((amount) => (
+                  <div className="employee-closing-record-amount" key={amount.label}>
+                    <span>{amount.label}</span>
+                    <strong className={amount.card ? "is-card" : undefined} title={amount.card ? t("含刷卡付款") : undefined} aria-label={amount.card ? `${recordAmount(amount.value)} · ${t("含刷卡付款")}` : undefined}>
+                      {recordAmount(amount.value)}
+                    </strong>
+                    {amount.gift && <small>礼卡</small>}
+                  </div>
+                ))}
               </div>
-              <div className="employee-closing-payment-grid">
-                <span />
-                <b>现金</b><b>刷卡</b><b>礼物卡</b>
-                <strong>大费实收</strong>
-                <span>{paymentMoney(record.cashServiceCents, locale)}</span>
-                <span>{paymentMoney(record.cardServiceCents, locale)}</span>
-                <span>{paymentMoney(record.giftCardServiceCents, locale)}</span>
-                <strong>小费</strong>
-                <span>{paymentMoney(record.cashTipCents, locale)}</span>
-                <span>{paymentMoney(record.cardTipCents, locale)}</span>
-                <span>{paymentMoney(record.giftCardTipCents, locale)}</span>
-              </div>
-              <footer>
-                <span>大费工资 <strong>{money(record.totalLargeFeeWageCents, locale)}</strong></span>
-                <span>小费工资 <strong>{paymentMoney(record.totalTipCents, locale)}</strong></span>
-                <span className="total">本单收入 <strong>{paymentMoney(record.employeeIncomeCents, locale)}</strong></span>
-              </footer>
             </article>
           ))}
           {preview.records.length === 0 && <p className="employee-closing-empty">这个营业日还没有记工。</p>}

@@ -1,12 +1,17 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { BoardResponse } from "../lib/types";
 import { rankingOrderChanged, rankingReason } from "../lib/ranking-explanation";
+import { saveRankingImage } from "../lib/ranking-image";
 import { useLanguage } from "./language-provider";
 
 export function RankingExplanationButton({ board }: { board: BoardResponse }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const { locale } = useLanguage();
   const en = locale === "en-US";
   const text = (zh: string, english: string) => en ? english : zh;
@@ -16,13 +21,31 @@ export function RankingExplanationButton({ board }: { board: BoardResponse }) {
   const currentIds = board.rows.map((row) => row.membershipId);
   const ids = [...visible.map((row) => row.membershipId), ...board.rows.filter((row) => row.isHidden).map((row) => row.membershipId), ...(snapshot?.entries.filter((entry) => !currentIds.includes(entry.membershipId)).map((entry) => entry.membershipId) ?? [])];
 
+  async function saveImage() {
+    if (!content.current || !snapshot || savingRef.current) return;
+    // Capture all paragraphs before awaiting fonts; scrolling does not limit export.
+    const body = Array.from(content.current.querySelectorAll("h3, p, li"))
+      .map((node) => (node as HTMLElement).innerText).join("\n\n");
+    savingRef.current = true;
+    setSaving(true);
+    setSaveError(false);
+    try { await saveRankingImage(text("排序依据", "Ranking explanation"), body, board.businessDate); }
+    catch { setSaveError(true); }
+    finally { savingRef.current = false; setSaving(false); }
+  }
+
   return <>
     <button className="ranking-help-button" type="button" aria-label={text("查看所选日期排序依据", "View selected date's ranking explanation")} title={text("为什么这样排序？", "Why this order?")} aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>?</button>
     <dialog ref={dialog} className="board-delivery-dialog ranking-explanation-dialog" aria-labelledby="ranking-explanation-title" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
       <div className="modal-heading">
         <h2 id="ranking-explanation-title">{text("排序依据", "Ranking explanation")}</h2>
+        <div className="modal-heading__actions">
+          <button className="secondary-action compact" type="button" disabled={!snapshot || saving} onClick={() => void saveImage()}>{saving ? text("正在生成图片…", "Generating image…") : text("保存图片", "Save image")}</button>
         <button className="close-button" type="button" onClick={() => dialog.current?.close()}>{text("关闭", "Close")}</button>
+        </div>
       </div>
+      {saveError && <p role="alert" className="form-error">{text("图片保存失败，请重试。", "Could not save the image. Please try again.")}</p>}
+      <div ref={content}>
       {!snapshot ? <p>{board.ranking.rankedAt
         ? text("上次生成时尚未保存排序依据。重新生成所选日期顺序后即可查看；重新生成会覆盖手动顺序。", "The previous ranking has no saved explanation. Generate the order again to save one; this will replace manual ordering.")
         : text("尚未生成所选日期顺序。生成后，这里会逐人说明排位原因。", "No order has been generated for this date. Generate it to see an explanation for each employee.")}</p> : <>
@@ -47,6 +70,7 @@ export function RankingExplanationButton({ board }: { board: BoardResponse }) {
           })}
         </div>
       </>}
+      </div>
     </dialog>
   </>;
 }

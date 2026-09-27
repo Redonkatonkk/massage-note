@@ -2,7 +2,17 @@
 export function followRecordTrackEnd(track: HTMLDivElement) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const pointers = new Set<number>();
-  const atEnd = () => track.scrollWidth - track.clientWidth - track.scrollLeft <= 2;
+  const getTarget = () => {
+    const anchor = track.querySelector<HTMLElement>(".add-record");
+    if (!anchor) return Math.max(0, track.scrollWidth - track.clientWidth);
+    const trackRect = track.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
+    return Math.max(0, Math.min(
+      track.scrollWidth - track.clientWidth,
+      track.scrollLeft + anchorRect.right - trackRect.left - track.clientWidth + 16,
+    ));
+  };
+  const atTarget = () => Math.abs(track.scrollLeft - getTarget()) <= 2;
   const clearTimer = () => {
     clearTimeout(timer);
     timer = undefined;
@@ -10,13 +20,13 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
   const jump = (smooth = false) => {
     clearTimer();
     track.scrollTo({
-      left: track.scrollWidth,
+      left: getTarget(),
       behavior: smooth && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "instant",
     });
   };
   const schedule = () => {
     clearTimer();
-    if (!atEnd() && pointers.size === 0) timer = setTimeout(() => jump(true), 10_000);
+    if (!atTarget() && pointers.size === 0) timer = setTimeout(() => jump(true), 10_000);
   };
   const pointerDown = (event: PointerEvent) => {
     pointers.add(event.pointerId);
@@ -34,8 +44,14 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
     resize.observe(track);
     for (const child of track.children) resize.observe(child);
   };
-  const mutations = new MutationObserver(observeChildren);
-  mutations.observe(track, { childList: true });
+  const contentChanged = () => {
+    observeChildren();
+    // Reposition immediately only when already following. A pending return keeps
+    // its original deadline while the user is reading through updated content.
+    if (timer === undefined && pointers.size === 0) jump();
+  };
+  const mutations = new MutationObserver(contentChanged);
+  mutations.observe(track, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
   observeChildren();
   jump();
   track.addEventListener("scroll", schedule, { passive: true });

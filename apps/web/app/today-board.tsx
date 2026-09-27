@@ -8,6 +8,7 @@ import {
   compactPaymentAmount,
   discountBadgeText,
   recordPaymentDisplay,
+  recordTrackItems,
 } from "../lib/board";
 import { homeClosingAction } from "../lib/closing";
 import {
@@ -548,7 +549,12 @@ export function TodayBoard({
               {!isCollapsed && (
                 <div className={`employee-content${showTotals ? "" : " employee-content--records-only"}`}>
                   <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed}>
-                    {row.workRecords.map((record) => {
+                    {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
+                      if (record === null) return (
+                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickEmployeeId(row.membershipId); }}>
+                          <span aria-hidden="true">＋</span>新增记工
+                        </button>
+                      );
                       const hasPaymentMismatch = hasConfirmedPaymentMismatch(
                         record.status,
                         record.paymentDifferenceCents,
@@ -605,11 +611,6 @@ export function TodayBoard({
                       </button>
                       );
                     })}
-                    {!board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage) && (
-                      <button className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickEmployeeId(row.membershipId); }}>
-                        <span aria-hidden="true">＋</span>新增记工
-                      </button>
-                    )}
                   </RecordTrack>
                   {showTotals && <dl className="employee-totals">
                     <div><dt>大费</dt><dd>{money(row.statistics.grossFeeBaseCents)}</dd></div>

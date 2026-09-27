@@ -368,6 +368,13 @@ h2 {
   cursor: pointer;
 }
 
+/* Keep the add card and highlighted group at the right when the row fits. */
+.record-track > .add-record,
+.record-track > .record-card--highlighted:first-child,
+.record-track > .record-card:not(.record-card--highlighted) + .record-card--highlighted {
+  margin-left: auto;
+}
+
 .record-card {
   position: relative;
   display: flex;
@@ -2506,27 +2513,19 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 .employee-closing-section-heading h3 { margin: 0; font-size: 1rem; }
 .employee-closing-section-heading p { margin: 3px 0 0; color: var(--muted); font-size: .85rem; }
 .employee-closing-section-heading > strong { color: var(--brand); font-size: .85rem; }
-.employee-closing-record-list { display: grid; gap: 9px; }
-.employee-closing-record { overflow: hidden; border: 1px solid #e5d1c4; border-radius: 15px; background: #fff; }
+.employee-closing-record-list { display: grid; gap: 7px; }
+.employee-closing-record { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, .6fr); align-items: center; gap: 12px; padding: 12px; border: 1px solid #e5d1c4; border-radius: 10px; background: #fff; }
 .employee-closing-record.pending { border-color: #e2b77d; background: #fffaf1; }
-.employee-closing-record > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 8px; }
-.employee-closing-record > header > div { display: grid; min-width: 0; gap: 2px; }
-.employee-closing-record > header span { color: var(--muted); font-size: .85rem; }
-.employee-closing-record > header strong { overflow: hidden; font-size: .88rem; text-overflow: ellipsis; white-space: nowrap; }
-.employee-closing-record > header em { flex: 0 0 auto; padding: 4px 7px; border-radius: 999px; background: #e7f5ed; color: var(--success); font-size: .85rem; font-style: normal; font-weight: 800; }
-.employee-closing-record.pending > header em { background: #fff0d8; color: #8a4b08; }
-.employee-closing-record-gross { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 12px; border-top: 1px solid #eee2da; background: #fff8ef; }
-.employee-closing-record-gross span { color: var(--muted); font-size: .85rem; font-weight: 800; }
-.employee-closing-record-gross strong { color: var(--brand); font-size: 1rem; font-variant-numeric: tabular-nums; }
-.employee-closing-payment-grid { display: grid; grid-template-columns: minmax(54px, .7fr) repeat(3, minmax(62px, 1fr)); border-top: 1px solid #eee2da; border-bottom: 1px solid #eee2da; }
-.employee-closing-payment-grid > * { min-width: 0; padding: 6px 8px; border-right: 1px solid #eee2da; text-align: right; }
-.employee-closing-payment-grid > *:nth-child(4n) { border-right: 0; }
-.employee-closing-payment-grid b { background: #fbf7f3; color: var(--muted); font-size: .85rem; }
-.employee-closing-payment-grid strong { color: var(--muted); font-size: .85rem; text-align: left; }
-.employee-closing-payment-grid span { font-size: .85rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.employee-closing-record > footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 16px; padding: 8px 12px; color: var(--muted); font-size: .85rem; }
-.employee-closing-record > footer strong { color: var(--ink); font-size: .85rem; font-variant-numeric: tabular-nums; }
-.employee-closing-record > footer .total strong { color: var(--brand); }
+.employee-closing-record > header { display: grid; justify-items: start; min-width: 0; gap: 5px; }
+.employee-closing-record > header > div { display: grid; min-width: 0; gap: 4px; }
+.employee-closing-record > header span { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.employee-closing-record > header strong { font-size: .9rem; overflow-wrap: anywhere; }
+.employee-closing-record > header em { color: #8a4b08; font-size: .75rem; font-style: normal; }
+.employee-closing-record-amounts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; text-align: center; }
+.employee-closing-record-amount { display: grid; justify-items: center; align-content: start; gap: 4px; min-width: 0; }
+.employee-closing-record-amount > span, .employee-closing-record-amount > small { color: var(--muted); font-size: .75rem; }
+.employee-closing-record-amount > strong { max-width: 100%; padding: 2px 7px; border: 1px solid transparent; border-radius: 3px; font-size: 1.25rem; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.employee-closing-record-amount > strong.is-card { border-color: currentColor; }
 .employee-closing-empty { margin: 0; padding: 18px; border-radius: 13px; background: #f7f1ec; color: var(--muted); text-align: center; }
 .employee-closing-handoff { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 1.1fr); align-items: center; gap: 12px; margin: 14px 18px; }
 .employee-closing-handoff > div { display: grid; gap: 5px; }
@@ -2754,10 +2753,6 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
   .employee-closing-income-row { grid-template-columns: minmax(78px, 1.2fr) repeat(3, minmax(0, 1fr)); }
   .employee-closing-income-row > * { padding-inline: 3px; }
   .employee-closing-records { padding: 13px 10px; }
-  .employee-closing-payment-grid { grid-template-columns: 48px repeat(3, minmax(0, 1fr)); }
-  .employee-closing-payment-grid > * { padding: 6px 4px; }
-  .employee-closing-record > footer { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
-  .employee-closing-record > footer span { display: grid; gap: 2px; }
   .employee-closing-handoff { grid-template-columns: 1fr; margin: 12px 10px; }
   .employee-closing-image-actions { display: grid; }
 }

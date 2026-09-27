@@ -368,12 +368,19 @@ h2 {
   cursor: pointer;
 }
 
-/* Keep the add card and highlighted group at the right when the row fits. */
-.record-track > .add-record,
+/* Keep highlights at the right; the add card stays next to ordinary records. */
 .record-track > .record-card--highlighted:first-child,
-.record-track > .record-card:not(.record-card--highlighted) + .record-card--highlighted {
+.record-track > :not(.record-card--highlighted) + .record-card--highlighted {
   margin-left: auto;
 }
+
+.record-track-tail {
+  display: none;
+  flex: 0 0 var(--record-track-tail-width, 0px);
+  pointer-events: none;
+}
+
+.record-track[data-return-tail="true"] > .record-track-tail { display: block; }
 
 .record-card {
   position: relative;

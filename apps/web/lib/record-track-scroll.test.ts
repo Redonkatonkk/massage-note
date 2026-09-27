@@ -2,16 +2,54 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { followRecordTrackEnd } from "./record-track-scroll";
 
 class Track extends EventTarget {
-  scrollWidth = 1200;
+  private fixedScrollWidth = 1200;
   clientWidth = 400;
   scrollLeft = 0;
-  children = [];
-  anchor: { getBoundingClientRect: () => { right: number } } | null = null;
+  children: Array<{ width?: number; highlighted?: boolean; getBoundingClientRect?: () => { right: number; width: number } }> = [];
+  dataset: Record<string, string | undefined> = {};
+  anchor: { getBoundingClientRect: () => { right: number; width?: number } } | null = null;
+  tail: { style: { width: number; setProperty: (name: string, value: string) => void }; getBoundingClientRect: () => { right: number; width: number } } | null = null;
+  get scrollWidth() {
+    if (!this.anchor || !this.tail) return this.fixedScrollWidth;
+    const cards = this.children.filter((child) => child !== this.tail);
+    const width = 16 + cards.length * 177 + Math.max(0, cards.length - 1) * 12 + 16
+      + (this.dataset.returnTail === "true" ? 12 + this.tail.style.width : 0);
+    return Math.max(this.clientWidth, width);
+  }
+  set scrollWidth(value: number) { this.fixedScrollWidth = value; }
   getBoundingClientRect() { return { left: 0, right: this.clientWidth }; }
-  querySelector(selector: string) { return selector === ".add-record" ? this.anchor : null; }
+  querySelector(selector: string) {
+    if (selector === ".add-record") return this.anchor;
+    if (selector === ".record-track-tail") return this.tail;
+    return null;
+  }
+  querySelectorAll(selector: string) {
+    return selector === ".record-card--highlighted" ? this.children.filter((child) => child.highlighted) : [];
+  }
+  removeAttribute(name: string) { if (name === "data-return-tail") delete this.dataset.returnTail; }
   scrollTo = vi.fn(({ left }: ScrollToOptions) => {
     this.scrollLeft = Math.min(left ?? 0, this.scrollWidth - this.clientWidth);
   });
+
+  useLayout(highlightedCount: number, ordinaryCount = 5) {
+    const card = (highlighted: boolean) => ({
+      width: 177,
+      highlighted,
+      getBoundingClientRect: () => ({ right: 0, width: 177 }),
+    });
+    const ordinary = Array.from({ length: ordinaryCount }, () => card(false));
+    const highlights = Array.from({ length: highlightedCount }, () => card(true));
+    const add = {
+      width: 177,
+      getBoundingClientRect: () => ({ right: 16 + (ordinary.length) * 189 + 177 - this.scrollLeft, width: 177 }),
+    };
+    this.tail = {
+      style: { width: 0, setProperty: (_name: string, value: string) => { this.tail!.style.width = Number.parseFloat(value); } },
+      getBoundingClientRect: () => ({ right: 0, width: this.tail!.style.width }),
+    };
+    this.children = [...ordinary, add, ...highlights, this.tail];
+    this.anchor = add;
+  }
 }
 
 describe("open-day record track", () => {
@@ -30,7 +68,10 @@ describe("open-day record track", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     surface = new EventTarget();
-    vi.stubGlobal("window", Object.assign(surface, { matchMedia: () => ({ matches: false }) }));
+    vi.stubGlobal("window", Object.assign(surface, {
+      matchMedia: () => ({ matches: false }),
+      getComputedStyle: () => ({ columnGap: "12px", paddingLeft: "16px", paddingRight: "16px" }),
+    }));
     vi.stubGlobal("ResizeObserver", class {
       constructor(callback: () => void) { resize = callback; }
       observe() {}
@@ -156,5 +197,62 @@ describe("open-day record track", () => {
     track.dispatchEvent(new Event("scroll"));
     vi.advanceTimersByTime(10000);
     expect(track.scrollTo).toHaveBeenCalledTimes(callsAtEnd);
+  });
+
+  it.each([
+    [0, 116.5],
+    [1, 305.5],
+    [2, 289.5],
+    [4, 289.5],
+  ])("returns with the expected highlighted preview for %i highlights", (highlightedCount, expectedRightReserve) => {
+    track.useLayout(highlightedCount);
+    track.clientWidth = 700;
+    cleanup();
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+
+    expect(track.dataset.returnTail).toBe(highlightedCount < 2 ? "true" : "false");
+    expect(track.tail?.style.width).toBe(88.5);
+    const addRight = track.anchor!.getBoundingClientRect().right;
+    expect(addRight).toBeCloseTo(track.clientWidth - expectedRightReserve, 1);
+    const withoutTail = 16 + track.children.filter((child) => child !== track.tail).length * 177
+      + (track.children.filter((child) => child !== track.tail).length - 1) * 12 + 16;
+    expect(track.scrollWidth).toBe(withoutTail + (highlightedCount < 2 ? 100.5 : 0));
+  });
+
+  it("does not reserve a tail when cards fit, and keeps the add card fully visible on a narrow track", () => {
+    track.useLayout(0);
+    track.clientWidth = 1200;
+    cleanup();
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+    expect(track.dataset.returnTail).toBe("false");
+    expect(track.scrollWidth).toBe(1200);
+    expect(track.scrollLeft).toBe(0);
+
+    track.clientWidth = 220;
+    resize();
+    expect(track.dataset.returnTail).toBe("true");
+    // The helper caps the reserve so the entire add card remains inside the viewport.
+    const addRight = track.anchor!.getBoundingClientRect().right;
+    expect(addRight).toBeLessThanOrEqual(track.clientWidth - 16 + 2);
+    expect(addRight - 177).toBeGreaterThanOrEqual(16 - 2);
+  });
+
+  it("refreshes the tail on content changes without moving the user or restarting the idle deadline", () => {
+    track.useLayout(0);
+    track.clientWidth = 700;
+    cleanup();
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+    scrollBack();
+    vi.advanceTimersByTime(5000);
+
+    track.useLayout(2);
+    mutate();
+    expect(track.scrollLeft).toBe(100);
+    expect(track.dataset.returnTail).toBe("false");
+
+    vi.advanceTimersByTime(4999);
+    expect(track.scrollLeft).toBe(100);
+    vi.advanceTimersByTime(1);
+    expect(track.clientWidth - track.anchor!.getBoundingClientRect().right).toBeCloseTo(289.5);
   });
 });

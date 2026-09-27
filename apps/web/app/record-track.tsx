@@ -27,7 +27,7 @@ export function RecordTrack({ children, autoReturn = false }: { children: ReactN
   }, [children]);
 
   return <div className="record-track-container">
-    <div className="record-track" ref={trackRef}>{children}</div>
+    <div className="record-track" ref={trackRef}>{children}<span className="record-track-tail" aria-hidden="true" /></div>
     {canJump && <button
       className="record-track-jump"
       type="button"

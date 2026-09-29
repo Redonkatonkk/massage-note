@@ -556,13 +556,14 @@ export function TodayBoard({
                           <span aria-hidden="true">＋</span>新增记工
                         </button>
                       );
+                      const hasNote = Boolean(record.note.trim());
                       const hasPaymentMismatch = hasConfirmedPaymentMismatch(
                         record.status,
                         record.paymentDifferenceCents,
                       );
                       return (
                       <button
-                        className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}${record.isHighlighted ? " record-card--highlighted" : ""}${hasPaymentMismatch ? " record-card--payment-mismatch" : ""}`}
+                        className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}${record.isHighlighted ? " record-card--highlighted" : ""}${hasNote ? " record-card--has-note" : ""}${hasPaymentMismatch ? " record-card--payment-mismatch" : ""}`}
                         key={record.id}
                         type="button"
                         disabled={!isCurrentBusinessDay && !canManage}
@@ -599,16 +600,23 @@ export function TodayBoard({
                           </span>
                           <span className="record-payment-row"><span>小费</span><PaymentBreakdown status={record.status} cashCents={record.cashTipCents} cardCents={record.cardTipCents} giftCardCents={record.giftCardTipCents} zeroLabel="0" /></span>
                         </span>
-                        {hasPaymentMismatch && (
-                          <span
-                            className="record-payment-mismatch-badge"
-                            aria-label={`付款差额 ${money(Math.abs(record.paymentDifferenceCents ?? 0))}`}
-                            title="实收服务费与应收金额不一致"
-                          >!</span>
-                        )}
-                        {record.status === "PENDING_PAYMENT" && (
-                          <span className="record-pending-badge">待结账</span>
-                        )}
+                        <span className="record-card__indicators">
+                          {hasPaymentMismatch && (
+                            <span
+                              className="record-payment-mismatch-badge"
+                              aria-label={`付款差额 ${money(Math.abs(record.paymentDifferenceCents ?? 0))}`}
+                              title="实收服务费与应收金额不一致"
+                            >!</span>
+                          )}
+                          {record.status === "PENDING_PAYMENT" && (
+                            <span className="record-pending-badge">待结账</span>
+                          )}
+                          {hasNote && (
+                            <span className="record-note-badge" aria-label="有备注" title="有备注">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></svg>
+                            </span>
+                          )}
+                        </span>
                       </button>
                       );
                     })}
@@ -647,8 +655,9 @@ export function TodayBoard({
         <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{row.workRecords.length} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy || board.isClosed} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
       </section>}
 
-      {canManage && board.isClosed && isCurrentBusinessDay && <section className="add-employee-panel"><BoardWeeklyDispatch storeId={membership.store.id} members={members} disabled={busy} onSaved={onReload} /></section>}
+      {canManage && board.isClosed && isCurrentBusinessDay && <section className="add-employee-panel"><BoardWeeklyDispatch storeId={membership.store.id} businessDate={currentDay.businessDate} members={members} disabled={busy} onSaved={onReload} /></section>}
       {canManage && !board.isClosed && <BoardEmployeePicker
+        businessDate={currentDay.businessDate}
         storeId={membership.store.id}
         key={`${membership.store.id}:${currentDay.businessDate}`}
         members={availableMembers}

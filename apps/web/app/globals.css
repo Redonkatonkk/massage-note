@@ -430,11 +430,26 @@ h2 {
   padding-right: 54px;
 }
 
-.record-payment-mismatch-badge,
-.record-pending-badge {
+.record-card__indicators {
   position: absolute;
   right: 6px;
   bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.record-card--has-note .record-money {
+  padding-right: 0;
+  padding-bottom: 28px;
+}
+
+.record-note-badge {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  color: var(--muted);
 }
 
 .record-payment-mismatch-badge {

@@ -112,21 +112,56 @@ export class BoardsService {
     });
   }
 
-  async applyWeeklyDispatch(actor: User, storeId: string, businessDate: string, requestId: string) {
+  async replaceWeeklyDispatch(actor: User, storeId: string, businessDate: string, input: UpdateWeeklyDispatchInput, idempotencyKey: string, requestId: string) {
+    await this.access.requireCapability(actor.id, storeId, "MEMBERSHIP_MANAGE");
+    return this.applyWeeklyDispatch(actor, storeId, businessDate, requestId, { input, idempotencyKey });
+  }
+
+  async applyWeeklyDispatch(actor: User, storeId: string, businessDate: string, requestId: string, replacement?: { input: UpdateWeeklyDispatchInput; idempotencyKey: string }) {
     const membership = await this.access.requireActiveMembership(actor.id, storeId);
     const store = await this.findStore(this.prisma, storeId);
     const currentDate = businessDateFor({ startAt: deviceNow(), timezone: deviceTimezone(store.timezone), cutoffLocal: store.businessCutoffLocal });
-    if (businessDate < currentDate) return { applied: false };
+    if (businessDate < currentDate) {
+      if (replacement) throw new ForbiddenException({ code: "WEEKLY_DISPATCH_PAST_REPLACE_FORBIDDEN", messageZh: "应用失败：不能覆盖过去日期的排工" });
+      return { applied: false };
+    }
     if (membership.role === "EMPLOYEE" && businessDate > currentDate) throw new ForbiddenException({ code: "WEEKLY_DISPATCH_FUTURE_APPLY_FORBIDDEN", messageZh: "员工不能初始化未来营业日" });
     const weekday = weeklyDays[(dateAtUtc(businessDate).getUTCDay() + 6) % 7]!;
-    return this.prisma.$transaction(async (transaction) => {
+    const apply = async (transaction: Prisma.TransactionClient) => {
       await lockBusinessDay(transaction, storeId, businessDate);
       const currentStore = await this.findStore(transaction, storeId);
       const effectiveFrom = currentStore.weeklyDispatchEffectiveFrom?.toISOString().slice(0, 10);
-      if (!effectiveFrom || businessDate < effectiveFrom) return { applied: false };
+      if (replacement) {
+        if (currentStore.version !== replacement.input.version) throw new ConflictException({ code: "STORE_VERSION_CONFLICT", messageZh: "店铺设置已经变化，请取消后重新打开并核对" });
+        if (await transaction.workRecord.count({ where: { storeId, businessDate: dateAtUtc(businessDate) } })) {
+          throw new ConflictException({ code: "WEEKLY_DISPATCH_HAS_WORK_RECORDS", messageZh: "应用失败：该日期已有记工，不能覆盖排工" });
+        }
+      }
+      if (!replacement && (!effectiveFrom || businessDate < effectiveFrom)) return { applied: false };
       const closings = await transaction.businessDayClosing.findFirst({ where: { storeId, businessDate: dateAtUtc(businessDate), status: "CLOSED" }, select: { id: true } });
-      if (closings) return { applied: false };
-      const ids = weeklyDispatchFromJson(currentStore.weeklyDispatchJson)[weekday];
+      if (closings) {
+        if (replacement) throw new ConflictException({ code: "BUSINESS_DAY_CLOSED", messageZh: "应用失败：该日期已经日结，请先取消日结" });
+        return { applied: false };
+      }
+      // Daily manual removals override the recurring template. A later manual
+      // addition clears the override; template applications never do.
+      const manualChanges = await transaction.auditLog.findMany({
+        where: { storeId, businessDate: dateAtUtc(businessDate),
+          action: { in: ["board.row_removed", "board.row_added"] } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { action: true, beforeJson: true, afterJson: true },
+      });
+      const seenMembershipIds = new Set<string>();
+      const excludedMembershipIds = new Set<string>();
+      for (const change of manualChanges) {
+        const snapshot = (change.action === "board.row_removed" ? change.beforeJson : change.afterJson) as { membershipId?: string } | null;
+        const membershipId = snapshot?.membershipId;
+        if (!membershipId || seenMembershipIds.has(membershipId)) continue;
+        seenMembershipIds.add(membershipId);
+        if (change.action === "board.row_removed") excludedMembershipIds.add(membershipId);
+      }
+      const ids = replacement ? [...new Set(replacement.input.schedule[weekday])]
+        : weeklyDispatchFromJson(currentStore.weeklyDispatchJson)[weekday].filter((id) => !excludedMembershipIds.has(id));
       const board = await transaction.dailyBoard.upsert({
         where: { storeId_businessDate: { storeId, businessDate: dateAtUtc(businessDate) } },
         create: { storeId, businessDate: dateAtUtc(businessDate) }, update: {},
@@ -134,14 +169,15 @@ export class BoardsService {
       await transaction.$queryRaw`SELECT id FROM daily_boards WHERE id = ${board.id}::uuid FOR UPDATE`;
       const fresh = await transaction.dailyBoard.findUniqueOrThrow({ where: { id: board.id }, include: { rows: true } });
       const isFuture = businessDate > currentDate;
-      if (fresh.weeklyDispatchAppliedAt && !isFuture) return { applied: false };
+      if (fresh.weeklyDispatchAppliedAt && !isFuture && !replacement) return { applied: false };
       // Remember which rows were introduced by the template; manual additions remain independent.
-      const previousApplication = isFuture && fresh.weeklyDispatchAppliedAt
+      const previousApplication = !replacement && isFuture && fresh.weeklyDispatchAppliedAt
         ? await transaction.auditLog.findFirst({
           where: { storeId, entityId: board.id, action: "board.weekly_dispatch_applied" },
           orderBy: { createdAt: "desc" }, select: { afterJson: true },
         }) : null;
-      const previousData = previousApplication?.afterJson as { managedMembershipIds?: string[]; addedMembershipIds?: string[] } | null;
+      const previousData = previousApplication?.afterJson as { overwritten?: boolean; managedMembershipIds?: string[]; addedMembershipIds?: string[] } | null;
+      if (previousData?.overwritten) return { applied: false };
       const previousManaged = previousData?.managedMembershipIds ?? previousData?.addedMembershipIds ?? [];
       const selected = await transaction.storeMembership.findMany({
         where: { id: { in: ids }, storeId, status: "ACTIVE", deletedAt: null, isServiceProvider: true },
@@ -149,8 +185,16 @@ export class BoardsService {
       });
       const selectedIds = new Set(selected.map((item) => item.id));
       const removedMembershipIds: string[] = [];
+      if (replacement) {
+        if (selected.length !== ids.length) throw new BadRequestException({ code: "WEEKLY_DISPATCH_MEMBER_INVALID", messageZh: "排工表中包含已停用或不可参与记工的员工，请重新打开后重试" });
+        if (currentStore.automaticDispatchEnabled && selected.some(member => !member.employmentType)) throw new ConflictException({ code: "DAILY_RANKING_EMPLOYMENT_TYPE_REQUIRED", messageZh: "请先为排工员工设置全职或兼职" });
+        removedMembershipIds.push(...fresh.rows.map(row => row.membershipId));
+        await transaction.dailyEmployeeRow.deleteMany({ where: { boardId: board.id } });
+        fresh.rows = [];
+      }
       for (const row of fresh.rows) {
-        if (!previousManaged.includes(row.membershipId) || selectedIds.has(row.membershipId)) continue;
+        if (!previousManaged.includes(row.membershipId) || selectedIds.has(row.membershipId)
+          || (seenMembershipIds.has(row.membershipId) && !excludedMembershipIds.has(row.membershipId))) continue;
         const [records, shifts] = await Promise.all([
           transaction.workRecord.count({ where: { storeId, businessDate: dateAtUtc(businessDate), employeeMembershipId: row.membershipId } }),
           transaction.shift.count({ where: { storeId, businessDate: dateAtUtc(businessDate), membershipId: row.membershipId } }),
@@ -159,9 +203,9 @@ export class BoardsService {
         await transaction.dailyEmployeeRow.delete({ where: { id: row.id } });
         removedMembershipIds.push(row.membershipId);
       }
-      const preserveCurrentRows = !isFuture && fresh.rows.length > 0;
+      const preserveCurrentRows = !replacement && !isFuture && fresh.rows.length > 0;
       const missingIds = (preserveCurrentRows ? [] : ids).filter((id) => selectedIds.has(id) && !fresh.rows.some((row) => row.membershipId === id));
-      const managedMembershipIds = [...new Set([...previousManaged.filter((id) => selectedIds.has(id)), ...missingIds])];
+      const managedMembershipIds = [...new Set([...previousManaged.filter((id) => selectedIds.has(id) && !seenMembershipIds.has(id)), ...missingIds])];
       if (missingIds.length) {
         const max = await transaction.dailyEmployeeRow.aggregate({ where: { boardId: board.id }, _max: { position: true } });
         let position = max._max.position ?? new Prisma.Decimal(0);
@@ -186,7 +230,7 @@ export class BoardsService {
         const completeOrder = [...order, ...hidden];
         const entries = explained.map((entry) => ({ ...entry, displayName: visible.find((row) => row.membershipId === entry.membershipId)!.membership.displayName }));
         const previousExplanation = rankingExplanationSchema.safeParse(fresh.rankingExplanation).data;
-        if (completeOrder.some((id, index) => id !== rows[index]?.membershipId)
+        if (replacement || completeOrder.some((id, index) => id !== rows[index]?.membershipId)
           || !isDeepStrictEqual(previousExplanation?.entries, entries)) {
           for (const [index, id] of completeOrder.entries()) {
             const row = rows.find((item) => item.membershipId === id)!;
@@ -196,21 +240,26 @@ export class BoardsService {
           explanation = { schemaVersion: 1, generatedAt: rankedAt.toISOString(), entries };
         }
       }
-      if (fresh.weeklyDispatchAppliedAt && !missingIds.length && !removedMembershipIds.length && !rankedAt
+      if (!replacement && fresh.weeklyDispatchAppliedAt && !missingIds.length && !removedMembershipIds.length && !rankedAt
         && JSON.stringify(previousManaged) === JSON.stringify(managedMembershipIds)) return { applied: false };
       const updateData: Prisma.DailyBoardUpdateInput = {
         weeklyDispatchAppliedAt: new Date(), version: { increment: 1 },
       };
+      if (replacement) { updateData.rankedAt = null; updateData.rankingExplanation = Prisma.DbNull; }
       if (rankedAt && explanation) { updateData.rankedAt = rankedAt; updateData.rankingExplanation = explanation; }
       const updated = await transaction.dailyBoard.update({ where: { id: board.id }, data: updateData });
       await transaction.auditLog.create({ data: {
         storeId, actorUserId: actor.id, actorMembershipId: membership.id, source: "api",
         action: "board.weekly_dispatch_applied", entityType: "daily_board", entityId: board.id,
-        businessDate: dateAtUtc(businessDate), afterJson: { addedMembershipIds: missingIds, removedMembershipIds, managedMembershipIds, rankedAt: rankedAt?.toISOString() ?? null, version: updated.version }, requestId,
+        businessDate: dateAtUtc(businessDate), ...(replacement ? { beforeJson: { membershipIds: removedMembershipIds } } : {}),
+        afterJson: { overwritten: !!replacement, addedMembershipIds: missingIds, removedMembershipIds, managedMembershipIds, rankedAt: rankedAt?.toISOString() ?? null, version: updated.version }, requestId,
       } });
       await transaction.domainOutbox.create({ data: { storeId, topic: "board.weekly_dispatch_applied", aggregateType: "daily_board", aggregateId: board.id, payloadJson: { businessDate, addedMembershipIds: missingIds, removedMembershipIds, version: updated.version } } });
       return { applied: true, addedCount: missingIds.length, ranked: !!rankedAt };
-    });
+    };
+    return replacement
+      ? this.idempotency.execute({ storeId, userId: actor.id, key: replacement.idempotencyKey, route: "/api/v1/stores/:storeId/boards/:businessDate/replace-weekly-dispatch", payload: { ...replacement.input, businessDate }, responseCode: 200 }, apply)
+      : this.prisma.$transaction(apply);
   }
 
   async currentBusinessDay(actor: User, storeId: string) {
@@ -855,7 +904,7 @@ export class BoardsService {
             entityType: "daily_employee_row",
             entityId: rowId,
             businessDate: dateAtUtc(businessDate),
-            beforeJson: { isHidden: row.isHidden, version: row.version },
+            beforeJson: { membershipId: row.membershipId, isHidden: row.isHidden, version: row.version },
             afterJson: {
               removed,
               removedShiftCount,

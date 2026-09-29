@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.13.1`
+> 适用版本：`1.13.6`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -364,6 +364,7 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 
 - `GET /stores/:storeId/weekly-dispatch`：店主/经理读取 `{ version, effectiveFrom, schedule }`。`version` 为店铺版本；`schedule` 包含 `monday` 至 `sunday` 七个成员 ID 数组。
 - `PUT /stores/:storeId/weekly-dispatch`：提交 `{ version, schedule }` 和 `Idempotency-Key`；检查管理权限、成员归属/有效性、版本，事务内保存模板、审计和 outbox。配置从设备当前日期立即生效，版本冲突返回 409，应重新打开弹窗读取后核对。
+- `POST /stores/:storeId/boards/:businessDate/replace-weekly-dispatch`：店主/经理提交 `{ version, schedule }` 和 `Idempotency-Key`，使用目标日期对应星期的当前勾选覆盖全部员工行，不保存模板，后续自动刷新保留此次覆盖；校验店铺版本、目标人员有效性、营业日锁及日结。任何记工（含待结账和删除历史）返回 409 `WEEKLY_DISPATCH_HAS_WORK_RECORDS`，事务回滚保留原排工；历史日期拒绝。开启自动排位时重算顺序，写入审计和 outbox，返回 `{ applied, addedCount, ranked }`。
 - `POST /stores/:storeId/boards/:businessDate/apply-weekly-dispatch`：Web 在加载看板前调用。当前在职成员可触发当日既定规则，仅管理者可触发未来日。营业日锁保护初始化与刷新，返回 `{ applied, addedCount?, ranked? }`；历史、已日结、未生效和已应用的当前日期跳过。未来日期允许刷新，按最新模板同步系统加入的行，并按最新出勤顺序重算；没有变化时返回 `applied: false`，不递增版本或重复发送 outbox。
 
 `stores.weekly_dispatch_json`、`weekly_dispatch_effective_from` 与 `daily_boards.weekly_dispatch_applied_at` 由迁移 `20260928120000_weekly_dispatch` 添加。模板初始化复用轮转领域排序及排名解释快照，店铺未启用每日开门排位时仅按模板顺序加入；当前日期已安排的人员保持不变；未来日期持续更新。自动管理的成员 ID 保存在 `board.weekly_dispatch_applied` 审计的 `managedMembershipIds`，兼容旧审计 `addedMembershipIds`，只移除模板取消且无任何记工或班次的自动行，保留手动加入的行。

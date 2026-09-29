@@ -396,6 +396,7 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "待结账": "Payment pending",
   "小费": "Tips",
   "有加项": "Add-ons",
+  "有备注": "Has a note",
   "· 有加项": "· Add-ons",
   "新增记工": "Add record",
   "每日开门排位": "Daily opening order",

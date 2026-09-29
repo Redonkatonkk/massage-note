@@ -1,12 +1,12 @@
 # 发布检查清单
 
-每次生产发布逐项确认；任何“必须”项失败都应停止发布。
+每次生产发布按 [NAS 手册](NAS_DEPLOYMENT.md) 精简流程确认；任何“必须”项失败都应停止发布。完整自动化验证以本次提交 CI 为准，本地不重复。未受改动影响的配置检查记录可沿用；业务验收由用户完成，默认不调用浏览器。
 
 ## 构建与数据
 
 - [ ] 本次 AI/人工修改已经按语义化版本迭代 `VERSION`，并同步全部 `package.json`、`CHANGELOG.md`、镜像标签和文档标记；`pnpm version:check` 已通过。
-- [ ] `pnpm typecheck`、`pnpm test`、`pnpm test:integration`、`pnpm build` 全部通过。
-- [ ] `docker compose ... config --quiet` 与生产镜像构建通过。
+- [ ] 本次提交 CI 的类型检查、全部单元测试、数据库集成测试与生产构建通过；API 单元测试与集成测试合并运行。
+- [ ] 本地 `docker compose ... config --quiet` 与 GHCR 生产镜像构建通过，普通发布不再本地重复构建镜像。
 - [ ] 已按本次 commit SHA 等到 GitHub Actions 的 `verify` 与 `publish-nas-image` 成功；没有用另一条 run 或 `latest` 代替。
 - [ ] 目标语义版本的 GHCR manifest 存在、平台为 `linux/amd64`，并已用隔离的未登录 Docker 配置验证可匿名读取。
 - [ ] 新迁移已在生产数据副本执行，耗时和锁影响可接受。
@@ -19,7 +19,7 @@
 - [ ] `DEV_AUTH_ENABLED=false`，生产前端未显示本地测试登录。
 - [ ] Firebase Authorized domains、Phone provider、短信配额和预算告警已配置。
 - [ ] PostgreSQL、Redis、Firebase、MiniMax 密钥没有提交到仓库，且权限最小。
-- [ ] 完整 Git 历史和本次暂存改动已经过秘密扫描；GitHub 只接收四项浏览器公开的 `NEXT_PUBLIC_FIREBASE_*` Repository Variables。
+- [ ] 本次暂存改动已经过秘密扫描；完整历史扫描用于首次公开或历史重写后，已有通过记录且历史未重写时不重复；GitHub 只接收四项浏览器公开的 `NEXT_PUBLIC_FIREBASE_*` Repository Variables。
 - [ ] PostgreSQL、Redis、3000、4000 未直接暴露公网。
 - [ ] CSP、HSTS、`HttpOnly`/`Secure` 会话 Cookie、严格 Origin 和 429 限流已抽查。
 - [ ] 反向代理关闭 SSE 缓冲，保留 `Last-Event-ID`，请求体上限支持 8 MB 录音。

@@ -8,6 +8,7 @@ import { BoardWeeklyDispatch } from "./board-weekly-dispatch";
 
 interface BoardEmployeePickerProps {
   storeId: string;
+  businessDate: string;
   members: StoreMember[];
   allMembers: StoreMember[];
   weeklyDispatchEnabled: boolean;
@@ -19,7 +20,7 @@ interface BoardEmployeePickerProps {
   onReload: () => Promise<void>;
 }
 
-export function BoardEmployeePicker({ storeId, members, allMembers, weeklyDispatchEnabled, rankingAction, rankingHelp, empty, disabled, onAdd, onReload }: BoardEmployeePickerProps) {
+export function BoardEmployeePicker({ storeId, businessDate, members, allMembers, weeklyDispatchEnabled, rankingAction, rankingHelp, empty, disabled, onAdd, onReload }: BoardEmployeePickerProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const submitting = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -59,7 +60,7 @@ export function BoardEmployeePicker({ storeId, members, allMembers, weeklyDispat
 
   return <>
     {(members.length > 0 || rankingAction || weeklyDispatchEnabled) && <section className="add-employee-panel">
-      {weeklyDispatchEnabled && <BoardWeeklyDispatch storeId={storeId} members={allMembers} disabled={disabled} onSaved={onReload} />}
+      {weeklyDispatchEnabled && <BoardWeeklyDispatch storeId={storeId} businessDate={businessDate} members={allMembers} disabled={disabled} onSaved={onReload} />}
       <label className="field-label">手动添加员工到今日表格
         {empty
           ? <button className="employee-picker-trigger" type="button" aria-haspopup="dialog" disabled={busy || disabled} onClick={openPicker}><span>请选择员工</span><span aria-hidden="true">⌄</span></button>

@@ -27,8 +27,7 @@ import type {
 // Selection changes no draft values: focusing without typing preserves saved content.
 function selectEditorInput(event: { target: EventTarget }) {
   const target = event.target;
-  if (target instanceof HTMLTextAreaElement ||
-      (target instanceof HTMLInputElement && ["text", "number", "search", "tel", "url", "email"].includes(target.type))) {
+  if (target instanceof HTMLInputElement && ["text", "number", "search", "tel", "url", "email"].includes(target.type)) {
     target.select();
   }
 }

@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`1.13.1`
+> 适用版本：`1.13.6`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
@@ -97,7 +97,7 @@ MASSAGE_NOTE_TEST_DATABASE_URL='postgresql://massage:massage@localhost:55432/mas
 
 ## 完成前验证
 
-默认完整基线：
+按改动选择必要验证，已通过且未受后续改动影响的检查不重复。以下是完整验证命令；普通发布由 CI 承担全套验证，本地只做 [NAS 手册](../operations/NAS_DEPLOYMENT.md) 的轻量预检：
 
 ```bash
 pnpm version:check
@@ -138,7 +138,7 @@ pnpm build
 
 ## 修改后的本地测试服务
 
-每次完成任何项目改动，包括代码、配置和文档，都要重新运行 `pnpm dev`，保持 Web 使用 `http://localhost:3000`，并打开页面供用户测试。先检查 3000/4000 端口的进程归属，只重启本项目服务；端口被其他项目占用时不得擅自终止或改用其他端口。确认 Web 可访问以及 API `/api/v1/health/ready` 就绪后，保持开发进程运行。该要求不授予 NAS 部署权限。
+每次完成任何项目改动，包括代码、配置和文档，都要重新运行 `pnpm dev`，保持 Web 使用 `http://localhost:3000`，通过命令行确认就绪供用户测试，默认不打开浏览器。先检查 3000/4000 端口的进程归属，只重启本项目服务；端口被其他项目占用时不得擅自终止或改用其他端口。确认 Web 可访问以及 API `/api/v1/health/ready` 就绪后，保持开发进程运行。该要求不授予 NAS 部署权限。
 
 ## 改动交接
 

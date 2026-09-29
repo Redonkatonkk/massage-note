@@ -168,6 +168,52 @@ describe.skipIf(!enabled).sequential("每周排工", () => {
     await prisma.dailyBoard.delete({ where: { id: initial.id } });
   });
 
+  it("明天手动移除优先于模板，支持重加，空行隐藏和全员移除也不会恢复", async () => {
+    const previewDay = "2026-10-19";
+    const target = "2026-10-20";
+    const nextWeek = "2026-10-27";
+    const schedule = { ...empty(), tuesday: [ownerMembershipId, employeeMembershipId] };
+    const config = await boards.getWeeklyDispatch(actor(ownerId), storeId);
+    await at(previewDay, () => boards.saveWeeklyDispatch(actor(ownerId), storeId, { version: config.version, schedule }, "manual-remove-save-01", "manual-remove-save"));
+    const apply = (date = target) => at(previewDay, () => boards.applyWeeklyDispatch(actor(ownerId), storeId, date, "manual-remove-apply"));
+    const read = () => prisma.dailyBoard.findUniqueOrThrow({ where: { storeId_businessDate: { storeId, businessDate: new Date(`${target}T00:00:00Z`) } }, include: { rows: true } });
+    await apply();
+    const employeeRow = (await read()).rows.find(row => row.membershipId === employeeMembershipId)!;
+    await at(previewDay, () => boards.removeRow(actor(ownerId), storeId, target, employeeRow.id, { version: employeeRow.version }, "manual-remove-employee", "manual-remove"));
+    await apply();
+    expect((await read()).rows.map(row => row.membershipId)).toEqual([ownerMembershipId]);
+    const stable = await read();
+    expect(await apply()).toEqual({ applied: false });
+    expect((await read()).version).toBe(stable.version);
+
+    // Template edits do not undo a daily removal, and the next week is unaffected.
+    const latest = await boards.getWeeklyDispatch(actor(ownerId), storeId);
+    await at(previewDay, () => boards.saveWeeklyDispatch(actor(ownerId), storeId, { version: latest.version, schedule: { ...empty(), tuesday: [ownerMembershipId] } }, "manual-remove-save-02", "manual-remove-resave"));
+    await apply();
+    expect((await read()).rows.map(row => row.membershipId)).toEqual([ownerMembershipId]);
+    const edited = await boards.getWeeklyDispatch(actor(ownerId), storeId);
+    await at(previewDay, () => boards.saveWeeklyDispatch(actor(ownerId), storeId, { version: edited.version, schedule }, "manual-remove-save-03", "manual-remove-restore-template"));
+    await apply();
+    expect((await read()).rows.map(row => row.membershipId)).toEqual([ownerMembershipId]);
+    await apply(nextWeek);
+    expect(await prisma.dailyEmployeeRow.count({ where: { storeId, board: { businessDate: new Date(`${nextWeek}T00:00:00Z`) } } })).toBe(2);
+
+    await at(previewDay, () => boards.addRow(actor(ownerId), storeId, target, { membershipId: employeeMembershipId }, "manual-readd-employee", "manual-readd"));
+    await apply();
+    expect((await read()).rows.map(row => row.membershipId)).toContain(employeeMembershipId);
+    const readded = (await read()).rows.find(row => row.membershipId === employeeMembershipId)!;
+    expect(await at(previewDay, () => boards.updateRow(actor(ownerId), storeId, target, readded.id, { version: readded.version, isHidden: true }, "manual-hide-employee", "manual-hide"))).toMatchObject({ removed: true });
+    await apply();
+    expect((await read()).rows.map(row => row.membershipId)).toEqual([ownerMembershipId]);
+    const ownerRow = (await read()).rows[0]!;
+    await at(previewDay, () => boards.removeRow(actor(ownerId), storeId, target, ownerRow.id, { version: ownerRow.version }, "manual-remove-owner", "manual-remove-all"));
+    await apply();
+    expect((await read()).rows).toHaveLength(0);
+    expect(await apply()).toEqual({ applied: false });
+    expect(await at(target, () => boards.applyWeeklyDispatch(actor(ownerId), storeId, target, "manual-remove-today"))).toEqual({ applied: false });
+    expect((await read()).rows).toHaveLength(0);
+  });
+
   it("跳过历史和日结日期，模板变化不覆盖已安排日期", async () => {
     expect(await at(tomorrow, () => boards.applyWeeklyDispatch(actor(ownerId), storeId, day, "weekly-past"))).toEqual({ applied: false });
     const config = await boards.getWeeklyDispatch(actor(ownerId), storeId);
@@ -178,4 +224,65 @@ describe.skipIf(!enabled).sequential("每周排工", () => {
     expect(await at(closedDate, () => boards.applyWeeklyDispatch(actor(ownerId), storeId, closedDate, "weekly-closed"))).toEqual({ applied: false });
     expect(await prisma.dailyBoard.count({ where: { storeId, businessDate: new Date(`${closedDate}T00:00:00Z`) } })).toBe(0);
   });
+
+  it("应用当前勾选覆盖当日手动名单，不保存模板，重放不重复写入", async () => {
+    const date = "2026-11-02";
+    const config = await boards.getWeeklyDispatch(actor(ownerId), storeId);
+    const input = { version: config.version, schedule: { ...empty(), monday: [employeeMembershipId] } };
+    await at(date, () => boards.addRow(actor(ownerId), storeId, date, { membershipId: ownerMembershipId }, "replace-manual-row-01", "replace-manual"));
+    await at(date, () => boards.addRow(actor(ownerId), storeId, date, { membershipId: employeeMembershipId }, "replace-manual-row-02", "replace-manual"));
+    const initial = await prisma.dailyBoard.findUniqueOrThrow({ where: { storeId_businessDate: { storeId, businessDate: new Date(`${date}T00:00:00Z`) } }, include: { rows: true } });
+    await at(date, () => boards.removeRow(actor(ownerId), storeId, date, initial.rows.find(row => row.membershipId === employeeMembershipId)!.id, { version: 1 }, "replace-remove-row-01", "replace-remove"));
+    const apply = () => at(date, () => boards.replaceWeeklyDispatch(actor(ownerId), storeId, date, input, "replace-dispatch-0001", "replace-dispatch"));
+    const result = await apply();
+    expect(result).toMatchObject({ applied: true, addedCount: 1, ranked: true });
+    const read = () => prisma.dailyBoard.findUniqueOrThrow({ where: { id: initial.id }, include: { rows: true } });
+    const applied = await read();
+    expect(applied.rows.map(row => row.membershipId)).toEqual([employeeMembershipId]);
+    expect(applied.rankingExplanation).toBeTruthy();
+    expect(await boards.getWeeklyDispatch(actor(ownerId), storeId)).toEqual(config);
+    expect(await apply()).toEqual(result);
+    expect((await read()).version).toBe(applied.version);
+    expect(await at(date, () => boards.applyWeeklyDispatch(actor(ownerId), storeId, date, "replace-refresh"))).toEqual({ applied: false });
+    await expect(at(date, () => boards.replaceWeeklyDispatch(actor(employeeId), storeId, date, input, "replace-forbidden-01", "replace-forbidden"))).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(at(date, () => boards.replaceWeeklyDispatch(actor(ownerId), storeId, date, { ...input, version: input.version - 1 }, "replace-conflict-0001", "replace-conflict"))).rejects.toBeInstanceOf(ConflictException);
+    await at(date, () => boards.replaceWeeklyDispatch(actor(ownerId), storeId, date, { ...input, schedule: empty() }, "replace-empty-000001", "replace-empty"));
+    expect((await read()).rows).toHaveLength(0);
+    expect((await read()).rankingExplanation).toBeNull();
+  });
+
+  it("任何员工已有记工（含待结账与删除历史）时应用失败且不更改排工", async () => {
+    const date = "2026-11-03";
+    await at(date, () => boards.addRow(actor(ownerId), storeId, date, { membershipId: ownerMembershipId }, "replace-record-row01", "replace-record-row"));
+    const read = () => prisma.dailyBoard.findUniqueOrThrow({ where: { storeId_businessDate: { storeId, businessDate: new Date(`${date}T00:00:00Z`) } }, include: { rows: true } });
+    const before = await read();
+    const record = await prisma.workRecord.create({ data: {
+      storeId, employeeMembershipId: ownerMembershipId, businessDate: new Date(`${date}T00:00:00Z`),
+      storeTimezoneSnapshot: "Asia/Tokyo", businessCutoffSnapshot: "00:00", startAt: new Date(`${date}T00:30:00Z`), status: "PENDING_PAYMENT",
+      mainServiceAmountCents: 0, grossFeeBaseCents: 0, discountedFeePerformanceCents: 0,
+      mainServiceWageCents: 0, totalLargeFeeWageCents: 0, createdBy: ownerId, updatedBy: ownerId,
+    } });
+    const config = await boards.getWeeklyDispatch(actor(ownerId), storeId);
+    const input = { version: config.version, schedule: { ...empty(), tuesday: [employeeMembershipId] } };
+    for (const deleted of [false, true]) {
+      if (deleted) await prisma.workRecord.update({ where: { id: record.id }, data: { deletedAt: new Date(), deletedBy: ownerId, deleteReason: "测试" } });
+      await expect(at(date, () => boards.replaceWeeklyDispatch(actor(ownerId), storeId, date, input, `replace-record-${deleted}`, "replace-record"))).rejects.toMatchObject({ response: { code: "WEEKLY_DISPATCH_HAS_WORK_RECORDS" } });
+      expect(await read()).toEqual(before);
+      expect(await boards.getWeeklyDispatch(actor(ownerId), storeId)).toEqual(config);
+    }
+  });
+
+  it("应用目标日期拒绝历史和日结，未来日期采用该星期当前勾选", async () => {
+    const date = "2026-11-09";
+    const target = "2026-11-10";
+    const config = await boards.getWeeklyDispatch(actor(ownerId), storeId);
+    const input = { version: config.version, schedule: { ...empty(), tuesday: [employeeMembershipId] } };
+    await expect(at(target, () => boards.replaceWeeklyDispatch(actor(ownerId), storeId, date, input, "replace-past-000001", "replace-past"))).rejects.toBeInstanceOf(ForbiddenException);
+    await at(date, () => boards.replaceWeeklyDispatch(actor(ownerId), storeId, target, input, "replace-future-0001", "replace-future"));
+    expect(await at(date, () => boards.applyWeeklyDispatch(actor(ownerId), storeId, target, "replace-future-refresh"))).toEqual({ applied: false });
+    expect(await prisma.dailyEmployeeRow.count({ where: { storeId, membershipId: employeeMembershipId, board: { businessDate: new Date(`${target}T00:00:00Z`) } } })).toBe(1);
+    await prisma.businessDayClosing.create({ data: { storeId, businessDate: new Date(`${target}T00:00:00Z`), closedBy: ownerId, cycleNo: 1, warningSnapshotJson: [], totalsSnapshotJson: {} } });
+    await expect(at(target, () => boards.replaceWeeklyDispatch(actor(ownerId), storeId, target, input, "replace-closed-0001", "replace-closed"))).rejects.toMatchObject({ response: { code: "BUSINESS_DAY_CLOSED" } });
+  });
+
 });

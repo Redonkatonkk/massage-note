@@ -57,6 +57,18 @@ export class BoardsController {
     return this.boards.saveWeeklyDispatch(user, parseRequest(uuidSchema, storeId), parseRequest(updateWeeklyDispatchSchema, body), parseRequest(idempotencyKeySchema, idempotencyKey), response.locals.requestId as string);
   }
 
+  @Post("boards/:businessDate/replace-weekly-dispatch")
+  replaceWeeklyDispatch(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("storeId") storeId: string,
+    @Param("businessDate") businessDate: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.boards.replaceWeeklyDispatch(user, parseRequest(uuidSchema, storeId), parseRequest(boardDateSchema, businessDate), parseRequest(updateWeeklyDispatchSchema, body), parseRequest(idempotencyKeySchema, idempotencyKey), response.locals.requestId as string);
+  }
+
   @Post("boards/:businessDate/apply-weekly-dispatch")
   applyWeeklyDispatch(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Param("businessDate") businessDate: string, @Res({ passthrough: true }) response: Response) {
     return this.boards.applyWeeklyDispatch(user, parseRequest(uuidSchema, storeId), parseRequest(boardDateSchema, businessDate), response.locals.requestId as string);

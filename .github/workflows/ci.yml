@@ -35,11 +35,14 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
+      - name: 准备共享包并检查版本
+        run: pnpm version:check && pnpm predev
+      - name: 类型检查
+        run: pnpm -r typecheck
+      - name: 单元测试（API 在集成测试阶段一并运行）
+        run: pnpm --filter @massage-note/domain --filter @massage-note/contracts --filter @massage-note/messages-agent --filter @massage-note/web test
       - name: 运行临时 CI 数据库集成测试
         run: |
-          pnpm predev
           pnpm --filter @massage-note/database migrate:deploy
           pnpm --filter @massage-note/database test
           pnpm --filter @massage-note/api test

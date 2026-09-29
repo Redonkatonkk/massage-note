@@ -1,6 +1,6 @@
 # GitHub → GHCR → 群晖部署
 
-> 当前版本：`1.13.1` · 镜像：`ghcr.io/redonkatonkk/massage-note`
+> 当前版本：`1.13.6` · 镜像：`ghcr.io/redonkatonkk/massage-note`
 > 历史版本变化统一查看 [`CHANGELOG.md`](../../CHANGELOG.md)，不在本手册重复累积。
 
 标准发布链路：
@@ -21,7 +21,7 @@ GitHub Actions 完整验证
 
 1. 不凭记忆部署，先阅读本手册、[`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) 和本地被忽略的部署秘密说明。
 2. 保留不属于本次任务的工作区变化，只提交当前发布内容。
-3. 本地完整验证通过后才 push。
+3. 本地轻量预检通过后 push；完整验证由对应提交的 CI 执行，已通过且未受后续改动影响的检查不重复。
 4. 必须按本次 commit SHA 等待 CI，不能用另一条 run 或 `latest` 代替。
 5. 先确认版本镜像存在且可匿名读取，再备份和更新 NAS。
 6. 更新后核对镜像、迁移、卷、容器、健康接口和真实业务流程。
@@ -93,13 +93,14 @@ rmdir "$task_docker_config"
 
 ```bash
 pnpm version:check
-pnpm typecheck
-pnpm test
-pnpm test:integration
-pnpm build
 git diff --check
 git status --short
+docker compose --env-file .env.nas.example -f docker-compose.nas.yml config --quiet
 ```
+
+普通更新部署只做以上预检与暂存区秘密扫描，完整类型检查、单元/集成测试和生产构建由 CI 承担。开发阶段仍按改动做必要验证；新增迁移仍须在生产数据副本演练。CI 失败时针对失败项复现；离线发布或 Dockerfile/依赖打包逻辑变化时才额外构建本地镜像。
+
+精简流程：预检与提交 → 等待对应完整 SHA 的 CI/GHCR → 一次匿名 Manifest 校验 → 一次 DSM 发布脚本 → 本机收尾。`.local-ai/dsm-release-1.1.1.mjs` 已负责备份验证、生产 Compose 校验、迁移/加固、容器与卷校验、三个公网 200 检查、临时容器清理和退出会话；成功输出完整时不再重复运行 probe 或公网请求。失败、输出缺失或状态异常时才独立诊断。备份、迁移和健康检查始终保留。
 
 暂存后检查文件与秘密扫描，再提交：
 
@@ -122,8 +123,10 @@ release_sha=$(git rev-parse HEAD)
 run_id=$(gh run list --repo Redonkatonkk/massage-note --workflow ci.yml \
   --commit "$release_sha" --json databaseId --jq '.[0].databaseId')
 test -n "$run_id"
-gh run watch "$run_id" --repo Redonkatonkk/massage-note --exit-status
+gh run watch "$run_id" --repo Redonkatonkk/massage-note --interval 30 --exit-status
 ```
+
+运行记录尚未出现时隔 15–30 秒重试，必须使用完整 SHA，避免短 SHA 查不到记录。保持单个监控进程，避免重复建立轮询；按阶段变化汇报。
 
 成功产物包含：
 
@@ -131,11 +134,13 @@ gh run watch "$run_id" --repo Redonkatonkk/massage-note --exit-status
 - `latest`：仅用于观察，不固定到生产。
 - `sha-xxxxxxx`：精确关联提交和排错。
 
-确认版本 manifest 与平台：
+一次确认匿名版本 manifest 与平台（替代前面的存在性示例，不重复执行）：
 
 ```bash
 release_version=$(tr -d '[:space:]' < VERSION)
-docker buildx imagetools inspect "ghcr.io/redonkatonkk/massage-note:$release_version"
+task_docker_config=$(mktemp -d /tmp/massage-note-docker.XXXXXX)
+DOCKER_CONFIG="$task_docker_config" docker manifest inspect --verbose "ghcr.io/redonkatonkk/massage-note:$release_version"
+rmdir "$task_docker_config"
 ```
 
 目标平台必须是 `linux/amd64`。
@@ -221,7 +226,7 @@ curl --fail 'https://<production-domain>/api/v1/health/ready'
 - `app`、`migrate`、`harden` 实际镜像都是目标版本。
 - 原 PostgreSQL/Redis 卷名未变化。
 - 三个长期容器健康，两个一次性任务退出码为 0。
-- 真实浏览器可登录并完成与本版本变化相关的业务冒烟。
+- 用户自行完成与本版本变化相关的业务验收；自动部署默认仅做命令行/API 检查，明确要求时才使用浏览器。
 - 浏览器若仍显示旧界面，先强制刷新并清理该站点的旧缓存，不要盲目重跑迁移。
 
 ## 回滚

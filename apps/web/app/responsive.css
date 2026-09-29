@@ -423,8 +423,29 @@ button, summary { overflow-wrap: anywhere; }
 }
 .gift-card-sale-card__card-amount { display: inline-block; border: 1px solid currentColor; border-radius: 4px; padding: 2px 6px; }
 
+.weekly-dispatch-trigger { align-self: end; white-space: nowrap; }
+.weekly-dispatch-table th:first-child { min-width: 88px; }
+@media (max-width: 640px) {
+  .weekly-dispatch-dialog { width: 100vw; max-width: 100vw; max-height: 100dvh; border-radius: 0; }
+  .weekly-dispatch-table th, .weekly-dispatch-table td { padding: 8px 5px; font-size: .82rem; }
+  .weekly-dispatch-table th:first-child { min-width: 72px; }
+  .weekly-dispatch-table td input { width: 20px; height: 20px; }
+}
+
 @media (max-width: 480px) {
   .employee-closing-record { grid-template-columns: minmax(0, 1fr) 116px; gap: 6px; padding: 10px 8px; }
   .employee-closing-record-amounts { gap: 4px; }
   .employee-closing-record-amount > strong { font-size: 1.1rem; padding: 2px 5px; }
+}
+
+.gift-card-ledger__legacy-row td:first-child small {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.weekly-dispatch-scroll-hint { display: none; }
+@media (max-width: 600px) {
+  .weekly-dispatch-scroll-hint { display: block; }
 }

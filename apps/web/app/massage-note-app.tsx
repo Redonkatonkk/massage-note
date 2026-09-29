@@ -140,7 +140,7 @@ function StoreSetup({ me, onDone }: { me: MeResponse; onDone: () => Promise<void
 function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; onDone: () => Promise<void> }) {
   const [services, setServices] = useState([{ key: crypto.randomUUID(), fullName: "", shortName: "", priceOptions: [{ key: crypto.randomUUID(), duration: "60", price: "" }], commission: "" }]);
   const [addons, setAddons] = useState<Array<{ key: string; name: string; shortName: string; duration: string; amount: string; commission: string }>>([]);
-  const [discounts, setDiscounts] = useState<Array<{ key: string; name: string; shortName: string; amount: string }>>([]);
+  const [discounts, setDiscounts] = useState<Array<{ key: string; name: string; shortName: string; amount: string; percentage: boolean }>>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const updateServicePrice = (serviceKey: string, optionKey: string, changes: { duration?: string; price?: string }) => {
@@ -164,7 +164,7 @@ function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; o
             ...(item.commission.trim() ? { defaultCommissionBps: commission(item.commission, `主要项目“${item.fullName}”提成`) } : {}),
           }));
           const addonItems = addons.map((item) => ({ name: item.name.trim(), shortName: item.shortName.trim(), amountCents: amount(item.amount, `额外项目“${item.name}”金额`), durationMinutes: item.duration.trim() ? Number(item.duration) : null, ...(item.commission.trim() ? { defaultCommissionBps: commission(item.commission, `额外项目“${item.name}”提成`) } : {}) }));
-          const discountItems = discounts.map((item) => ({ name: item.name.trim(), shortName: item.shortName.trim(), amountCents: amount(item.amount, `折扣“${item.name}”金额`) }));
+          const discountItems = discounts.map((item) => ({ name: item.name.trim(), shortName: item.shortName.trim(), amountCents: item.percentage ? 0 : amount(item.amount, `折扣“${item.name}”金额`), ...(item.percentage ? { rateBps: commission(item.amount, `折扣“${item.name}”比例`) } : {}) }));
           apiRequest(`/stores/${membership.store.id}/catalog/setup`, { method: "POST", idempotent: true, body: { serviceItems, addonItems, discountItems } }).then(onDone).catch((caught) => setError(errorMessage(caught))).finally(() => setBusy(false));
         } catch (caught) { setError(errorMessage(caught)); setBusy(false); }
       }}>
@@ -188,8 +188,8 @@ function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; o
         <div className="setup-lines">{addons.map((item, index) => <div className="setup-line setup-line--addon" key={item.key}><label>名称<input required placeholder="例如：热石" value={item.name} onChange={(event) => setAddons((current) => current.map((row) => row.key === item.key ? { ...row, name: event.target.value } : row))} /></label><label>简称<input required maxLength={30} value={item.shortName} onChange={(event) => setAddons((current) => current.map((row) => row.key === item.key ? { ...row, shortName: event.target.value } : row))} /></label><label>分钟<input type="number" min="0" max="720" placeholder="可留空" value={item.duration} onChange={(event) => setAddons((current) => current.map((row) => row.key === item.key ? { ...row, duration: event.target.value } : row))} /></label><label>金额（美元）<input required inputMode="decimal" value={item.amount} onChange={(event) => setAddons((current) => current.map((row) => row.key === item.key ? { ...row, amount: event.target.value } : row))} /></label><label>项目提成（%）<input inputMode="decimal" placeholder="可留空" value={item.commission} onChange={(event) => setAddons((current) => current.map((row) => row.key === item.key ? { ...row, commission: event.target.value } : row))} /></label><button className="danger-link" type="button" onClick={() => setAddons((current) => current.filter((row) => row.key !== item.key))}>移除第 {index + 1} 项</button></div>)}</div>
         <button className="secondary-action" type="button" onClick={() => setAddons((current) => [...current, { key: crypto.randomUUID(), name: "", shortName: "", duration: "", amount: "", commission: "" }])}>＋ 添加额外项目</button>
         <h2 className="setup-section-title">折扣项目（可选）</h2>
-        <div className="setup-lines">{discounts.map((item, index) => <div className="setup-line setup-line--discount" key={item.key}><label>名称<input required placeholder="例如：会员优惠" value={item.name} onChange={(event) => setDiscounts((current) => current.map((row) => row.key === item.key ? { ...row, name: event.target.value } : row))} /></label><label>简称<input required maxLength={30} value={item.shortName} onChange={(event) => setDiscounts((current) => current.map((row) => row.key === item.key ? { ...row, shortName: event.target.value } : row))} /></label><label>金额（美元）<input required inputMode="decimal" value={item.amount} onChange={(event) => setDiscounts((current) => current.map((row) => row.key === item.key ? { ...row, amount: event.target.value } : row))} /></label><button className="danger-link" type="button" onClick={() => setDiscounts((current) => current.filter((row) => row.key !== item.key))}>移除第 {index + 1} 项</button></div>)}</div>
-        <button className="secondary-action" type="button" onClick={() => setDiscounts((current) => [...current, { key: crypto.randomUUID(), name: "", shortName: "", amount: "" }])}>＋ 添加折扣项目</button>
+        <div className="setup-lines">{discounts.map((item, index) => <div className="setup-line setup-line--discount" key={item.key}><label>名称<input required placeholder="例如：会员优惠" value={item.name} onChange={(event) => setDiscounts((current) => current.map((row) => row.key === item.key ? { ...row, name: event.target.value } : row))} /></label><label>简称<input required maxLength={30} value={item.shortName} onChange={(event) => setDiscounts((current) => current.map((row) => row.key === item.key ? { ...row, shortName: event.target.value } : row))} /></label><label>类型<select value={item.percentage ? "percentage" : "fixed"} onChange={(event) => setDiscounts((current) => current.map((row) => row.key === item.key ? { ...row, percentage: event.target.value === "percentage" } : row))}><option value="fixed">固定金额</option><option value="percentage">按百分比</option></select></label><label>{item.percentage ? "比例（%）" : "金额（美元）"}<input required inputMode="decimal" value={item.amount} onChange={(event) => setDiscounts((current) => current.map((row) => row.key === item.key ? { ...row, amount: event.target.value } : row))} /></label><button className="danger-link" type="button" onClick={() => setDiscounts((current) => current.filter((row) => row.key !== item.key))}>移除第 {index + 1} 项</button></div>)}</div>
+        <button className="secondary-action" type="button" onClick={() => setDiscounts((current) => [...current, { key: crypto.randomUUID(), name: "", shortName: "", amount: "", percentage: false }])}>＋ 添加折扣项目</button>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="primary-action" type="submit" disabled={busy}>{busy ? "正在保存…" : "确认设置并进入今日记工"}</button>
       </form>
@@ -256,6 +256,7 @@ export function MassageNoteApp() {
       const targetDate = selectedMembership.role === "EMPLOYEE" && requestedDate > day.businessDate
         ? day.businessDate : requestedDate;
       if (!full && targetDate === viewDateRef.current) {
+        await apiRequest(`/stores/${selectedMembership.store.id}/boards/${targetDate}/apply-weekly-dispatch`, { method: "POST", idempotent: true, body: {} });
         const nextBoard = await apiRequest<BoardResponse>(`/stores/${selectedMembership.store.id}/boards/${targetDate}`);
         if (generation !== storeLoadGeneration.current) return;
         setCurrentDay(day);
@@ -263,7 +264,10 @@ export function MassageNoteApp() {
         return;
       }
       const [nextBoard, nextCatalog, nextStoreDetails, fetchedMembers] = await Promise.all([
-        apiRequest<BoardResponse>(`/stores/${selectedMembership.store.id}/boards/${targetDate}`),
+        (async () => {
+          await apiRequest(`/stores/${selectedMembership.store.id}/boards/${targetDate}/apply-weekly-dispatch`, { method: "POST", idempotent: true, body: {} });
+          return apiRequest<BoardResponse>(`/stores/${selectedMembership.store.id}/boards/${targetDate}`);
+        })(),
         apiRequest<CatalogResponse>(`/stores/${selectedMembership.store.id}/catalog`),
         apiRequest<StoreDetails>(`/stores/${selectedMembership.store.id}`),
         selectedMembership.role !== "EMPLOYEE"

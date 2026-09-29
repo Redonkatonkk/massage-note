@@ -379,7 +379,7 @@ export class AiService {
       this.prisma.storeMembership.findMany({ where: { storeId, status: "ACTIVE", deletedAt: null, isServiceProvider: true }, select: { id: true, displayName: true } }),
       this.prisma.serviceItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, fullName: true, shortName: true, priceOptions: { select: { durationMinutes: true, priceCents: true }, orderBy: [{ position: "asc" }, { durationMinutes: "asc" }] } } }),
       this.prisma.addonItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, name: true, shortName: true, amountCents: true, durationMinutes: true } }),
-      this.prisma.discountItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, name: true, shortName: true, amountCents: true } }),
+      this.prisma.discountItem.findMany({ where: { storeId, isEnabled: true, deletedAt: null }, select: { id: true, name: true, shortName: true, amountCents: true, rateBps: true } }),
       this.prisma.workRecord.findMany({ where: { storeId, ...(ownMembershipId ? { employeeMembershipId: ownMembershipId } : {}), ...(recordId ? { id: recordId } : { businessDate: new Date(`${businessDate}T00:00:00.000Z`) }), deletedAt: null }, select: { id: true, employeeMembershipId: true, startAt: true, endAt: true, status: true, mainServiceAmountCents: true, grossFeeBaseCents: true, cashServiceCents: true, cardServiceCents: true, cashTipCents: true, cardTipCents: true, giftCardServiceCents: true, giftCardTipCents: true, giftCardSerialNumber: true, note: true, version: true, employee: { select: { displayName: true } }, serviceSnapshot: { select: { shortName: true, name: true } }, addonSnapshots: { select: { name: true, shortName: true, amountCents: true } }, discountSnapshots: { select: { name: true, amountCents: true } } }, orderBy: { startAt: "desc" } }),
     ]);
     return { businessDate, timezone: deviceTimezone(store.timezone), businessCutoffLocal: store.businessCutoffLocal, members, services, addons, discounts, records };
@@ -424,7 +424,7 @@ export class AiService {
     if (items === undefined) return undefined;
     return items.map((item) => {
       const preset = this.optionalCatalogMatch(context.discounts, item.name, "折扣");
-      if (preset) return { sourceItemId: preset.id, isCustom: false, name: preset.name, amountCents: Number(preset.amountCents) };
+      if (preset) return { sourceItemId: preset.id, isCustom: false, name: preset.name, amountCents: Number(preset.amountCents), rateBps: preset.rateBps };
       if (item.amountCents === undefined) throw new BadRequestException({ code: "AI_CUSTOM_DISCOUNT_AMOUNT_REQUIRED", messageZh: `“${item.name}”不是预设折扣；如需自定义，请明确金额` });
       return { isCustom: true, name: item.name, amountCents: item.amountCents };
     });

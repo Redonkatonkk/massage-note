@@ -133,6 +133,8 @@ model Store {
   giftCardAutoDiscountThresholdCents        BigInt      @default(0) @map("gift_card_auto_discount_threshold_cents")
   giftCardAutoDiscountBps                   Int         @default(0) @map("gift_card_auto_discount_bps")
   automaticDispatchEnabled                 Boolean     @default(false) @map("automatic_dispatch_enabled")
+  weeklyDispatchJson                       Json?       @map("weekly_dispatch_json")
+  weeklyDispatchEffectiveFrom              DateTime?   @map("weekly_dispatch_effective_from") @db.Date
   nextGiftCardSerialNumber                 Int         @default(1001) @map("gift_card_next_serial_number")
   closingDefaultLocale                    ClosingImageLocale @default(zh_CN) @map("closing_default_locale")
   ownerMembershipId                        String?     @unique @map("owner_membership_id") @db.Uuid
@@ -267,6 +269,7 @@ model DailyBoard {
   businessDate DateTime @map("business_date") @db.Date
   version      Int      @default(1)
   rankedAt     DateTime? @map("ranked_at") @db.Timestamptz(3)
+  weeklyDispatchAppliedAt DateTime? @map("weekly_dispatch_applied_at") @db.Timestamptz(3)
   rankingExplanation Json? @map("ranking_explanation")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -368,6 +371,7 @@ model DiscountItem {
   name         String
   shortName    String    @map("short_name")
   amountCents  BigInt    @map("amount_cents")
+  rateBps      Int?      @map("rate_bps")
   position     Int
   isEnabled    Boolean   @default(true) @map("is_enabled")
   version      Int       @default(1)

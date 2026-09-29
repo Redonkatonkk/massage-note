@@ -38,6 +38,7 @@ import { LostCustomers } from "./lost-customers";
 import { GiftCardSales } from "./gift-card-sales";
 import { WorkTimeInput } from "./work-time-input";
 import { RankingExplanationButton } from "./ranking-explanation";
+import { BoardWeeklyDispatch } from "./board-weekly-dispatch";
 import { BoardEmployeePicker } from "./board-employee-picker";
 import { RecordTrack } from "./record-track";
 import { RecordEditor } from "./record-editor";
@@ -646,9 +647,13 @@ export function TodayBoard({
         <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{row.workRecords.length} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy || board.isClosed} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
       </section>}
 
+      {canManage && board.isClosed && isCurrentBusinessDay && <section className="add-employee-panel"><BoardWeeklyDispatch storeId={membership.store.id} members={members} disabled={busy} onSaved={onReload} /></section>}
       {canManage && !board.isClosed && <BoardEmployeePicker
+        storeId={membership.store.id}
         key={`${membership.store.id}:${currentDay.businessDate}`}
         members={availableMembers}
+        allMembers={members}
+        weeklyDispatchEnabled={isCurrentBusinessDay || isFutureBusinessDay}
         rankingAction={canGenerateRanking ? { label: dailyRankingActionLabel(board.ranking.rankedAt, isCurrentBusinessDay), onClick: () => run(rankBoard) } : undefined}
         rankingHelp={<RankingExplanationButton board={board} />}
         empty={activeRowCount === 0}

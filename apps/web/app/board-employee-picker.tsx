@@ -4,9 +4,13 @@ import { useRef, useState, type ReactNode } from "react";
 import { errorMessage } from "../lib/api";
 import type { StoreMember } from "../lib/types";
 import { toggleOrderedSelection, addEmployeesInOrder } from "../lib/employee-selection";
+import { BoardWeeklyDispatch } from "./board-weekly-dispatch";
 
 interface BoardEmployeePickerProps {
+  storeId: string;
   members: StoreMember[];
+  allMembers: StoreMember[];
+  weeklyDispatchEnabled: boolean;
   rankingAction?: { label: string; onClick: () => void } | undefined;
   rankingHelp?: ReactNode;
   empty: boolean;
@@ -15,7 +19,7 @@ interface BoardEmployeePickerProps {
   onReload: () => Promise<void>;
 }
 
-export function BoardEmployeePicker({ members, rankingAction, rankingHelp, empty, disabled, onAdd, onReload }: BoardEmployeePickerProps) {
+export function BoardEmployeePicker({ storeId, members, allMembers, weeklyDispatchEnabled, rankingAction, rankingHelp, empty, disabled, onAdd, onReload }: BoardEmployeePickerProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const submitting = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -54,7 +58,8 @@ export function BoardEmployeePicker({ members, rankingAction, rankingHelp, empty
   }
 
   return <>
-    {(members.length > 0 || rankingAction) && <section className="add-employee-panel">
+    {(members.length > 0 || rankingAction || weeklyDispatchEnabled) && <section className="add-employee-panel">
+      {weeklyDispatchEnabled && <BoardWeeklyDispatch storeId={storeId} members={allMembers} disabled={disabled} onSaved={onReload} />}
       <label className="field-label">手动添加员工到今日表格
         {empty
           ? <button className="employee-picker-trigger" type="button" aria-haspopup="dialog" disabled={busy || disabled} onClick={openPicker}><span>请选择员工</span><span aria-hidden="true">⌄</span></button>

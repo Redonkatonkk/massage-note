@@ -145,6 +145,7 @@ export class CatalogService {
             name: item.name,
             shortName: item.shortName,
             amountCents: BigInt(item.amountCents),
+            rateBps: item.rateBps ?? null,
             position,
           })),
         });
@@ -265,6 +266,7 @@ export class CatalogService {
               name: input.name,
               shortName: input.shortName,
               amountCents: BigInt(input.amountCents),
+              rateBps: input.rateBps ?? null,
               position: input.position ?? (maximum._max.position ?? -1) + 1,
             },
           });
@@ -399,6 +401,7 @@ export class CatalogService {
               ...(input.amountCents === undefined
                 ? {}
                 : { amountCents: BigInt(input.amountCents) }),
+              ...(input.rateBps === undefined ? {} : { rateBps: input.rateBps }),
               ...(input.position === undefined ? {} : { position: input.position }),
               ...(input.isEnabled === undefined
                 ? {}

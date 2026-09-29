@@ -371,7 +371,7 @@ SELECT
   '10000000-0000-4000-8000-000000000001',
   (timezone('America/New_York', now()))::date - 7,
   'DEMO-GC-1001',
-  'demo-gc-1001',
+  'DEMO-GC-1001',
   20000,
   10000,
   500,

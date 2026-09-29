@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.12.7` 代码结构核对。
+> 状态：与 `1.13.1` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -189,3 +189,9 @@ Web 表单
 `FinanceAnalyticsService` 在 RepeatableRead 只读事务中验证店铺财务权限并读取当前店铺有效记工、跑客、卖卡及去重后的已日结日期。每日记工数量响应同时包含按有效跑客记录 `customerCount` 求和的 `lostCustomerCount`；仅有跑客而没有记工的日期也纳入日期序列。领域函数 `calculateFinanceAnalytics` 负责历史时区小时分组、自然日补零及整数美分平均；共享契约 `FinanceAnalyticsResponse` 仅传输聚合结果。Web独立分析标签按需加载，通过既有实时通道与刷新队列合并事件，并使切店、日期变化和卸载后的旧请求失效。跑客数据由独立数据库表和向前迁移维护；可选备注保存于 `LostCustomer.note`，随列表和审计快照返回，不进入数量或金额计算。
 
 每日开门排位由领域层 `explainRotationCandidates` 复用排序函数生成结构化比较依据，API 与最终顺序一起事务保存至 `daily_boards.ranking_explanation`。读取使用共享契约校验并限制管理权限，Web 以中英文固定文案展示快照及当前名单差异，不依赖 AI 或当前历史重新推算。新增字段使用向前迁移，已有排序快照为空。
+
+## 每周排工与折扣目录（1.13.1）
+
+每周排工模板保存在店铺，营业日表格记录首次应用标记。看板加载前通过 API 在营业日锁内补入模板人员，生成既有轮转排位解释并写审计与 outbox；未来日期加载时按最新模板同步自动加入的行并重算顺序，无变化不写入；今天已安排的人员和人工调整保留。每周模板立即生效，今天即可查看明天；历史及已日结看板不应用。
+
+`discount_items.rate_bps` 为可空万分比；预设折扣与自定义折扣复用既有记工比例快照和领域金额计算。礼物卡台账从已确认记工按规范化序列号分组补入无销售登记的老卡，查询不产生销售账目。

@@ -58,6 +58,7 @@ export const catalogDiscountItemSchema = z.object({
   name: catalogNameSchema,
   shortName: catalogShortNameSchema,
   amountCents: moneyCentsSchema,
+  rateBps: commissionBpsSchema.nullable().optional(),
 });
 
 export const initializeCatalogSchema = z.object({
@@ -116,6 +117,7 @@ export const updateCatalogItemSchema = z.discriminatedUnion("type", [
     name: catalogNameSchema.optional(),
     shortName: catalogShortNameSchema.optional(),
     amountCents: moneyCentsSchema.optional(),
+    rateBps: commissionBpsSchema.nullable().optional(),
   }),
 ]).refine(
   (value) =>

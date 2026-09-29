@@ -20,6 +20,9 @@ const boards = new BoardsService(prisma, access, idempotency);
 const closings = new ClosingsService(prisma, access, idempotency);
 const finance = new FinanceQueriesService(prisma, access);
 const storeId = randomUUID();
+const otherStoreId = randomUUID();
+const otherStoreUserId = randomUUID();
+const otherStoreMembershipId = randomUUID();
 const ownerId = randomUUID();
 const employeeId = randomUUID();
 const ownerMembershipId = randomUUID();
@@ -75,6 +78,34 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
         giftCardAutoDiscountBps: 500,
       },
     });
+    await prisma.user.create({
+      data: {
+        id: otherStoreUserId,
+        firebaseUid: `gift-card-test-${otherStoreUserId}`,
+        phoneE164: `+1646${randomInt(10_000_000, 99_000_000)}`,
+      },
+    });
+    await prisma.store.create({
+      data: {
+        id: otherStoreId,
+        storeCode: randomInt(0, 1_000_000).toString().padStart(6, "0"),
+        name: "礼物卡隔离测试店",
+        timezone: "America/New_York",
+        businessCutoffLocal: "22:00",
+        globalCommissionBps: 6_000,
+        status: "ACTIVE",
+      },
+    });
+    await prisma.storeMembership.create({
+      data: {
+        id: otherStoreMembershipId,
+        storeId: otherStoreId,
+        userId: otherStoreUserId,
+        role: "OWNER",
+        displayName: "另一家店店主",
+        displayNameNormalized: "另一家店店主",
+      },
+    });
   });
 
   afterAll(async () => {
@@ -93,6 +124,10 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
       await prisma.dailyBoard.deleteMany({ where: { storeId } });
       await prisma.storeMembership.deleteMany({ where: { storeId } });
       await prisma.store.deleteMany({ where: { id: storeId } });
+      await prisma.workRecord.deleteMany({ where: { storeId: otherStoreId } });
+      await prisma.storeMembership.deleteMany({ where: { storeId: otherStoreId } });
+      await prisma.store.deleteMany({ where: { id: otherStoreId } });
+      await prisma.user.deleteMany({ where: { id: otherStoreUserId } });
       await prisma.user.deleteMany({ where: { id: { in: [ownerId, employeeId] } } });
     }
     await prisma.$disconnect();
@@ -101,6 +136,7 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
   let businessDate = "";
   let saleId = "";
   let saleVersion = 0;
+  const legacyUsageRecordIds: string[] = [];
 
   it("员工可记录实收与折后应付不一致的卖卡并保持幂等", async () => {
     businessDate = (await boards.currentBusinessDay(actor(employeeId), storeId)).businessDate;
@@ -294,12 +330,24 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     expect(created.map((sale) => sale.serialNumber).sort()).toEqual(["1002", "1003"]);
 
     const startAt = new Date(`${businessDate}T15:00:00.000Z`);
-    for (const [index, tipCents] of [200, 300].entries()) {
-      await prisma.workRecord.create({
+    const usageCases = [
+      { serial: " 1001 ", tipCents: 200 },
+      { serial: " 1001 ", tipCents: 300 },
+      { serial: "  OLD-CARD-ONCE ", tipCents: 400 },
+      { serial: "legacy-card-multi", tipCents: 200 },
+      { serial: " LEGACY-CARD-MULTI ", tipCents: 100 },
+    ];
+    for (const [index, usage] of usageCases.entries()) {
+      const legacySerial = /legacy-card|old-card/iu.test(usage.serial);
+      const giftCardServiceCents = legacySerial ? 0 : 1_000;
+      const usageBusinessDate = legacySerial
+        ? new Date(new Date(`${businessDate}T00:00:00.000Z`).getTime() - 86_400_000)
+        : new Date(`${businessDate}T00:00:00.000Z`);
+      const usageRecord = await prisma.workRecord.create({
         data: {
           storeId,
           employeeMembershipId,
-          businessDate: new Date(`${businessDate}T00:00:00.000Z`),
+          businessDate: usageBusinessDate,
           storeTimezoneSnapshot: "America/New_York",
           businessCutoffSnapshot: "22:00",
           startAt: new Date(startAt.getTime() + index * 3_600_000),
@@ -313,19 +361,19 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
           discountedFeePerformanceCents: 1_000,
           cashServiceCents: 0,
           cardServiceCents: 0,
-          giftCardSerialNumber: " 1001 ",
-          giftCardServiceCents: 1_000,
+          giftCardSerialNumber: usage.serial,
+          giftCardServiceCents,
           cashTipCents: 0,
           cardTipCents: 0,
-          giftCardTipCents: tipCents,
-          totalTipCents: tipCents,
-          actualServiceCollectedCents: 1_000,
-          customerTotalPaidCents: 1_000 + tipCents,
+          giftCardTipCents: usage.tipCents,
+          totalTipCents: usage.tipCents,
+          actualServiceCollectedCents: giftCardServiceCents,
+          customerTotalPaidCents: giftCardServiceCents + usage.tipCents,
           paymentDifferenceCents: 0,
           mainServiceWageCents: 600,
           addonWageCents: 0,
           totalLargeFeeWageCents: 600,
-          employeeTotalIncomeCents: 600 + tipCents,
+          employeeTotalIncomeCents: 600 + usage.tipCents,
           cashAllocatedServiceWageCents: 0,
           cashAcquiredServiceWageCents: 0,
           cashWageShortfallCents: 0,
@@ -345,7 +393,49 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
           },
         },
       });
+      if (usage.serial.toLowerCase().includes("old-card")) {
+        legacyUsageRecordIds.push(usageRecord.id);
+      }
     }
+
+    await prisma.workRecord.create({
+      data: {
+        storeId: otherStoreId,
+        employeeMembershipId: otherStoreMembershipId,
+        businessDate: new Date(`${businessDate}T00:00:00.000Z`),
+        storeTimezoneSnapshot: "America/New_York",
+        businessCutoffSnapshot: "22:00",
+        startAt,
+        endAt: new Date(startAt.getTime() + 3_600_000),
+        actualDurationMinutes: 60,
+        status: "CONFIRMED",
+        mainServiceAmountCents: 1_000,
+        addonTotalCents: 0,
+        grossFeeBaseCents: 1_000,
+        discountTotalCents: 0,
+        discountedFeePerformanceCents: 1_000,
+        cashServiceCents: 0,
+        cardServiceCents: 0,
+        giftCardSerialNumber: "FOREIGN-STORE-CARD",
+        giftCardServiceCents: 1_000,
+        cashTipCents: 0,
+        cardTipCents: 0,
+        giftCardTipCents: 0,
+        totalTipCents: 0,
+        actualServiceCollectedCents: 1_000,
+        customerTotalPaidCents: 1_000,
+        paymentDifferenceCents: 0,
+        mainServiceWageCents: 600,
+        addonWageCents: 0,
+        totalLargeFeeWageCents: 600,
+        employeeTotalIncomeCents: 600,
+        cashAllocatedServiceWageCents: 0,
+        cashAcquiredServiceWageCents: 0,
+        cashWageShortfallCents: 0,
+        createdBy: otherStoreUserId,
+        updatedBy: otherStoreUserId,
+      },
+    });
 
     const ledger = await giftCards.list(actor(ownerId), storeId);
     expect(ledger.nextSerialNumber).toBe("1004");
@@ -355,9 +445,49 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
       1_200n,
       1_300n,
     ]);
+    expect(ledger.legacyUsages.map((card) => card.serialNumber)).toEqual([
+      "legacy-card-multi",
+      "OLD-CARD-ONCE",
+    ]);
+    expect(ledger.legacyUsages.find((card) => card.serialNumber === "OLD-CARD-ONCE")?.usageRecords).toHaveLength(1);
+    expect(ledger.legacyUsages.find((card) => card.serialNumber === "legacy-card-multi")?.usageRecords).toHaveLength(2);
+    expect(ledger.legacyUsages.find((card) => card.serialNumber === "legacy-card-multi")?.usageRecords.map((record) => record.amountCents)).toEqual([200n, 100n]);
+    expect(ledger.legacyUsages.some((card) => card.serialNumber === "FOREIGN-STORE-CARD")).toBe(false);
     await expect(giftCards.list(actor(employeeId), storeId)).rejects.toMatchObject({
       response: expect.objectContaining({ code: "GIFT_CARD_LEDGER_FORBIDDEN" }),
     });
+  });
+
+  it("历史销售规范化字段大小写不一致时仍归并到已登记卡", async () => {
+    const serial = "OLD-CARD-ONCE";
+    const sale = await prisma.giftCardSale.create({ data: {
+      storeId, businessDate: new Date("2026-08-01T00:00:00Z"), serialNumber: serial,
+      serialNumberNormalized: serial.toLowerCase(), operatorMembershipId: ownerMembershipId,
+      faceValueCents: 1000, amountCents: 1000, cashCents: 1000, cardCents: 0,
+      createdBy: ownerId, updatedBy: ownerId,
+    } });
+    const ledger = await giftCards.list(actor(ownerId), storeId);
+    expect(ledger.sales.find((item) => item.id === sale.id)?.usageRecords).toHaveLength(1);
+    expect(ledger.legacyUsages.some((item) => item.serialNumber === serial)).toBe(false);
+    await prisma.giftCardSale.delete({ where: { id: sale.id } });
+  });
+
+  it("台账排除已软删除的使用记录，恢复后重新显示", async () => {
+    const [legacyUsage] = legacyUsageRecordIds;
+    if (!legacyUsage) throw new Error("Missing legacy card usage fixture");
+    await prisma.workRecord.update({
+      where: { id: legacyUsage },
+      data: { deletedAt: new Date(), deletedBy: ownerId, deleteReason: "测试软删除" },
+    });
+    const deletedLedger = await giftCards.list(actor(ownerId), storeId);
+    expect(deletedLedger.legacyUsages.some((card) => card.serialNumber === "OLD-CARD-ONCE")).toBe(false);
+
+    await prisma.workRecord.update({
+      where: { id: legacyUsage },
+      data: { deletedAt: null, deletedBy: null, deleteReason: null },
+    });
+    const restoredLedger = await giftCards.list(actor(ownerId), storeId);
+    expect(restoredLedger.legacyUsages.find((card) => card.serialNumber === "OLD-CARD-ONCE")?.usageRecords).toHaveLength(1);
   });
 
   it("财务汇总和日结把卖卡记为收入、用卡核销记为支出", async () => {

@@ -1262,6 +1262,16 @@ h2 {
   margin: 0;
 }
 
+.weekly-dispatch-dialog { width: min(960px, calc(100vw - 32px)); }
+.weekly-dispatch-table-wrap { max-height: min(58vh, 560px); overflow: auto; margin: 14px 0; border: 1px solid var(--line); border-radius: 12px; }
+.weekly-dispatch-table { width: 100%; border-collapse: collapse; background: var(--surface); }
+.weekly-dispatch-table th, .weekly-dispatch-table td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: center; }
+.weekly-dispatch-table thead th { position: sticky; top: 0; z-index: 1; background: #f5ede7; white-space: nowrap; }
+.weekly-dispatch-table th:first-child { position: sticky; left: 0; min-width: 110px; text-align: left; background: #fffaf5; }
+.weekly-dispatch-table thead th:first-child { z-index: 2; background: #f5ede7; }
+.weekly-dispatch-table td input { width: 22px; height: 22px; min-height: 0; margin: 0; accent-color: #805332; }
+.weekly-dispatch-dialog .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
 .gift-card-sales {
   display: grid;
   gap: 14px;

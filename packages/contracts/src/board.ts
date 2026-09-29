@@ -29,6 +29,20 @@ export const rankBoardSchema = z.object({
   version: versionSchema,
 }).strict();
 
+export const weeklyDispatchSchema = z.object({
+  monday: z.array(uuidSchema).max(200),
+  tuesday: z.array(uuidSchema).max(200),
+  wednesday: z.array(uuidSchema).max(200),
+  thursday: z.array(uuidSchema).max(200),
+  friday: z.array(uuidSchema).max(200),
+  saturday: z.array(uuidSchema).max(200),
+  sunday: z.array(uuidSchema).max(200),
+}).strict();
+export const updateWeeklyDispatchSchema = z.object({
+  version: versionSchema,
+  schedule: weeklyDispatchSchema,
+}).strict();
+
 export const removeBoardRowSchema = z.object({
   version: versionSchema,
 });
@@ -40,6 +54,8 @@ export type AddBoardRowInput = z.input<typeof addBoardRowSchema>;
 export type UpdateBoardRowInput = z.input<typeof updateBoardRowSchema>;
 export type ReorderBoardInput = z.input<typeof reorderBoardSchema>;
 export type RankBoardInput = z.input<typeof rankBoardSchema>;
+export type WeeklyDispatchInput = z.input<typeof weeklyDispatchSchema>;
+export type UpdateWeeklyDispatchInput = z.input<typeof updateWeeklyDispatchSchema>;
 export type RemoveBoardRowInput = z.input<typeof removeBoardRowSchema>;
 
 export const rankingExplanationSchema = z.object({

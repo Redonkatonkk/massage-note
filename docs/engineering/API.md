@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.12.7`
+> 适用版本：`1.13.1`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -351,3 +351,19 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 快照遵循共享契约 `RankingExplanation`：`schemaVersion: 1`、`generatedAt` 和 `entries`；每项包含 `membershipId`、生成时 `displayName`/`employmentType`、`lastBusinessDate`/`lastPosition`、`generatedPosition` 及 `ties`。同位比较项记录对方 `membershipId`、本成员是否在前 `ahead` 和原因 `EMPLOYMENT_TYPE` / `RECENT_ATTENDANCE` / `STABLE_ID`。
 
 现有 `POST .../rank` 在原有营业日锁、版本检查和幂等事务中同时保存顺序与快照。重新生成替换快照，手动调序、员工行变化和成员资料变更不改写快照。前端根据当前名单对比展示变化，不能用当前资料重新推算当时原因。旧数据不回填推测解释。
+
+### 老礼物卡使用台账
+
+礼物卡台账响应保留 `sales` 与 `nextSerialNumber`，新增 `legacyUsages: [{ serialNumber, usageRecords }]`。每组为没有有效销售登记但在本店未删除、已确认记工中使用过的序列号；序列号按与销售相同的规范化规则合并。使用明细结构与 `sales[].usageRecords` 相同，支持仅礼物卡小费的使用。老卡不计入售出数量或售出金额；前端单次使用直接展示，多次使用折叠汇总，并将两类卡按序列号自然排序。
+
+### 百分比折扣目录
+
+`catalog/setup` 的 `discountItems[]`、`catalog/items` 的 `DISCOUNT` 创建及更新均接受可选 `rateBps`（整数 0–10000，`null` 表示固定金额）。创建仍提供 `amountCents`；Web 配置比例时传 0，选用后由记工服务按折前项目与加项合计算出实际减免。切回固定金额时同时提交 `rateBps: null` 和 `amountCents`。目录响应返回该比例；网页、AI 和机器人选用预设折扣时携带比例，历史快照不因修改目录而变化。数据库迁移为 `20260928010000_discount_catalog_percentage`。
+
+### 每周排工模板
+
+- `GET /stores/:storeId/weekly-dispatch`：店主/经理读取 `{ version, effectiveFrom, schedule }`。`version` 为店铺版本；`schedule` 包含 `monday` 至 `sunday` 七个成员 ID 数组。
+- `PUT /stores/:storeId/weekly-dispatch`：提交 `{ version, schedule }` 和 `Idempotency-Key`；检查管理权限、成员归属/有效性、版本，事务内保存模板、审计和 outbox。配置从设备当前日期立即生效，版本冲突返回 409，应重新打开弹窗读取后核对。
+- `POST /stores/:storeId/boards/:businessDate/apply-weekly-dispatch`：Web 在加载看板前调用。当前在职成员可触发当日既定规则，仅管理者可触发未来日。营业日锁保护初始化与刷新，返回 `{ applied, addedCount?, ranked? }`；历史、已日结、未生效和已应用的当前日期跳过。未来日期允许刷新，按最新模板同步系统加入的行，并按最新出勤顺序重算；没有变化时返回 `applied: false`，不递增版本或重复发送 outbox。
+
+`stores.weekly_dispatch_json`、`weekly_dispatch_effective_from` 与 `daily_boards.weekly_dispatch_applied_at` 由迁移 `20260928120000_weekly_dispatch` 添加。模板初始化复用轮转领域排序及排名解释快照，店铺未启用每日开门排位时仅按模板顺序加入；当前日期已安排的人员保持不变；未来日期持续更新。自动管理的成员 ID 保存在 `board.weekly_dispatch_applied` 审计的 `managedMembershipIds`，兼容旧审计 `addedMembershipIds`，只移除模板取消且无任何记工或班次的自动行，保留手动加入的行。

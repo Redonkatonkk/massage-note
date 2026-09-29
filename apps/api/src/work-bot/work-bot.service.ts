@@ -739,7 +739,7 @@ export class WorkBotService {
           const items = catalog.filter(d => [d.name, d.shortName].some(name => normalizeWorkBotValue(name) === normalizeWorkBotValue(selection.name)));
           if (items.length !== 1) return this.persistReply(transaction, input, intent, { outcome: "DISCOUNT_UNKNOWN", reply: `折扣「${selection.name}」没有唯一配置，未修改记工。` }, group);
           const item = items[0]!;
-          if (!details.discounts.some(d => d.sourceItemId === item.id)) details.discounts.push({ sourceItemId: item.id, isCustom: false, name: item.name, amountCents: Number(item.amountCents) });
+          if (!details.discounts.some(d => d.sourceItemId === item.id)) details.discounts.push({ sourceItemId: item.id, isCustom: false, name: item.name, amountCents: Number(item.amountCents), rateBps: item.rateBps });
         }
       }
     }

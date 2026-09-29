@@ -1004,6 +1004,21 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
   });
 
   it("百分比按主要项目和加项合计计算，保留比例并随金额重算", async () => {
+    const discountItem = await catalog.createItem(actor(ownerId), storeId, {
+      type: "DISCOUNT", name: "目录比例优惠", shortName: "比例", amountCents: 0, rateBps: 1000,
+    }, "catalog-percent-create-key-0001", "catalog-percent-create");
+    expect(discountItem).toMatchObject({ amountCents: 0n, rateBps: 1000 });
+    const fixedItem = await catalog.updateItem(actor(ownerId), storeId, discountItem.id, {
+      type: "DISCOUNT", version: discountItem.version, amountCents: 1_500, rateBps: null,
+    }, "catalog-percent-fixed-key-0001", "catalog-percent-fixed");
+    expect(fixedItem).toMatchObject({ amountCents: 1_500n, rateBps: null });
+    const percentageItem = await catalog.updateItem(actor(ownerId), storeId, discountItem.id, {
+      type: "DISCOUNT", version: fixedItem.version, amountCents: 0, rateBps: 1000,
+    }, "catalog-percent-reset-key-0001", "catalog-percent-reset");
+    expect(percentageItem).toMatchObject({ amountCents: 0n, rateBps: 1000 });
+    await expect(catalog.list(actor(ownerId), storeId)).resolves.toMatchObject({
+      discountItems: expect.arrayContaining([expect.objectContaining({ id: discountItem.id, rateBps: 1000 })]),
+    });
     const created = await workRecords.create(actor(ownerId), storeId, {
       employeeMembershipId,
       startAt: new Date().toISOString(),
@@ -1012,11 +1027,11 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     const updated = await workRecords.update(actor(ownerId), storeId, created.id, {
       version: created.version, automaticDiscountSuppressed: true,
       addons: [{ isCustom: true, name: "热石", shortName: "热石", amountCents: 2000 }],
-      discounts: [{ isCustom: true, name: "百分比", amountCents: 9999, rateBps: 1000 }, { isCustom: true, name: "固定", amountCents: 500 }],
+      discounts: [{ sourceItemId: discountItem.id, isCustom: false, name: "目录比例优惠", amountCents: 0, rateBps: 1000 }, { isCustom: true, name: "固定", amountCents: 500 }],
     }, "percent-update-key-0001", "percent-update");
     expect(updated.discountTotalCents).toBe(1700n);
     expect(updated.discountedFeePerformanceCents).toBe(10300n);
-    expect(updated.discountSnapshots[0]).toMatchObject({ rateBps: 1000, amountCents: 1200n });
+    expect(updated.discountSnapshots[0]).toMatchObject({ sourceDiscountItemId: discountItem.id, rateBps: 1000, amountCents: 1200n });
     const changed = await workRecords.update(actor(ownerId), storeId, created.id, {
       version: updated.version, mainServiceAmountCents: 15000,
     }, "percent-reprice-key-0001", "percent-reprice");

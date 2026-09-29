@@ -5,6 +5,7 @@ import {
   Headers,
   Param,
   Patch,
+  Put,
   Post,
   Query,
   Res,
@@ -20,6 +21,7 @@ import {
   reorderBoardSchema,
   updateBoardRowSchema,
   rankBoardSchema,
+  updateWeeklyDispatchSchema,
   removeBoardRowSchema,
   uuidSchema,
 } from "@massage-note/contracts";
@@ -38,6 +40,27 @@ export class BoardsController {
     private readonly boards: BoardsService,
     private readonly dailyRanking: DailyRankingService,
   ) {}
+
+  @Get("weekly-dispatch")
+  getWeeklyDispatch(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string) {
+    return this.boards.getWeeklyDispatch(user, parseRequest(uuidSchema, storeId));
+  }
+
+  @Put("weekly-dispatch")
+  saveWeeklyDispatch(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("storeId") storeId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.boards.saveWeeklyDispatch(user, parseRequest(uuidSchema, storeId), parseRequest(updateWeeklyDispatchSchema, body), parseRequest(idempotencyKeySchema, idempotencyKey), response.locals.requestId as string);
+  }
+
+  @Post("boards/:businessDate/apply-weekly-dispatch")
+  applyWeeklyDispatch(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Param("businessDate") businessDate: string, @Res({ passthrough: true }) response: Response) {
+    return this.boards.applyWeeklyDispatch(user, parseRequest(uuidSchema, storeId), parseRequest(boardDateSchema, businessDate), response.locals.requestId as string);
+  }
 
   @Get("business-days/current")
   currentBusinessDay(

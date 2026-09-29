@@ -72,6 +72,16 @@ describe("项目初始化契约", () => {
     ).toBe(true);
   });
 
+  it("折扣项目可以保存百分比比例", () => {
+    expect(createCatalogItemSchema.safeParse({
+      type: "DISCOUNT", name: "会员优惠", shortName: "会员", amountCents: 0, rateBps: 1250,
+    }).success).toBe(true);
+    expect(createCatalogItemSchema.safeParse({
+      type: "DISCOUNT", name: "超限优惠", shortName: "超限", amountCents: 0, rateBps: 10001,
+    }).success).toBe(false);
+    expect(updateCatalogItemSchema.safeParse({ type: "DISCOUNT", version: 1, rateBps: 1250 }).success).toBe(true);
+  });
+
   it("排序必须包含不重复的项目版本", () => {
     const id = "00000000-0000-4000-8000-000000000001";
     expect(

@@ -93,11 +93,30 @@ export class GiftCardsService {
       usageBySerial.set(key, matches);
     }
     sales.sort((left, right) => this.compareSerialNumbers(left.serialNumber, right.serialNumber));
+    const registeredSerials = new Set(sales.map((sale) => this.normalizeSerial(sale.serialNumber)));
+    const legacyUsages = [...usageBySerial.entries()]
+      .filter(([serial]) => !registeredSerials.has(serial))
+      .map(([, matchingRecords]) => ({
+        serialNumber: matchingRecords[0]!.giftCardSerialNumber!.trim(),
+        usageRecords: matchingRecords.map((record) => ({
+          id: record.id,
+          businessDate: record.businessDate,
+          startAt: record.startAt,
+          serviceShortName: record.serviceSnapshot?.shortName ?? null,
+          employee: record.employee,
+          serviceCents: record.giftCardServiceCents ?? 0n,
+          tipCents: record.giftCardTipCents ?? 0n,
+          amountCents:
+            (record.giftCardServiceCents ?? 0n) + (record.giftCardTipCents ?? 0n),
+        })),
+      }))
+      .sort((left, right) => this.compareSerialNumbers(left.serialNumber, right.serialNumber));
     return {
       nextSerialNumber: String(store.nextGiftCardSerialNumber),
+      legacyUsages,
       sales: sales.map((sale) => ({
         ...sale,
-        usageRecords: (usageBySerial.get(sale.serialNumberNormalized) ?? []).map((record) => ({
+        usageRecords: (usageBySerial.get(this.normalizeSerial(sale.serialNumber)) ?? []).map((record) => ({
           id: record.id,
           businessDate: record.businessDate,
           startAt: record.startAt,

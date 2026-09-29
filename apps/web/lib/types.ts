@@ -63,6 +63,10 @@ export interface StoreDetails extends StoreSummary {
   automaticDispatchEnabled: boolean;
 }
 
+export type WeeklyDispatchDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+export type WeeklyDispatchSchedule = Record<WeeklyDispatchDay, string[]>;
+export interface WeeklyDispatchConfig { version: number; effectiveFrom: string | null; schedule: WeeklyDispatchSchedule; }
+
 export type ClosingDeliveryStatus = "QUEUED" | "CLAIMED" | "SENT" | "FAILED" | "CANCELLED";
 
 export interface ClosingDeliveryItem {
@@ -245,6 +249,7 @@ export interface DiscountItem {
   name: string;
   shortName: string;
   amountCents: number;
+  rateBps: number | null;
   isEnabled: boolean;
   deletedAt: string | null;
   version: number;
@@ -383,6 +388,7 @@ export interface GiftCardLedgerSale extends GiftCardSale {
 export interface GiftCardLedgerResponse {
   nextSerialNumber: string;
   sales: GiftCardLedgerSale[];
+  legacyUsages: Array<{ serialNumber: string; usageRecords: GiftCardUsageRecord[] }>;
 }
 
 export type DeletedGiftCardSale = GiftCardSale;

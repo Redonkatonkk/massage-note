@@ -468,7 +468,7 @@ function CatalogPanel({ storeId, canManage, catalog, busy, run, reload }: { stor
     <p className="field-help">先看每项摘要，需要修改时再展开；新增表单按分类打开，页面更清楚。上移、下移的顺序也会用于今日记工和详情选择框。</p>
     <CatalogGroup title="主要项目" description="一个项目可维护多组时长与价格，快速记工会沿用这里的顺序。" type="SERVICE" items={catalog.serviceItems} emptyText="还没有主要项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
     <CatalogGroup title="额外项目" description="常用加项集中维护；金额、时间和默认提成在编辑时保持紧凑横排。" type="ADDON" items={catalog.addonItems} emptyText="还没有额外项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
-    <CatalogGroup title="折扣项目" description="固定金额折扣由店铺承担，不会降低员工项目提成。" type="DISCOUNT" items={catalog.discountItems} emptyText="还没有折扣项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
+    <CatalogGroup title="折扣项目" description="可设置固定金额或百分比折扣；折扣由店铺承担，不会降低员工项目提成。" type="DISCOUNT" items={catalog.discountItems} emptyText="还没有折扣项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
   </section></section>;
 }
 
@@ -496,6 +496,7 @@ function CatalogCreateForm({ storeId, kind, busy, run, reload, onCreated }: { st
   const [name, setName] = useState("");
   const [shortName, setShortName] = useState("");
   const [amount, setAmount] = useState("");
+  const [percentage, setPercentage] = useState(false);
   const [duration, setDuration] = useState("");
   const [priceOptions, setPriceOptions] = useState<PriceOptionDraft[]>([newPriceOption()]);
   const [commission, setCommission] = useState("");
@@ -506,10 +507,10 @@ function CatalogCreateForm({ storeId, kind, busy, run, reload, onCreated }: { st
       ? { type: kind, fullName: name, shortName, priceOptions: priceOptions.map((option) => ({ durationMinutes: Number(option.duration), priceCents: parseMoney(option.amount, `${option.duration} 分钟价格`) })) }
       : kind === "ADDON"
         ? { type: kind, name, shortName, amountCents: parseMoney(amount, "项目金额"), durationMinutes: duration.trim() ? Number(duration) : null }
-        : { type: kind, name, shortName, amountCents: parseMoney(amount, "折扣金额") };
+        : { type: kind, name, shortName, amountCents: percentage ? 0 : parseMoney(amount, "折扣金额"), ...(percentage ? { rateBps: parsePercent(amount, "折扣比例") } : {}) };
     if (kind !== "DISCOUNT" && commission.trim()) Object.assign(body, { defaultCommissionBps: parsePercent(commission, "项目默认提成") });
     await apiRequest(`/stores/${storeId}/catalog/items`, { method: "POST", idempotent: true, body });
-    setName(""); setShortName(""); setAmount(""); setDuration(""); setCommission(""); setPriceOptions([newPriceOption()]);
+    setName(""); setShortName(""); setAmount(""); setDuration(""); setCommission(""); setPercentage(false); setPriceOptions([newPriceOption()]);
     await reload();
     onCreated();
   }); }}>
@@ -520,7 +521,7 @@ function CatalogCreateForm({ storeId, kind, busy, run, reload, onCreated }: { st
       <input required type="number" min="1" max="720" inputMode="numeric" aria-label={`第 ${index + 1} 个时长`} placeholder="分钟" value={option.duration} onChange={(event) => updatePriceOption(option.key, { duration: event.target.value })} />
       <input required inputMode="decimal" aria-label={`第 ${index + 1} 个价格`} placeholder="价格（美元）" value={option.amount} onChange={(event) => updatePriceOption(option.key, { amount: event.target.value })} />
       {priceOptions.length > 1 && <button className="danger-link" type="button" onClick={() => setPriceOptions((current) => current.filter((candidate) => candidate.key !== option.key))}>移除</button>}
-    </div>)}<button className="secondary-action compact" type="button" onClick={() => setPriceOptions((current) => [...current, newPriceOption("")])}>＋ 添加时长价格</button></div> : <label className="catalog-field catalog-field--amount"><span>{kind === "DISCOUNT" ? "折扣金额（美元）" : "金额（美元）"}</span><input required aria-label={`${label}金额`} inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>}
+    </div>)}<button className="secondary-action compact" type="button" onClick={() => setPriceOptions((current) => [...current, newPriceOption("")])}>＋ 添加时长价格</button></div> : <>{kind === "DISCOUNT" && <label className="catalog-field"><span>折扣类型</span><select value={percentage ? "percentage" : "fixed"} onChange={(event) => setPercentage(event.target.value === "percentage")}><option value="fixed">固定金额</option><option value="percentage">按百分比</option></select></label>}<label className="catalog-field catalog-field--amount"><span>{kind === "DISCOUNT" ? percentage ? "折扣比例（%）" : "折扣金额（美元）" : "金额（美元）"}</span><input required aria-label={`${label}${percentage ? "比例" : "金额"}`} inputMode="decimal" placeholder={percentage ? "例如 10" : "0.00"} value={amount} onChange={(event) => setAmount(event.target.value)} /></label></>}
     {kind === "ADDON" && <label className="catalog-field catalog-field--duration"><span>时间（分钟）</span><input aria-label="额外项目分钟" inputMode="numeric" placeholder="可留空" value={duration} onChange={(event) => setDuration(event.target.value)} /></label>}
     {kind !== "DISCOUNT" && <label className="catalog-field catalog-field--commission"><span>默认提成（%）</span><input aria-label={`${label}默认提成`} inputMode="decimal" placeholder="可留空" value={commission} onChange={(event) => setCommission(event.target.value)} /></label>}
     <div className="catalog-form-actions"><button className="primary-action compact" disabled={busy} type="submit">{`新增${label}`}</button></div>
@@ -533,7 +534,8 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, 
   const discount = type === "DISCOUNT" ? item as DiscountItem : null;
   const [name, setName] = useState(service?.fullName ?? addon?.name ?? discount?.name ?? "");
   const [shortName, setShortName] = useState(item.shortName);
-  const [amount, setAmount] = useState(formatMoneyInput(addon?.amountCents ?? discount?.amountCents ?? 0));
+  const [amount, setAmount] = useState(discount?.rateBps != null ? (discount.rateBps / 100).toString() : formatMoneyInput(addon?.amountCents ?? discount?.amountCents ?? 0));
+  const [percentage, setPercentage] = useState(discount?.rateBps != null);
   const [duration, setDuration] = useState((addon?.durationMinutes ?? "").toString());
   const [priceOptions, setPriceOptions] = useState<PriceOptionDraft[]>(
     service?.priceOptions.map((option) => newPriceOption(option.durationMinutes.toString(), formatMoneyInput(option.priceCents))) ?? [],
@@ -549,7 +551,8 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, 
   function cancelEditing() {
     setName(service?.fullName ?? addon?.name ?? discount?.name ?? "");
     setShortName(item.shortName);
-    setAmount(formatMoneyInput(addon?.amountCents ?? discount?.amountCents ?? 0));
+    setPercentage(discount?.rateBps != null);
+    setAmount(discount?.rateBps != null ? (discount.rateBps / 100).toString() : formatMoneyInput(addon?.amountCents ?? discount?.amountCents ?? 0));
     setDuration((addon?.durationMinutes ?? "").toString());
     setPriceOptions(service?.priceOptions.map((option) => newPriceOption(option.durationMinutes.toString(), formatMoneyInput(option.priceCents))) ?? []);
     setCommission(savedCommission);
@@ -562,7 +565,7 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, 
       <div className="catalog-summary">
         <div className="catalog-summary-title"><strong>{item.shortName}</strong><span>{service?.fullName ?? addon?.name ?? discount?.name}</span></div>
         <div className="catalog-summary-facts">
-          {service ? service.priceOptions.map((option) => <em key={option.id}>{option.durationMinutes} 分钟 · {money(option.priceCents)}</em>) : <em>{type === "DISCOUNT" ? `-${money(amountCents)}` : money(amountCents)}</em>}
+          {service ? service.priceOptions.map((option) => <em key={option.id}>{option.durationMinutes} 分钟 · {money(option.priceCents)}</em>) : <em>{type === "DISCOUNT" ? discount?.rateBps != null ? `-${discount.rateBps / 100}%` : `-${money(amountCents)}` : money(amountCents)}</em>}
           {addon && <em>{addon.durationMinutes === null ? "不增加时长" : `${addon.durationMinutes} 分钟`}</em>}
           {type !== "DISCOUNT" && <em>{savedCommission ? `默认提成 ${savedCommission}%` : "无项目默认提成"}</em>}
           <small className={deleted || !item.isEnabled ? "inactive" : ""}>{deleted ? "已删除，可恢复" : item.isEnabled ? "启用中" : "已停用"}</small>
@@ -585,7 +588,7 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, 
           {priceOptions.length > 1 && <button className="danger-link" type="button" onClick={() => setPriceOptions((current) => current.filter((candidate) => candidate.key !== option.key))}>移除</button>}
         </div>)}
         <button className="secondary-action compact" type="button" onClick={() => setPriceOptions((current) => [...current, newPriceOption("")])}>＋ 添加时长价格</button>
-      </div> : <label className="catalog-field catalog-field--amount"><span>{discount ? "折扣金额（美元）" : "金额（美元）"}</span><input aria-label={`${item.shortName}金额`} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>}
+      </div> : <>{discount && <label className="catalog-field"><span>折扣类型</span><select value={percentage ? "percentage" : "fixed"} onChange={(event) => setPercentage(event.target.value === "percentage")}><option value="fixed">固定金额</option><option value="percentage">按百分比</option></select></label>}<label className="catalog-field catalog-field--amount"><span>{discount ? percentage ? "折扣比例（%）" : "折扣金额（美元）" : "金额（美元）"}</span><input aria-label={`${item.shortName}${percentage ? "比例" : "金额"}`} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label></>}
       {addon && <label className="catalog-field catalog-field--duration"><span>时间（分钟）</span><input aria-label={`${item.shortName}分钟`} inputMode="numeric" placeholder="可留空" value={duration} onChange={(event) => setDuration(event.target.value)} /></label>}
       {type !== "DISCOUNT" && <label className="catalog-field catalog-field--commission"><span>默认提成（%）</span><input aria-label={`${item.shortName}提成`} inputMode="decimal" placeholder="可留空" value={commission} onChange={(event) => setCommission(event.target.value)} /></label>}
       <label className="catalog-enabled-toggle"><input type="checkbox" checked={isEnabled} onChange={(event) => setIsEnabled(event.target.checked)} /><span>启用</span></label>
@@ -594,7 +597,7 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, 
           ? { type, version: item.version, fullName: name, shortName, priceOptions: priceOptions.map((option) => ({ durationMinutes: Number(option.duration), priceCents: parseMoney(option.amount, `${option.duration} 分钟价格`) })), defaultCommissionBps: parsePercent(commission, "项目默认提成", true), isEnabled }
           : addon
             ? { type, version: item.version, name, shortName, amountCents: parseMoney(amount, "项目金额"), durationMinutes: duration.trim() ? Number(duration) : null, defaultCommissionBps: parsePercent(commission, "项目默认提成", true), isEnabled }
-            : { type, version: item.version, name, shortName, amountCents: parseMoney(amount, "折扣金额"), isEnabled };
+            : { type, version: item.version, name, shortName, amountCents: percentage ? 0 : parseMoney(amount, "折扣金额"), rateBps: percentage ? parsePercent(amount, "折扣比例") : null, isEnabled };
         await apiRequest(`/stores/${storeId}/catalog/items/${item.id}`, { method: "PATCH", idempotent: true, body });
         await reload();
       })}>保存修改</button><button className="secondary-action compact" disabled={busy} type="button" onClick={cancelEditing}>取消</button><button className="table-action danger" disabled={busy} type="button" onClick={() => { const reason = window.prompt("请填写删除项目原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${storeId}/catalog/items/${item.id}`, { method: "DELETE", idempotent: true, body: { type, version: item.version, reason: reason.trim() } }); await reload(); }); }}>删除</button></div>

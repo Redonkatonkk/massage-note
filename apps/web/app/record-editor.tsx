@@ -127,7 +127,7 @@ function discountFromItem(item: DiscountItem): DiscountDraft {
     key: crypto.randomUUID(),
     sourceItemId: item.id,
     name: item.name,
-    amount: dollars(item.amountCents),
+    amount: item.rateBps == null ? dollars(item.amountCents) : `${item.rateBps / 100}%`,
   };
 }
 
@@ -483,7 +483,7 @@ export function RecordEditor({
       updateDiscount(key, {
         sourceItemId: item.id,
         name: item.name,
-        amount: dollars(item.amountCents),
+        amount: item.rateBps == null ? dollars(item.amountCents) : `${item.rateBps / 100}%`,
       });
     }
   }

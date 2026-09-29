@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { businessDateFor, deviceNow, deviceTimezone } from "../common/device-time.js";
 import {
   BadRequestException,
@@ -23,6 +24,8 @@ import {
   calculateBoardTotalIncome,
   hasStoreCapability,
 } from "@massage-note/domain";
+import { explainRotationCandidates } from "@massage-note/domain";
+import type { UpdateWeeklyDispatchInput } from "@massage-note/contracts";
 import { ensureBoardRow } from "../common/ensure-board-row.js";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
@@ -30,6 +33,17 @@ import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
+const weeklyDays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+const emptyWeeklyDispatch = (): Record<(typeof weeklyDays)[number], string[]> => ({ monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [] });
+function weeklyDispatchFromJson(value: Prisma.JsonValue | null): Record<(typeof weeklyDays)[number], string[]> {
+  const empty = emptyWeeklyDispatch();
+  if (!value || typeof value !== "object" || Array.isArray(value)) return empty;
+  for (const day of weeklyDays) {
+    const members = (value as Record<string, unknown>)[day];
+    if (Array.isArray(members)) empty[day] = members.filter((item): item is string => typeof item === "string");
+  }
+  return empty;
+}
 
 interface BoardStatistics {
   recordCount: number;
@@ -54,6 +68,150 @@ export class BoardsService {
     private readonly access: StoreAccessService,
     private readonly idempotency: IdempotencyService,
   ) {}
+
+  async getWeeklyDispatch(actor: User, storeId: string) {
+    await this.access.requireCapability(actor.id, storeId, "MEMBERSHIP_MANAGE");
+    const store = await this.findStore(this.prisma, storeId);
+    return { version: store.version, effectiveFrom: store.weeklyDispatchEffectiveFrom?.toISOString().slice(0, 10) ?? null,
+      schedule: weeklyDispatchFromJson(store.weeklyDispatchJson) };
+  }
+
+  async saveWeeklyDispatch(actor: User, storeId: string, input: UpdateWeeklyDispatchInput, idempotencyKey: string, requestId: string) {
+    const manager = await this.access.requireCapability(actor.id, storeId, "MEMBERSHIP_MANAGE");
+    return this.idempotency.execute({ storeId, userId: actor.id, key: idempotencyKey, route: "/api/v1/stores/:storeId/weekly-dispatch", payload: input, responseCode: 200 }, async (transaction) => {
+      const store = await this.findStore(transaction, storeId);
+      if (store.version !== input.version) throw new ConflictException({ code: "STORE_VERSION_CONFLICT", messageZh: "店铺设置已经变化，请刷新后重试" });
+      const ids = [...new Set(Object.values(input.schedule).flat())];
+      const members = await transaction.storeMembership.findMany({
+        where: { storeId, id: { in: ids }, status: "ACTIVE", deletedAt: null, isServiceProvider: true },
+        select: { id: true, displayName: true, employmentType: true },
+      });
+      if (members.length !== ids.length) throw new BadRequestException({ code: "WEEKLY_DISPATCH_MEMBER_INVALID", messageZh: "排工表中包含已停用或不可参与记工的员工，请刷新后重试" });
+      if (store.automaticDispatchEnabled) {
+        const missing = members.filter((member) => !member.employmentType);
+        if (missing.length) throw new ConflictException({ code: "DAILY_RANKING_EMPLOYMENT_TYPE_REQUIRED", messageZh: `请先设置全职或兼职：${missing.map((member) => member.displayName).join("、")}` });
+      }
+      const today = businessDateFor({ startAt: deviceNow(), timezone: deviceTimezone(store.timezone), cutoffLocal: store.businessCutoffLocal });
+      const effectiveFrom = today;
+      const schedule = Object.fromEntries(weeklyDays.map((day) => [day, [...new Set(input.schedule[day])]]));
+      const changed = await transaction.store.updateMany({ where: { id: storeId, version: input.version, status: "ACTIVE", deletedAt: null }, data: {
+        weeklyDispatchJson: schedule,
+        weeklyDispatchEffectiveFrom: dateAtUtc(effectiveFrom),
+        version: { increment: 1 },
+      } });
+      if (changed.count !== 1) throw new ConflictException({ code: "STORE_VERSION_CONFLICT", messageZh: "店铺设置已经变化，请刷新后重试" });
+      const updated = await transaction.store.findUniqueOrThrow({ where: { id: storeId } });
+      await transaction.auditLog.create({ data: {
+        storeId, actorUserId: actor.id, actorMembershipId: manager.id, source: "api",
+        action: "board.weekly_dispatch_updated", entityType: "store", entityId: storeId,
+        beforeJson: { schedule: store.weeklyDispatchJson ?? emptyWeeklyDispatch(), effectiveFrom: store.weeklyDispatchEffectiveFrom?.toISOString().slice(0, 10) ?? null },
+        afterJson: { schedule, effectiveFrom, version: updated.version }, requestId,
+      } });
+      await transaction.domainOutbox.create({ data: { storeId, topic: "board.weekly_dispatch_updated", aggregateType: "store", aggregateId: storeId, payloadJson: { version: updated.version, effectiveFrom } } });
+      return { effectiveFrom, schedule };
+    });
+  }
+
+  async applyWeeklyDispatch(actor: User, storeId: string, businessDate: string, requestId: string) {
+    const membership = await this.access.requireActiveMembership(actor.id, storeId);
+    const store = await this.findStore(this.prisma, storeId);
+    const currentDate = businessDateFor({ startAt: deviceNow(), timezone: deviceTimezone(store.timezone), cutoffLocal: store.businessCutoffLocal });
+    if (businessDate < currentDate) return { applied: false };
+    if (membership.role === "EMPLOYEE" && businessDate > currentDate) throw new ForbiddenException({ code: "WEEKLY_DISPATCH_FUTURE_APPLY_FORBIDDEN", messageZh: "员工不能初始化未来营业日" });
+    const weekday = weeklyDays[(dateAtUtc(businessDate).getUTCDay() + 6) % 7]!;
+    return this.prisma.$transaction(async (transaction) => {
+      await lockBusinessDay(transaction, storeId, businessDate);
+      const currentStore = await this.findStore(transaction, storeId);
+      const effectiveFrom = currentStore.weeklyDispatchEffectiveFrom?.toISOString().slice(0, 10);
+      if (!effectiveFrom || businessDate < effectiveFrom) return { applied: false };
+      const closings = await transaction.businessDayClosing.findFirst({ where: { storeId, businessDate: dateAtUtc(businessDate), status: "CLOSED" }, select: { id: true } });
+      if (closings) return { applied: false };
+      const ids = weeklyDispatchFromJson(currentStore.weeklyDispatchJson)[weekday];
+      const board = await transaction.dailyBoard.upsert({
+        where: { storeId_businessDate: { storeId, businessDate: dateAtUtc(businessDate) } },
+        create: { storeId, businessDate: dateAtUtc(businessDate) }, update: {},
+      });
+      await transaction.$queryRaw`SELECT id FROM daily_boards WHERE id = ${board.id}::uuid FOR UPDATE`;
+      const fresh = await transaction.dailyBoard.findUniqueOrThrow({ where: { id: board.id }, include: { rows: true } });
+      const isFuture = businessDate > currentDate;
+      if (fresh.weeklyDispatchAppliedAt && !isFuture) return { applied: false };
+      // Remember which rows were introduced by the template; manual additions remain independent.
+      const previousApplication = isFuture && fresh.weeklyDispatchAppliedAt
+        ? await transaction.auditLog.findFirst({
+          where: { storeId, entityId: board.id, action: "board.weekly_dispatch_applied" },
+          orderBy: { createdAt: "desc" }, select: { afterJson: true },
+        }) : null;
+      const previousData = previousApplication?.afterJson as { managedMembershipIds?: string[]; addedMembershipIds?: string[] } | null;
+      const previousManaged = previousData?.managedMembershipIds ?? previousData?.addedMembershipIds ?? [];
+      const selected = await transaction.storeMembership.findMany({
+        where: { id: { in: ids }, storeId, status: "ACTIVE", deletedAt: null, isServiceProvider: true },
+        select: { id: true, displayName: true, employmentType: true },
+      });
+      const selectedIds = new Set(selected.map((item) => item.id));
+      const removedMembershipIds: string[] = [];
+      for (const row of fresh.rows) {
+        if (!previousManaged.includes(row.membershipId) || selectedIds.has(row.membershipId)) continue;
+        const [records, shifts] = await Promise.all([
+          transaction.workRecord.count({ where: { storeId, businessDate: dateAtUtc(businessDate), employeeMembershipId: row.membershipId } }),
+          transaction.shift.count({ where: { storeId, businessDate: dateAtUtc(businessDate), membershipId: row.membershipId } }),
+        ]);
+        if (records || shifts) continue;
+        await transaction.dailyEmployeeRow.delete({ where: { id: row.id } });
+        removedMembershipIds.push(row.membershipId);
+      }
+      const preserveCurrentRows = !isFuture && fresh.rows.length > 0;
+      const missingIds = (preserveCurrentRows ? [] : ids).filter((id) => selectedIds.has(id) && !fresh.rows.some((row) => row.membershipId === id));
+      const managedMembershipIds = [...new Set([...previousManaged.filter((id) => selectedIds.has(id)), ...missingIds])];
+      if (missingIds.length) {
+        const max = await transaction.dailyEmployeeRow.aggregate({ where: { boardId: board.id }, _max: { position: true } });
+        let position = max._max.position ?? new Prisma.Decimal(0);
+        for (const membershipId of missingIds) {
+          position = position.plus(1);
+          await transaction.dailyEmployeeRow.create({ data: { boardId: board.id, storeId, membershipId, position, addedBy: actor.id } });
+        }
+      }
+      const rows = await transaction.dailyEmployeeRow.findMany({ where: { boardId: board.id }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], include: { membership: { select: { displayName: true, employmentType: true } } } });
+      const visible = rows.filter((row) => !row.isHidden);
+      let explanation: Prisma.InputJsonValue | undefined;
+      let rankedAt: Date | undefined;
+      if (!preserveCurrentRows && currentStore.automaticDispatchEnabled && visible.length && visible.every((row) => row.membership.employmentType)) {
+        const candidates = await Promise.all(visible.map(async (row) => {
+          const previous = await transaction.dailyEmployeeRow.findFirst({ where: { membershipId: row.membershipId, storeId, isHidden: false, board: { businessDate: { lt: dateAtUtc(businessDate) } } }, orderBy: { board: { businessDate: "desc" } }, select: { board: { select: { businessDate: true, rows: { where: { isHidden: false }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], select: { membershipId: true } } } } } });
+          const lastPosition = previous ? previous.board.rows.findIndex((item) => item.membershipId === row.membershipId) + 1 : null;
+          return { membershipId: row.membershipId, employmentType: row.membership.employmentType!, lastPosition, lastBusinessDate: previous?.board.businessDate.toISOString().slice(0, 10) ?? null };
+        }));
+        const explained = explainRotationCandidates(candidates);
+        const order = explained.map((entry) => entry.membershipId);
+        const hidden = rows.filter((row) => row.isHidden).map((row) => row.membershipId);
+        const completeOrder = [...order, ...hidden];
+        const entries = explained.map((entry) => ({ ...entry, displayName: visible.find((row) => row.membershipId === entry.membershipId)!.membership.displayName }));
+        const previousExplanation = rankingExplanationSchema.safeParse(fresh.rankingExplanation).data;
+        if (completeOrder.some((id, index) => id !== rows[index]?.membershipId)
+          || !isDeepStrictEqual(previousExplanation?.entries, entries)) {
+          for (const [index, id] of completeOrder.entries()) {
+            const row = rows.find((item) => item.membershipId === id)!;
+            await transaction.dailyEmployeeRow.update({ where: { id: row.id }, data: { position: new Prisma.Decimal(index + 1), version: { increment: 1 } } });
+          }
+          rankedAt = new Date();
+          explanation = { schemaVersion: 1, generatedAt: rankedAt.toISOString(), entries };
+        }
+      }
+      if (fresh.weeklyDispatchAppliedAt && !missingIds.length && !removedMembershipIds.length && !rankedAt
+        && JSON.stringify(previousManaged) === JSON.stringify(managedMembershipIds)) return { applied: false };
+      const updateData: Prisma.DailyBoardUpdateInput = {
+        weeklyDispatchAppliedAt: new Date(), version: { increment: 1 },
+      };
+      if (rankedAt && explanation) { updateData.rankedAt = rankedAt; updateData.rankingExplanation = explanation; }
+      const updated = await transaction.dailyBoard.update({ where: { id: board.id }, data: updateData });
+      await transaction.auditLog.create({ data: {
+        storeId, actorUserId: actor.id, actorMembershipId: membership.id, source: "api",
+        action: "board.weekly_dispatch_applied", entityType: "daily_board", entityId: board.id,
+        businessDate: dateAtUtc(businessDate), afterJson: { addedMembershipIds: missingIds, removedMembershipIds, managedMembershipIds, rankedAt: rankedAt?.toISOString() ?? null, version: updated.version }, requestId,
+      } });
+      await transaction.domainOutbox.create({ data: { storeId, topic: "board.weekly_dispatch_applied", aggregateType: "daily_board", aggregateId: board.id, payloadJson: { businessDate, addedMembershipIds: missingIds, removedMembershipIds, version: updated.version } } });
+      return { applied: true, addedCount: missingIds.length, ranked: !!rankedAt };
+    });
+  }
 
   async currentBusinessDay(actor: User, storeId: string) {
     await this.access.requireActiveMembership(actor.id, storeId);
@@ -997,6 +1155,9 @@ export class BoardsService {
         businessCutoffLocal: true,
         automaticDispatchEnabled: true,
         nextGiftCardSerialNumber: true,
+        version: true,
+        weeklyDispatchJson: true,
+        weeklyDispatchEffectiveFrom: true,
       },
     });
     if (!store) {

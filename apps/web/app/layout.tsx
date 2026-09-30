@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import "./globals.css";
+import "./design-system.css";
 import "./responsive.css";
 import { isAppLocale } from "../lib/i18n";
 import { LanguageProvider } from "./language-provider";

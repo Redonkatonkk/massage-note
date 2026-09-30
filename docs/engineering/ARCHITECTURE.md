@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.13.6` 代码结构核对。
+> 状态：与 `1.14.4` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -38,7 +38,7 @@ flowchart LR
 | `packages/contracts` | 前后端共享的 Zod 请求契约和类型 | 数据库访问、业务副作用 |
 | `packages/database` | Prisma schema、生成客户端、向前迁移和数据库约束测试 | HTTP 或 UI 逻辑 |
 | `docker` | PostgreSQL 初始化、运行账号加固和 NAS 入口 | 应用业务规则 |
-| `scripts` | 测试库准备、版本检查、备份、恢复、维护和离线镜像 | 在线请求处理 |
+| `scripts` | 测试库准备、版本与文档链接检查、备份、恢复、维护和离线镜像 | 在线请求处理 |
 
 依赖方向保持为“应用依赖共享包”：
 
@@ -69,11 +69,13 @@ packages/contracts  只依赖 Zod
 
 财务页面内部复用的日期截取与 UTC 日期加减放在 `apps/web/app/finance/date-utils.ts`。
 
+Web 视觉按 `globals.css`（基础规则与颜色变量）、`design-system.css`（共享组件视觉与轻动效）、`responsive.css`（断点布局）顺序加载。`app/ui/primitives.tsx` 复用 SVG 图标、品牌与指标卡片；`app-nav.tsx` 用同一组链接呈现桌面自动收起侧栏和小屏底栏，保留店铺查询参数与导航高度测量。`lib/app-navigation.ts` 统一财务与设置的角色菜单和分区校验，`use-navigation-tab.ts` 同步 URL 与页面分区；桌面子菜单由主导航分组的鼠标移入自动展开，离开侧栏后收起，保留键盘按钮与动画，并复用页面选中状态。维护依据见 [UI 设计](UI_DESIGN.md)。
+
 `apps/web/lib` 放共享客户端能力：
 
-- `api.ts`：统一 Cookie 请求、幂等键、错误翻译和目录名称注册。
+- `api.ts`：登录、业务请求与实时连接共用的 API 基址，以及统一 Cookie 请求、幂等键、错误翻译和目录名称注册。
 - `i18n.ts`：界面词条、稳定错误码翻译和自定义项目名称映射。
-- `types.ts`：部分手写响应类型；响应变化时必须同步。
+- `types.ts`：部分手写响应类型；角色、每周排工和结算范围复用领域/契约类型，其余响应变化时必须同步。
 - `money.ts`、`time.ts`、`closing.ts` 等：无 UI 的显示与状态辅助函数及测试。
 - `realtime.ts` / `realtime-client.ts`：同页面同店共享 SSE 连接，串行合并 REST 重载；心跳停顿 10 秒重建连接，异常期间每 30 秒补读，隐藏或离线时暂停，恢复可见/联网时完整补读。`realtime-scope.ts` 按实体与营业日选择刷新范围。
 
@@ -91,13 +93,14 @@ packages/contracts  只依赖 Zod
 | `boards` | 营业日、班次、每日表格行和每日开门排位 |
 | `work-records` | 记工快照、付款确认、软删除与恢复 |
 | `gift-cards` | 卖卡、序列号、折扣快照和使用台账 |
+| `lost-customers` | 跑客时间、人数、备注与审计快照 |
 | `work-bot` | 微信机器人群/员工绑定、受限意图提交、查询与管理 |
 | `finance` | 财务查询、日结、现金结算和工资账本 |
 | `audit` | 按店查询不可变审计日志 |
 | `realtime` | PostgreSQL outbox 的 SSE 事件流 |
 | `ai` | 记工预览、确定性财务解释和短录音转写 |
 
-`work-bot` 的金额解析与回复格式化放在 `work-bot-format.ts`，Service 保留权限和事务编排；Mac 附件的 XML 转义、金额和时间显示由 `apps/messages-agent/src/render-format.ts` 共用，各渲染器保留布局职责。
+`work-bot` 的金额解析与回复格式化放在 `work-bot-format.ts`，Service 保留权限和事务编排；Mac 附件的 XML 转义、金额和时间显示由 `apps/messages-agent/src/render-format.ts` 共用，各渲染器保留布局职责。日结与区间结算发送共用 `finance/delivery-agent.ts` 的凭证哈希与鉴权，租约状态仍由 `delivery-lease.ts` 和各 Service 检查。
 
 Controller 只负责 HTTP 适配和共享契约解析。权限、对象归属、状态与事务放在 Service 或领域函数中；金额最终值不信任前端合计。
 
@@ -145,7 +148,7 @@ Web 表单
 | 群晖 | 一个 `nas` 应用镜像同时启动 Web/API；Next.js 把 `/api/*` 代理到容器内 API |
 | 固定 Mac | LaunchAgent 只向 NAS 发出 HTTPS 请求；通过 LaunchServices 以 FDA 授权的无界面 App 身份暂存已验证的 PNG/JPEG，核对任务结果与固定 Messages 路径后只由 AppleScript 静默发送附件，不模拟界面操作 |
 
-数据库迁移在应用启动前由一次性 `migrate` 服务执行，随后 `harden` 服务收紧应用账号权限。CI 在每次 push/PR 执行类型检查、单元测试、数据库/API 集成测试和生产构建；`main` 验证成功后再发布 `linux/amd64` NAS 镜像。
+数据库迁移在应用启动前由一次性 `migrate` 服务执行，随后 `harden` 服务收紧应用账号权限。CI 在每次 push/PR 执行版本与本地文档链接检查、工具测试、类型检查、单元测试、数据库/API 集成测试和生产构建；`main` 验证成功后再发布 `linux/amd64` NAS 镜像。
 
 ## 修改位置速查
 
@@ -190,8 +193,10 @@ Web 表单
 
 每日开门排位由领域层 `explainRotationCandidates` 复用排序函数生成结构化比较依据，API 与最终顺序一起事务保存至 `daily_boards.ranking_explanation`。读取使用共享契约校验并限制管理权限，Web 以中英文固定文案展示快照及当前名单差异，不依赖 AI 或当前历史重新推算。新增字段使用向前迁移，已有排序快照为空。
 
-## 每周排工与折扣目录（1.13.1）
+## 每周排工与折扣目录
 
 每周排工模板保存在店铺，营业日表格记录首次应用标记。看板加载前通过 API 在营业日锁内补入模板人员，生成既有轮转排位解释并写审计与 outbox；未来日期加载时按最新模板同步自动加入的行并重算顺序，无变化不写入；今天已安排的人员和人工调整保留。每周模板立即生效，今天即可查看明天；历史及已日结看板不应用。单日手动移除依据该营业日最近的 `board.row_removed` / `board.row_added` 审计快照中的成员 ID 排除模板自动补入，手动重新添加解除排除；隐藏空行移除使用同一审计口径。
+
+弹窗“应用”通过 `replace-weekly-dispatch` 使用当前勾选覆盖所选日期，不保存模板；目标日期已有记工（含待结账或删除历史）、已日结或属于历史时拒绝并回滚。覆盖标记让后续自动加载保留该日期的人工结果。
 
 `discount_items.rate_bps` 为可空万分比；预设折扣与自定义折扣复用既有记工比例快照和领域金额计算。礼物卡台账从已确认记工按规范化序列号分组补入无销售登记的老卡，查询不产生销售账目。

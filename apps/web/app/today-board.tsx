@@ -43,6 +43,7 @@ import { BoardEmployeePicker } from "./board-employee-picker";
 import { RecordTrack } from "./record-track";
 import { RecordEditor } from "./record-editor";
 import { AutoCloseDetails } from "./auto-close-details";
+import { OverviewMetric, UiIcon } from "./ui/primitives";
 
 interface TodayBoardProps {
   dateControls: ReactNode;
@@ -468,26 +469,27 @@ export function TodayBoard({
       </div>
 
       {canManage && <section className="board-overview" aria-label="今日全店汇总">
+        <header className="overview-heading"><h2>经营概览</h2><span>当前查看的营业日</span></header>
         <div className="summary-strip board-desktop-metrics">
-          <div title="折后服务金额＋礼物卡销售实际收款"><span>营业额（折扣后）</span><strong>{money(board.statistics.revenueCents)}</strong></div>
-            {board.isClosed && board.statistics.recentClosedRevenue && <div><span>{`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`}</span><strong>{money(board.statistics.recentClosedRevenue.averageCents)}</strong></div>}
-            <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
-            <div title="礼物卡销售实际收款"><span>礼物卡总额</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>
-            <div title="营业额（已含卖卡实收）＋小费总额－员工应得－礼物卡核销支出"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
-          <div title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费"><span>总收入</span><strong>{money(board.statistics.totalIncomeCents)}</strong></div>
+          <OverviewMetric emphasis icon="chart" title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
+          {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric icon="clock" label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
+          <OverviewMetric icon="discount" label="折扣总额" value={money(board.statistics.discountTotalCents)} />
+          <OverviewMetric icon="gift" title="礼物卡销售实际收款" label="礼物卡总额" value={money(board.statistics.giftCardSalesAmountCents)} />
+          <OverviewMetric icon="wallet" title="营业额（已含卖卡实收）＋小费总额－员工应得－礼物卡核销支出" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
+          <OverviewMetric icon="trend" title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
         </div>
         <div className="board-mobile-metrics">
         <div className="summary-strip board-key-metrics">
-          <div title="折后服务金额＋礼物卡销售实际收款"><span>营业额（折扣后）</span><strong>{money(board.statistics.revenueCents)}</strong></div>
-          <div title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费"><span>总收入</span><strong>{money(board.statistics.totalIncomeCents)}</strong></div>
+          <OverviewMetric emphasis icon="chart" title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
+          <OverviewMetric icon="trend" title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
         </div>
         <details className="board-summary-details">
           <summary>更多汇总</summary>
           <div className="summary-strip board-extra-metrics">
-            {board.isClosed && board.statistics.recentClosedRevenue && <div><span>{`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`}</span><strong>{money(board.statistics.recentClosedRevenue.averageCents)}</strong></div>}
-            <div><span>折扣总额</span><strong>{money(board.statistics.discountTotalCents)}</strong></div>
-            <div title="礼物卡销售实际收款"><span>礼物卡总额</span><strong>{money(board.statistics.giftCardSalesAmountCents)}</strong></div>
-            <div title="营业额（已含卖卡实收）＋小费总额－员工应得－礼物卡核销支出"><span>店铺收入</span><strong>{money(board.statistics.storeIncomeCents)}</strong></div>
+            {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric icon="clock" label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
+            <OverviewMetric icon="discount" label="折扣总额" value={money(board.statistics.discountTotalCents)} />
+            <OverviewMetric icon="gift" title="礼物卡销售实际收款" label="礼物卡总额" value={money(board.statistics.giftCardSalesAmountCents)} />
+            <OverviewMetric icon="wallet" title="营业额（已含卖卡实收）＋小费总额－员工应得－礼物卡核销支出" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
           </div>
         </details>
         </div>
@@ -499,6 +501,7 @@ export function TodayBoard({
       {notice && <p className="success-banner" role="status">✓ {notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
 
+      <div className="board-section-heading"><UiIcon name="log" /><h2>员工记工</h2><span>{visibleRows.length} <span>位员工</span></span></div>
       <section className="board" id="today" aria-label={isCurrentBusinessDay ? "今日员工记工表" : canManage ? "历史员工记工表" : "我的历史记工表"}>
         {visibleRows.length === 0 && (
           <div className="empty-state"><strong>{isCurrentBusinessDay ? "今日表格还是空的" : canManage ? "这个营业日没有记工" : "这个营业日没有你的记工"}</strong><p>{showEmployeeClockIn ? "点击上方“上班”，把自己加入今日表格。" : isCurrentBusinessDay ? "店长或经理可以把参与记工的员工加入今日表格。" : canManage ? "可以选择其他营业日继续查看。" : "这里只会显示你自己的历史记录，可以选择其他营业日继续查看。"}</p></div>
@@ -553,7 +556,7 @@ export function TodayBoard({
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
                       if (record === null) return (
                         <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickEmployeeId(row.membershipId); }}>
-                          <span aria-hidden="true">＋</span>新增记工
+                          <span aria-hidden="true"><UiIcon name="plus" /></span>新增记工
                         </button>
                       );
                       const hasNote = Boolean(record.note.trim());

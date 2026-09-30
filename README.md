@@ -1,6 +1,6 @@
 # Massage note
 
-当前版本：`1.13.6`
+当前版本：`1.14.4`
 
 面向美国按摩店的中英文记工与财务管理 Web 应用，支持手机、iPad 和电脑。系统覆盖多店成员、今日记工、礼物卡、提成、确定性财务、日结、现金与工资结算、审计、实时同步和带确认预览的 AI 助手。
 
@@ -9,7 +9,8 @@
 - 想了解业务：[`docs/product/PRODUCT.md`](docs/product/PRODUCT.md)
 - 想看代码框架：[`docs/engineering/ARCHITECTURE.md`](docs/engineering/ARCHITECTURE.md)
 - 准备本地开发：[`docs/engineering/DEVELOPMENT.md`](docs/engineering/DEVELOPMENT.md)
-- 准备部署或排障：[`docs/README.md`](docs/README.md)
+- 维护 UI 与设计参考：[`docs/engineering/UI_DESIGN.md`](docs/engineering/UI_DESIGN.md)
+- 准备部署或排障：[`docs/operations/NAS_DEPLOYMENT.md`](docs/operations/NAS_DEPLOYMENT.md)、[`docs/operations/OPERATIONS.md`](docs/operations/OPERATIONS.md)
 - 查全部文档：[`docs/README.md`](docs/README.md)
 - 让 AI 接管维护：[`docs/engineering/AI_HANDOFF.md`](docs/engineering/AI_HANDOFF.md)
 
@@ -29,15 +30,18 @@
 
 ```text
 apps/
-  web/          Next.js Web 应用
-  api/          NestJS REST、SSE、认证与领域编排
+  web/              Next.js Web 应用
+  api/              NestJS REST、SSE、认证与领域编排
+  messages-agent/   固定 Mac 上的附件渲染与“信息”发送代理
 packages/
-  domain/       金额、提成、营业日和权限纯函数
-  contracts/    前后端共享 Zod 契约
-  database/     Prisma schema、迁移和数据库测试
-docker/         生产数据库加固与 NAS 入口
-scripts/        测试库、版本、备份、恢复和维护脚本
-docs/           当前文档与归档设计
+  domain/           金额、提成、营业日和权限纯函数
+  contracts/        前后端共享 Zod 契约
+  database/         Prisma schema、迁移和数据库测试
+integrations/
+  langbot-plugin/   微信记工机器人插件与独立测试
+docker/             生产数据库加固与 NAS 入口
+scripts/            测试库、版本、文档链接、备份、恢复和维护脚本
+docs/               当前文档与归档设计
 ```
 
 当前依赖方向、页面路由、API 模块和写入链路见 [`docs/engineering/ARCHITECTURE.md`](docs/engineering/ARCHITECTURE.md)。
@@ -63,6 +67,7 @@ pnpm dev
 
 ```bash
 pnpm version:check
+pnpm docs:check
 pnpm typecheck
 pnpm test
 pnpm test:integration

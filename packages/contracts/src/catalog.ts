@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { commissionBpsSchema, moneyCentsSchema } from "./common.js";
-import { versionSchema } from "./common.js";
+import { commissionBpsSchema, moneyCentsSchema, versionSchema } from "./common.js";
 
 export const catalogListQuerySchema = z.object({
   includeDeleted: z

@@ -34,8 +34,9 @@ import { isWorkRecordChange } from "../../lib/realtime-scope";
 import { AppNav } from "../app-nav";
 import { useLanguage } from "../language-provider";
 import { WorkBotPanel } from "./work-bot-panel";
+import { manageNavigationTabs, resolveManageTab, type ManageTab } from "../../lib/app-navigation";
+import { useNavigationTab } from "../use-navigation-tab";
 
-type ManageTab = "store" | "members" | "catalog" | "work-bot" | "recovery" | "audit";
 type CatalogKind = "SERVICE" | "ADDON" | "DISCOUNT";
 
 const roleText = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工" } as const;
@@ -167,6 +168,7 @@ export function ManagePageClient() {
   const [deletedGiftCardSales, setDeletedGiftCardSales] = useState<DeletedGiftCardSale[]>([]);
   const [workBot, setWorkBot] = useState<WorkBotSettings | null>(null);
   const [tab, setTab] = useState<ManageTab>("store");
+  const selectTab = useNavigationTab(membership?.role, resolveManageTab, setTab);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -231,9 +233,7 @@ export function ManagePageClient() {
     return <main className="center-page"><div className="loading-card"><span className="spinner" /><strong>{error || "正在加载管理设置…"}</strong></div></main>;
   }
 
-  const tabs: Array<[ManageTab, string]> = canManage
-    ? [["store", "店铺设置"], ["members", "成员管理"], ["catalog", "项目与提成"], ["work-bot", "记工机器人"], ["recovery", "业务回收站"], ["audit", "审计记录"]]
-    : [["store", "店铺信息"], ["catalog", "项目说明"]];
+  const tabs = manageNavigationTabs(membership.role);
 
   return (
     <main className="app-shell manage-shell">
@@ -241,7 +241,7 @@ export function ManagePageClient() {
         <div><p className="eyebrow">{store.name}</p><h1>店铺设置</h1><p className="business-date">店铺代码 {store.storeCode} · 你的身份：{roleText[membership.role]} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
         <div className="topbar-actions"><a className="store-switcher header-link" href="/help">使用帮助</a><a className="store-switcher header-link" href="/">返回今日记工</a></div>
       </header>
-      <nav className="section-tabs" aria-label="管理页面">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? "active" : ""} aria-pressed={tab === value} onClick={() => setTab(value)}>{label}</button>)}</nav>
+      <nav className="section-tabs" aria-label="管理页面">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? "active" : ""} aria-pressed={tab === value} onClick={() => selectTab(value)}>{label}</button>)}</nav>
       {error && <p className="form-error" role="alert">{error}</p>}
       {tab === "store" && <StorePanel store={store} membership={membership} members={members} busy={busy} run={run} reload={loadAll} />}
       {tab === "members" && canManage && <MembersPanel storeId={store.id} dailyRankingEnabled={store.automaticDispatchEnabled} members={members} requests={requests} catalog={catalog} busy={busy} run={run} reload={loadAll} />}
@@ -249,7 +249,7 @@ export function ManagePageClient() {
       {tab === "work-bot" && canManage && workBot && <WorkBotPanel key={store.id} storeId={store.id} catalog={catalog} settings={workBot} busy={busy} run={run} reload={loadAll} />}
       {tab === "recovery" && canManage && <RecoveryPanel storeId={store.id} records={deletedRecords} giftCardSales={deletedGiftCardSales} busy={busy} run={run} reload={loadAll} />}
       {tab === "audit" && canManage && <AuditPanel storeId={store.id} members={members} />}
-      <AppNav active="manage" storeId={store.id} />
+      <AppNav active="manage" storeId={store.id} role={membership.role} activeTab={tab} onTabChange={selectTab} />
     </main>
   );
 }

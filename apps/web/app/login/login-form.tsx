@@ -7,10 +7,9 @@ import {
   type ConfirmationResult,
 } from "firebase/auth";
 import { useEffect, useRef, useState } from "react";
+import { apiBase } from "../../lib/api";
 import { isExpiredLoginCredential, normalizeUsPhoneDigits } from "../../lib/login";
 import { firebaseAuth } from "../../lib/firebase-client";
-
-const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1";
 
 type LoginStep = "phone" | "password" | "code" | "register" | "setup-password";
 type AccountStatus = { exists: boolean; hasPassword: boolean };

@@ -1,13 +1,13 @@
 import { idempotencyRequestHash } from "../common/idempotency.service.js";
 import { claimedDeliveryWhere, requireDeliveryLease } from "./delivery-lease.js";
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import { authenticateDeliveryAgent } from "./delivery-agent.js";
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from "@nestjs/common";
 import { Prisma, type User } from "@massage-note/database";
 import type {
@@ -23,7 +23,6 @@ import { FinanceQueriesService } from "./finance-queries.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
-const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 const isE164Phone = (phone: string | null | undefined): phone is string =>
   typeof phone === "string" && /^\+[1-9]\d{7,14}$/.test(phone);
 
@@ -324,7 +323,7 @@ export class EmployeeSettlementsService {
   }
 
   async claim(authorization: string | undefined) {
-    const agent = await this.authenticateAgent(authorization);
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const now = new Date();
     const candidate = await this.prisma.employeeSettlementDelivery.findFirst({
       where: { storeId: agent.storeId, nextAttemptAt: { lte: now }, OR: [{ status: "QUEUED" }, { status: "CLAIMED", leaseExpiresAt: { lt: now } }] },
@@ -347,13 +346,13 @@ export class EmployeeSettlementsService {
   }
 
   async authorize(authorization: string | undefined, deliveryId: string, leaseToken: string) {
-    const agent = await this.authenticateAgent(authorization);
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     await this.findClaimed(agent.storeId, deliveryId, leaseToken);
     return { authorized: true };
   }
 
   async checkpoint(authorization: string | undefined, deliveryId: string, leaseToken: string, attachment: "SUMMARY" | "DETAIL") {
-    const agent = await this.authenticateAgent(authorization);
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
     const sentAt = new Date();
     requireDeliveryLease(await this.prisma.employeeSettlementDelivery.updateMany({
@@ -364,7 +363,7 @@ export class EmployeeSettlementsService {
   }
 
   async complete(authorization: string | undefined, deliveryId: string, leaseToken: string) {
-    const agent = await this.authenticateAgent(authorization);
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
     if (!job.detailSentAt) throw new ConflictException({ code: "SETTLEMENT_ATTACHMENTS_INCOMPLETE", messageZh: "结算长图发送后才能完成任务" });
     const sentAt = new Date();
@@ -376,7 +375,7 @@ export class EmployeeSettlementsService {
   }
 
   async fail(authorization: string | undefined, deliveryId: string, input: ClosingDeliveryFailureInput) {
-    const agent = await this.authenticateAgent(authorization);
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, input.leaseToken);
     // attemptCount includes the initial attempt: allow three additional retries.
     const retry = input.retryable && job.attemptCount < 4;
@@ -462,16 +461,6 @@ export class EmployeeSettlementsService {
     const status = agent?.lastStatusJson as { messagesAvailable?: boolean } | null;
     if (!agent || agent.revokedAt || !agent.lastSeenAt || Date.now() - agent.lastSeenAt.getTime() > 120_000) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_AGENT_OFFLINE", messageZh: "Mac 信息发送代理离线，请启动代理后重试" });
     if (!status?.messagesAvailable) throw new ConflictException({ code: "SETTLEMENT_MESSAGES_UNAVAILABLE", messageZh: "Mac 信息 App 当前没有可用的短信、RCS 或 iMessage 服务" });
-  }
-
-  private async authenticateAgent(authorization: string | undefined) {
-    const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-    const prefix = token?.match(/^mna_([a-f0-9]{10})_/)?.[1];
-    if (!token || !prefix) throw new UnauthorizedException({ code: "DELIVERY_AGENT_TOKEN_REQUIRED", messageZh: "发送代理凭证无效" });
-    const agent = await this.prisma.closingDeliveryAgent.findUnique({ where: { tokenPrefix: prefix }, include: { store: { select: { status: true, deletedAt: true } } } });
-    const presentedHash = tokenHash(token);
-    if (!agent || agent.revokedAt || agent.store.status !== "ACTIVE" || agent.store.deletedAt || agent.tokenHash.length !== presentedHash.length || !timingSafeEqual(Buffer.from(agent.tokenHash), Buffer.from(presentedHash))) throw new UnauthorizedException({ code: "DELIVERY_AGENT_TOKEN_INVALID", messageZh: "发送代理凭证无效或已撤销" });
-    return agent;
   }
 
   private async findClaimed(storeId: string, deliveryId: string, leaseToken: string) {

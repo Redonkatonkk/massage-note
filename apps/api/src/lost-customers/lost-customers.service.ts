@@ -31,7 +31,7 @@ export class LostCustomersService {
     return this.idempotency.execute({ storeId, userId: actor.id, key, route: "/api/v1/stores/:storeId/lost-customers", payload: input, responseCode: 201 }, async (tx) => {
       await this.assertCanWrite(tx, membership, storeId, input.businessDate);
       const row = await tx.lostCustomer.create({ data: { storeId, businessDate: dateAtUtc(input.businessDate), occurredTime: input.occurredTime, note: input.note ?? "", customerCount: input.customerCount ?? 1, createdBy: actor.id, updatedBy: actor.id } });
-      await tx.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: membership.id, source: "api", action: "lost_customer.created", entityType: "lost_customer", entityId: row.id, businessDate: row.businessDate, afterJson: this.snapshot(row), requestId } });
+      await tx.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: membership.id, source: "api", action: "lost_customer.created", entityType: "lost_customer", entityId: row.id, businessDate: row.businessDate, afterJson: this.serialize(row), requestId } });
       return this.serialize(row);
     });
   }
@@ -45,7 +45,7 @@ export class LostCustomersService {
       const changed = await tx.lostCustomer.updateMany({ where: { id, storeId, deletedAt: null, version: input.version }, data: { occurredTime: input.occurredTime, ...(input.note === undefined ? {} : { note: input.note }), ...(input.customerCount === undefined ? {} : { customerCount: input.customerCount }), updatedBy: actor.id, version: { increment: 1 } } });
       if (changed.count !== 1) this.versionConflict();
       const updated = await tx.lostCustomer.findUniqueOrThrow({ where: { id } });
-      await tx.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: membership.id, source: "api", action: "lost_customer.updated", entityType: "lost_customer", entityId: id, businessDate: current.businessDate, beforeJson: this.snapshot(current), afterJson: this.snapshot(updated), requestId } });
+      await tx.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: membership.id, source: "api", action: "lost_customer.updated", entityType: "lost_customer", entityId: id, businessDate: current.businessDate, beforeJson: this.serialize(current), afterJson: this.serialize(updated), requestId } });
       return this.serialize(updated);
     });
   }
@@ -59,7 +59,7 @@ export class LostCustomersService {
       const changed = await tx.lostCustomer.updateMany({ where: { id, storeId, deletedAt: null, version: input.version }, data: { deletedAt: new Date(), deletedBy: actor.id, updatedBy: actor.id, version: { increment: 1 } } });
       if (changed.count !== 1) this.versionConflict();
       const deleted = await tx.lostCustomer.findUniqueOrThrow({ where: { id } });
-      await tx.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: membership.id, source: "api", action: "lost_customer.deleted", entityType: "lost_customer", entityId: id, businessDate: current.businessDate, beforeJson: this.snapshot(current), afterJson: { ...this.snapshot(deleted), deletedAt: deleted.deletedAt?.toISOString() }, requestId } });
+      await tx.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: membership.id, source: "api", action: "lost_customer.deleted", entityType: "lost_customer", entityId: id, businessDate: current.businessDate, beforeJson: this.serialize(current), afterJson: { ...this.serialize(deleted), deletedAt: deleted.deletedAt?.toISOString() }, requestId } });
       return this.serialize(deleted);
     });
   }
@@ -81,7 +81,6 @@ export class LostCustomersService {
   private serialize(row: { id: string; storeId: string; businessDate: Date; occurredTime: string; note: string; customerCount: number; version: number }) {
     return { id: row.id, storeId: row.storeId, businessDate: dateOnly(row.businessDate), occurredTime: row.occurredTime, note: row.note, customerCount: row.customerCount, version: row.version };
   }
-  private snapshot(row: { id: string; storeId: string; businessDate: Date; occurredTime: string; note: string; customerCount: number; version: number }) { return this.serialize(row); }
   private notFound(): never { throw new NotFoundException({ code: "LOST_CUSTOMER_NOT_FOUND", messageZh: "跑客记录不存在" }); }
   private versionConflict(): never { throw new ConflictException({ code: "LOST_CUSTOMER_VERSION_CONFLICT", messageZh: "跑客记录已被修改，请刷新后重试" }); }
 }

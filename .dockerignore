@@ -13,3 +13,8 @@ coverage
 .DS_Store
 artifacts
 .local-ai
+**/*.tsbuildinfo
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/*.lbpkg

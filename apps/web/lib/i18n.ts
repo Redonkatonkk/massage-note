@@ -8,6 +8,23 @@ export function isAppLocale(value: unknown): value is AppLocale {
 }
 
 const ENGLISH_TRANSLATIONS: Record<string, string> = {
+  "展开子菜单": "Expand submenu",
+  "收起子菜单": "Collapse submenu",
+  "经营分析": "Business analytics",
+  "Massage note 首页": "Massage note home",
+  "店铺工作台": "WORKSPACE",
+  "每一笔，都有条理。": "Every detail, in balance.",
+  "经营概览": "Business overview",
+  "当前查看的营业日": "Selected business day",
+  "员工记工": "Staff work log",
+  "位员工": "staff",
+  "把日常，打理得更从容。": "A calmer way to run your day.",
+  "从记工到日结": "From work log to daily closing",
+  "服务与小费": "Services & tips",
+  "清晰收款": "Track payments",
+  "现金与刷卡": "Cash & card",
+  "轻松日结": "Close with ease",
+  "工资与结算": "Pay & settlement",
   "未登记销售": "Sale not registered",
   "老卡使用记录": "Legacy card usage",
   "还没有售出或使用过的礼物卡。第一张销售卡会从序列号 1001 开始。": "No gift cards have been sold or used. The first sale serial number will be 1001.",

@@ -106,7 +106,7 @@ export function ProfilePageClient() {
         </form>
         <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">登录状态</p><h2>退出账号</h2></div></div><p className="field-help">退出后，这台设备会保留经过验证的登录状态。下次输入同一手机号码时可以直接登录，减少验证码短信。</p><button className="secondary-action" type="button" disabled={signOutBusy} onClick={() => { setSignOutBusy(true); void apiRequest("/auth/session", { method: "DELETE" }).finally(() => window.location.replace("/login")); }}>{signOutBusy ? "正在退出…" : "退出"}</button></section>
       </section>
-      <AppNav active="profile" storeId={selectedStoreId || undefined} />
+      <AppNav active="profile" storeId={selectedStoreId || undefined} role={selectedMembership?.role} />
     </main>
   );
 }

@@ -1,12 +1,12 @@
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { claimedDeliveryWhere, requireDeliveryLease } from "./delivery-lease.js";
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
+import { authenticateDeliveryAgent, hashDeliveryAgentToken } from "./delivery-agent.js";
 import {
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from "@nestjs/common";
 import { Prisma, type User } from "@massage-note/database";
 import type {
@@ -18,7 +18,6 @@ import { StoreAccessService } from "../stores/store-access.service.js";
 import { ClosingsService } from "./closings.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
-const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 const isE164Phone = (phone: string | null | undefined): phone is string =>
   typeof phone === "string" && /^\+[1-9]\d{7,14}$/.test(phone);
 
@@ -261,8 +260,8 @@ export class ClosingDeliveriesService {
     const token = `mna_${prefix}_${secret}`;
     const agent = await this.prisma.closingDeliveryAgent.upsert({
       where: { storeId },
-      create: { storeId, tokenHash: tokenHash(token), tokenPrefix: prefix, createdBy: actor.id },
-      update: { tokenHash: tokenHash(token), tokenPrefix: prefix, revokedAt: null, lastSeenAt: null, lastStatusJson: Prisma.DbNull, createdBy: actor.id },
+      create: { storeId, tokenHash: hashDeliveryAgentToken(token), tokenPrefix: prefix, createdBy: actor.id },
+      update: { tokenHash: hashDeliveryAgentToken(token), tokenPrefix: prefix, revokedAt: null, lastSeenAt: null, lastStatusJson: Prisma.DbNull, createdBy: actor.id },
     });
     await this.prisma.auditLog.create({
       data: { storeId, actorUserId: actor.id, actorMembershipId: membership.id, source: "api", action: "closing_delivery.agent_credential_rotated", entityType: "closing_delivery_agent", entityId: agent.id, requestId },
@@ -290,7 +289,7 @@ export class ClosingDeliveriesService {
   }
 
   async claim(authorization: string | undefined) {
-    const agent = await this.authenticateAgent(authorization);
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     await this.prisma.closingDeliveryAgent.update({ where: { id: agent.id }, data: { lastSeenAt: new Date() } });
     for (let checked = 0; checked < 100; checked += 1) {
       const now = new Date();
@@ -348,7 +347,7 @@ export class ClosingDeliveriesService {
   }
 
   async authorize(authorization: string | undefined, deliveryId: string, leaseToken: string) {
-    const agent = await this.authenticateAgent(authorization);
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
     if (job.closing && job.closing.status !== "CLOSED") {
       await this.prisma.employeeClosingDelivery.updateMany({ where: claimedDeliveryWhere(agent.storeId, job.id, leaseToken), data: { status: "CANCELLED", leaseToken: null, leaseExpiresAt: null } });
@@ -358,7 +357,7 @@ export class ClosingDeliveriesService {
   }
 
   async complete(authorization: string | undefined, deliveryId: string, leaseToken: string) {
-    const agent = await this.authenticateAgent(authorization);
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
     const sentAt = new Date();
     await this.prisma.$transaction(async (transaction) => {
@@ -369,7 +368,7 @@ export class ClosingDeliveriesService {
   }
 
   async fail(authorization: string | undefined, deliveryId: string, input: ClosingDeliveryFailureInput) {
-    const agent = await this.authenticateAgent(authorization);
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, input.leaseToken);
     // attemptCount includes the initial attempt: allow three additional retries.
     const retry = input.retryable && job.attemptCount < 4;
@@ -385,7 +384,7 @@ export class ClosingDeliveriesService {
   }
 
   async heartbeat(authorization: string | undefined, input: ClosingAgentHeartbeatInput) {
-    const agent = await this.authenticateAgent(authorization);
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const lastSeenAt = new Date();
     await this.prisma.closingDeliveryAgent.update({ where: { id: agent.id }, data: { lastSeenAt, lastStatusJson: input as unknown as Prisma.InputJsonValue } });
     return { ok: true, lastSeenAt };
@@ -395,16 +394,6 @@ export class ClosingDeliveriesService {
     const closing = await this.prisma.businessDayClosing.findFirst({ where: { storeId, businessDate: dateAtUtc(businessDate), status: "CLOSED" } });
     if (!closing) throw new ConflictException({ code: "CLOSING_REQUIRED_FOR_DELIVERY", messageZh: "请先完成全店日结，再发送员工小结" });
     return closing;
-  }
-
-  private async authenticateAgent(authorization: string | undefined) {
-    const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-    const prefix = token?.match(/^mna_([a-f0-9]{10})_/)?.[1];
-    if (!token || !prefix) throw new UnauthorizedException({ code: "DELIVERY_AGENT_TOKEN_REQUIRED", messageZh: "发送代理凭证无效" });
-    const agent = await this.prisma.closingDeliveryAgent.findUnique({ where: { tokenPrefix: prefix }, include: { store: { select: { status: true, deletedAt: true } } } });
-    const presentedHash = tokenHash(token);
-    if (!agent || agent.revokedAt || agent.store.status !== "ACTIVE" || agent.store.deletedAt || agent.tokenHash.length !== presentedHash.length || !timingSafeEqual(Buffer.from(agent.tokenHash), Buffer.from(presentedHash))) throw new UnauthorizedException({ code: "DELIVERY_AGENT_TOKEN_INVALID", messageZh: "发送代理凭证无效或已撤销" });
-    return agent;
   }
 
   private async findClaimed(storeId: string, deliveryId: string, leaseToken: string) {

@@ -1,5 +1,8 @@
-import type { RankingExplanation } from "@massage-note/contracts";
-export type StoreRole = "OWNER" | "MANAGER" | "EMPLOYEE";
+import type { EmployeeSettlementPaymentScope, RankingExplanation, WeeklyDispatchInput } from "@massage-note/contracts";
+import type { StoreRole } from "@massage-note/domain";
+
+export type { EmployeeSettlementPaymentScope } from "@massage-note/contracts";
+export type { StoreRole } from "@massage-note/domain";
 
 export interface StoreSummary {
   id: string;
@@ -63,8 +66,8 @@ export interface StoreDetails extends StoreSummary {
   automaticDispatchEnabled: boolean;
 }
 
-export type WeeklyDispatchDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
-export type WeeklyDispatchSchedule = Record<WeeklyDispatchDay, string[]>;
+export type WeeklyDispatchSchedule = WeeklyDispatchInput;
+export type WeeklyDispatchDay = keyof WeeklyDispatchSchedule;
 export interface WeeklyDispatchConfig { version: number; effectiveFrom: string | null; schedule: WeeklyDispatchSchedule; }
 
 export type ClosingDeliveryStatus = "QUEUED" | "CLAIMED" | "SENT" | "FAILED" | "CANCELLED";
@@ -99,8 +102,6 @@ export interface ClosingDeliveryList {
     revokedAt: string | null;
   };
 }
-
-export type EmployeeSettlementPaymentScope = "CASH" | "NON_CASH" | "ALL";
 
 export interface EmployeeSettlementRecord {
   id: string; businessDate: string; startAt: string; endAt: string | null;

@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`1.13.6`
+> 适用版本：`1.14.4`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
@@ -65,7 +65,8 @@ pnpm dev
 | --- | --- |
 | `pnpm dev` | 并行启动 Web 与 API，启动前构建共享包 |
 | `pnpm typecheck` | 检查全部 workspace 类型 |
-| `pnpm test` | 运行领域、契约、Web 辅助函数和 API 非数据库测试 |
+| `pnpm test` | 运行仓库工具、领域、契约、Mac 代理、Web 辅助函数和 API 非数据库测试 |
+| `pnpm test:tooling` | 运行仓库脚本的 Node.js 内置测试 |
 | `pnpm test:integration` | 创建/迁移独立测试库并运行数据库与 API 集成测试 |
 | `python3 -m unittest discover -s integrations/langbot-plugin/tests -v` | 运行 LangBot 插件边界与解析测试（CI 当前未执行） |
 | `pnpm build` | 检查版本一致性并构建全部 workspace |
@@ -76,6 +77,7 @@ pnpm dev
 | `pnpm demo:seed` | 应用迁移并创建或刷新固定本地演示数据 |
 | `pnpm docker:status` | 查看本项目 PostgreSQL/Redis 状态 |
 | `pnpm version:check` | 检查版本号、镜像标签和文档标记 |
+| `pnpm docs:check` | 检查仓库 Markdown 的本地文件/目录链接目标 |
 
 `pnpm test:integration` 默认使用 `massage_note_test`，不会清空 `massage_note` 开发库。若默认数据库端口被占用：
 
@@ -92,8 +94,9 @@ MASSAGE_NOTE_TEST_DATABASE_URL='postgresql://massage:massage@localhost:55432/mas
 - 业务写入保持权限、归属、营业日锁、事务内审计/outbox、幂等和版本检查，并验证正常及失败路径。
 - 数据库变化使用描述性前向迁移，不改已发布迁移；生产只运行 `prisma migrate deploy`，破坏性变化分阶段迁移。
 - Web 记工刷新沿用 `apps/web/lib/refresh-queue.ts`，切店和卸载使旧结果失效。
-- 响应式样式放在 `apps/web/app/responsive.css`，复用共享组件，检查 320、390、768、1280px、中英文及展开状态。
+- 颜色变量放在 `apps/web/app/globals.css`，非响应式视觉与动效放在 `design-system.css`，断点样式放在 `apps/web/app/responsive.css`，按这个顺序加载；复用共享组件，代码核对 320、390、768、1280px、中英文及展开状态，默认不使用浏览器。设计依据与维护入口见 [UI 设计](UI_DESIGN.md)。
 - 保留 loading、重复点击保护和 409 重新核对流程，不在浏览器另算财务或持久缓存敏感业务响应。
+- 所有 TypeScript workspace 继承未使用变量与参数检查；领域与契约测试放在各自 `test/`，生产构建排除 `*.test.ts`。
 
 ## 完成前验证
 
@@ -101,13 +104,14 @@ MASSAGE_NOTE_TEST_DATABASE_URL='postgresql://massage:massage@localhost:55432/mas
 
 ```bash
 pnpm version:check
+pnpm docs:check
 pnpm typecheck
 pnpm test
 pnpm test:integration
 pnpm build
 ```
 
-文档整理也至少运行版本检查、Markdown 链接检查和 `git diff --check`。若文档修改涉及命令、路由、契约、金额或部署事实，还要运行相应代码验证；正式发布遵循完整 [`RELEASE_CHECKLIST.md`](../operations/RELEASE_CHECKLIST.md)。
+文档整理也至少运行 `pnpm version:check`、`pnpm docs:check` 和 `git diff --check`。链接检查覆盖 Git 已跟踪和未忽略的新 Markdown 文件，检查行内链接、图片与引用式链接的本地文件/目录目标，跳过代码示例；外部 URL 与标题锚点不在此命令的校验范围。若文档修改涉及命令、路由、契约、金额或部署事实，还要运行相应代码验证；正式发布遵循完整 [`RELEASE_CHECKLIST.md`](../operations/RELEASE_CHECKLIST.md)。
 
 ## 版本同步位置
 

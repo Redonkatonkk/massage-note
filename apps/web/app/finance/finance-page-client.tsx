@@ -40,13 +40,14 @@ import { BusinessDatePicker } from "../business-date-picker";
 import { EmployeeSettlementPanel } from "./employee-settlement-panel";
 import { EmployeeSubtotalSection } from "./employee-subtotal-section";
 import { dateOnly, shiftDate } from "./date-utils";
+import { financeNavigationTabs, resolveFinanceTab, type FinanceTab } from "../../lib/app-navigation";
+import { useNavigationTab } from "../use-navigation-tab";
 import {
   financeSummaryGroups,
   financeSummaryMetrics,
   type FinanceSummaryMetricKey,
 } from "./summary-metrics";
 
-type FinanceTab = "analytics" | "summary" | "cash" | "closing" | "giftCards" | "payroll";
 type FinanceRangeOverride = { dateFrom?: string; dateTo?: string; memberIds?: string[] };
 
 function money(cents: number | null | undefined): string {
@@ -145,6 +146,7 @@ export function FinancePageClient() {
   const [storeDetails, setStoreDetails] = useState<StoreDetails | null>(null);
   const [day, setDay] = useState<CurrentBusinessDay | null>(null);
   const [tab, setTab] = useState<FinanceTab>("summary");
+  const selectTab = useNavigationTab(membership?.role, resolveFinanceTab, setTab);
   const [summary, setSummary] = useState<FinanceSummaryResponse | null>(null);
   const [details, setDetails] = useState<FinanceDetailsResponse | null>(null);
   const [detailsTitle, setDetailsTitle] = useState("财务数据");
@@ -332,9 +334,7 @@ export function FinancePageClient() {
         );
         setDay(current);
         const requestedTab = new URL(window.location.href).searchParams.get("tab");
-        if (["summary", "cash", "closing", "payroll"].includes(requestedTab ?? "") || (["giftCards", "analytics"].includes(requestedTab ?? "") && selected.role !== "EMPLOYEE")) {
-          setTab(requestedTab as FinanceTab);
-        }
+        setTab(resolveFinanceTab(requestedTab, selected.role));
         const requestedDate = new URL(window.location.href).searchParams.get("date");
         setCashDate(
           requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) && requestedDate <= current.businessDate
@@ -441,16 +441,7 @@ export function FinancePageClient() {
     return <main className="center-page"><div className="loading-card"><span className="spinner" /><strong>{error || "正在加载财务数据…"}</strong></div></main>;
   }
 
-  const financeTabs: Array<[FinanceTab, string]> = [
-    ["summary", "财务汇总"],
-    ["cash", "现金结算"],
-    ["closing", canManage ? "日结" : "我的日结"],
-  ];
-  if (canManage) {
-    financeTabs.splice(1, 0, ["analytics", locale === "en-US" ? "Business analytics" : "经营分析"]);
-    financeTabs.push(["giftCards", "礼物卡"]);
-  }
-  financeTabs.push(["payroll", canManage ? "工资结算" : "工资结算明细"]);
+  const financeTabs = financeNavigationTabs(membership.role);
   const closingHasBlockingWarnings = closing
     ? hasBlockingClosingWarnings(closing.warnings)
     : false;
@@ -466,7 +457,7 @@ export function FinancePageClient() {
 
       <nav className="section-tabs" aria-label="财务页面">
         {financeTabs.map(([value, label]) => (
-          <button key={value} className={tab === value ? "active" : ""} type="button" aria-pressed={tab === value} onClick={() => setTab(value)}>{label}</button>
+          <button key={value} className={tab === value ? "active" : ""} type="button" aria-pressed={tab === value} onClick={() => selectTab(value)}>{label}</button>
         ))}
       </nav>
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -631,7 +622,7 @@ export function FinancePageClient() {
           }}
         />
       )}
-      <AppNav active="finance" storeId={membership.store.id} />
+      <AppNav active="finance" storeId={membership.store.id} role={membership.role} activeTab={tab} onTabChange={selectTab} />
     </main>
   );
 }

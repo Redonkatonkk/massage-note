@@ -1639,6 +1639,29 @@ h2 {
   box-shadow: 0 24px 70px rgba(35, 23, 14, 0.25);
 }
 
+/* Keep the quick-work close controls outside the scrolling form. */
+.quick-work-modal {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.quick-work-modal > .modal-heading {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 24px 24px 20px;
+}
+
+.quick-modal-content {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 24px 24px;
+}
+
 .quick-modal > *,
 .quick-preset-fields > *,
 .quick-custom-grid > *,
@@ -3147,7 +3170,8 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
   font: inherit;
 }
 
-.quick-modal > .work-time-field {
+.quick-modal > .work-time-field,
+.quick-modal-content > .work-time-field {
   margin-bottom: 20px;
 }
 

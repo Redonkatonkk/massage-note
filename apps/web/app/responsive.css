@@ -542,3 +542,9 @@ button, summary { overflow-wrap: anywhere; }
   .bottom-nav { width: calc(100% - 20px); border-radius: 20px; }
   .bottom-nav__item { font-size: .85rem; }
 }
+
+@media (max-width: 640px) {
+  .quick-work-modal { padding: 0; }
+  .quick-work-modal > .modal-heading { padding: 20px 16px; }
+  .quick-modal-content { padding: 0 16px max(20px, env(safe-area-inset-bottom)); }
+}

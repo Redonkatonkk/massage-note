@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import {
   canShowEmployeeClockIn,
@@ -695,9 +696,9 @@ export function TodayBoard({
         onReload={onReload}
       />}
 
-      {quickEmployeeId && (
+      {quickEmployeeId && createPortal(
         <div className="modal-backdrop" role="presentation">
-          <section className="quick-modal" role="dialog" aria-modal="true" aria-labelledby="quick-modal-title">
+          <section className="quick-modal quick-work-modal" role="dialog" aria-modal="true" aria-labelledby="quick-modal-title">
             <div className="modal-heading">
               <div><p className="eyebrow">快速记工</p><h2 id="quick-modal-title">{members.find((item) => item.id === quickEmployeeId)?.displayName}</h2></div>
               <div className="modal-heading__actions">
@@ -705,44 +706,47 @@ export function TodayBoard({
                 <button className="close-button" type="button" onClick={() => setQuickEmployeeId(null)}>关闭</button>
               </div>
             </div>
-            <label className="field-label" htmlFor="start-time">开始时间</label>
-            <WorkTimeInput id="start-time" value={startTime} onChange={setStartTime} onValidityChange={setStartTimeValid} />
-            <div className="quick-mode-switch" role="group" aria-label="项目类型">
-              <button className={quickMode === "PRESET" ? "active" : ""} type="button" onClick={() => setQuickMode("PRESET")}>预设项目</button>
-              <button className={quickMode === "CUSTOM" ? "active" : ""} type="button" onClick={() => setQuickMode("CUSTOM")}>＋ 自定义项目</button>
-            </div>
-            {quickMode === "PRESET" ? (
-              <div className="quick-preset-fields">
-                <fieldset className="service-picker">
-                  <legend>选择项目</legend>
-                  {activeServices.map((service) => (
-                    <label key={service.id}><input type="radio" name="service" checked={selectedService === service.id} onChange={() => setSelectedService(service.id)} /><span><strong>{service.shortName}</strong><small>{service.fullName}</small></span></label>
-                  ))}
-                  {activeServices.length === 0 && <p className="empty-note">没有启用中的预设项目，可切换到自定义项目。</p>}
-                </fieldset>
-                {selectedServiceItem && (
-                  <fieldset className="service-picker duration-picker">
-                    <legend>选择时长与价格</legend>
-                    {selectedServiceItem.priceOptions.map((option) => (
-                      <label key={option.id}><input type="radio" name="service-duration" checked={selectedServiceDuration === option.durationMinutes.toString()} onChange={() => setSelectedServiceDuration(option.durationMinutes.toString())} /><span><strong>{option.durationMinutes} 分钟</strong><small>{money(option.priceCents)}</small></span></label>
+            <div className="quick-modal-content">
+              <label className="field-label" htmlFor="start-time">开始时间</label>
+              <WorkTimeInput id="start-time" value={startTime} onChange={setStartTime} onValidityChange={setStartTimeValid} />
+              <div className="quick-mode-switch" role="group" aria-label="项目类型">
+                <button className={quickMode === "PRESET" ? "active" : ""} type="button" onClick={() => setQuickMode("PRESET")}>预设项目</button>
+                <button className={quickMode === "CUSTOM" ? "active" : ""} type="button" onClick={() => setQuickMode("CUSTOM")}>＋ 自定义项目</button>
+              </div>
+              {quickMode === "PRESET" ? (
+                <div className="quick-preset-fields">
+                  <fieldset className="service-picker">
+                    <legend>选择项目</legend>
+                    {activeServices.map((service) => (
+                      <label key={service.id}><input type="radio" name="service" checked={selectedService === service.id} onChange={() => setSelectedService(service.id)} /><span><strong>{service.shortName}</strong><small>{service.fullName}</small></span></label>
                     ))}
+                    {activeServices.length === 0 && <p className="empty-note">没有启用中的预设项目，可切换到自定义项目。</p>}
                   </fieldset>
-                )}
-              </div>
-            ) : (
-              <div className="quick-custom-grid">
-                <label className="field-label">项目名称<input autoFocus maxLength={120} value={customServiceName} onChange={(event) => setCustomServiceName(event.target.value)} /></label>
-                <label className="field-label">项目简称<input maxLength={30} value={customServiceShortName} onChange={(event) => setCustomServiceShortName(event.target.value)} /></label>
-                <label className="field-label">金额（美元）<input inputMode="decimal" placeholder="例如 80" value={customServiceAmount} onChange={(event) => setCustomServiceAmount(event.target.value)} /></label>
-                <label className="field-label">时长（分钟）<input type="number" min="1" max="720" inputMode="numeric" placeholder="例如 60" value={customServiceDuration} onChange={(event) => setCustomServiceDuration(event.target.value)} /></label>
-                <p className="field-help">自定义项目无需审批，提成按该员工默认比例；未设置时使用全店默认比例。系统会保留审计记录。</p>
-              </div>
-            )}
-            <p className="modal-note">保存后先显示为浅橙色“待结账”，付款和小费可以稍后补充。</p>
-            {error && <p className="form-error" role="alert">{error}</p>}
-            <button className="save-record" type="button" disabled={busy || (quickMode === "PRESET" && (!selectedService || !selectedServiceDuration))} onClick={() => run(saveQuickRecord)}>{busy ? "正在保存…" : "保存记工"}</button>
+                  {selectedServiceItem && (
+                    <fieldset className="service-picker duration-picker">
+                      <legend>选择时长与价格</legend>
+                      {selectedServiceItem.priceOptions.map((option) => (
+                        <label key={option.id}><input type="radio" name="service-duration" checked={selectedServiceDuration === option.durationMinutes.toString()} onChange={() => setSelectedServiceDuration(option.durationMinutes.toString())} /><span><strong>{option.durationMinutes} 分钟</strong><small>{money(option.priceCents)}</small></span></label>
+                      ))}
+                    </fieldset>
+                  )}
+                </div>
+              ) : (
+                <div className="quick-custom-grid">
+                  <label className="field-label">项目名称<input autoFocus maxLength={120} value={customServiceName} onChange={(event) => setCustomServiceName(event.target.value)} /></label>
+                  <label className="field-label">项目简称<input maxLength={30} value={customServiceShortName} onChange={(event) => setCustomServiceShortName(event.target.value)} /></label>
+                  <label className="field-label">金额（美元）<input inputMode="decimal" placeholder="例如 80" value={customServiceAmount} onChange={(event) => setCustomServiceAmount(event.target.value)} /></label>
+                  <label className="field-label">时长（分钟）<input type="number" min="1" max="720" inputMode="numeric" placeholder="例如 60" value={customServiceDuration} onChange={(event) => setCustomServiceDuration(event.target.value)} /></label>
+                  <p className="field-help">自定义项目无需审批，提成按该员工默认比例；未设置时使用全店默认比例。系统会保留审计记录。</p>
+                </div>
+              )}
+              <p className="modal-note">保存后先显示为浅橙色“待结账”，付款和小费可以稍后补充。</p>
+              {error && <p className="form-error" role="alert">{error}</p>}
+              <button className="save-record" type="button" disabled={busy || (quickMode === "PRESET" && (!selectedService || !selectedServiceDuration))} onClick={() => run(saveQuickRecord)}>{busy ? "正在保存…" : "保存记工"}</button>
+            </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {editingRecord && (

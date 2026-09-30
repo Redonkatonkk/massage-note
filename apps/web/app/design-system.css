@@ -30,10 +30,43 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .section-tabs button.active { background: var(--surface); color: var(--brand-dark); box-shadow: 0 2px 6px #53361f10; }
 .quick-ranges button { border-radius: 10px; transition: background-color var(--motion-fast), border-color var(--motion-fast); }
 
-.business-day-toolbar { box-shadow: var(--shadow); }
+.today-topbar { display: grid; grid-template-areas: "heading date calendar utilities" "actions actions calendar utilities"; grid-template-columns: minmax(220px, 1fr) minmax(180px, .7fr) 340px 200px; grid-template-rows: auto 1fr; align-items: start; }
+.today-heading { min-width: 0; }
+.today-topbar > .today-heading { grid-area: heading; }
+.today-topbar > .business-day-selection { grid-area: date; }
+.today-topbar > .board-toolbar { grid-area: actions; align-self: end; min-width: 0; margin: 0; }
+.today-topbar .board-primary-actions { flex-wrap: wrap; }
+.today-header-calendar { grid-area: calendar; min-width: 0; }
+.today-header-utilities { grid-area: utilities; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; min-width: 0; }
+.today-header-utilities > .topbar-actions { flex-direction: column; align-items: flex-end; max-width: 100%; }
+.today-header-utilities .store-switcher { max-width: 100%; }
+.business-day-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; min-width: 0; margin-bottom: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+.business-day-toolbar--compact > .history-toolbar { flex: 1 1 auto; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; }
+.business-day-toolbar--compact > .board-toolbar { flex: 0 1 auto; min-width: 0; margin: 0 0 0 auto; }
+.board-more-actions { flex: 1 1 140px; min-width: 0; }
+.board-more-actions > summary { width: fit-content; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: white; cursor: pointer; font-size: .9rem; white-space: nowrap; }
+.board-more-actions__body { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 10px; }
+.business-day-toolbar--compact .board-more-actions { flex: 0 1 auto; }
+.business-day-selection { display: grid; gap: 8px; min-width: 0; }
+.business-day-selection__heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: .85rem; font-weight: 650; }
+.business-day-selection__heading strong { font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.business-day-selection p { margin: 0; color: var(--muted); font-size: .85rem; }
+.business-day-selection > button { justify-self: start; }
+.delivery-sent-count { display: inline-grid; min-width: 22px; height: 22px; place-items: center; padding-inline: 5px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-size: .72rem; font-variant-numeric: tabular-nums; line-height: 1; }
 .business-date-picker__trigger { border-radius: 12px; }
 .business-date-picker__popover { border-radius: 20px; box-shadow: 0 12px 40px #53361f26; animation: mn-enter var(--motion-enter) var(--ease-out); }
 .business-date-picker__popover header button { background: var(--surface-soft); }
+.business-date-picker--inline { min-width: 0; width: 100%; }
+.business-date-picker--inline .business-date-picker__popover { position: static; z-index: auto; width: 100%; max-width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; animation: none; }
+.business-date-picker--inline .business-date-picker__popover header { grid-template-columns: 28px 1fr 28px; gap: 6px; margin-bottom: 4px; }
+.business-date-picker--inline .business-date-picker__popover header strong { font-size: .85rem; }
+.business-date-picker--inline .business-date-picker__popover header button { width: 28px; height: 28px; min-height: 0; padding: 0; border: 0; border-radius: 7px; background: transparent; font-size: 1.2rem; }
+.business-date-picker--inline .business-date-picker__weekdays, .business-date-picker--inline .business-date-picker__days { gap: 2px; }
+.business-date-picker--inline .business-date-picker__weekdays { margin-bottom: 2px; font-size: .7rem; line-height: 1.1; }
+.business-date-picker--inline .business-date-picker__days > span, .business-date-picker--inline .business-date-picker__days button { height: 28px; }
+.business-date-picker--inline .business-date-picker__days button { border-radius: 6px; font-size: .75rem; line-height: 1; }
+.business-date-picker--inline .business-date-picker__days button.has-closed-revenue { gap: 1px; }
+.business-date-picker--inline .business-date-picker__days button i { right: 2px; bottom: 2px; width: 5px; height: 5px; }
 .board-overview { margin-block: 20px; }
 .overview-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .overview-heading h2 { margin: 0; font-size: .86rem; font-weight: 650; letter-spacing: 0; }

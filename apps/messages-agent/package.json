@@ -1,6 +1,6 @@
 {
   "name": "@massage-note/messages-agent",
-  "version": "1.14.4",
+  "version": "1.14.10",
   "private": true,
   "type": "module",
   "scripts": {

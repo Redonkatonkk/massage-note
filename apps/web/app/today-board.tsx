@@ -44,9 +44,15 @@ import { RecordTrack } from "./record-track";
 import { RecordEditor } from "./record-editor";
 import { AutoCloseDetails } from "./auto-close-details";
 import { OverviewMetric, UiIcon } from "./ui/primitives";
+import { LanguageSwitcher } from "./language-provider";
 
 interface TodayBoardProps {
+  wideLayout: boolean;
+  heading: ReactNode;
+  accountActions: ReactNode;
   dateControls: ReactNode;
+  calendar: ReactNode;
+  loadError: string;
   membership: MembershipSummary;
   store: StoreDetails;
   currentDay: CurrentBusinessDay;
@@ -101,7 +107,12 @@ function PaymentBreakdown({
 }
 
 export function TodayBoard({
+  wideLayout,
+  heading,
+  accountActions,
   dateControls,
+  calendar,
+  loadError,
   membership,
   store,
   currentDay,
@@ -440,33 +451,41 @@ export function TodayBoard({
     await onReload();
   }
 
+  const secondaryActions = <>
+    {canManage && board.isClosed && <button className="secondary-action" type="button" disabled={busy || deliveryList?.batchAllowed === false} title={deliveryList?.batchBlockedReason ?? undefined} onClick={() => run(queueEmployeeClosings)}>{deliveryList?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>}
+    {canManage && deliveryList && <ClosingDeliveryQueueButton compact={wideLayout} key={currentDay.businessDate} value={deliveryList} busy={busy} onCancel={(delivery) => void run(() => cancelEmployeeClosingDelivery(delivery))} />}
+    {canManage && board.isClosed && <button className="secondary-action board-reopen-action" type="button" disabled={busy} onClick={() => run(cancelBusinessDayClosing)}>取消日结</button>}
+  </>;
+  const dailyActions = <section className="board-toolbar" aria-label="今日操作">
+    <div className="board-primary-actions">
+      <button className="secondary-action" type="button" disabled={busy} onClick={() => run(onReload)}>刷新</button>
+      {showEmployeeClockIn && <button className="primary-action" type="button" disabled={busy} onClick={() => run(async () => {
+        await apiRequest(`/stores/${membership.store.id}/shifts/clock-in`, { method: "POST", idempotent: true, body: {} });
+        setNotice("已上班，并加入今日表格");
+        await onReload();
+      })}>{busy ? "正在上班…" : "上班"}</button>}
+      {canManage && (board.isClosed
+        ? <a className="primary-action board-closing-action" href={financeCashHref(membership.store.id, currentDay.businessDate)}>现金结算</a>
+        : <button className="primary-action board-closing-action" type="button" disabled={busy} onClick={() => run(closeBusinessDay)}>日结</button>)}
+      {wideLayout ? secondaryActions : (canManage || canGenerateRanking) && <AutoCloseDetails className="board-more-actions">
+        <summary>更多操作</summary>
+        <div className="board-more-actions__body">{secondaryActions}</div>
+      </AutoCloseDetails>}
+    </div>
+  </section>;
   return (
     <>
-      <div className="business-day-toolbar">
-        {dateControls}
-      <section className="board-toolbar" aria-label="今日操作">
-        <div className="board-primary-actions">
-          <button className="secondary-action" type="button" disabled={busy} onClick={() => run(onReload)}>刷新</button>
-          {showEmployeeClockIn && <button className="primary-action" type="button" disabled={busy} onClick={() => run(async () => {
-            await apiRequest(`/stores/${membership.store.id}/shifts/clock-in`, { method: "POST", idempotent: true, body: {} });
-            setNotice("已上班，并加入今日表格");
-            await onReload();
-          })}>{busy ? "正在上班…" : "上班"}</button>}
-          {canManage && (board.isClosed
-            ? <a className="primary-action board-closing-action" href={financeCashHref(membership.store.id, currentDay.businessDate)}>现金结算</a>
-            : <button className="primary-action board-closing-action" type="button" disabled={busy} onClick={() => run(closeBusinessDay)}>日结</button>)}
-          {(canManage || canGenerateRanking) && <AutoCloseDetails className="board-more-actions">
-            <summary>更多操作</summary>
-            <div className="board-more-actions__body">
-              {canManage && board.isClosed && <button className="secondary-action" type="button" disabled={busy || deliveryList?.batchAllowed === false} title={deliveryList?.batchBlockedReason ?? undefined} onClick={() => run(queueEmployeeClosings)}>{deliveryList?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>}
-              {canManage && deliveryList && <ClosingDeliveryQueueButton key={currentDay.businessDate} value={deliveryList} busy={busy} onCancel={(delivery) => void run(() => cancelEmployeeClosingDelivery(delivery))} />}
-              {canManage && board.isClosed && <button className="secondary-action board-reopen-action" type="button" disabled={busy} onClick={() => run(cancelBusinessDayClosing)}>取消日结</button>}
-            </div>
-          </AutoCloseDetails>}
-
-        </div>
-      </section>
-      </div>
+      <header className={`topbar${wideLayout ? " today-topbar" : ""}`}>
+        <div className="today-heading">{heading}</div>
+        {wideLayout ? <>
+          {dateControls}
+          {dailyActions}
+          <div className="today-header-calendar">{calendar}</div>
+          <div className="today-header-utilities"><LanguageSwitcher /><div className="topbar-actions">{accountActions}</div></div>
+        </> : <div className="topbar-actions">{accountActions}</div>}
+      </header>
+      {loadError && <p className="form-error" role="alert">{loadError}</p>}
+      {!wideLayout && <div className="business-day-toolbar business-day-toolbar--compact">{dateControls}{dailyActions}</div>}
 
       {canManage && <section className="board-overview" aria-label="今日全店汇总">
         <header className="overview-heading"><h2>经营概览</h2><span>当前查看的营业日</span></header>

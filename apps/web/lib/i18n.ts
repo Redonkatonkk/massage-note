@@ -327,6 +327,7 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "查看": "View",
   "返回今天": "Return to today",
   "当前营业日": "Current business date",
+  "当前营业日：": "Current business date:",
   "未来记工": "Future work records",
   "未来营业日；可提前添加员工": "Future business date; employees can be added in advance",
   "历史营业日；只显示你自己的记工": "Past business date; only your records are shown",

@@ -36,14 +36,19 @@ export function BusinessDatePicker({
   max,
   onChange,
   ariaLabel,
+  inline = false,
+  refreshKey,
 }: {
   storeId: string;
   value: string;
   max?: string | undefined;
   onChange: (value: string) => void;
   ariaLabel: string;
+  inline?: boolean;
+  refreshKey?: string | undefined;
 }) {
   const [open, setOpen] = useState(false);
+  const expanded = inline || open;
   const [month, setMonth] = useState(value.slice(0, 7));
   const [markedDates, setMarkedDates] = useState<Set<string>>(new Set());
   const [closedRevenue, setClosedRevenue] = useState<Map<string, number>>(new Map());
@@ -53,11 +58,11 @@ export function BusinessDatePicker({
   const dialogId = useId();
 
   useEffect(() => {
-    if (!open) setMonth(value.slice(0, 7));
-  }, [open, value]);
+    if (inline || !open) setMonth(value.slice(0, 7));
+  }, [inline, open, value]);
 
   useEffect(() => {
-    if (!open) return;
+    if (inline || !open) return;
     const close = (event: MouseEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
@@ -70,10 +75,10 @@ export function BusinessDatePicker({
       document.removeEventListener("mousedown", close);
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [open]);
+  }, [inline, open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!expanded) return;
     const generation = ++requestGeneration.current;
     const { first, last } = monthBounds(month);
     setLoadingMarks(true);
@@ -95,7 +100,7 @@ export function BusinessDatePicker({
         if (generation === requestGeneration.current) setLoadingMarks(false);
       });
     return () => { requestGeneration.current += 1; };
-  }, [month, open, storeId]);
+  }, [month, expanded, storeId, refreshKey]);
 
   const calendar = useMemo(() => {
     const { first, last } = monthBounds(month);
@@ -111,8 +116,8 @@ export function BusinessDatePicker({
   }, [month]);
 
   return (
-    <div className="business-date-picker" ref={rootRef}>
-      <button
+    <div className={`business-date-picker${inline ? " business-date-picker--inline" : ""}`} ref={rootRef}>
+      {!inline && <button
         className="business-date-picker__trigger"
         type="button"
         aria-label={ariaLabel + "：" + dateLabel(value)}
@@ -121,9 +126,9 @@ export function BusinessDatePicker({
         onClick={() => setOpen((current) => !current)}
       >
         <span>{value}</span><span aria-hidden="true">▾</span>
-      </button>
-      {open && (
-        <section className="business-date-picker__popover" id={dialogId} role="dialog" aria-label={ariaLabel + "日历"}>
+      </button>}
+      {expanded && (
+        <section className="business-date-picker__popover" id={dialogId} role={inline ? "group" : "dialog"} aria-label={ariaLabel + "日历"} aria-busy={loadingMarks}>
           <header>
             <button type="button" aria-label="上个月" onClick={() => setMonth((current) => shiftMonth(current, -1))}>‹</button>
             <strong>{monthLabel(month)}</strong>
@@ -144,6 +149,7 @@ export function BusinessDatePicker({
                   type="button"
                   disabled={max !== undefined && date > max}
                   className={(date === value ? "selected" : "") + (marked ? " has-open-work" : "") + (amount !== undefined ? " has-closed-revenue" : "")}
+                  aria-pressed={date === value}
                   aria-label={dateLabel(date) + (marked ? "，有记工但未日结" : "")}
                   onClick={() => { onChange(date); setOpen(false); }}
                 >
@@ -154,7 +160,7 @@ export function BusinessDatePicker({
               );
             })}
           </div>
-          <footer><span className="business-date-picker__legend-dot" aria-hidden="true" />有记工但未日结{loadingMarks && <em>正在更新…</em>}</footer>
+          {!inline && <footer><span className="business-date-picker__legend-dot" aria-hidden="true" />有记工但未日结{loadingMarks && <em>正在更新…</em>}</footer>}
         </section>
       )}
     </div>

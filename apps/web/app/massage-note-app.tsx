@@ -3,7 +3,7 @@
 import { createRefreshQueue } from "../lib/refresh-queue";
 import { browserStorage } from "../lib/browser-storage";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
 import { deduplicateMembershipRows } from "../lib/board";
 import type {
@@ -22,6 +22,17 @@ import { boardRefreshScope } from "../lib/realtime-scope";
 import { AppNav } from "./app-nav";
 import { FloatingAiAssistant } from "./floating-ai-assistant";
 import { BusinessDatePicker } from "./business-date-picker";
+
+const wideWorkLayoutQuery = "(min-width: 1200px)";
+function subscribeWideWorkLayout(onChange: () => void) {
+  const media = window.matchMedia(wideWorkLayoutQuery);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+function wideWorkLayoutSnapshot() {
+  return window.matchMedia(wideWorkLayoutQuery).matches;
+}
+function serverWorkLayoutSnapshot() { return false; }
 
 function chineseDate(value: string): string {
   const [year, month, day] = value.split("-");
@@ -199,6 +210,7 @@ function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; o
 }
 
 export function MassageNoteApp() {
+  const wideLayout = useSyncExternalStore(subscribeWideWorkLayout, wideWorkLayoutSnapshot, serverWorkLayoutSnapshot);
   const [me, setMe] = useState<MeResponse | null>(null);
   const [membership, setMembership] = useState<MembershipSummary | null>(null);
   const currentDayRef = useRef("");
@@ -335,21 +347,33 @@ export function MassageNoteApp() {
   if (!currentDay || !board || !catalog || !storeDetails) return <LoadingPage message={error || "正在读取店铺数据…"} />;
   if (catalog.serviceItems.length === 0) return <CatalogSetup membership={membership} onDone={loadStore} />;
 
+  const dateCalendar = <BusinessDatePicker inline={wideLayout} storeId={membership.store.id} value={viewDate} max={membership.role === "EMPLOYEE" ? currentDay.businessDate : undefined} refreshKey={wideLayout ? currentDay.serverTime : undefined} ariaLabel="查看营业日" onChange={(value) => { viewDateRef.current = value; void loadStore(); }} />;
+  const dateHint = viewDate === currentDay.businessDate ? "" : viewDate > currentDay.businessDate ? "未来营业日；可提前添加员工" : membership.role === "EMPLOYEE" ? "历史营业日；只显示你自己的记工" : "历史营业日；已日结时须先取消日结才能修改";
+  const dateLabel = viewDate === currentDay.businessDate ? "当前营业日：" : membership.role === "EMPLOYEE" ? "查看自己的营业日" : "查看营业日";
+  const returnToToday = viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => { viewDateRef.current = currentDay.businessDate; void loadStore(); }}>返回今天</button>;
+
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <div><p className="eyebrow">{membership.store.name} · 店铺代码 {membership.store.storeCode}</p><h1>{viewDate === currentDay.businessDate ? "今日记工" : viewDate > currentDay.businessDate ? "未来记工" : "历史记工"}</h1><p className="business-date">{chineseDate(viewDate)} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
-        <div className="topbar-actions">
+      <TodayBoard
+        wideLayout={wideLayout}
+        heading={<><p className="eyebrow">{membership.store.name} · 店铺代码 {membership.store.storeCode}</p><h1>{viewDate === currentDay.businessDate ? "今日记工" : viewDate > currentDay.businessDate ? "未来记工" : "历史记工"}</h1><p className="business-date">{chineseDate(viewDate)} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></>}
+        accountActions={<>
           {me.memberships.length > 1 && <select className="store-switcher" aria-label="切换店铺" value={membership.store.id} onChange={(event) => {
             const selected = me.memberships.find((item) => item.store.id === event.target.value); if (selected) { storeLoadGeneration.current += 1; viewDateRef.current = ""; setViewDate(""); setMembership(selected); setCurrentDay(null); setBoard(null); setStoreDetails(null); browserStorage.setItem("massage_note_store_id", selected.store.id); }
           }}>{me.memberships.map((item) => <option key={item.store.id} value={item.store.id}>{item.store.name}</option>)}</select>}
           <button className="store-switcher" type="button" onClick={() => apiRequest("/auth/session", { method: "DELETE" }).finally(() => window.location.replace("/login"))}>退出</button>
-        </div>
-      </header>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <TodayBoard dateControls={
-      <section className="history-toolbar" aria-label="切换营业日"><div className="history-date-form"><div className="business-date-field"><span>{membership.role === "EMPLOYEE" ? "查看自己的营业日" : "查看营业日"}</span><BusinessDatePicker storeId={membership.store.id} value={viewDate} max={membership.role === "EMPLOYEE" ? currentDay.businessDate : undefined} ariaLabel="查看营业日" onChange={(value) => { viewDateRef.current = value; void loadStore(); }} /></div></div>{viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => { viewDateRef.current = currentDay.businessDate; void loadStore(); }}>返回今天</button>}<span>{viewDate === currentDay.businessDate ? "当前营业日" : viewDate > currentDay.businessDate ? "未来营业日；可提前添加员工" : membership.role === "EMPLOYEE" ? "历史营业日；只显示你自己的记工" : "历史营业日；已日结时须先取消日结才能修改"}</span></section>
-      } key={`today-${membership.store.id}-${viewDate}`} membership={membership} store={storeDetails} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} isFutureBusinessDay={viewDate > currentDay.businessDate} board={board} catalog={catalog} members={members} initialRecordId={initialRecordId || undefined} onInitialRecordOpened={() => { setInitialRecordId(""); const url = new URL(window.location.href); url.searchParams.delete("record"); window.history.replaceState(null, "", `${url.pathname}${url.search}`); }} onReload={loadStore} />
+        </>}
+        dateControls={wideLayout ? <section className="business-day-selection" aria-label="切换营业日">
+          <div className="business-day-selection__heading"><span>{dateLabel}</span><strong>{viewDate}</strong></div>
+          {dateHint && <p>{dateHint}</p>}
+          {returnToToday}
+        </section> : <section className="history-toolbar" aria-label="切换营业日">
+          <div className="history-date-form"><div className="business-date-field"><span>{dateLabel}</span>{dateCalendar}</div></div>
+          {returnToToday}{dateHint && <span>{dateHint}</span>}
+        </section>}
+        calendar={wideLayout ? dateCalendar : null}
+        loadError={error}
+        key={`today-${membership.store.id}-${viewDate}`} membership={membership} store={storeDetails} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} isFutureBusinessDay={viewDate > currentDay.businessDate} board={board} catalog={catalog} members={members} initialRecordId={initialRecordId || undefined} onInitialRecordOpened={() => { setInitialRecordId(""); const url = new URL(window.location.href); url.searchParams.delete("record"); window.history.replaceState(null, "", `${url.pathname}${url.search}`); }} onReload={loadStore} />
       <FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} timezone={currentDay.timezone} type="work" onWorkChanged={loadStore} />
       <AppNav active="today" storeId={membership.store.id} role={membership.role} />
     </main>

@@ -9,7 +9,7 @@ body { line-height: 1.5; }
   margin-inline: auto;
   padding: max(8px, env(safe-area-inset-top)) 20px 0;
 }
-.app-utility-bar .language-switcher {
+:is(.app-utility-bar, .today-header-utilities) .language-switcher {
   position: static;
   width: fit-content;
   border: 0;
@@ -18,13 +18,13 @@ body { line-height: 1.5; }
   border-radius: 12px;
   box-shadow: none;
 }
-.app-utility-bar .language-switcher button {
+:is(.app-utility-bar, .today-header-utilities) .language-switcher button {
   min-height: var(--control-height);
   padding: 6px 12px;
   border-radius: 10px;
   font-size: .85rem;
 }
-.app-utility-bar .language-switcher button.active {
+:is(.app-utility-bar, .today-header-utilities) .language-switcher button.active {
   color: var(--brand);
   background: white;
 }
@@ -71,9 +71,6 @@ button, summary { overflow-wrap: anywhere; }
 .board-extra-metrics { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); background: transparent; }
 .board-extra-metrics > div { min-height: 76px; }
 .board-toolbar .board-primary-actions { display: flex; flex: 1; align-items: flex-start; gap: 8px; }
-.board-more-actions { flex: 1 1 140px; min-width: 0; }
-.board-more-actions > summary { width: fit-content; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: white; cursor: pointer; font-size: .9rem; }
-.board-more-actions__body { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 10px; }
 .board-reopen-action { color: #9d2c24; }
 .closed-banner { font-size: .85rem; font-weight: 500; }
 .table-scroll { width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
@@ -114,8 +111,6 @@ button, summary { overflow-wrap: anywhere; }
   .board-extra-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .board-extra-metrics > div { padding: 12px; }
   .board-toolbar .board-primary-actions { width: 100%; }
-  .board-more-actions__body { flex-direction: column; }
-  .board-more-actions__body > * { width: 100%; }
   .board-toolbar .board-closing-action { min-height: 44px; line-height: 1.4; }
   .employee-toggle { min-height: 68px; padding: 12px; gap: 10px; }
   .employee-avatar { width: 40px; height: 40px; flex-basis: 40px; border-radius: 12px; }
@@ -189,7 +184,6 @@ button, summary { overflow-wrap: anywhere; }
 @media (max-width: 360px) {
   .app-shell { padding-inline: 12px; }
   .board-primary-actions > .secondary-action { padding-inline: 10px; }
-  .board-more-actions > summary { padding-inline: 8px; }
   .finance-cards { grid-template-columns: 1fr; }
   .cash-grid dl { grid-template-columns: 1fr; }
   .payment-method-row { grid-template-columns: 44px repeat(2, minmax(0, 1fr)); padding-inline: 8px; gap: 6px; }
@@ -221,7 +215,6 @@ button, summary { overflow-wrap: anywhere; }
   .record-editor .editor-save-actions > button { min-height: 44px; padding: 9px 10px; }
 }
 /* Long English labels must wrap as whole controls, never as narrow text columns. */
-.board-more-actions > summary { white-space: nowrap; }
 .business-date-picker__trigger > span { white-space: nowrap; }
 @media (max-width: 360px) {
   .topbar > div:first-child { flex-basis: 100%; }
@@ -285,16 +278,20 @@ button, summary { overflow-wrap: anywhere; }
   .record-track { padding: 6px 12px; gap: 10px; }
 }
 
-/* Keep date selection and daily actions together above the board summary. */
-.business-day-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.business-day-toolbar > .history-toolbar { flex: 1 1 auto; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; }
-.business-day-toolbar > .board-toolbar { flex: 0 1 auto; min-width: 0; margin: 0 0 0 auto; }
-.business-day-toolbar .board-more-actions { flex: 0 1 auto; }
-.business-day-toolbar .board-more-actions > summary { white-space: nowrap; }
+/* Work-log DOM uses the same 1200px breakpoint to restore the original controls. */
+.today-topbar { gap: 12px 16px; }
+@media (min-width: 1200px) {
+  body:has(.today-topbar) > .app-utility-bar { display: none; }
+}
 @media (max-width: 760px) {
-  .business-day-toolbar > .history-toolbar { flex-basis: 100%; }
-  .business-day-toolbar > .board-toolbar { flex-basis: 100%; margin-left: 0; }
-  .business-day-toolbar .board-more-actions { flex: 1 1 140px; }
+  .business-day-toolbar--compact > .history-toolbar { flex-basis: 100%; }
+  .business-day-toolbar--compact > .board-toolbar { flex-basis: 100%; margin-left: 0; }
+  .business-day-toolbar--compact .board-more-actions { flex: 1 1 140px; }
+  .board-more-actions__body { flex-direction: column; }
+  .board-more-actions__body > * { width: 100%; }
+}
+@media (max-width: 360px) {
+  .board-more-actions > summary { padding-inline: 8px; }
 }
 
 /* Business analytics keeps long timelines inside their own scrolling cards. */
@@ -452,20 +449,20 @@ button, summary { overflow-wrap: anywhere; }
 
 /* Wide screens use the same navigation as a rail; smaller screens use the dock. */
 @media (min-width: 1200px) {
-  .app-shell:has(> .app-nav-space) { width: min(1716px, calc(100% - 112px)); margin-left: 112px; padding: 12px 28px 36px; }
-  .center-page--with-nav { width: calc(100% - 112px); margin-left: 112px; }
-  body:has(.app-nav-space) .app-utility-bar { width: calc(100% - 112px); margin-left: 112px; padding-right: 28px; }
+  .app-shell:has(> .app-nav-space) { width: calc(100% - 60px); margin-left: 60px; padding: 12px 18px 36px 12px; }
+  .center-page--with-nav { width: calc(100% - 60px); margin-left: 60px; }
+  body:has(.app-nav-space) .app-utility-bar { width: calc(100% - 60px); margin-left: 60px; padding-inline: 12px 18px; }
   .app-nav-space { height: 0; }
-  .bottom-nav { display: flex; flex-direction: column; left: 16px; top: 16px; bottom: 16px; width: 76px; min-height: 0; padding: 24px 12px 16px; transform: none; overflow-x: hidden; overflow-y: auto; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow); color: var(--ink); z-index: 26; transition: width 240ms var(--ease-out), box-shadow 240ms ease; }
+  .bottom-nav { display: flex; flex-direction: column; left: 4px; top: 16px; bottom: 16px; width: 56px; min-height: 0; padding: 24px 5px 16px; transform: none; overflow-x: hidden; overflow-y: auto; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); color: var(--ink); z-index: 26; transition: width 240ms var(--ease-out), box-shadow 240ms ease; }
   .bottom-nav:is(:hover, :has(:focus-visible)) { width: 256px; box-shadow: 0 12px 38px rgb(83 54 31 / 18%); }
-  .app-nav-brand { display: flex; align-items: center; gap: 10px; padding: 0 6px; color: var(--brand); text-decoration: none; overflow: hidden; min-height: 40px; }
+  .app-nav-brand { display: flex; align-items: center; gap: 10px; padding: 0 3px; color: var(--brand); text-decoration: none; overflow: hidden; min-height: 44px; }
   .app-nav-brand .brand-mark { width: 38px; height: 38px; color: var(--brand); --brand-mark-ink: #fff8ee; }
   .app-nav-brand > span { max-width: 0; opacity: 0; overflow: hidden; flex-shrink: 0; font-size: 1rem; font-weight: 600; letter-spacing: -.035em; line-height: 1.1; transition: max-width 240ms var(--ease-out), opacity 180ms ease; }
   .app-nav-brand__note { display: block; font-size: 1.25rem; }
   .app-nav-caption { display: block; margin: 30px 14px 14px; min-height: 18px; white-space: nowrap; opacity: 0; font-size: .65rem; letter-spacing: .14em; color: var(--muted); transition: opacity 160ms ease; }
   .app-nav-links { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .app-nav-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
-  .bottom-nav__item { display: flex; justify-content: flex-start; gap: 0; min-height: 52px; padding: 14px; font-size: .85rem; color: var(--muted); border-radius: 12px; overflow: hidden; }
+  .bottom-nav__item { display: flex; justify-content: flex-start; gap: 0; min-height: 52px; padding: 11px; font-size: .85rem; color: var(--muted); border-radius: 12px; overflow: hidden; }
   .bottom-nav__item:hover { color: var(--brand); background: var(--surface-soft); }
   .bottom-nav__item--active, .bottom-nav__item--active:hover { background: var(--brand-soft); color: var(--brand); }
   .bottom-nav__item > .app-nav-label, .app-nav-footer > a > .app-nav-label { max-width: 0; overflow: hidden; opacity: 0; white-space: nowrap; flex-shrink: 0; transform: translateX(-6px); transition: max-width 240ms var(--ease-out), opacity 160ms ease, transform 240ms var(--ease-out); }
@@ -491,7 +488,7 @@ button, summary { overflow-wrap: anywhere; }
   .app-nav-note p { margin: 0; font-size: .85rem; line-height: 1.5; color: var(--brand); }
   .app-nav-note small { display: block; margin-top: 7px; color: var(--muted); font-size: .85rem; }
   .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-note { max-height: 150px; padding: 14px 10px; opacity: 1; visibility: visible; border-width: 1px; transition-delay: 0s; }
-  .app-nav-footer > a { display: flex; align-items: center; gap: 0; min-height: 48px; padding: 14px; overflow: hidden; color: var(--muted); text-decoration: none; font-size: .85rem; }
+  .app-nav-footer > a { display: flex; align-items: center; gap: 0; min-height: 48px; padding: 11px; overflow: hidden; color: var(--muted); text-decoration: none; font-size: .85rem; }
   .app-nav-footer > a .ui-icon { width: 22px; height: 22px; }
   .app-nav-footer > a > .app-nav-footer__arrow { width: 0; opacity: 0; transition: width 240ms var(--ease-out), opacity 160ms ease; }
   .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-footer > a { gap: 9px; }

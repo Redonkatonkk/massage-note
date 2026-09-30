@@ -151,26 +151,33 @@ export function LanguageProvider({
 
   return (
     <LanguageContext.Provider value={value}>
-      <div className="app-utility-bar"><div className="language-switcher" role="group" aria-label={locale === "zh-CN" ? "选择语言" : "Choose language"}>
-        <button
-          className={locale === "zh-CN" ? "active" : ""}
-          type="button"
-          aria-pressed={locale === "zh-CN"}
-          onClick={() => setLocale("zh-CN")}
-        >
-          中文
-        </button>
-        <button
-          className={locale === "en-US" ? "active" : ""}
-          type="button"
-          aria-pressed={locale === "en-US"}
-          onClick={() => setLocale("en-US")}
-        >
-          English
-        </button>
-      </div></div>
+      <div className="app-utility-bar"><LanguageSwitcher /></div>
       {children}
     </LanguageContext.Provider>
+  );
+}
+
+export function LanguageSwitcher() {
+  const { locale, setLocale } = useLanguage();
+  return (
+    <div className="language-switcher" role="group" aria-label={locale === "zh-CN" ? "选择语言" : "Choose language"}>
+      <button
+        className={locale === "zh-CN" ? "active" : ""}
+        type="button"
+        aria-pressed={locale === "zh-CN"}
+        onClick={() => setLocale("zh-CN")}
+      >
+        中文
+      </button>
+      <button
+        className={locale === "en-US" ? "active" : ""}
+        type="button"
+        aria-pressed={locale === "en-US"}
+        onClick={() => setLocale("en-US")}
+      >
+        English
+      </button>
+    </div>
   );
 }
 

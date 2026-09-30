@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ClosingDeliveryItem, ClosingDeliveryList, ClosingDeliveryStatus } from "../lib/types";
+import { useLanguage } from "./language-provider";
 
 const statusLabels: Record<ClosingDeliveryStatus, string> = {
   QUEUED: "排队",
@@ -68,17 +69,20 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
   );
 }
 
-export function ClosingDeliveryQueueButton(props: ClosingDeliveryQueueProps) {
+export function ClosingDeliveryQueueButton({ compact = false, ...props }: ClosingDeliveryQueueProps & { compact?: boolean }) {
+  const { t } = useLanguage();
   const dialog = useRef<HTMLDialogElement>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  // Keep the modal outside auto-closing details: a hidden open dialog still
-  // makes the rest of the document inert. Resolve body only after hydration.
+  // Resolve the portal target only after hydration and keep the modal at body level.
   useEffect(() => setPortalTarget(document.body), []);
   const sentCount = props.value.deliveries.filter((item) => item.status === "SENT").length;
+  const sentLabel = `${t("已发送")} ${sentCount}`;
 
   return <>
-    <button className="secondary-action board-closing-action" type="button" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
-      <span>短信队列</span> · <span>已发送</span> <strong>{sentCount}</strong>
+    <button className="secondary-action board-closing-action" type="button" aria-label={`${t("短信队列")} · ${sentLabel}`} aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
+      <span>短信队列</span>{compact
+        ? <strong className="delivery-sent-count" aria-hidden="true" title={sentLabel}>{sentCount}</strong>
+        : <> · <span>已发送</span> <strong>{sentCount}</strong></>}
     </button>
     {portalTarget && createPortal(<dialog ref={dialog} className="board-delivery-dialog" aria-label="短信发送队列详情" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
       <div className="modal-heading">

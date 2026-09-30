@@ -247,6 +247,7 @@ export class WorkRecordsService {
         businessDate,
         amountCents,
         [],
+        input.isHighlighted ?? false,
       );
       const discountTotalCents = discounts.reduce(
         (total, discount) => total + discount.amountCents,
@@ -607,6 +608,7 @@ export class WorkRecordsService {
                 businessDate,
                 grossFeeBaseCents,
                 manualDiscounts,
+                input.isHighlighted ?? record.isHighlighted,
               );
           let manualPriceFlag = record.manualPriceFlag;
           if (service.isCustom) {
@@ -1588,6 +1590,7 @@ export class WorkRecordsService {
     businessDate: string,
     grossFeeBaseCents: bigint,
     manualDiscounts: DesiredDiscountSnapshot[],
+    isHighlighted: boolean,
   ): DesiredDiscountSnapshot[] {
     const discounts = manualDiscounts.map((discount, position) => ({
       ...discount,
@@ -1596,7 +1599,7 @@ export class WorkRecordsService {
     }));
     return [
       ...discounts,
-      ...automaticDiscounts(settings, businessDate, grossFeeBaseCents, discounts.length),
+      ...(isHighlighted ? [] : automaticDiscounts(settings, businessDate, grossFeeBaseCents, discounts.length)),
     ];
   }
 

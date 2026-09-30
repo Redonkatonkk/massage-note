@@ -29,7 +29,7 @@ export function AppNav({ active, storeId, role = "EMPLOYEE", activeTab, onTabCha
   ];
   return (
     <div className="app-nav-space" style={{ "--app-nav-height": navHeight === null ? undefined : `${navHeight}px` } as CSSProperties}>
-    <nav ref={navRef} className="bottom-nav" data-pinned={pinnedSection !== null} aria-label="主要导航" onKeyDown={event => {
+    <nav ref={navRef} className="bottom-nav" aria-label="主要导航" onKeyDown={event => {
       if (event.key === "Escape") {
         setPinnedSection(null);
         setOpenSections([]);

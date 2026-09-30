@@ -644,12 +644,63 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
         totalLargeFeeWageCents: 5_500n,
       });
 
+      const highlightedCreate = await workRecords.create(
+        actor(ownerId), storeId,
+        { employeeMembershipId, startAt: "2026-08-13T16:00:00.000Z", serviceItemId, serviceDurationMinutes: 60, isHighlighted: true },
+        "highlighted-auto-discount-create-key-0001", "highlighted-auto-discount-create",
+      );
+      expect(highlightedCreate).toMatchObject({ isHighlighted: true, discountTotalCents: 0n, discountedFeePerformanceCents: 10_000n, totalLargeFeeWageCents: 5_500n });
+      expect(highlightedCreate.discountSnapshots).toHaveLength(0);
+
+      const confirmedHighlighted = await workRecords.confirmPayment(
+        actor(ownerId), storeId, highlightedCreate.id,
+        { version: highlightedCreate.version, cashServiceCents: 10_000, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0 },
+        "highlighted-auto-discount-confirm-key-0001", "highlighted-auto-discount-confirm",
+      );
+      const confirmedUnhighlighted = await workRecords.update(
+        actor(ownerId), storeId, highlightedCreate.id,
+        { version: confirmedHighlighted.version, isHighlighted: false },
+        "confirmed-unhighlight-update-key-0001", "confirmed-unhighlight-update",
+      );
+      expect(confirmedUnhighlighted).toMatchObject({ status: "CONFIRMED", discountTotalCents: 1_000n, actualServiceCollectedCents: 10_000n, totalLargeFeeWageCents: 5_500n });
+      const rehighlighted = await workRecords.update(
+        actor(ownerId), storeId, highlightedCreate.id,
+        { version: confirmedUnhighlighted.version, isHighlighted: true },
+        "confirmed-highlight-update-key-0001", "confirmed-highlight-update",
+      );
+      expect(rehighlighted).toMatchObject({ status: "CONFIRMED", discountTotalCents: 0n, actualServiceCollectedCents: 10_000n, totalLargeFeeWageCents: 5_500n });
+      expect(rehighlighted.discountSnapshots).toHaveLength(0);
+
+      const highlighted = await workRecords.update(
+        actor(ownerId), storeId, mondayRecord.id,
+        { version: withManualDiscount.version, isHighlighted: true },
+        "highlight-auto-discount-update-key-0001", "highlight-auto-discount-update",
+      );
+      expect(highlighted).toMatchObject({ isHighlighted: true, automaticDiscountSuppressed: false, discountTotalCents: 1_000n, discountedFeePerformanceCents: 9_000n, totalLargeFeeWageCents: 5_500n });
+      expect(highlighted.discountSnapshots).toEqual([expect.objectContaining({ name: "新客优惠", isAutomatic: false })]);
+
+      const stillHighlighted = await workRecords.update(
+        actor(ownerId), storeId, mondayRecord.id,
+        { version: highlighted.version, note: "高亮后再次编辑", automaticDiscountSuppressed: false },
+        "highlight-auto-discount-persist-key-0001", "highlight-auto-discount-persist",
+      );
+      expect(stillHighlighted.discountTotalCents).toBe(1_000n);
+      expect(stillHighlighted.discountSnapshots.some(item => item.isAutomatic)).toBe(false);
+
+      const unhighlighted = await workRecords.update(
+        actor(ownerId), storeId, mondayRecord.id,
+        { version: stillHighlighted.version, isHighlighted: false },
+        "unhighlight-auto-discount-update-key-0001", "unhighlight-auto-discount-update",
+      );
+      expect(unhighlighted.discountTotalCents).toBe(2_000n);
+      expect(unhighlighted.discountSnapshots.filter(item => item.isAutomatic)).toHaveLength(1);
+
       const withoutAutomaticDiscount = await workRecords.update(
         actor(ownerId),
         storeId,
         mondayRecord.id,
         {
-          version: withManualDiscount.version,
+          version: unhighlighted.version,
           automaticDiscountSuppressed: true,
         },
         "monday-auto-discount-remove-key-0001",
@@ -678,12 +729,25 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
       expect(stillWithoutAutomaticDiscount.automaticDiscountSuppressed).toBe(true);
       expect(stillWithoutAutomaticDiscount.discountSnapshots.some((item) => item.isAutomatic)).toBe(false);
 
+      const manuallySuppressedHighlighted = await workRecords.update(
+        actor(ownerId), storeId, mondayRecord.id,
+        { version: stillWithoutAutomaticDiscount.version, isHighlighted: true },
+        "suppressed-highlight-update-key-0001", "suppressed-highlight-update",
+      );
+      const manuallySuppressedUnhighlighted = await workRecords.update(
+        actor(ownerId), storeId, mondayRecord.id,
+        { version: manuallySuppressedHighlighted.version, isHighlighted: false },
+        "suppressed-unhighlight-update-key-0001", "suppressed-unhighlight-update",
+      );
+      expect(manuallySuppressedUnhighlighted.automaticDiscountSuppressed).toBe(true);
+      expect(manuallySuppressedUnhighlighted.discountSnapshots.some(item => item.isAutomatic)).toBe(false);
+
       const restoredAutomaticDiscount = await workRecords.update(
         actor(ownerId),
         storeId,
         mondayRecord.id,
         {
-          version: stillWithoutAutomaticDiscount.version,
+          version: manuallySuppressedUnhighlighted.version,
           automaticDiscountSuppressed: false,
         },
         "monday-auto-discount-restore-key-0001",

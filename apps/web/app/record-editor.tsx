@@ -175,10 +175,6 @@ export function RecordEditor({
       })),
     [record.discountSnapshots],
   );
-  const automaticDiscounts = useMemo(
-    () => record.discountSnapshots.filter((item) => item.isAutomatic),
-    [record.discountSnapshots],
-  );
   const [employeeId, setEmployeeId] = useState(record.employeeMembershipId);
   const [startTimeValid, setStartTimeValid] = useState(true);
   const [endTimeValid, setEndTimeValid] = useState(true);
@@ -703,6 +699,7 @@ export function RecordEditor({
   });
   const weekday = new Date(`${businessDate}T00:00:00.000Z`).getUTCDay();
   const draftAutomaticDiscount =
+    !isHighlighted &&
     !automaticDiscountSuppressed &&
     draftGross !== null &&
     autoDiscountSettings.mondayThursdayAutoDiscountEnabled &&
@@ -830,14 +827,9 @@ export function RecordEditor({
               <div><strong>本单已手动移除自动折扣</strong><small>只影响这笔记工，不会关闭店铺的周一至周四自动折扣规则</small></div>
               <button className="secondary-action compact" type="button" onClick={() => { setDraftDirty(true); setAutomaticDiscountSuppressed(false); }}>恢复自动折扣</button>
             </div>
-          ) : automaticDiscounts.map((item) => (
-            <div className="automatic-discount-line" key={item.id}>
-              <div><strong>{item.name}</strong><small>系统按营业日和折前大费自动应用，保存时会重新判断</small></div>
-              <span>-{dollars(item.amountCents)}</span>
-              <button className="danger-link" type="button" onClick={removeAutomaticDiscount}>移除</button>
-            </div>
-          ))}
-          {!automaticDiscountSuppressed && automaticDiscounts.length === 0 && draftAutomaticDiscount > 0 && (
+          ) : isHighlighted ? (
+            <p className="field-help">高亮记工不应用周一至周四自动折扣。</p>
+          ) : draftAutomaticDiscount > 0 && (
             <div className="automatic-discount-line">
               <div><strong>周一至周四自动折扣</strong><small>保存时将按当前店铺规则重新应用</small></div>
               <span>-{dollars(draftAutomaticDiscount)}</span>
@@ -845,7 +837,7 @@ export function RecordEditor({
             </div>
           )}
           <p className="field-help">可输入金额或百分比（如 10%）；百分比按大费与全部加项合计计算。</p>
-          {discounts.length === 0 && automaticDiscounts.length === 0 && draftAutomaticDiscount === 0 && !automaticDiscountSuppressed && <p className="empty-note">本单没有折扣</p>}
+          {discounts.length === 0 && draftAutomaticDiscount === 0 && !automaticDiscountSuppressed && <p className="empty-note">本单没有折扣</p>}
           {discounts.map((item) => (
             <div className="line-item" key={item.key}>
               <select value={item.sourceItemId} onChange={(event) => selectDiscount(item.key, event.target.value)}>

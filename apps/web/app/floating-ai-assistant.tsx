@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiRequest, errorMessage } from "../lib/api";
 import { aiPreviewRows, previewValue } from "../lib/ai-preview";
 import type { AiMessageResponse, AiPreview } from "../lib/types";
@@ -84,6 +85,7 @@ export function FloatingAiAssistant({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const viewportTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const voice = useAiVoiceInput({
@@ -132,6 +134,12 @@ export function FloatingAiAssistant({
     };
   }, [open]);
 
+  function close() {
+    voice.cancelRecording();
+    setOpen(false);
+    launcherRef.current?.focus();
+  }
+
   async function send() {
     const text = input.trim();
     if (!text || inputBusy || voice.recording) return;
@@ -177,15 +185,15 @@ export function FloatingAiAssistant({
   }
 
   return (
-    <div ref={rootRef} className="floating-ai-root">
-      {open && <section id={`floating-ai-${type}`} className="floating-ai-dialog" role="dialog" aria-label={settings.title}>
-        <header className="floating-ai-heading"><div><span aria-hidden="true"><UiIcon name="sparkles" /></span><div><strong>{settings.title}</strong><small>{type === "work" ? "确认后才会修改记工" : "财务数据只读"}</small></div></div><button type="button" aria-label="关闭 AI 助手" onClick={() => { voice.cancelRecording(); setOpen(false); }}>×</button></header>
+    <>
+      {open && createPortal(<div ref={rootRef} className="ai-dialog-root"><section id={`floating-ai-${type}`} className="floating-ai-dialog" role="dialog" aria-label={settings.title} onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}>
+        <header className="floating-ai-heading"><div><span aria-hidden="true"><UiIcon name="sparkles" /></span><div><strong>{settings.title}</strong><small>{type === "work" ? "确认后才会修改记工" : "财务数据只读"}</small></div></div><button type="button" aria-label="关闭 AI 助手" onClick={close}>×</button></header>
         <div className="floating-ai-examples">{settings.examples.map((example) => <button key={example} type="button" onClick={() => setInput(t(example))}>{example}</button>)}</div>
         <div className="chat-messages floating-ai-messages">{messages.map((message) => <article key={message.id} className={`chat-message ${message.role}`}><span>{message.role === "user" ? "你" : "助"}</span><div><p>{message.text}</p>{message.role === "assistant" && message.providerConfigured === false && <small>当前使用安全降级模式。</small>}{message.preview && <PreviewCard timezone={timezone} preview={message.preview} busy={busy} confirm={confirm} cancel={cancel} />}</div></article>)}{busy && <article className="chat-message assistant"><span>助</span><div><p>正在核对权限和数据…</p></div></article>}<div ref={endRef} /></div>
         {error && <p className="form-error floating-ai-error" role="alert">{error}</p>}
         <form className="chat-composer floating-ai-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><textarea aria-label={`给${settings.title}的消息`} maxLength={4000} rows={2} placeholder={settings.placeholder} value={input} onChange={(event) => setInput(event.target.value)} /><div><span>{input.length}/4000</span><div className="composer-actions">{type === "work" && <button className={`voice-button ${voice.recording ? "recording" : ""}`} type="button" disabled={busy || voice.transcribing || voice.finishingRecording} onClick={voice.recording ? voice.stopRecording : () => void voice.startRecording()}>{voice.transcribing ? "正在转写…" : voice.finishingRecording ? "正在完成录音…" : voice.recording ? "停止并转写" : "语音输入"}</button>}<button className="primary-action" type="submit" disabled={inputBusy || voice.recording || !input.trim()}>{inputBusy ? "处理中…" : "发送"}</button></div></div></form>
-      </section>}
-      <button className="floating-ai-button" type="button" aria-controls={`floating-ai-${type}`} aria-expanded={open} aria-label={open ? `收起${settings.title}` : `打开${settings.title}`} onClick={() => { if (open) voice.cancelRecording(); setOpen((value) => !value); }}><span aria-hidden="true"><UiIcon name="sparkles" /></span><strong>{type === "work" ? "记工助手" : "财务助手"}</strong></button>
-    </div>
+      </section></div>, document.body)}
+      <button ref={launcherRef} className={`bottom-nav__item app-nav-ai${open ? " bottom-nav__item--active" : ""}`} type="button" aria-controls={`floating-ai-${type}`} aria-expanded={open} aria-label={open ? `收起${settings.title}` : `打开${settings.title}`} title={settings.title} onClick={() => { if (open) voice.cancelRecording(); setOpen((value) => !value); }}><UiIcon name="sparkles" /><span className="app-nav-label">AI 助手</span></button>
+    </>
   );
 }

@@ -6,7 +6,7 @@ import { groupEmployeeSettlementRecordsByDay, type EmployeeSettlementDaySummary 
 import { formatUsdPrecise } from "../../lib/money";
 import type { EmployeeSettlementDelivery, EmployeeSettlementDeliveryList, EmployeeSettlementPaymentScope, EmployeeSettlementPreview, StoreMember } from "../../lib/types";
 import { useLanguage } from "../language-provider";
-import { dateOnly, shiftDate } from "./date-utils";
+import { dateOnly } from "./date-utils";
 
 const money = (value: number) => formatUsdPrecise(value);
 const scopeLabel = (scope: EmployeeSettlementPaymentScope) => scope === "CASH" ? "现金" : scope === "NON_CASH" ? "刷卡＋礼物卡" : "全部";
@@ -206,7 +206,7 @@ function SettlementRecords({ preview }: { preview: EmployeeSettlementPreview }) 
 export function EmployeeSettlementPanel({ storeId, businessDate, members, busy, run }: { storeId: string; businessDate: string; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void> }) {
   const payable = members.filter((member) => member.status === "ACTIVE" && !member.deletedAt);
   const [membershipId, setMembershipId] = useState(payable[0]?.id ?? "");
-  const [dateFrom, setDateFrom] = useState(shiftDate(businessDate, -6));
+  const [dateFrom, setDateFrom] = useState(`${businessDate.slice(0, 8)}01`);
   const [dateTo, setDateTo] = useState(businessDate);
   const [paymentScope, setPaymentScope] = useState<EmployeeSettlementPaymentScope>("ALL");
   const [preview, setPreview] = useState<EmployeeSettlementPreview | null>(null);

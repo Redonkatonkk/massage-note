@@ -179,7 +179,7 @@ function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; o
           apiRequest(`/stores/${membership.store.id}/catalog/setup`, { method: "POST", idempotent: true, body: { serviceItems, addonItems, discountItems } }).then(onDone).catch((caught) => setError(errorMessage(caught))).finally(() => setBusy(false));
         } catch (caught) { setError(errorMessage(caught)); setBusy(false); }
       }}>
-        <p className="eyebrow">首次设置</p><h1>设置店铺项目</h1><p className="field-help">主要项目至少一项；额外项目和折扣可以现在添加，也可以稍后在“店铺设置”中维护。底部可以进入财务、店铺设置和个人页面；今日和财务页面右下角都有 AI 助手悬浮入口。</p>
+        <p className="eyebrow">首次设置</p><h1>设置店铺项目</h1><p className="field-help">主要项目至少一项；额外项目和折扣可以现在添加，也可以稍后在“店铺设置”中维护。底部可以进入财务、店铺设置和个人页面；记工和财务页面的导航栏都有 AI 助手固定入口。</p>
         <h2 className="setup-section-title">主要项目</h2>
         <div className="setup-lines">
           {services.map((item, index) => <div className="setup-line setup-line--service" key={item.key}>
@@ -363,19 +363,15 @@ export function MassageNoteApp() {
           }}>{me.memberships.map((item) => <option key={item.store.id} value={item.store.id}>{item.store.name}</option>)}</select>}
           <button className="store-switcher" type="button" onClick={() => apiRequest("/auth/session", { method: "DELETE" }).finally(() => window.location.replace("/login"))}>退出</button>
         </>}
-        dateControls={wideLayout ? <section className="business-day-selection" aria-label="切换营业日">
-          <div className="business-day-selection__heading"><span>{dateLabel}</span><strong>{viewDate}</strong></div>
-          {dateHint && <p>{dateHint}</p>}
-          {returnToToday}
-        </section> : <section className="history-toolbar" aria-label="切换营业日">
+        returnToToday={returnToToday}
+        dateControls={<section className="history-toolbar" aria-label="切换营业日">
           <div className="history-date-form"><div className="business-date-field"><span>{dateLabel}</span>{dateCalendar}</div></div>
-          {returnToToday}{dateHint && <span>{dateHint}</span>}
+          {dateHint && <span>{dateHint}</span>}
         </section>}
         calendar={wideLayout ? dateCalendar : null}
         loadError={error}
         key={`today-${membership.store.id}-${viewDate}`} membership={membership} store={storeDetails} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} isFutureBusinessDay={viewDate > currentDay.businessDate} board={board} catalog={catalog} members={members} initialRecordId={initialRecordId || undefined} onInitialRecordOpened={() => { setInitialRecordId(""); const url = new URL(window.location.href); url.searchParams.delete("record"); window.history.replaceState(null, "", `${url.pathname}${url.search}`); }} onReload={loadStore} />
-      <FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} timezone={currentDay.timezone} type="work" onWorkChanged={loadStore} />
-      <AppNav active="today" storeId={membership.store.id} role={membership.role} />
+      <AppNav active="today" storeId={membership.store.id} role={membership.role} assistant={<FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} timezone={currentDay.timezone} type="work" onWorkChanged={loadStore} />} />
     </main>
   );
 }

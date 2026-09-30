@@ -30,10 +30,9 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .section-tabs button.active { background: var(--surface); color: var(--brand-dark); box-shadow: 0 2px 6px #53361f10; }
 .quick-ranges button { border-radius: 10px; transition: background-color var(--motion-fast), border-color var(--motion-fast); }
 
-.today-topbar { display: grid; grid-template-areas: "heading date calendar utilities" "actions actions calendar utilities"; grid-template-columns: minmax(220px, 1fr) minmax(180px, .7fr) 340px 200px; grid-template-rows: auto 1fr; align-items: start; }
+.today-topbar { display: grid; grid-template-areas: "heading calendar utilities" "actions calendar utilities"; grid-template-columns: minmax(0, 1fr) 340px 200px; grid-template-rows: auto 1fr; align-items: start; }
 .today-heading { min-width: 0; }
 .today-topbar > .today-heading { grid-area: heading; }
-.today-topbar > .business-day-selection { grid-area: date; }
 .today-topbar > .board-toolbar { grid-area: actions; align-self: end; min-width: 0; margin: 0; }
 .today-topbar .board-primary-actions { flex-wrap: wrap; }
 .today-header-calendar { grid-area: calendar; min-width: 0; }
@@ -47,11 +46,6 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .board-more-actions > summary { width: fit-content; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: white; cursor: pointer; font-size: .9rem; white-space: nowrap; }
 .board-more-actions__body { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 10px; }
 .business-day-toolbar--compact .board-more-actions { flex: 0 1 auto; }
-.business-day-selection { display: grid; gap: 8px; min-width: 0; }
-.business-day-selection__heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: .85rem; font-weight: 650; }
-.business-day-selection__heading strong { font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.business-day-selection p { margin: 0; color: var(--muted); font-size: .85rem; }
-.business-day-selection > button { justify-self: start; }
 .delivery-sent-count { display: inline-grid; min-width: 22px; height: 22px; place-items: center; padding-inline: 5px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-size: .72rem; font-variant-numeric: tabular-nums; line-height: 1; }
 .business-date-picker__trigger { border-radius: 12px; }
 .business-date-picker__popover { border-radius: 20px; box-shadow: 0 12px 40px #53361f26; animation: mn-enter var(--motion-enter) var(--ease-out); }
@@ -156,9 +150,6 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .quick-modal, .board-delivery-dialog, .employee-closing-modal, .finance-details { border-radius: 22px; }
 .closed-banner { border-color: #b8d8c8; background: #eff9f3; color: var(--success); }
 .form-error { border-radius: 12px; }
-.floating-ai-button { background: var(--brand-dark); box-shadow: 0 6px 22px #53361f26; transition: background-color var(--motion-fast), box-shadow var(--motion-fast); }
-.floating-ai-button > span { background: #f8e6df; color: var(--brand); }
-.floating-ai-button:hover { background: var(--brand); box-shadow: 0 8px 26px #53361f33; }
 .floating-ai-dialog { border-radius: 22px; border-color: #ded8d1; box-shadow: 0 20px 70px #53361f33; animation: mn-enter var(--motion-enter) var(--ease-out); }
 .floating-ai-heading, .chat-composer { background: #fff4e4; }
 .floating-ai-heading > button { background: #fff4e4; }
@@ -170,8 +161,12 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .app-nav-space { height: calc(var(--app-nav-height, 76px) + 18px); }
 .bottom-nav { display: block; width: min(540px, calc(100% - 24px)); bottom: 10px; padding: 5px 8px max(5px, env(safe-area-inset-bottom)); border: 1px solid #ded8d1; border-radius: 22px; background: #fffaf3f2; box-shadow: 0 8px 32px #53361f1f; }
 .app-nav-links { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.app-nav-links--with-ai { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.app-nav-ai { width: 100%; border: 0; background: transparent; font-family: inherit; cursor: pointer; }
+.ai-dialog-root { position: relative; z-index: 40; }
 .app-nav-row, .app-nav-group { min-width: 0; }
-.app-nav-submenu-toggle, .app-nav-submenu { display: none; }
+.app-nav-parent-button, .app-nav-submenu { display: none; }
+.app-nav-parent-button { width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer; }
 .app-nav-brand, .app-nav-caption, .app-nav-footer { display: none; }
 .bottom-nav__item { position: relative; min-height: 62px; gap: 4px; color: var(--muted); font-weight: 550; font-size: .85rem; border-radius: 16px; transition: background-color var(--motion-fast), color var(--motion-fast); }
 .bottom-nav__item .ui-icon { width: 22px; height: 22px; }

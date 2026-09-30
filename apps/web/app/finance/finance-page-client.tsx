@@ -602,7 +602,6 @@ export function FinancePageClient() {
         <PayrollPanel storeId={membership.store.id} businessDate={day.businessDate} canManage={canManage} members={members} settlements={payroll} busy={busy} run={run} reload={async () => { await loadPayroll(); await loadSummary(); }} />
       )}
 
-      <FloatingAiAssistant storeId={membership.store.id} timezone={membership.store.timezone} type="finance" />
       {details && <FinanceDetailsDialog details={details} title={detailsTitle} onClose={() => setDetails(null)} />}
       {editingRecord && catalog && storeDetails && (
         <RecordEditor
@@ -622,7 +621,7 @@ export function FinancePageClient() {
           }}
         />
       )}
-      <AppNav active="finance" storeId={membership.store.id} role={membership.role} activeTab={tab} onTabChange={selectTab} />
+      <AppNav active="finance" storeId={membership.store.id} role={membership.role} activeTab={tab} onTabChange={selectTab} assistant={<FloatingAiAssistant key={`finance-ai-${membership.store.id}`} storeId={membership.store.id} timezone={membership.store.timezone} type="finance" />} />
     </main>
   );
 }
@@ -631,7 +630,7 @@ function PayrollPanel({ storeId, businessDate, canManage, members, settlements, 
   const payable = members.filter((member) => member.role !== "OWNER" && !member.deletedAt);
   const [memberId, setMemberId] = useState(payable[0]?.id ?? "");
   const [settlementDate, setSettlementDate] = useState(businessDate);
-  const [periodStart, setPeriodStart] = useState(businessDate);
+  const [periodStart, setPeriodStart] = useState(`${businessDate.slice(0, 8)}01`);
   const [periodEnd, setPeriodEnd] = useState(businessDate);
   const [serviceWage, setServiceWage] = useState("0");
   const [cashTip, setCashTip] = useState("0");

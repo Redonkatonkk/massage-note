@@ -297,7 +297,7 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "请联系店长或经理完成主要项目设置后再开始记工。": "Ask an owner or manager to configure at least one main service before recording work.",
   "首次设置": "Initial setup",
   "设置店铺项目": "Set up store services",
-  "主要项目至少一项；额外项目和折扣可以现在添加，也可以稍后在“店铺设置”中维护。底部可以进入财务、店铺设置和个人页面；今日和财务页面右下角都有 AI 助手悬浮入口。": "Add at least one main service. Add-ons and discounts can be added now or later in Store settings. Use the bottom navigation for Finance, Store settings, and Profile. The AI assistant is available at the lower right of Today and Finance.",
+  "主要项目至少一项；额外项目和折扣可以现在添加，也可以稍后在“店铺设置”中维护。底部可以进入财务、店铺设置和个人页面；记工和财务页面的导航栏都有 AI 助手固定入口。": "Add at least one main service. Add-ons and discounts can be added now or later in Store settings. Use the bottom navigation for Finance, Store settings, and Profile. The AI assistant has a fixed entry in the navigation on Work log and Finance.",
   "项目全名": "Full service name",
   "例如：Body Massage": "Example: Body Massage",
   "简称": "Short name",

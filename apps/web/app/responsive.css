@@ -156,11 +156,6 @@ button, summary { overflow-wrap: anywhere; }
   .work-bot-member > button:last-child { grid-column: 2; }
   .bottom-nav { min-height: 64px; padding-top: 4px; }
   .bottom-nav__item { min-height: 52px; font-size: .8rem; }
-  /* Keep the assistant reachable without laying its launcher over a record or button. */
-  .floating-ai-root { position: static; display: flex; justify-content: flex-end; margin: 16px 0; }
-  .floating-ai-button { min-height: 44px; padding: 6px 12px 6px 6px; }
-  .floating-ai-button > span { width: 32px; height: 32px; font-size: .85rem; }
-  .floating-ai-button > strong { display: inline; font-size: .85rem; }
   .floating-ai-dialog { z-index: 40; }
   .record-editor { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
   .record-editor .sticky-heading { padding-top: max(12px, env(safe-area-inset-top)); }
@@ -219,9 +214,6 @@ button, summary { overflow-wrap: anywhere; }
 @media (max-width: 360px) {
   .topbar > div:first-child { flex-basis: 100%; }
   .topbar-actions { margin-top: -4px; }
-}
-@media (min-width: 761px) and (max-width: 1099px) {
-  .floating-ai-root { position: static; display: flex; justify-content: flex-end; margin: 16px 0; }
 }
 
 
@@ -454,55 +446,50 @@ button, summary { overflow-wrap: anywhere; }
   body:has(.app-nav-space) .app-utility-bar { width: calc(100% - 60px); margin-left: 60px; padding-inline: 12px 18px; }
   .app-nav-space { height: 0; }
   .bottom-nav { display: flex; flex-direction: column; left: 4px; top: 16px; bottom: 16px; width: 56px; min-height: 0; padding: 24px 5px 16px; transform: none; overflow-x: hidden; overflow-y: auto; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); color: var(--ink); z-index: 26; transition: width 240ms var(--ease-out), box-shadow 240ms ease; }
-  .bottom-nav:is(:hover, :has(:focus-visible)) { width: 256px; box-shadow: 0 12px 38px rgb(83 54 31 / 18%); }
+  .bottom-nav:is(:hover, :has(:focus-visible), [data-pinned="true"]) { width: 224px; box-shadow: 0 12px 38px rgb(83 54 31 / 18%); }
   .app-nav-brand { display: flex; align-items: center; gap: 10px; padding: 0 3px; color: var(--brand); text-decoration: none; overflow: hidden; min-height: 44px; }
   .app-nav-brand .brand-mark { width: 38px; height: 38px; color: var(--brand); --brand-mark-ink: #fff8ee; }
   .app-nav-brand > span { max-width: 0; opacity: 0; overflow: hidden; flex-shrink: 0; font-size: 1rem; font-weight: 600; letter-spacing: -.035em; line-height: 1.1; transition: max-width 240ms var(--ease-out), opacity 180ms ease; }
   .app-nav-brand__note { display: block; font-size: 1.25rem; }
   .app-nav-caption { display: block; margin: 30px 14px 14px; min-height: 18px; white-space: nowrap; opacity: 0; font-size: .65rem; letter-spacing: .14em; color: var(--muted); transition: opacity 160ms ease; }
-  .app-nav-links { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .app-nav-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .app-nav-links, .app-nav-links--with-ai { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .app-nav-row > .app-nav-parent-link { display: none; }
+  .app-nav-parent-button { display: flex; }
+  .app-nav-row { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; }
   .bottom-nav__item { display: flex; justify-content: flex-start; gap: 0; min-height: 52px; padding: 11px; font-size: .85rem; color: var(--muted); border-radius: 12px; overflow: hidden; }
   .bottom-nav__item:hover { color: var(--brand); background: var(--surface-soft); }
   .bottom-nav__item--active, .bottom-nav__item--active:hover { background: var(--brand-soft); color: var(--brand); }
   .bottom-nav__item > .app-nav-label, .app-nav-footer > a > .app-nav-label { max-width: 0; overflow: hidden; opacity: 0; white-space: nowrap; flex-shrink: 0; transform: translateX(-6px); transition: max-width 240ms var(--ease-out), opacity 160ms ease, transform 240ms var(--ease-out); }
   .bottom-nav__item > .app-nav-active-dot { display: none; }
-  .app-nav-submenu-toggle { display: grid; place-items: center; width: 0; min-height: 44px; padding: 0; opacity: 0; visibility: hidden; overflow: hidden; border: 0; border-radius: 10px; color: var(--muted); background: transparent; cursor: pointer; transition: width 240ms var(--ease-out), opacity 160ms ease, visibility 0s 240ms; }
-  .app-nav-submenu-toggle:hover { color: var(--brand); background: var(--surface-soft); }
-  .app-nav-submenu-toggle .ui-icon { width: 16px; height: 16px; transform: rotate(90deg); transition: transform 200ms var(--ease-out); }
-  .app-nav-submenu-toggle[aria-expanded="true"] .ui-icon { transform: rotate(-90deg); }
   .app-nav-submenu { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows 220ms var(--ease-out), opacity 160ms ease, visibility 0s 220ms; }
   .app-nav-submenu__inner { min-height: 0; overflow: hidden; }
   .app-nav-submenu__links { display: grid; gap: 3px; padding: 6px 0 8px 40px; }
   .app-nav-submenu a { display: flex; align-items: center; min-height: 44px; padding: 8px 10px; border-radius: 10px; color: var(--muted); font-size: .85rem; line-height: 1.4; text-decoration: none; overflow-wrap: anywhere; transition: background-color var(--motion-fast), color var(--motion-fast); }
   .app-nav-submenu a:hover { color: var(--brand); background: var(--surface-soft); }
   .app-nav-submenu a[aria-current="page"] { color: var(--brand); background: var(--brand-soft); font-weight: 650; }
-  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-submenu[data-open="true"] { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition-delay: 0s; }
-  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-submenu-toggle { width: 44px; opacity: 1; visibility: visible; transition-delay: 0s; }
-  .bottom-nav:is(:hover, :has(:focus-visible)) .bottom-nav__item { gap: 12px; }
-  .bottom-nav:is(:hover, :has(:focus-visible)) :is(.app-nav-label, .app-nav-brand > span) { max-width: 180px; opacity: 1; transform: none; }
-  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-caption { opacity: 1; }
+  .bottom-nav:is(:hover, :has(:focus-visible), [data-pinned="true"]) .app-nav-submenu[data-open="true"] { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition-delay: 0s; }
+  .bottom-nav:is(:hover, :has(:focus-visible), [data-pinned="true"]) .bottom-nav__item { gap: 12px; }
+  .bottom-nav:is(:hover, :has(:focus-visible), [data-pinned="true"]) :is(.app-nav-label, .app-nav-brand > span) { max-width: 180px; opacity: 1; transform: none; }
+  .bottom-nav:is(:hover, :has(:focus-visible), [data-pinned="true"]) .app-nav-caption { opacity: 1; }
   .app-nav-footer { display: grid; gap: 10px; margin-top: auto; padding-top: 28px; }
   .app-nav-note { display: flex; align-items: flex-start; gap: 8px; max-height: 0; padding: 0; overflow: hidden; opacity: 0; visibility: hidden; border: 0 solid var(--line); border-radius: 14px; transition: max-height 240ms var(--ease-out), padding 240ms var(--ease-out), opacity 160ms ease, visibility 0s 240ms; }
   .app-nav-note > .ui-icon { width: 16px; height: 16px; margin-top: 2px; color: var(--brand); }
   .app-nav-note p { margin: 0; font-size: .85rem; line-height: 1.5; color: var(--brand); }
   .app-nav-note small { display: block; margin-top: 7px; color: var(--muted); font-size: .85rem; }
-  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-note { max-height: 150px; padding: 14px 10px; opacity: 1; visibility: visible; border-width: 1px; transition-delay: 0s; }
+  .bottom-nav:is(:hover, :has(:focus-visible), [data-pinned="true"]) .app-nav-note { max-height: 150px; padding: 14px 10px; opacity: 1; visibility: visible; border-width: 1px; transition-delay: 0s; }
   .app-nav-footer > a { display: flex; align-items: center; gap: 0; min-height: 48px; padding: 11px; overflow: hidden; color: var(--muted); text-decoration: none; font-size: .85rem; }
   .app-nav-footer > a .ui-icon { width: 22px; height: 22px; }
   .app-nav-footer > a > .app-nav-footer__arrow { width: 0; opacity: 0; transition: width 240ms var(--ease-out), opacity 160ms ease; }
-  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-footer > a { gap: 9px; }
-  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-footer__arrow { width: 18px; opacity: 1; margin-left: auto; }
-  .floating-ai-root { bottom: 24px; }
-  .floating-ai-dialog { bottom: 96px; height: min(690px, calc(var(--ai-visual-viewport-height, 100dvh) - 120px)); }
+  .bottom-nav:is(:hover, :has(:focus-visible), [data-pinned="true"]) .app-nav-footer > a { gap: 9px; }
+  .bottom-nav:is(:hover, :has(:focus-visible), [data-pinned="true"]) .app-nav-footer__arrow { width: 18px; opacity: 1; margin-left: auto; }
+  .floating-ai-dialog { left: 72px; right: auto; bottom: 24px; height: min(690px, calc(var(--ai-visual-viewport-height, 100dvh) - 48px)); }
   .topbar h1 { font-size: 2.1rem; }
 }
 @media (max-width: 1199px) {
   .bottom-nav__item { min-height: 62px; font-size: .85rem; }
-  .floating-ai-root { bottom: calc(102px + env(safe-area-inset-bottom)); }
 }
 @media (min-width: 641px) and (max-width: 1199px) {
-  .floating-ai-dialog { bottom: calc(174px + env(safe-area-inset-bottom)); }
+  .floating-ai-dialog { bottom: calc(102px + env(safe-area-inset-bottom)); }
 }
 @media (min-width: 901px) and (max-width: 1199px) {
   .board-overview .summary-strip > .overview-metric { padding: 16px 12px; }

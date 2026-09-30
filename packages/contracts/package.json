@@ -1,6 +1,6 @@
 {
   "name": "@massage-note/contracts",
-  "version": "1.14.11",
+  "version": "1.14.16",
   "private": true,
   "type": "module",
   "exports": {

@@ -2974,10 +2974,6 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 }
 
 .assistant-shell { padding-bottom: 96px; }
-.floating-ai-root { position: fixed; right: 24px; bottom: 88px; z-index: 24; }
-.floating-ai-button { display: flex; align-items: center; gap: 9px; min-height: 58px; padding: 7px 16px 7px 8px; border: 0; border-radius: 999px; background: var(--brand); color: white; box-shadow: 0 12px 34px rgba(71, 32, 23, .3); cursor: pointer; }
-.floating-ai-button > span { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: white; color: var(--brand); font-size: .85rem; font-weight: 900; }
-.floating-ai-button > strong { font-size: .86rem; }
 .floating-ai-dialog { position: fixed; right: 24px; bottom: 158px; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; width: min(520px, calc(100vw - 32px)); height: min(690px, calc(var(--ai-visual-viewport-height, 100dvh) - 180px)); overflow: hidden; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: 0 24px 80px rgba(45, 28, 18, .28); }
 .floating-ai-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 16px; border-bottom: 1px solid var(--line); background: #fffaf3; }
 .floating-ai-heading > div { display: flex; align-items: center; gap: 10px; }
@@ -3075,7 +3071,6 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 .help-example p:last-child { margin-bottom: 0; color: var(--ink); }
 
 @media (min-width: 1100px) {
-  .floating-ai-root { bottom: 20px; }
   .floating-ai-dialog { bottom: 90px; height: min(690px, calc(var(--ai-visual-viewport-height, 100dvh) - 112px)); }
 }
 
@@ -3087,9 +3082,6 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 }
 
 @media (max-width: 640px) {
-  .floating-ai-root { right: 12px; bottom: 84px; }
-  .floating-ai-button { min-height: 54px; padding-right: 13px; }
-  .floating-ai-button > span { width: 40px; height: 40px; }
   .floating-ai-dialog { top: calc(var(--ai-visual-viewport-top, 0px) + 8px); right: 8px; bottom: auto; width: calc(100vw - 16px); height: min(650px, calc(var(--ai-visual-viewport-height, 100dvh) - 16px)); border-radius: 20px; }
 }
 
@@ -3251,7 +3243,6 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 
 .employee-settlement-record-card { width: 320px; min-width: 320px; min-height: 0; }
 .employee-settlement-record-card__payments > span { grid-template-columns: minmax(0,1fr) minmax(0,2fr); }
 .employee-settlement-record-card__payments b { text-align: right; font-variant-numeric: tabular-nums; }
-.floating-ai-button { box-shadow: 0 3px 12px rgba(71,32,23,.15); }
 @media (min-width: 1100px) {
   .finance-metric-group--emphasis .finance-cards { grid-template-columns: repeat(5,minmax(0,1fr)); }
 }
@@ -3280,7 +3271,6 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 
   .employee-subtotal-equation { padding: 10px 7px; }
   .employee-settlement-record-card { width: min(320px,calc(100vw - 88px)); min-width: min(320px,calc(100vw - 88px)); }
   .bottom-nav__item { font-size: .85rem; }
-  .floating-ai-root { bottom: 84px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
@@ -3299,10 +3289,6 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 
 /* Language stays at the page start so it cannot cover scrolled form fields. */
 body { position: relative; }
 .language-switcher { position: absolute; }
-@media (max-width: 640px) {
-  .floating-ai-button > strong { display: none; }
-  .floating-ai-button { padding: 7px; }
-}
 .row-tools { flex-wrap: wrap; align-items: flex-start; gap: 8px; }
 .row-tools button, .row-tools .row-closing-action { min-height: 48px; }
 .row-management { min-width: 0; flex: 1; }

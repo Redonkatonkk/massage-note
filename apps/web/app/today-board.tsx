@@ -52,6 +52,7 @@ interface TodayBoardProps {
   heading: ReactNode;
   accountActions: ReactNode;
   dateControls: ReactNode;
+  returnToToday: ReactNode;
   calendar: ReactNode;
   loadError: string;
   membership: MembershipSummary;
@@ -112,6 +113,7 @@ export function TodayBoard({
   heading,
   accountActions,
   dateControls,
+  returnToToday,
   calendar,
   loadError,
   membership,
@@ -456,6 +458,7 @@ export function TodayBoard({
     {canManage && board.isClosed && <button className="secondary-action" type="button" disabled={busy || deliveryList?.batchAllowed === false} title={deliveryList?.batchBlockedReason ?? undefined} onClick={() => run(queueEmployeeClosings)}>{deliveryList?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>}
     {canManage && deliveryList && <ClosingDeliveryQueueButton compact={wideLayout} key={currentDay.businessDate} value={deliveryList} busy={busy} onCancel={(delivery) => void run(() => cancelEmployeeClosingDelivery(delivery))} />}
     {canManage && board.isClosed && <button className="secondary-action board-reopen-action" type="button" disabled={busy} onClick={() => run(cancelBusinessDayClosing)}>取消日结</button>}
+    {returnToToday}
   </>;
   const dailyActions = <section className="board-toolbar" aria-label="今日操作">
     <div className="board-primary-actions">
@@ -468,7 +471,7 @@ export function TodayBoard({
       {canManage && (board.isClosed
         ? <a className="primary-action board-closing-action" href={financeCashHref(membership.store.id, currentDay.businessDate)}>现金结算</a>
         : <button className="primary-action board-closing-action" type="button" disabled={busy} onClick={() => run(closeBusinessDay)}>日结</button>)}
-      {wideLayout ? secondaryActions : (canManage || canGenerateRanking) && <AutoCloseDetails className="board-more-actions">
+      {wideLayout ? secondaryActions : (canManage || canGenerateRanking || returnToToday) && <AutoCloseDetails className="board-more-actions">
         <summary>更多操作</summary>
         <div className="board-more-actions__body">{secondaryActions}</div>
       </AutoCloseDetails>}
@@ -479,7 +482,6 @@ export function TodayBoard({
       <header className={`topbar${wideLayout ? " today-topbar" : ""}`}>
         <div className="today-heading">{heading}</div>
         {wideLayout ? <>
-          {dateControls}
           {dailyActions}
           <div className="today-header-calendar">{calendar}</div>
           <div className="today-header-utilities"><LanguageSwitcher /><div className="topbar-actions">{accountActions}</div></div>

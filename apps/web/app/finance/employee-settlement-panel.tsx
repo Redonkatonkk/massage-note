@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
 import { groupEmployeeSettlementRecordsByDay, type EmployeeSettlementDaySummary } from "../../lib/employee-settlement";
 import { formatUsdPrecise } from "../../lib/money";
-import type { EmployeeSettlementDelivery, EmployeeSettlementDeliveryList, EmployeeSettlementPaymentScope, EmployeeSettlementPreview, StoreMember } from "../../lib/types";
+import type { EmployeeSettlementDelivery, EmployeeSettlementDeliveryList, EmployeeSettlementPaymentScope, EmployeeSettlementPreview, PayrollSettlement, StoreMember } from "../../lib/types";
+import { hasMatchingPayrollEntry, payrollEntryFromPreview } from "../../lib/payroll-settlement";
 import { useLanguage } from "../language-provider";
 import { dateOnly } from "./date-utils";
 
@@ -172,7 +173,7 @@ function SettlementRecords({ preview }: { preview: EmployeeSettlementPreview }) 
       <header>
         <div>
           <h3>按日记工</h3>
-          <p>每天按时间排列记工，末尾卡片汇总当天收入。</p>
+          <p>每天先展示当日总结，再按时间排列记工。</p>
         </div>
         <strong>{countLabel}</strong>
       </header>
@@ -188,10 +189,10 @@ function SettlementRecords({ preview }: { preview: EmployeeSettlementPreview }) 
                 <strong>{locale === "en-US" ? `${day.records.length} records` : `${day.records.length} 笔记工`}</strong>
               </header>
               <div className="employee-settlement-day-track" aria-label={locale === "en-US" ? `${day.businessDate} records and summary` : `${day.businessDate} 记工与总结`}>
+                <SettlementDaySummaryCard paymentScope={preview.paymentScope} summary={day.summary} />
                 {day.records.map((record, index) => (
                   <SettlementRecordCard key={record.id} preview={preview} record={record} index={index} />
                 ))}
-                <SettlementDaySummaryCard paymentScope={preview.paymentScope} summary={day.summary} />
               </div>
             </section>
           ))}
@@ -203,7 +204,7 @@ function SettlementRecords({ preview }: { preview: EmployeeSettlementPreview }) 
   );
 }
 
-export function EmployeeSettlementPanel({ storeId, businessDate, members, busy, run }: { storeId: string; businessDate: string; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void> }) {
+export function EmployeeSettlementPanel({ storeId, businessDate, members, settlements, busy, run, onSettled }: { storeId: string; businessDate: string; members: StoreMember[]; settlements: PayrollSettlement[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; onSettled: () => Promise<void> }) {
   const payable = members.filter((member) => member.status === "ACTIVE" && !member.deletedAt);
   const [membershipId, setMembershipId] = useState(payable[0]?.id ?? "");
   const [dateFrom, setDateFrom] = useState(`${businessDate.slice(0, 8)}01`);
@@ -214,11 +215,33 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, busy, 
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
   const [sendMessage, setSendMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [registeredPreview, setRegisteredPreview] = useState<EmployeeSettlementPreview | null>(null);
+  const registering = useRef(false);
+  const payrollRequest = useRef<{ preview: EmployeeSettlementPreview; key: string } | null>(null);
   const loadDeliveries = useCallback(async () => setDeliveries(await apiRequest<EmployeeSettlementDeliveryList>(`/stores/${storeId}/employee-settlements/deliveries`)), [storeId]);
   useEffect(() => { void loadDeliveries().catch(() => undefined); }, [loadDeliveries]);
   useEffect(() => { if (!deliveries?.deliveries.some((item) => item.status === "QUEUED" || item.status === "CLAIMED")) return; const timer = window.setInterval(() => void loadDeliveries().catch(() => undefined), 10_000); return () => window.clearInterval(timer); }, [deliveries, loadDeliveries]);
   useEffect(() => { if (!deliveryHistoryOpen) return; const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setDeliveryHistoryOpen(false); }; window.addEventListener("keydown", closeOnEscape); return () => window.removeEventListener("keydown", closeOnEscape); }, [deliveryHistoryOpen]);
   async function generate() { const params = new URLSearchParams({ membershipId, dateFrom, dateTo, paymentScope }); setPreview(await apiRequest<EmployeeSettlementPreview>(`/stores/${storeId}/employee-settlements/preview?${params}`)); }
+  const alreadyRegistered = preview !== null && (registeredPreview === preview || hasMatchingPayrollEntry(settlements, payrollEntryFromPreview(preview)));
+  const isOwnerPreview = members.find((member) => member.id === preview?.employee.membershipId)?.role === "OWNER";
+  function settle() {
+    if (!preview || busy || registering.current || alreadyRegistered || isOwnerPreview || preview.records.length === 0) return;
+    registering.current = true;
+    const currentPreview = preview;
+    void run(async () => {
+      try {
+        if (payrollRequest.current?.preview !== currentPreview) payrollRequest.current = { preview: currentPreview, key: crypto.randomUUID() };
+        await apiRequest(`/stores/${storeId}/payroll-settlements`, {
+          method: "POST", body: payrollEntryFromPreview(currentPreview), headers: { "Idempotency-Key": payrollRequest.current.key },
+        });
+        setRegisteredPreview(currentPreview);
+        await onSettled();
+      } finally {
+        registering.current = false;
+      }
+    });
+  }
   async function send() { setSending(true); setSendMessage("正在加入短信发送队列…"); try { const result = await apiRequest<{ queuedCount?: number }>(`/stores/${storeId}/employee-settlements/deliveries`, { method: "POST", idempotent: true, body: { membershipId, dateFrom, dateTo, paymentScope } }); await loadDeliveries(); setSendMessage(result.queuedCount ? `已加入短信发送队列（${result.queuedCount} 条），可点发送记录查看进度。` : "发送任务已更新，可点发送记录查看进度。"); } catch (error) { setSendMessage(`发送失败：${errorMessage(error)}`); throw error; } finally { setSending(false); } }
   const deliveryAction = (delivery: EmployeeSettlementDelivery, kind: "cancel" | "retry" | "retry-detail") => void run(async () => {
     if (kind === "cancel") {
@@ -232,7 +255,7 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, busy, 
   });
   return (
     <section className="employee-settlement-builder">
-      <div className="employee-settlement-builder-heading"><div><p className="eyebrow">员工结算区</p><h2>生成区间结算单</h2><p>核对并发送结算资料，不会新增工资账本，也不会改变老板尚欠余额。</p></div></div>
+      <div className="employee-settlement-builder-heading"><div><p className="eyebrow">员工结算区</p><h2>生成区间结算单</h2><p>生成后点击“已结算”，自动登记这张结算单的已付工资。</p></div></div>
       <form className="employee-settlement-controls" onSubmit={(event) => { event.preventDefault(); void run(generate); }}>
         <label>员工<select required value={membershipId} onChange={(event) => { setMembershipId(event.target.value); setPreview(null); setSendMessage(""); }}>{payable.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
         <label>开始日期<input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPreview(null); setSendMessage(""); }} /></label>
@@ -245,6 +268,7 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, busy, 
           <div><p className="eyebrow">{preview.storeName} · 员工区间结算</p><h2>{preview.employee.displayName}</h2><p>{preview.dateFrom} 至 {preview.dateTo} · {scopeLabel(preview.paymentScope)} · {preview.records.length} 笔</p></div>
           <div className="employee-settlement-preview-actions">
             <div className="employee-settlement-send-actions">
+              <button className="primary-action" type="button" disabled={busy || sending || alreadyRegistered || isOwnerPreview || preview.records.length === 0} onClick={settle}>{alreadyRegistered ? "已登记结算" : "已结算"}</button>
               <button className="secondary-action" type="button" disabled={busy || sending || preview.records.length === 0} onClick={() => void run(send)}>{sending ? "正在排队…" : "短信发送长图"}</button>
               <button className="secondary-action settlement-history-button" type="button" onClick={() => setDeliveryHistoryOpen(true)}>发送记录 <span>{deliveries?.deliveries.length ?? 0}</span></button>
             </div>

@@ -708,6 +708,7 @@ export interface PayrollSettlement {
   adjustmentCents: number;
   totalPaidCents: number;
   paymentMethod: "CASH" | "CARD" | "CHECK" | "ZELLE" | "OTHER";
+  paymentScope: EmployeeSettlementPaymentScope | null;
   note: string;
   createdBy: string;
   updatedBy: string;

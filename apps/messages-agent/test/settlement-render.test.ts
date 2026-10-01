@@ -98,18 +98,28 @@ describe.skipIf(process.platform !== "darwin")("employee settlement artifacts", 
     }
   }, 60_000);
 
-  it("每日总结始终位于最右列，双数笔记工时左侧保留空位", async () => {
+  it.each([1, 2, 5, 6])("每天 %i 笔记工时总结始终位于当天第一张卡片，紧接逐笔记录", async (recordCount) => {
     const directory = await mkdtemp(join(tmpdir(), "settlement-render-summary-position-"));
     try {
-      const twoRecords = structuredClone(snapshot);
-      twoRecords.dateFrom = "2026-08-20";
-      twoRecords.dateTo = "2026-08-20";
-      twoRecords.records = snapshot.records.slice(0, 2).map((record) => ({ ...structuredClone(record), businessDate: "2026-08-20" }));
-      twoRecords.summary.recordCount = twoRecords.records.length;
-      await renderSettlementLongImage(twoRecords, "zh_CN", directory, join(directory, "details.jpg"));
+      const twoDays = structuredClone(snapshot);
+      twoDays.dateFrom = "2026-08-20";
+      twoDays.dateTo = "2026-08-21";
+      twoDays.records = ["2026-08-20", "2026-08-21"].flatMap((businessDate) =>
+        snapshot.records.slice(0, recordCount).map((record) => ({ ...structuredClone(record), businessDate })),
+      );
+      twoDays.summary.recordCount = twoDays.records.length;
+      await renderSettlementLongImage(twoDays, "zh_CN", directory, join(directory, "details.jpg"));
       const detailSvg = await readFile(join(directory, "settlement-details-long.svg"), "utf8");
-      expect(detailSvg).toContain('<rect data-card-kind="day-summary" x="548"');
-      expect(detailSvg.match(/data-card-kind="day-summary"/g)).toHaveLength(1);
+      const days = detailSvg.split(/<text x="32" y="\d+" class="day-title">/).slice(1);
+      expect(days).toHaveLength(2);
+      for (const day of days) {
+        const cards = [...day.matchAll(/<rect(?: data-card-kind="(day-summary)")? x="([\d.]+)" y="([\d.]+)"/g)];
+        expect(cards).toHaveLength(recordCount + 1);
+        expect(cards[0]?.[1]).toBe("day-summary");
+        expect(cards[0]?.[2]).toBe("32");
+        expect(cards[1]?.[2]).toBe("548");
+        expect(cards[1]?.[3]).toBe(cards[0]?.[3]);
+      }
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -133,6 +143,9 @@ describe.skipIf(process.platform !== "darwin")("employee settlement artifacts", 
       const detailSvg = await readFile(join(directory, "settlement-details-long.svg"), "utf8");
       expect(detailSvg).toContain("31 天");
       expect(detailSvg.match(/当日总结/g)).toHaveLength(31);
+      for (const day of detailSvg.split(/<text x="32" y="\d+" class="day-title">/).slice(1)) {
+        expect(day.slice(day.indexOf("<rect"))).toMatch(/^<rect data-card-kind="day-summary" x="32"/);
+      }
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

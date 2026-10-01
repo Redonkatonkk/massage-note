@@ -45,7 +45,6 @@ import { RecordTrack } from "./record-track";
 import { RecordEditor } from "./record-editor";
 import { AutoCloseDetails } from "./auto-close-details";
 import { OverviewMetric, UiIcon } from "./ui/primitives";
-import { LanguageSwitcher } from "./language-provider";
 
 interface TodayBoardProps {
   wideLayout: boolean;
@@ -480,12 +479,12 @@ export function TodayBoard({
   return (
     <>
       <header className={`topbar${wideLayout ? " today-topbar" : ""}`}>
-        <div className="today-heading">{heading}</div>
         {wideLayout ? <>
-          {dailyActions}
           <div className="today-header-calendar">{calendar}</div>
-          <div className="today-header-utilities"><LanguageSwitcher /><div className="topbar-actions">{accountActions}</div></div>
-        </> : <div className="topbar-actions">{accountActions}</div>}
+          {dailyActions}
+          <div className="today-heading">{heading}</div>
+          <div className="today-header-utilities"><div className="topbar-actions">{accountActions}</div></div>
+        </> : <><div className="today-heading">{heading}</div><div className="topbar-actions">{accountActions}</div></>}
       </header>
       {loadError && <p className="form-error" role="alert">{loadError}</p>}
       {!wideLayout && <div className="business-day-toolbar business-day-toolbar--compact">{dateControls}{dailyActions}</div>}

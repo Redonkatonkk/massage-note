@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.14.18` 代码结构核对。
+> 状态：与 `1.14.21` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -128,7 +128,7 @@ Web 表单
 - 公式事实来源是 `packages/domain/src/finance.ts`，金额格式化不是账本计算。
 - 记工创建时保存项目、时长、价格、折扣、提成及来源、工资、时区和营业日截止快照。
 - 修改目录或提成不能重写已日结历史；允许的当前营业日重算必须经过服务端流程。
-- 日结、现金结算和工资结算是不同账本/状态，不应合并成一个可覆盖总数。
+- 日结、现金结算和工资结算是不同账本/状态，不应合并成一个可覆盖总数。工资登记通过 `PayrollEntryForm` 统一员工、日期范围、金额和工资来源；结算单“已结算”复用工资账本接口、事务内审计及幂等服务，独立保存 `PayrollSettlement.paymentScope`，旧记录来源保持未知。
 - 详细产品口径见 [`PRODUCT.md`](../product/PRODUCT.md)。
 
 ## 认证、安全与隔离

@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { BrandMark, UiIcon, type IconName } from "./ui/primitives";
+import { LanguageSwitcher } from "./language-provider";
 import { financeNavigationTabs, manageNavigationTabs, navigationTabHref, type AppNavPage, type NavigationRole, type FinanceTab, type ManageTab } from "../lib/app-navigation";
 
 export function AppNav({ active, storeId, role = "EMPLOYEE", activeTab, onTabChange, assistant }: { active: AppNavPage; storeId?: string | undefined; role?: NavigationRole | undefined; activeTab?: string | undefined; onTabChange?: ((value: string) => void) | undefined; assistant?: ReactNode }) {
@@ -69,7 +70,7 @@ export function AppNav({ active, storeId, role = "EMPLOYEE", activeTab, onTabCha
           </div>}
         </div>;
       })}{assistant && <div className="app-nav-group" onFocus={() => { if (!pinnedSection) setOpenSections([]); }} onPointerEnter={event => { if (!pinnedSection && event.pointerType === "mouse") setOpenSections([]); }}>{assistant}</div>}</div>
-      <div className="app-nav-footer"><div className="app-nav-note"><UiIcon name="check" /><p>每一笔，都有条理。<small>Massage note</small></p></div><a href="/help" aria-label="使用帮助" title="使用帮助"><UiIcon name="help" /><span className="app-nav-label">使用帮助</span><UiIcon name="arrow" className="app-nav-footer__arrow" /></a></div>
+      <div className="app-nav-footer"><div className="app-nav-note"><UiIcon name="check" /><p>每一笔，都有条理。<small>Massage note</small></p></div><LanguageSwitcher /><a href="/help" aria-label="使用帮助" title="使用帮助"><UiIcon name="help" /><span className="app-nav-label">使用帮助</span><UiIcon name="arrow" className="app-nav-footer__arrow" /></a></div>
     </nav>
     </div>
   );

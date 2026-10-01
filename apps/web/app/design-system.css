@@ -30,9 +30,9 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .section-tabs button.active { background: var(--surface); color: var(--brand-dark); box-shadow: 0 2px 6px #53361f10; }
 .quick-ranges button { border-radius: 10px; transition: background-color var(--motion-fast), border-color var(--motion-fast); }
 
-.today-topbar { display: grid; grid-template-areas: "heading calendar utilities" "actions calendar utilities"; grid-template-columns: minmax(0, 1fr) 340px 200px; grid-template-rows: auto 1fr; align-items: start; }
+.today-topbar { display: grid; grid-template-areas: "calendar actions heading" "calendar actions utilities"; grid-template-columns: 340px minmax(0, 1fr) minmax(240px, 340px); grid-template-rows: auto 1fr; align-items: start; }
 .today-heading { min-width: 0; }
-.today-topbar > .today-heading { grid-area: heading; }
+.today-topbar > .today-heading { grid-area: heading; text-align: right; }
 .today-topbar > .board-toolbar { grid-area: actions; align-self: end; min-width: 0; margin: 0; }
 .today-topbar .board-primary-actions { flex-wrap: wrap; }
 .today-header-calendar { grid-area: calendar; min-width: 0; }

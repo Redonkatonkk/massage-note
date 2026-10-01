@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { employeeSettlementPaymentScopeSchema } from "./employee-settlement.js";
 import {
   businessDateSchema,
   moneyCentsSchema,
@@ -81,7 +82,7 @@ const payrollAmounts = {
   adjustmentCents: signedMoneyCentsSchema,
 };
 
-export const createPayrollSettlementSchema = z
+const legacyCreatePayrollSettlementSchema = z
   .object({
     membershipId: uuidSchema,
     settlementDate: businessDateSchema,
@@ -91,7 +92,7 @@ export const createPayrollSettlementSchema = z
     paymentMethod: payrollPaymentMethodSchema,
     note: z.string().max(2_000).default(""),
     negativeTotalReason: z.string().trim().min(1).max(500).optional(),
-  })
+  }).strict()
   .superRefine((value, context) => {
     if (value.periodEnd < value.periodStart) {
       context.addIssue({
@@ -114,9 +115,30 @@ export const createPayrollSettlementSchema = z
     }
   });
 
+export const payrollSettlementEntrySchema = z.object({
+  membershipId: uuidSchema,
+  periodStart: businessDateSchema,
+  periodEnd: businessDateSchema,
+  totalPaidCents: moneyCentsSchema,
+  paymentScope: employeeSettlementPaymentScopeSchema,
+}).strict().superRefine((value, context) => {
+  if (value.periodEnd < value.periodStart) {
+    context.addIssue({ code: "custom", path: ["periodEnd"], message: "覆盖结束日期不能早于开始日期" });
+  }
+});
+
+// Older clients retain their original breakdown contract during upgrades.
+export const createPayrollSettlementSchema = z.union([
+  payrollSettlementEntrySchema,
+  legacyCreatePayrollSettlementSchema,
+]);
+
 export const updatePayrollSettlementSchema = z
   .object({
     version: versionSchema,
+    membershipId: uuidSchema.optional(),
+    totalPaidCents: moneyCentsSchema.optional(),
+    paymentScope: employeeSettlementPaymentScopeSchema.optional(),
     settlementDate: businessDateSchema.optional(),
     periodStart: businessDateSchema.optional(),
     periodEnd: businessDateSchema.optional(),
@@ -131,6 +153,10 @@ export const updatePayrollSettlementSchema = z
   .refine(
     (value) => Object.keys(value).some((key) => key !== "version"),
     "至少需要修改一个工资结算字段",
+  )
+  .refine(
+    (value) => value.totalPaidCents === undefined || Object.keys(payrollAmounts).every((key) => !(key in value)),
+    "金额不能与旧工资拆分字段同时提交",
   );
 
 export const deletePayrollSettlementSchema = z.object({
@@ -218,6 +244,7 @@ export type SettleAllCashInput = z.input<typeof settleAllCashSchema>;
 export type CreatePayrollSettlementInput = z.output<
   typeof createPayrollSettlementSchema
 >;
+export type PayrollSettlementEntry = z.output<typeof payrollSettlementEntrySchema>;
 export type UpdatePayrollSettlementInput = z.input<
   typeof updatePayrollSettlementSchema
 >;

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LatestRequest } from "../../lib/latest-request";
 import { apiBase, apiRequest, errorMessage } from "../../lib/api";
 import { hasBlockingClosingWarnings } from "../../lib/closing";
-import { formatMoneyInput, formatUsd } from "../../lib/money";
+import { formatUsd, formatUsdPrecise } from "../../lib/money";
 import type {
   CashSettlementResponse,
   CatalogResponse,
@@ -38,6 +38,7 @@ import { RecordEditor } from "../record-editor";
 import { GiftCardLedger } from "./gift-card-ledger";
 import { BusinessDatePicker } from "../business-date-picker";
 import { EmployeeSettlementPanel } from "./employee-settlement-panel";
+import { PayrollEntryForm } from "./payroll-entry-form";
 import { EmployeeSubtotalSection } from "./employee-subtotal-section";
 import { dateOnly, shiftDate } from "./date-utils";
 import { financeNavigationTabs, resolveFinanceTab, type FinanceTab } from "../../lib/app-navigation";
@@ -53,16 +54,6 @@ type FinanceRangeOverride = { dateFrom?: string; dateTo?: string; memberIds?: st
 function money(cents: number | null | undefined): string {
   if (cents === null || cents === undefined) return "—";
   return formatUsd(cents);
-}
-
-function cents(value: string, label: string, signed = false): number {
-  const pattern = signed ? /^-?\d+(?:\.\d{0,2})?$/ : /^\d+(?:\.\d{0,2})?$/;
-  if (!pattern.test(value.trim())) throw new Error(`${label}格式不正确`);
-  return Math.round(Number(value) * 100);
-}
-
-function payrollMethodText(value: PayrollSettlement["paymentMethod"]): string {
-  return ({ CASH: "现金", CARD: "刷卡", CHECK: "支票", ZELLE: "Zelle", OTHER: "其他" } as const)[value];
 }
 
 function weekday(value: string, locale: "zh-CN" | "en-US"): string {
@@ -627,35 +618,34 @@ export function FinancePageClient() {
 }
 
 function PayrollPanel({ storeId, businessDate, canManage, members, settlements, busy, run, reload }: { storeId: string; businessDate: string; canManage: boolean; members: StoreMember[]; settlements: PayrollSettlement[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
-  const payable = members.filter((member) => member.role !== "OWNER" && !member.deletedAt);
-  const [memberId, setMemberId] = useState(payable[0]?.id ?? "");
-  const [settlementDate, setSettlementDate] = useState(businessDate);
-  const [periodStart, setPeriodStart] = useState(`${businessDate.slice(0, 8)}01`);
-  const [periodEnd, setPeriodEnd] = useState(businessDate);
-  const [serviceWage, setServiceWage] = useState("0");
-  const [cashTip, setCashTip] = useState("0");
-  const [cardTip, setCardTip] = useState("0");
-  const [adjustment, setAdjustment] = useState("0");
-  const [method, setMethod] = useState("ZELLE");
-  const [note, setNote] = useState("");
   const [editing, setEditing] = useState<PayrollSettlement | null>(null);
   return <section className="finance-section">
-    {canManage && <EmployeeSettlementPanel storeId={storeId} businessDate={businessDate} members={members} busy={busy} run={run} />}
-    {canManage && <details className="finance-metric-group finance-metric-disclosure payroll-entry"><summary><strong>登记已付工资</strong><span>展开填写</span></summary><form className="payroll-form" onSubmit={(event) => { event.preventDefault(); void run(async () => { const input = { membershipId: memberId, settlementDate, periodStart, periodEnd, serviceWageCents: cents(serviceWage, "大费工资"), cashTipCents: cents(cashTip, "现金小费"), cardTipCents: cents(cardTip, "刷卡／礼物卡小费"), adjustmentCents: cents(adjustment, "其他调整", true), paymentMethod: method, note }; const total = input.serviceWageCents + input.cashTipCents + input.cardTipCents + input.adjustmentCents; let negativeTotalReason: string | undefined; if (total < 0) { const reason = window.prompt("本次支付总额为负数，请二次确认并填写原因"); if (!reason?.trim()) return; negativeTotalReason = reason.trim(); } await apiRequest(`/stores/${storeId}/payroll-settlements`, { method: "POST", idempotent: true, body: { ...input, ...(negativeTotalReason ? { negativeTotalReason } : {}) } }); setNote(""); await reload(); }); }}><h2>新增工资结算</h2><div className="payroll-fields"><label>员工<select required value={memberId} onChange={(event) => setMemberId(event.target.value)}>{payable.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label><label>结算日期<input type="date" value={settlementDate} onChange={(event) => setSettlementDate(event.target.value)} /></label><label>覆盖开始<input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} /></label><label>覆盖结束<input type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} /></label><label>大费工资（美元）<input inputMode="decimal" value={serviceWage} onChange={(event) => setServiceWage(event.target.value)} /></label><label>现金小费（美元）<input inputMode="decimal" value={cashTip} onChange={(event) => setCashTip(event.target.value)} /></label><label>刷卡／礼物卡小费（美元）<input inputMode="decimal" value={cardTip} onChange={(event) => setCardTip(event.target.value)} /></label><label>其他调整（美元）<input inputMode="decimal" value={adjustment} onChange={(event) => setAdjustment(event.target.value)} /></label><label>支付方式<select value={method} onChange={(event) => setMethod(event.target.value)}><option value="ZELLE">Zelle</option><option value="CASH">现金</option><option value="CHECK">支票</option><option value="CARD">刷卡</option><option value="OTHER">其他</option></select></label><label className="wide">备注<input value={note} maxLength={2000} onChange={(event) => setNote(event.target.value)} /></label></div><button className="primary-action" type="submit" disabled={busy || !memberId}>保存工资结算</button></form></details>}
-    <h2 className="table-title">工资结算账本</h2><div className="table-scroll"><table className="data-table"><thead><tr><th>员工</th><th>结算日期</th><th>覆盖范围</th><th>大费工资</th><th>现金小费</th><th>刷卡／礼物卡小费</th><th>调整</th><th>本次总额</th><th>方式</th><th>备注</th><th>操作人</th><th>最后修改</th><th>历史状态</th><th>操作</th></tr></thead><tbody>{settlements.map((item) => <tr key={item.id} className={item.deletedAt ? "deleted-row" : ""}><td>{item.membership.displayName}</td><td>{dateOnly(item.settlementDate)} </td><td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td><td>{money(item.serviceWageCents)}</td><td>{money(item.cashTipCents)}</td><td>{money(item.cardTipCents)}</td><td>{money(item.adjustmentCents)}</td><td>{money(item.totalPaidCents)}</td><td>{payrollMethodText(item.paymentMethod)}</td><td>{item.note || "—"}</td><td>{item.updatedByDisplayName}</td><td>{new Date(item.updatedAt).toLocaleString("zh-CN")}</td><td>{item.historyChangedAfterSettlement ? <strong className="history-warning">结算后历史数据发生过修改</strong> : "未发现后续修改"}</td><td>{canManage && (item.deletedAt ? <button className="table-action" type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/payroll-settlements/${item.id}/restore`, { method: "POST", idempotent: true, body: { version: item.version } }); await reload(); })}>恢复</button> : <span className="table-actions"><button className="table-action" type="button" onClick={() => setEditing(item)}>修改</button><button className="table-action danger" type="button" onClick={() => void run(async () => { if (!window.confirm("确认删除这条工资结算吗？余额会立即重新计算。")) return; const answer = window.prompt("删除原因（可留空）"); if (answer === null) return; const reason = answer.trim(); await apiRequest(`/stores/${storeId}/payroll-settlements/${item.id}`, { method: "DELETE", idempotent: true, body: { version: item.version, ...(reason ? { reason } : {}) } }); await reload(); })}>删除</button></span>)}</td></tr>)}</tbody></table></div>
-    {editing && <PayrollEditForm storeId={storeId} settlement={editing} busy={busy} close={() => setEditing(null)} run={run} reload={async () => { setEditing(null); await reload(); }} />}
+    {canManage && <EmployeeSettlementPanel storeId={storeId} businessDate={businessDate} members={members} settlements={settlements} busy={busy} run={run} onSettled={reload} />}
+    {canManage && <details className="finance-metric-group finance-metric-disclosure payroll-entry">
+      <summary><strong>登记已付工资</strong><span>展开填写</span></summary>
+      <PayrollEntryForm storeId={storeId} businessDate={businessDate} members={members} busy={busy} run={run} onSaved={reload} />
+    </details>}
+    <h2 className="table-title">工资结算账本</h2>
+    <div className="table-scroll"><table className="data-table">
+      <thead><tr><th>员工</th><th>日期范围</th><th>金额</th><th>工资来源</th>{canManage && <th>操作</th>}</tr></thead>
+      <tbody>{settlements.map((item) => <tr key={item.id} className={item.deletedAt ? "deleted-row" : ""}>
+        <td>{item.membership.displayName}</td>
+        <td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}{item.historyChangedAfterSettlement && <strong className="history-warning">结算后历史数据发生过修改</strong>}</td>
+        <td>{formatUsdPrecise(item.totalPaidCents)}</td>
+        <td>{item.paymentScope === "CASH" ? "现金" : item.paymentScope === "NON_CASH" ? "刷卡＋礼物卡" : item.paymentScope === "ALL" ? "全部" : "历史记录未指定"}</td>
+        {canManage && <td>{item.deletedAt ? <button className="table-action" type="button" disabled={busy} onClick={() => void run(async () => {
+          await apiRequest(`/stores/${storeId}/payroll-settlements/${item.id}/restore`, { method: "POST", idempotent: true, body: { version: item.version } });
+          await reload();
+        })}>恢复</button> : <span className="table-actions">
+          <button className="table-action" type="button" disabled={busy} onClick={() => setEditing(item)}>修改</button>
+          <button className="table-action danger" type="button" disabled={busy} onClick={() => void run(async () => {
+            if (!window.confirm("确认删除这条工资结算吗？余额会立即重新计算。")) return;
+            await apiRequest(`/stores/${storeId}/payroll-settlements/${item.id}`, { method: "DELETE", idempotent: true, body: { version: item.version } });
+            await reload();
+          })}>删除</button>
+        </span>}</td>}
+      </tr>)}</tbody>
+    </table></div>
+    {editing && <div className="modal-backdrop" role="presentation"><PayrollEntryForm key={editing.id} storeId={storeId} businessDate={businessDate} members={members} settlement={editing} busy={busy} close={() => setEditing(null)} run={run} onSaved={reload} /></div>}
   </section>;
-}
-
-function PayrollEditForm({ storeId, settlement, busy, close, run, reload }: { storeId: string; settlement: PayrollSettlement; busy: boolean; close: () => void; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
-  const [settlementDate, setSettlementDate] = useState(dateOnly(settlement.settlementDate));
-  const [periodStart, setPeriodStart] = useState(dateOnly(settlement.periodStart));
-  const [periodEnd, setPeriodEnd] = useState(dateOnly(settlement.periodEnd));
-  const [serviceWage, setServiceWage] = useState(formatMoneyInput(settlement.serviceWageCents));
-  const [cashTip, setCashTip] = useState(formatMoneyInput(settlement.cashTipCents));
-  const [cardTip, setCardTip] = useState(formatMoneyInput(settlement.cardTipCents));
-  const [adjustment, setAdjustment] = useState(formatMoneyInput(settlement.adjustmentCents));
-  const [method, setMethod] = useState<PayrollSettlement["paymentMethod"]>(settlement.paymentMethod);
-  const [note, setNote] = useState(settlement.note);
-  return <div className="modal-backdrop" role="presentation"><form className="payroll-form payroll-edit-modal" role="dialog" aria-modal="true" aria-labelledby="payroll-edit-title" onSubmit={(event) => { event.preventDefault(); void run(async () => { const input = { version: settlement.version, settlementDate, periodStart, periodEnd, serviceWageCents: cents(serviceWage, "大费工资"), cashTipCents: cents(cashTip, "现金小费"), cardTipCents: cents(cardTip, "刷卡小费"), adjustmentCents: cents(adjustment, "其他调整", true), paymentMethod: method, note }; const total = input.serviceWageCents + input.cashTipCents + input.cardTipCents + input.adjustmentCents; let negativeTotalReason: string | undefined; if (total < 0) { const reason = window.prompt("修改后支付总额为负数，请二次确认并填写原因"); if (!reason?.trim()) return; negativeTotalReason = reason.trim(); } await apiRequest(`/stores/${storeId}/payroll-settlements/${settlement.id}`, { method: "PATCH", idempotent: true, body: { ...input, ...(negativeTotalReason ? { negativeTotalReason } : {}) } }); await reload(); }); }}><div className="modal-heading"><div><p className="eyebrow">修改工资结算</p><h2 id="payroll-edit-title">{settlement.membership.displayName}</h2></div><button className="close-button" type="button" onClick={close} disabled={busy}>关闭</button></div><div className="payroll-fields"><label>结算日期<input type="date" value={settlementDate} onChange={(event) => setSettlementDate(event.target.value)} /></label><label>覆盖开始<input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} /></label><label>覆盖结束<input type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} /></label><label>大费工资（美元）<input inputMode="decimal" value={serviceWage} onChange={(event) => setServiceWage(event.target.value)} /></label><label>现金小费（美元）<input inputMode="decimal" value={cashTip} onChange={(event) => setCashTip(event.target.value)} /></label><label>刷卡小费（美元）<input inputMode="decimal" value={cardTip} onChange={(event) => setCardTip(event.target.value)} /></label><label>其他调整（美元）<input inputMode="decimal" value={adjustment} onChange={(event) => setAdjustment(event.target.value)} /></label><label>支付方式<select value={method} onChange={(event) => setMethod(event.target.value as PayrollSettlement["paymentMethod"])}><option value="ZELLE">Zelle</option><option value="CASH">现金</option><option value="CHECK">支票</option><option value="CARD">刷卡</option><option value="OTHER">其他</option></select></label><label className="wide">备注<input maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} /></label></div><div className="preview-actions"><button className="primary-action" type="submit" disabled={busy}>保存修改</button><button className="secondary-action" type="button" onClick={close} disabled={busy}>取消</button></div></form></div>;
 }

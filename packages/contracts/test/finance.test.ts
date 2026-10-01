@@ -6,9 +6,33 @@ import {
   reopenCashSchema,
   createPayrollSettlementSchema,
   financeQuerySchema,
+  updatePayrollSettlementSchema,
 } from "../src/index.js";
 
 describe("日结与财务契约", () => {
+  const compactEntry = {
+    membershipId: "56d4a93a-5a73-49df-93c2-704ae844faa4",
+    periodStart: "2026-09-01", periodEnd: "2026-09-30",
+    totalPaidCents: 12345, paymentScope: "NON_CASH",
+  };
+
+  it("已付工资只需员工、日期范围、金额和工资来源", () => {
+    for (const paymentScope of ["CASH", "NON_CASH", "ALL"]) {
+      expect(createPayrollSettlementSchema.parse({ ...compactEntry, paymentScope })).toEqual({ ...compactEntry, paymentScope });
+    }
+    for (const patch of [
+      { periodEnd: "2026-08-01" }, { totalPaidCents: -1 }, { totalPaidCents: 1.1 },
+      { paymentScope: "ZELLE" }, { paymentScope: undefined }, { totalPaidCents: Number.MAX_SAFE_INTEGER + 1 },
+      { serviceWageCents: 100 },
+    ]) expect(createPayrollSettlementSchema.safeParse({ ...compactEntry, ...patch }).success).toBe(false);
+  });
+
+  it("简化修改保留版本检查且不能混入旧金额拆分", () => {
+    expect(updatePayrollSettlementSchema.parse({ ...compactEntry, version: 2 })).toEqual({ ...compactEntry, version: 2 });
+    expect(updatePayrollSettlementSchema.safeParse(compactEntry).success).toBe(false);
+    expect(updatePayrollSettlementSchema.safeParse({ version: 2 }).success).toBe(false);
+    expect(updatePayrollSettlementSchema.safeParse({ ...compactEntry, version: 2, cashTipCents: 10 }).success).toBe(false);
+  });
   it("取消日结和取消已结现金允许省略原因，仍要求版本", () => {
     for (const schema of [cancelBusinessDayClosingSchema, reopenCashSchema]) {
       expect(schema.parse({ version: 1 })).toEqual({ version: 1 });

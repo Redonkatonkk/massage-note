@@ -9,7 +9,7 @@ body { line-height: 1.5; }
   margin-inline: auto;
   padding: max(8px, env(safe-area-inset-top)) 20px 0;
 }
-:is(.app-utility-bar, .today-header-utilities) .language-switcher {
+:is(.app-utility-bar, .app-nav-footer) .language-switcher {
   position: static;
   width: fit-content;
   border: 0;
@@ -18,13 +18,13 @@ body { line-height: 1.5; }
   border-radius: 12px;
   box-shadow: none;
 }
-:is(.app-utility-bar, .today-header-utilities) .language-switcher button {
+:is(.app-utility-bar, .app-nav-footer) .language-switcher button {
   min-height: var(--control-height);
   padding: 6px 12px;
   border-radius: 10px;
   font-size: .85rem;
 }
-:is(.app-utility-bar, .today-header-utilities) .language-switcher button.active {
+:is(.app-utility-bar, .app-nav-footer) .language-switcher button.active {
   color: var(--brand);
   background: white;
 }
@@ -272,9 +272,6 @@ button, summary { overflow-wrap: anywhere; }
 
 /* Work-log DOM uses the same 1200px breakpoint to restore the original controls. */
 .today-topbar { gap: 12px 16px; }
-@media (min-width: 1200px) {
-  body:has(.today-topbar) > .app-utility-bar { display: none; }
-}
 @media (max-width: 760px) {
   .business-day-toolbar--compact > .history-toolbar { flex-basis: 100%; }
   .business-day-toolbar--compact > .board-toolbar { flex-basis: 100%; margin-left: 0; }
@@ -443,7 +440,7 @@ button, summary { overflow-wrap: anywhere; }
 @media (min-width: 1200px) {
   .app-shell:has(> .app-nav-space) { width: calc(100% - 60px); margin-left: 60px; padding: 12px 18px 36px 12px; }
   .center-page--with-nav { width: calc(100% - 60px); margin-left: 60px; }
-  body:has(.app-nav-space) .app-utility-bar { width: calc(100% - 60px); margin-left: 60px; padding-inline: 12px 18px; }
+  body:has(.app-nav-space) .app-utility-bar { display: none; }
   .app-nav-space { height: 0; }
   .bottom-nav { display: flex; flex-direction: column; left: 4px; top: 16px; bottom: 16px; width: 56px; min-height: 0; padding: 24px 5px 16px; transform: none; overflow-x: hidden; overflow-y: auto; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); color: var(--ink); z-index: 26; transition: width 240ms var(--ease-out), box-shadow 240ms ease; }
   .bottom-nav:is(:hover, :has(:focus-visible)) { width: 224px; box-shadow: 0 12px 38px rgb(83 54 31 / 18%); }
@@ -472,6 +469,10 @@ button, summary { overflow-wrap: anywhere; }
   .bottom-nav:is(:hover, :has(:focus-visible)) :is(.app-nav-label, .app-nav-brand > span) { max-width: 180px; opacity: 1; transform: none; }
   .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-caption { opacity: 1; }
   .app-nav-footer { display: grid; gap: 10px; margin-top: auto; padding-top: 28px; }
+  .app-nav-footer .language-switcher { width: 100%; flex-direction: column; }
+  .app-nav-footer .language-switcher button { min-width: 0; min-height: 32px; padding: 6px 0; font-size: .65rem; white-space: nowrap; }
+  .bottom-nav:is(:hover, :has(:focus-visible)) .language-switcher { flex-direction: row; }
+  .bottom-nav:is(:hover, :has(:focus-visible)) .language-switcher button { flex: 1; min-height: var(--control-height); padding: 6px 12px; font-size: .85rem; }
   .app-nav-note { display: flex; align-items: flex-start; gap: 8px; max-height: 0; padding: 0; overflow: hidden; opacity: 0; visibility: hidden; border: 0 solid var(--line); border-radius: 14px; transition: max-height 240ms var(--ease-out), padding 240ms var(--ease-out), opacity 160ms ease, visibility 0s 240ms; }
   .app-nav-note > .ui-icon { width: 16px; height: 16px; margin-top: 2px; color: var(--brand); }
   .app-nav-note p { margin: 0; font-size: .85rem; line-height: 1.5; color: var(--brand); }

@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.14.18`
+> 适用版本：`1.14.21`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -241,7 +241,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 这些字段采用当前日期、员工、付款方式、金额类型和高亮筛选口径。`finance/summary.employees[]` 还返回员工当前 `defaultCommissionBps` 和是否存在不同项目专属设置的 `hasDifferentItemCommission`；Web 与员工小计短信直接显示该设置，不再用筛选后的工资反推比例。Web 的每日小计位于员工小计之前，日期后显示按当前界面语言本地化的星期；员工范围使用复选框多选，空选择表示全部员工。
 
-工资结算列表支持日期、成员和 `includeDeleted=true`。审计列表支持 `dateFrom`、`dateTo`、`entityType`、`action`、`actorUserId` 与游标分页。
+工资结算列表支持成员和 `includeDeleted=true`；每条记录返回 `paymentScope`（`CASH` / `NON_CASH` / `ALL`，历史未指定为 `null`）。新增 `POST /stores/:storeId/payroll-settlements` 的简化请求为 `{ membershipId, periodStart, periodEnd, totalPaidCents, paymentScope }`，总额使用非负整数美分，登记日期自动按设备时区自然日期记录。生成单“已结算”直接使用预览的 `employee.membershipId`、`dateFrom/dateTo`、`summary.totalIncomeCents` 与 `paymentScope` 提交；保存和重试带同一幂等键。修改 `PATCH` 接受同样字段并要求 `version`，保留原登记日期；来源与旧金额拆分不能混为同一总额请求。旧客户端的拆分字段仍兼容，旧来源不回填猜测值。审计列表支持 `dateFrom`、`dateTo`、`entityType`、`action`、`actorUserId` 与游标分页。
 
 ## 错误与排查
 

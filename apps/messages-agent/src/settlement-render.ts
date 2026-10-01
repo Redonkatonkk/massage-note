@@ -170,15 +170,10 @@ function recordCardHeight(record: SettlementRecord, cardWidth: number, locale: L
   return 112 + serviceLines.length * 25 + detailLines.length * 20 + (noticeLines[0] ? noticeLines.length * 20 : 0);
 }
 
-function summaryLeadingSpacerCount(recordCount: number, columns: number) {
-  return (columns - 1 - (recordCount % columns) + columns) % columns;
-}
-
 function dayLayoutHeight(day: DayGroup, columns: number, cardWidth: number, locale: Locale, scope: Scope) {
   const heights = [
-    ...day.records.map((record) => recordCardHeight(record, cardWidth, locale, scope)),
-    ...Array.from({ length: summaryLeadingSpacerCount(day.records.length, columns) }, () => 0),
     190,
+    ...day.records.map((record) => recordCardHeight(record, cardWidth, locale, scope)),
   ];
   let cardsHeight = 0;
   for (let index = 0; index < heights.length; index += columns) {
@@ -261,9 +256,8 @@ function longDetailsImage(snapshot: SettlementSnapshot, locale: Locale) {
   days.forEach((day, dayIndex) => {
     sections.push(`<text x="${PAGE_MARGIN}" y="${dayY + 31}" class="day-title">${escapeXml(dayLabel(day.businessDate, locale))}</text><text x="${layout.width - PAGE_MARGIN}" y="${dayY + 31}" text-anchor="end" class="day-meta">${escapeXml(`${day.businessDate} · ${day.records.length} ${en ? "records" : "笔记工"}`)}</text>`);
     const cards = [
-      ...day.records.map((record, index) => ({ kind: "record" as const, record, index: index + 1, height: recordCardHeight(record, layout.cardWidth, locale, snapshot.paymentScope) })),
-      ...Array.from({ length: summaryLeadingSpacerCount(day.records.length, layout.columns) }, () => ({ kind: "spacer" as const, height: 0 })),
       { kind: "summary" as const, height: 190 },
+      ...day.records.map((record, index) => ({ kind: "record" as const, record, index: index + 1, height: recordCardHeight(record, layout.cardWidth, locale, snapshot.paymentScope) })),
     ];
     let rowY = dayY + DAY_HEADER_HEIGHT;
     for (let index = 0; index < cards.length; index += layout.columns) {

@@ -1,10 +1,12 @@
 import { randomInt, randomUUID } from "node:crypto";
 import {
   ConflictException,
+  NotFoundException,
   ForbiddenException,
 } from "@nestjs/common";
 import type { User } from "@massage-note/database";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { deviceTimeContext } from "../src/common/device-time.js";
 import { IdempotencyService } from "../src/common/idempotency.service.js";
 import { PrismaService } from "../src/database/prisma.service.js";
 import { CashSettlementsService } from "../src/finance/cash-settlements.service.js";
@@ -394,6 +396,13 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     );
     payrollVersion = updated.version;
     expect(updated.totalPaidCents).toBe(6_000n);
+    const simplified = await payroll.update(actor(managerId), storeId, payrollId,
+      { version: payrollVersion, totalPaidCents: 6_001, paymentScope: "ALL" },
+      "payroll-compact-edit-0001", "payroll-compact-edit");
+    expect(simplified).toMatchObject({ serviceWageCents: 6_000n, cashTipCents: 0n, cardTipCents: 0n, adjustmentCents: 1n, totalPaidCents: 6_001n, paymentScope: "ALL", note: "超额支付" });
+    const reset = await payroll.update(actor(managerId), storeId, payrollId,
+      { version: simplified.version, totalPaidCents: 6_000 }, "payroll-compact-reset-0001", "payroll-compact-edit");
+    payrollVersion = reset.version;
     await expect(finance.myBalance(actor(employeeId), storeId)).resolves.toMatchObject({
       employerOwesCents: 0n,
       overpaidCents: 400n,
@@ -992,6 +1001,35 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     const closed = await closings.close(actor(ownerId), storeId, date, { force: false }, "auto-rollback", "auto-summary-test", true);
     expect(closed.closing.cycleNo).toBe(1);
     expect(await prisma.employeeClosingDelivery.count({ where: { closingId: closed.closing.id } })).toBe(1);
+  });
+
+
+  it.each(["CASH", "NON_CASH", "ALL"] as const)("简化工资登记持久化 %s 来源、幂等、版本与余额", async (paymentScope) => {
+    const before = await finance.myBalance(actor(employeeId), storeId);
+    const input = { membershipId: employeeMembershipId, periodStart: "2026-09-01", periodEnd: "2026-09-30", totalPaidCents: 12345, paymentScope };
+    const key = `compact-payroll-${paymentScope}-0001`;
+    const created = await deviceTimeContext.run({ timezone: "America/Los_Angeles", now: new Date("2026-10-01T05:00:00Z") }, () => payroll.create(actor(managerId), storeId, input, key, key));
+    expect(created).toMatchObject({ membershipId: employeeMembershipId, paymentScope, totalPaidCents: 12345n, settlementDate: new Date("2026-09-30T00:00:00Z"), note: "" });
+    const replay = await payroll.create(actor(managerId), storeId, input, key, key);
+    expect(replay.id).toBe(created.id);
+    expect(await prisma.payrollSettlement.count({ where: { id: created.id } })).toBe(1);
+    expect(await prisma.auditLog.count({ where: { storeId, entityId: created.id, action: "payroll_settlement.created" } })).toBe(1);
+    await expect(payroll.create(actor(managerId), storeId, { ...input, totalPaidCents: 1 }, key, key)).rejects.toBeInstanceOf(ConflictException);
+    await expect(payroll.create(actor(employeeId), storeId, input, `${key}-employee`, key)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(payroll.create(actor(managerId), storeId, { ...input, membershipId: ownerMembershipId }, `${key}-owner`, key)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(payroll.create(actor(managerId), storeId, { ...input, membershipId: randomUUID() }, `${key}-foreign`, key)).rejects.toBeInstanceOf(NotFoundException);
+    const after = await finance.myBalance(actor(employeeId), storeId);
+    expect(after.payrollPaidCents).toBe(before.payrollPaidCents + 12345n);
+    const updated = await payroll.update(actor(managerId), storeId, created.id, { version: 1, totalPaidCents: 54321, paymentScope: "ALL" }, `${key}-update`, key);
+    expect(updated).toMatchObject({ totalPaidCents: 54321n, paymentScope: "ALL", version: 2 });
+    await expect(payroll.update(actor(managerId), storeId, created.id, { version: 1, totalPaidCents: 1 }, `${key}-stale`, key)).rejects.toBeInstanceOf(ConflictException);
+    await expect(payroll.update(actor(managerId), storeId, created.id, { version: 2, membershipId: ownerMembershipId }, `${key}-move-owner`, key)).rejects.toBeInstanceOf(ForbiddenException);
+    await payroll.remove(actor(managerId), storeId, created.id, { version: 2 }, `${key}-delete`, key);
+    const restored = await payroll.restore(actor(managerId), storeId, created.id, { version: 3 }, `${key}-restore`, key);
+    expect(restored).toMatchObject({ totalPaidCents: 54321n, paymentScope: "ALL", version: 4 });
+    await payroll.remove(actor(managerId), storeId, created.id, { version: 4 }, `${key}-cleanup`, key);
+    const final = await finance.myBalance(actor(employeeId), storeId);
+    expect(final.payrollPaidCents).toBe(before.payrollPaidCents);
   });
 
 });

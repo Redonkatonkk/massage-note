@@ -861,6 +861,7 @@ model PayrollSettlement {
   adjustmentCents    BigInt    @map("adjustment_cents")
   totalPaidCents     BigInt    @map("total_paid_cents")
   paymentMethod      String    @map("payment_method")
+  paymentScope       String?   @map("payment_scope")
   note               String    @default("")
   createdBy          String    @map("created_by") @db.Uuid
   updatedBy          String    @map("updated_by") @db.Uuid

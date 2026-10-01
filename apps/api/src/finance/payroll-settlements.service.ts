@@ -18,6 +18,7 @@ import {
   hasStoreCapability,
 } from "@massage-note/domain";
 import { IdempotencyService } from "../common/idempotency.service.js";
+import { businessDateFor, deviceNow } from "../common/device-time.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
 
@@ -142,35 +143,34 @@ export class PayrollSettlementsService {
         responseCode: 201,
       },
       async (transaction) => {
-        await this.assertPayableMembership(
+        const store = await this.assertPayableMembership(
           transaction,
           storeId,
           input.membershipId,
         );
-        const totalPaidCents = calculatePayrollPaymentTotal({
-          serviceWageCents: BigInt(input.serviceWageCents),
-          cashTipCents: BigInt(input.cashTipCents),
-          cardTipCents: BigInt(input.cardTipCents),
-          adjustmentCents: BigInt(input.adjustmentCents),
-        });
+        const compact = "totalPaidCents" in input;
+        // The compact entry records a payment total without inventing a breakdown.
+        const amounts = compact
+          ? { serviceWageCents: 0n, cashTipCents: 0n, cardTipCents: 0n, adjustmentCents: BigInt(input.totalPaidCents) }
+          : { serviceWageCents: BigInt(input.serviceWageCents), cashTipCents: BigInt(input.cashTipCents), cardTipCents: BigInt(input.cardTipCents), adjustmentCents: BigInt(input.adjustmentCents) };
+        const totalPaidCents = calculatePayrollPaymentTotal(amounts);
+        const negativeTotalReason = compact ? undefined : input.negativeTotalReason;
         this.assertSafeTotal(totalPaidCents);
-        if (totalPaidCents < 0n && !input.negativeTotalReason) {
+        if (totalPaidCents < 0n && !negativeTotalReason) {
           this.throwNegativeConfirmationRequired();
         }
         const settlement = await transaction.payrollSettlement.create({
           data: {
             storeId,
             membershipId: input.membershipId,
-            settlementDate: dateAtUtc(input.settlementDate),
+            settlementDate: dateAtUtc(compact ? businessDateFor({ startAt: deviceNow(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal }) : input.settlementDate),
             periodStart: dateAtUtc(input.periodStart),
             periodEnd: dateAtUtc(input.periodEnd),
-            serviceWageCents: BigInt(input.serviceWageCents),
-            cashTipCents: BigInt(input.cashTipCents),
-            cardTipCents: BigInt(input.cardTipCents),
-            adjustmentCents: BigInt(input.adjustmentCents),
+            ...amounts,
             totalPaidCents,
-            paymentMethod: input.paymentMethod,
-            note: input.note,
+            paymentMethod: compact ? "OTHER" : input.paymentMethod,
+            paymentScope: compact ? input.paymentScope : null,
+            note: compact ? "" : input.note,
             createdBy: actor.id,
             updatedBy: actor.id,
           },
@@ -186,7 +186,7 @@ export class PayrollSettlementsService {
             entityType: "payroll_settlement",
             entityId: settlement.id,
             afterJson: this.auditSnapshot(settlement),
-            reason: input.negativeTotalReason ?? null,
+            reason: negativeTotalReason ?? null,
             requestId,
           },
         });
@@ -225,7 +225,7 @@ export class PayrollSettlementsService {
         await this.assertPayableMembership(
           transaction,
           storeId,
-          current.membershipId,
+          input.membershipId ?? current.membershipId,
         );
         const periodStart = input.periodStart ?? dateOnly(current.periodStart);
         const periodEnd = input.periodEnd ?? dateOnly(current.periodEnd);
@@ -235,14 +235,12 @@ export class PayrollSettlementsService {
             messageZh: "覆盖结束日期不能早于开始日期",
           });
         }
-        const serviceWageCents = BigInt(
-          input.serviceWageCents ?? current.serviceWageCents,
-        );
+        const serviceWageCents = BigInt(input.serviceWageCents ?? current.serviceWageCents);
         const cashTipCents = BigInt(input.cashTipCents ?? current.cashTipCents);
         const cardTipCents = BigInt(input.cardTipCents ?? current.cardTipCents);
-        const adjustmentCents = BigInt(
-          input.adjustmentCents ?? current.adjustmentCents,
-        );
+        const adjustmentCents = input.totalPaidCents === undefined
+          ? BigInt(input.adjustmentCents ?? current.adjustmentCents)
+          : BigInt(input.totalPaidCents) - serviceWageCents - cashTipCents - cardTipCents;
         const totalPaidCents = calculatePayrollPaymentTotal({
           serviceWageCents,
           cashTipCents,
@@ -261,6 +259,8 @@ export class PayrollSettlementsService {
             version: input.version,
           },
           data: {
+            membershipId: input.membershipId ?? current.membershipId,
+            ...(input.paymentScope ? { paymentScope: input.paymentScope } : {}),
             ...(input.settlementDate
               ? { settlementDate: dateAtUtc(input.settlementDate) }
               : {}),
@@ -466,7 +466,7 @@ export class PayrollSettlementsService {
     const [store, membership] = await Promise.all([
       transaction.store.findFirst({
         where: { id: storeId, status: "ACTIVE", deletedAt: null },
-        select: { ownerMembershipId: true },
+        select: { ownerMembershipId: true, timezone: true, businessCutoffLocal: true },
       }),
       transaction.storeMembership.findFirst({
         where: { id: membershipId, storeId },
@@ -485,6 +485,7 @@ export class PayrollSettlementsService {
         messageZh: "店主本人的服务收入不进入老板尚欠和工资结算",
       });
     }
+    return store;
   }
 
   private auditSnapshot(settlement: {
@@ -498,6 +499,7 @@ export class PayrollSettlementsService {
     adjustmentCents: bigint;
     totalPaidCents: bigint;
     paymentMethod: string;
+    paymentScope: string | null;
     note: string;
     version: number;
   }) {
@@ -512,6 +514,7 @@ export class PayrollSettlementsService {
       adjustmentCents: settlement.adjustmentCents.toString(),
       totalPaidCents: settlement.totalPaidCents.toString(),
       paymentMethod: settlement.paymentMethod,
+      paymentScope: settlement.paymentScope,
       note: settlement.note,
       version: settlement.version,
     };

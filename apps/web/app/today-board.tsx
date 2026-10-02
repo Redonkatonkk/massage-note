@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "./use-auto-dismiss-state";
+
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
@@ -16,7 +18,7 @@ import {
   canGenerateDailyRanking,
   dailyRankingActionLabel,
 } from "../lib/daily-ranking";
-import { financeCashHref, financeClosingHref } from "../lib/navigation";
+import { financeClosingHref } from "../lib/navigation";
 import { formatUsd } from "../lib/money";
 import { hasConfirmedPaymentMismatch } from "../lib/record-payment";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
@@ -149,19 +151,13 @@ export function TodayBoard({
   const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
   const [closingEmployee, setClosingEmployee] = useState<{ id: string; displayName: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [error, setError] = useAutoDismissState("");
+  const [notice, setNotice] = useAutoDismissState("");
   const [deliveryList, setDeliveryList] = useState<ClosingDeliveryList | null>(null);
   const [statusNow, setStatusNow] = useState(() => {
     const serverTime = Date.parse(currentDay.serverTime);
     return Number.isFinite(serverTime) ? serverTime : Date.now();
   });
-
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(""), 4_000);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
 
   useEffect(() => {
     if (!canManage) { setDeliveryList(null); return; }
@@ -468,7 +464,7 @@ export function TodayBoard({
         await onReload();
       })}>{busy ? "正在上班…" : "上班"}</button>}
       {canManage && (board.isClosed
-        ? <a className="primary-action board-closing-action" href={financeCashHref(membership.store.id, currentDay.businessDate)}>现金结算</a>
+        ? <a className="primary-action board-closing-action" href={financeClosingHref(membership.store.id, currentDay.businessDate)}>现金结算</a>
         : <button className="primary-action board-closing-action" type="button" disabled={busy} onClick={() => run(closeBusinessDay)}>日结</button>)}
       {wideLayout ? secondaryActions : (canManage || canGenerateRanking || returnToToday) && <AutoCloseDetails className="board-more-actions">
         <summary>更多操作</summary>
@@ -515,7 +511,6 @@ export function TodayBoard({
         </details>
         </div>
       </section>}
-
 
 
       {board.isClosed && <p className="closed-banner" role="status">这个营业日已经日结。记工、员工顺序和显示状态均为只读；如需修改请先取消日结。</p>}

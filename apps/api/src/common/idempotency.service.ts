@@ -11,6 +11,7 @@ interface IdempotencyOptions {
   route: string;
   payload: unknown;
   responseCode: number;
+  isolationLevel?: Prisma.TransactionIsolationLevel;
 }
 
 function canonicalValue(value: unknown): unknown {
@@ -82,8 +83,11 @@ export class IdempotencyService {
         });
         return result;
       };
-      return parentTransaction ? await execute(parentTransaction) : await this.prisma.$transaction(execute);
+      return parentTransaction ? await execute(parentTransaction) : await this.prisma.$transaction(execute, options.isolationLevel ? { isolationLevel: options.isolationLevel } : undefined);
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+        throw new ConflictException({ code: "SETTLEMENT_DATA_CHANGED", messageZh: "结算数据已发生变化，请重新生成结算单后核对付款" });
+      }
       if (
         !parentTransaction && error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"

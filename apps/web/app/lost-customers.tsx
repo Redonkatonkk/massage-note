@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "./use-auto-dismiss-state";
+
 import { useEffect, useRef, useState } from "react";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { createRefreshQueue } from "../lib/refresh-queue";
@@ -27,8 +29,9 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
   const [records, setRecords] = useState<LostCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [loadNotice, setLoadNotice] = useAutoDismissState("");
+  const [error, setError] = useAutoDismissState("");
+  const [notice, setNotice] = useAutoDismissState("");
   const [editing, setEditing] = useState<LostCustomer | null | undefined>();
   const [time, setTime] = useState("");
   const [customerCount, setCustomerCount] = useState("1");
@@ -48,19 +51,14 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
     const refresh = createRefreshQueue(async () => {
       try {
         const result = await apiRequest<LostCustomer[]>(`${path}?businessDate=${businessDate}`);
-        if (active) { setRecords(result); setLoadError(""); }
-      } catch (caught) { if (active) setLoadError(errorMessage(caught)); }
+        if (active) { setRecords(result); setLoadError(""); setLoadNotice(""); }
+      } catch (caught) { if (active) { const message = errorMessage(caught); setLoadError(message); setLoadNotice(message); } }
       finally { if (active) setLoading(false); }
     });
     queue.current = refresh;
     void refresh.request();
     return () => { active = false; alive.current = false; refresh.dispose(); };
   }, [path, businessDate]);
-  useEffect(() => {
-    if (!notice) return;
-    const timeout = window.setTimeout(() => setNotice(""), 3000);
-    return () => window.clearTimeout(timeout);
-  }, [notice]);
   useStoreRealtime(storeId, () => queue.current?.request());
 
   function open(record: LostCustomer | null) {
@@ -105,7 +103,7 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
       <div className="lost-customers__heading"><h2>{t("跑客记录", "Lost customers")}</h2><p>{loading ? t("正在加载…", "Loading…") : t(`${totalCustomers} 位 · ${records.length} 条记录`, `${totalCustomers} ${totalCustomers === 1 ? "customer" : "customers"} · ${records.length} ${records.length === 1 ? "record" : "records"}`)}</p></div>
       {canEdit && <button className="secondary-action compact" type="button" disabled={busy || loading || !!loadError} onClick={() => open(null)}>＋ {t("记录跑客", "Record lost customer")}</button>}
     </header>
-    {loadError && <p className="form-error" role="alert">{loadError} <button type="button" onClick={() => void queue.current?.request()}>{t("重试", "Retry")}</button></p>}
+    {loadError && <p className={loadNotice ? "form-error" : undefined} role={loadNotice ? "alert" : undefined}>{loadNotice} <button type="button" onClick={() => void queue.current?.request()}>{t("重试", "Retry")}</button></p>}
     {records.length > 0 && <ul className="lost-customers__list">{records.map(record => <li key={record.id}>
       <button type="button" disabled={!canEdit || busy} onClick={() => open(record)} aria-label={t(`修改 ${formatWorkTime(record.occurredTime)} 的跑客记录`, `Edit lost customer at ${formatWorkTime(record.occurredTime)}`)}>
         <time dateTime={`${businessDate}T${record.occurredTime}`}>{formatWorkTime(record.occurredTime)}</time><span>{t(`${record.customerCount} 位`, `${record.customerCount} ${record.customerCount === 1 ? "customer" : "customers"}`)}</span>{record.note && <span className="lost-customers__note">{record.note}</span>}

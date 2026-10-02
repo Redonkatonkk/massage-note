@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "./use-auto-dismiss-state";
+
 import { createRefreshQueue } from "../lib/refresh-queue";
 import { browserStorage } from "../lib/browser-storage";
 
@@ -54,7 +56,7 @@ function ProfileSetup({ onDone }: { onDone: () => Promise<void> }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
   return (
     <main className="center-page">
       <form className="setup-card" onSubmit={(event) => {
@@ -86,7 +88,7 @@ function StoreSetup({ me, onDone }: { me: MeResponse; onDone: () => Promise<void
   const [displayName, setDisplayName] = useState(me.firstName?.trim() || `${me.firstName ?? ""} ${me.lastName ?? ""}`.trim());
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
 
   async function createStore() {
     const percent = Number(commission);
@@ -153,7 +155,7 @@ function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; o
   const [addons, setAddons] = useState<Array<{ key: string; name: string; shortName: string; duration: string; amount: string; commission: string }>>([]);
   const [discounts, setDiscounts] = useState<Array<{ key: string; name: string; shortName: string; amount: string; percentage: boolean }>>([]);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
   const updateServicePrice = (serviceKey: string, optionKey: string, changes: { duration?: string; price?: string }) => {
     setServices((current) => current.map((service) => service.key === serviceKey ? {
       ...service,
@@ -223,7 +225,7 @@ export function MassageNoteApp() {
   const [storeDetails, setStoreDetails] = useState<StoreDetails | null>(null);
   const [members, setMembers] = useState<StoreMember[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
   const storeLoadGeneration = useRef(0);
 
   const loadMe = useCallback(async () => {
@@ -340,11 +342,13 @@ export function MassageNoteApp() {
   });
 
   if (loading) return <LoadingPage />;
-  if (error && !me) return <main className="center-page"><section className="error-card"><h1>暂时无法打开系统</h1><p>{error}</p><button className="primary-action" onClick={() => window.location.reload()} type="button">重新加载</button></section></main>;
-  if (!me) return <LoadingPage />;
+  if (!me) return <main className="center-page"><section className="error-card"><h1>暂时无法打开系统</h1><p>{error}</p><button className="primary-action" onClick={() => window.location.reload()} type="button">重新加载</button></section></main>;
   if (me.needsProfile) return <ProfileSetup onDone={loadMe} />;
   if (!membership) return <StoreSetup me={me} onDone={loadMe} />;
-  if (!currentDay || !board || !catalog || !storeDetails) return <LoadingPage message={error || "正在读取店铺数据…"} />;
+  if (!currentDay || !board || !catalog || !storeDetails) {
+    if (lastReadError.current) return <main className="center-page"><section className="error-card"><h1>暂时无法读取店铺</h1>{error && <p role="alert">{error}</p>}<button className="primary-action" onClick={() => void loadStore()} type="button">重新加载</button></section></main>;
+    return <LoadingPage message="正在读取店铺数据…" />;
+  }
   if (catalog.serviceItems.length === 0) return <CatalogSetup membership={membership} onDone={loadStore} />;
 
   const dateCalendar = <BusinessDatePicker inline={wideLayout} storeId={membership.store.id} value={viewDate} max={membership.role === "EMPLOYEE" ? currentDay.businessDate : undefined} refreshKey={wideLayout ? currentDay.serverTime : undefined} ariaLabel="查看营业日" onChange={(value) => { viewDateRef.current = value; void loadStore(); }} />;

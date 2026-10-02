@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "../use-auto-dismiss-state";
+
 import { browserStorage } from "../../lib/browser-storage";
 
 import { useCallback, useEffect, useState } from "react";
@@ -9,19 +11,20 @@ import { AppNav } from "../app-nav";
 
 export function ProfilePageClient() {
   const [me, setMe] = useState<MeResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [selectedStoreId, setSelectedStoreId] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [profileBusy, setProfileBusy] = useState(false);
-  const [profileError, setProfileError] = useState("");
-  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileError, setProfileError] = useAutoDismissState("");
+  const [profileSaved, setProfileSaved] = useAutoDismissState(false);
   const [passwordBusy, setPasswordBusy] = useState(false);
-  const [passwordError, setPasswordError] = useState("");
-  const [passwordSaved, setPasswordSaved] = useState(false);
+  const [passwordError, setPasswordError] = useAutoDismissState("");
+  const [passwordSaved, setPasswordSaved] = useAutoDismissState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [storeSaved, setStoreSaved] = useState(false);
+  const [storeSaved, setStoreSaved] = useAutoDismissState(false);
   const [signOutBusy, setSignOutBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -41,10 +44,13 @@ export function ProfilePageClient() {
     void load().catch((caught) => {
       if ((caught as { status?: number }).status === 401) window.location.replace("/login");
       else setProfileError(errorMessage(caught));
-    });
+    }).finally(() => setLoading(false));
   }, [load]);
 
-  if (!me) return <main className="center-page"><div className="loading-card"><span className="spinner" /><strong>{profileError || "正在加载个人资料…"}</strong></div></main>;
+  if (!me) {
+    if (!loading) return <main className="center-page"><section className="error-card"><h1>暂时无法读取个人资料</h1>{profileError && <p role="alert">{profileError}</p>}<button className="primary-action" type="button" onClick={() => window.location.reload()}>重新加载</button></section></main>;
+    return <main className="center-page"><div className="loading-card"><span className="spinner" /><strong>正在加载个人资料…</strong></div></main>;
+  }
 
   const selectedMembership = me.memberships.find((membership) => membership.store.id === selectedStoreId);
   const roleText = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工" } as const;

@@ -30,7 +30,7 @@ stager_source="$repo_dir/apps/messages-agent/macos/AttachmentStager.swift"
 stager_hash_path="$agent_dir/stager-source.sha256"
 label="com.massagenote.messages-agent"
 
-"$pnpm_bin" --dir "$repo_dir" --filter @massage-note/messages-agent build
+"$pnpm_bin" --dir "$repo_dir" --filter @massage-note/messages-agent... build
 mkdir -p "$agent_dir" "$launch_agents_dir"
 chmod 700 "$agent_dir"
 "$pnpm_bin" --dir "$repo_dir" --filter @massage-note/messages-agent deploy --prod --legacy --force "$agent_dir/app"

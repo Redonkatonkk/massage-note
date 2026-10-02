@@ -6,15 +6,27 @@ import { SessionAuthGuard } from "../auth/session-auth.guard.js";
 import type { AuthenticatedUser } from "../auth/auth.types.js";
 import { parseRequest } from "../common/zod-request.js";
 import { EmployeeSettlementsService } from "./employee-settlements.service.js";
+import { EmployeeSettlementPaymentsService } from "./employee-settlement-payments.service.js";
+import { confirmEmployeeSettlementSchema, employeeSettlementCalendarQuerySchema } from "@massage-note/contracts";
 
 @Controller("stores/:storeId/employee-settlements")
 @UseGuards(SessionAuthGuard)
 export class EmployeeSettlementsController {
-  constructor(private readonly settlements: EmployeeSettlementsService) {}
+  constructor(private readonly settlements: EmployeeSettlementsService, private readonly payments: EmployeeSettlementPaymentsService) {}
 
   @Get("preview")
   preview(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Query() query: unknown) {
-    return this.settlements.preview(user, parseRequest(uuidSchema, storeId), parseRequest(employeeSettlementQuerySchema, query));
+    return this.payments.preview(user, parseRequest(uuidSchema, storeId), parseRequest(employeeSettlementQuerySchema, query));
+  }
+
+  @Get("calendar")
+  calendar(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Query() query: unknown) {
+    return this.payments.calendar(user, parseRequest(uuidSchema, storeId), parseRequest(employeeSettlementCalendarQuerySchema, query));
+  }
+
+  @Post("confirm")
+  confirm(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Body() body: unknown, @Headers("idempotency-key") key: string | undefined, @Res({ passthrough: true }) response: Response) {
+    return this.payments.confirm(user, parseRequest(uuidSchema, storeId), parseRequest(confirmEmployeeSettlementSchema, body), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
   }
 
   @Get("deliveries")

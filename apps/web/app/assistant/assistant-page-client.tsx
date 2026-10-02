@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "../use-auto-dismiss-state";
+
 import { browserStorage } from "../../lib/browser-storage";
 
 import { useEffect, useRef, useState } from "react";
@@ -23,7 +25,7 @@ export function AssistantPageClient() {
   const [conversationIds, setConversationIds] = useState<Partial<Record<AssistantType, string>>>({});
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
   const endRef = useRef<HTMLDivElement>(null);
   const realtimeState = useStoreRealtime(membership?.store.id, () => undefined);
   const voice = useAiVoiceInput({

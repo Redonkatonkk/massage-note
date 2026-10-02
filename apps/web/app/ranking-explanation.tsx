@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "./use-auto-dismiss-state";
+
 import { useRef, useState } from "react";
 import type { BoardResponse } from "../lib/types";
 import { rankingOrderChanged, rankingReason } from "../lib/ranking-explanation";
@@ -11,7 +13,7 @@ export function RankingExplanationButton({ board }: { board: BoardResponse }) {
   const content = useRef<HTMLDivElement>(null);
   const savingRef = useRef(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(false);
+  const [saveError, setSaveError] = useAutoDismissState(false);
   const { locale } = useLanguage();
   const en = locale === "en-US";
   const text = (zh: string, english: string) => en ? english : zh;

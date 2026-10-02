@@ -85,6 +85,9 @@ importers:
 
   apps/messages-agent:
     dependencies:
+      '@massage-note/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       sharp:
         specifier: 0.35.0
         version: 0.35.0

@@ -32,12 +32,12 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 
 .today-topbar { display: grid; grid-template-areas: "calendar actions heading" "calendar actions utilities"; grid-template-columns: 340px minmax(0, 1fr) minmax(240px, 340px); grid-template-rows: auto 1fr; align-items: start; }
 .today-heading { min-width: 0; }
-.today-topbar > .today-heading { grid-area: heading; text-align: right; }
+.today-topbar > .today-heading { grid-area: heading; text-align: left; }
 .today-topbar > .board-toolbar { grid-area: actions; align-self: end; min-width: 0; margin: 0; }
 .today-topbar .board-primary-actions { flex-wrap: wrap; }
 .today-header-calendar { grid-area: calendar; min-width: 0; }
-.today-header-utilities { grid-area: utilities; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; min-width: 0; }
-.today-header-utilities > .topbar-actions { flex-direction: column; align-items: flex-end; max-width: 100%; }
+.today-header-utilities { grid-area: utilities; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; }
+.today-header-utilities > .topbar-actions { flex-direction: column; align-items: flex-start; max-width: 100%; }
 .today-header-utilities .store-switcher { max-width: 100%; }
 .business-day-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; min-width: 0; margin-bottom: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
 .business-day-toolbar--compact > .history-toolbar { flex: 1 1 auto; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; }
@@ -199,3 +199,83 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 @keyframes mn-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes mn-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes mn-drawer { from { opacity: .7; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+
+/* Payroll calendar: employee selection, inclusive date range and explicit payment. */
+.settlement-selection-layout { --settlement-sidebar-width: 160px; display: grid; grid-template-columns: minmax(120px, var(--settlement-sidebar-width)) minmax(0, 360px); align-items: start; gap: 16px; max-width: calc(var(--settlement-sidebar-width) + 376px); }
+.settlement-selection-layout.has-preview { grid-template-columns: var(--settlement-sidebar-width) 360px minmax(0, 1fr); width: 100%; max-width: none; }
+.settlement-selection-sidebar, .settlement-calendar-column { display: grid; gap: 12px; min-width: 0; }
+.settlement-employee-buttons { display: flex; flex-direction: column; gap: 8px; min-width: 0; max-width: 100%; max-height: 360px; overflow-y: auto; padding: 2px; }
+.settlement-employee-buttons button { flex: 0 0 auto; min-height: 44px; padding: 10px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.settlement-employee-buttons button.is-selected { border-color: var(--brand); background: var(--brand); color: var(--surface); box-shadow: inset 0 2px 4px var(--settlement-pressed-shadow); }
+.settlement-calendar { width: 100%; max-width: 360px; justify-self: start; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.settlement-calendar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.settlement-calendar-heading h3 { margin: 0; font-size: 1rem; }
+.settlement-calendar-heading button { min-width: 32px; min-height: 32px; padding: 0; font-size: 1.25rem; }
+.settlement-calendar-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 10px 0; color: var(--muted); font-size: .75rem; }
+.settlement-check-cash { color: var(--settlement-cash-check); }
+.settlement-check-noncash { color: var(--success); }
+.settlement-calendar-weekdays, .settlement-calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.settlement-calendar-weekdays { margin-bottom: 4px; text-align: center; color: var(--muted); font-size: .7rem; }
+.settlement-calendar-day { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 44px; padding: 4px 2px; border: 1px solid transparent; border-radius: 7px; background: var(--surface); color: var(--ink); font: inherit; font-size: .85rem; cursor: pointer; }
+.settlement-calendar-day:hover:not(:disabled) { border-color: var(--brand); }
+.settlement-calendar-day.is-in-range { background: var(--brand-soft); }
+.settlement-calendar-day.is-endpoint { background: var(--brand); color: var(--surface); }
+.settlement-calendar-day.is-endpoint .settlement-calendar-marks { padding: 0 4px; border-radius: 5px; background: var(--surface); }
+.settlement-calendar-marks { display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 14px; font-size: .85rem; line-height: 1; }
+.settlement-calendar-selection { margin: 8px 0 0; color: var(--muted); font-size: .75rem; line-height: 1.5; overflow-wrap: anywhere; }
+.settlement-calendar-status { margin: 8px 0; color: var(--muted); font-size: .75rem; }
+.employee-settlement-controls.settlement-calendar-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 0; }
+.settlement-calendar-controls label, .settlement-calendar-controls select { min-width: 0; }
+.settlement-calendar-controls > button { width: 100%; min-width: 0; grid-column: auto; white-space: normal; overflow-wrap: anywhere; }
+.settlement-payment { padding: 20px; margin: 16px 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
+.settlement-payment-amounts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 16px; }
+.settlement-payment-amounts article, .settlement-payment-amounts label { display: grid; gap: 8px; min-width: 0; }
+.settlement-payment-amounts strong { font-size: 1.4rem; overflow-wrap: anywhere; }
+.settlement-payment-amounts input { width: 100%; min-width: 0; }
+.settlement-payment p { color: var(--muted); font-size: .85rem; line-height: 1.6; }
+
+/* Keep the statement's complete totals and payment actions next to the calendar. */
+.settlement-preview-compact { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 12px; border-radius: 14px; container: settlement-summary / inline-size; }
+.settlement-preview-compact > header { display: block; min-width: 0; padding: 0; }
+.settlement-preview-compact > header .eyebrow { margin: 0 0 3px; font-size: .7rem; }
+.settlement-preview-compact > header h2 { margin: 2px 0 4px; font-size: 1.25rem; overflow-wrap: anywhere; }
+.settlement-preview-compact > header p:last-child { font-size: .75rem; line-height: 1.45; overflow-wrap: anywhere; }
+.settlement-preview-compact .employee-settlement-summary { gap: 6px; min-width: 0; padding: 0; }
+.settlement-preview-compact .employee-settlement-summary.mode-all { grid-template-columns: minmax(0, 1fr); }
+.settlement-preview-compact .employee-settlement-summary.mode-single { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.settlement-preview-compact .employee-settlement-summary article { min-width: 0; gap: 4px; padding: 8px; border-radius: 9px; }
+.settlement-preview-compact .employee-settlement-summary article span { font-size: .7rem; line-height: 1.3; }
+.settlement-preview-compact .employee-settlement-summary article strong { font-size: 1rem; overflow-wrap: anywhere; }
+.settlement-preview-compact .mode-all article.total { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.settlement-preview-compact .mode-all article.total strong { font-size: 1.2rem; }
+.settlement-preview-compact .employee-settlement-matrix { min-width: 0; grid-template-columns: minmax(48px, .8fr) repeat(3, minmax(0, 1fr)); padding: 4px 6px; border-radius: 9px; }
+.settlement-preview-compact .employee-settlement-matrix > * { padding: 5px 3px; font-size: .7rem; line-height: 1.35; overflow-wrap: anywhere; }
+.settlement-preview-compact .settlement-payment { min-width: 0; padding: 10px; margin: 0; border-radius: 9px; }
+.settlement-preview-compact .settlement-payment-amounts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.settlement-preview-compact .settlement-payment-amounts article, .settlement-preview-compact .settlement-payment-amounts label { gap: 5px; }
+.settlement-preview-compact .settlement-payment-amounts span, .settlement-preview-compact .settlement-payment-amounts label { font-size: .7rem; line-height: 1.4; }
+.settlement-preview-compact .settlement-payment-amounts strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
+.settlement-preview-compact .settlement-payment-amounts input { min-height: 34px; padding: 5px 6px; font-size: .85rem; }
+.settlement-payment-note { margin-top: 8px; color: var(--muted); font-size: .7rem; }
+.settlement-payment-note summary { width: fit-content; cursor: pointer; }
+.settlement-preview-compact .settlement-payment p { margin: 6px 0 0; font-size: .7rem; line-height: 1.45; }
+.settlement-preview-compact .settlement-preview-footer { justify-items: stretch; gap: 6px; }
+.settlement-preview-compact .employee-settlement-send-actions { flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
+.settlement-preview-compact .employee-settlement-send-actions > button { flex: 1 1 auto; min-height: 38px; min-width: 0; padding: 7px 9px; font-size: .75rem; white-space: normal; overflow-wrap: anywhere; }
+.settlement-preview-compact .settlement-history-button { justify-content: center; }
+.settlement-preview-compact .settlement-history-button span { min-width: 19px; height: 19px; padding-inline: 4px; font-size: .7rem; }
+.settlement-preview-compact .employee-settlement-send-message { margin: 0; font-size: .75rem; overflow-wrap: anywhere; }
+
+.closing-employee-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+.closing-employee-heading .table-title { margin: 0; }
+.closing-employee-table td { vertical-align: top; }
+.closing-cash-details { margin-top: 8px; min-width: 150px; }
+.closing-cash-details summary { cursor: pointer; color: var(--muted); }
+.closing-cash-details dl { display: grid; gap: 6px; margin: 12px 0; }
+.closing-cash-details dl > div { display: flex; justify-content: space-between; gap: 16px; }
+.closing-cash-details dd { margin: 0; }
+.closing-cash-details .cash-settlement-meta { display: grid; gap: 6px; white-space: normal; overflow-wrap: anywhere; }
+.personal-cash-settlement { margin-bottom: 20px; }
+
+.personal-cash-amounts { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.personal-cash-amounts dd { margin: 4px 0 0; font-weight: 700; }

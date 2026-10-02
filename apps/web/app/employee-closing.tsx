@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "./use-auto-dismiss-state";
+
 import { useEffect, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
 import { type AppLocale, translateText } from "../lib/i18n";
@@ -311,8 +313,8 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
   const { locale, t } = useLanguage();
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<GeneratedClosingImage | null>(null);
-  const [imageMessage, setImageMessage] = useState("");
-  const [imageError, setImageError] = useState("");
+  const [imageMessage, setImageMessage] = useAutoDismissState("");
+  const [imageError, setImageError] = useAutoDismissState("");
   const [sending, setSending] = useState(false);
   const [cashSettlement, setCashSettlement] = useState(preview.cashSettlement);
   const [settlingCash, setSettlingCash] = useState(false);
@@ -505,7 +507,8 @@ export function EmployeeClosingModal({
   onClose,
 }: EmployeeClosingModalProps) {
   const [preview, setPreview] = useState<EmployeeClosingPreview | null>(null);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useAutoDismissState("");
 
   useStoreRealtime(storeId, async () => {
     const latest = await apiRequest<EmployeeClosingPreview>(`/stores/${storeId}/closings/${businessDate}/members/${membershipId}/preview`);
@@ -524,7 +527,7 @@ export function EmployeeClosingModal({
       if (!cancelled) setPreview(result);
     }).catch((caught) => {
       if (!cancelled) setError(errorMessage(caught));
-    });
+    }).finally(() => { if (!cancelled) setLoading(false); });
     return () => {
       cancelled = true;
       document.body.style.overflow = previousBodyOverflow;
@@ -540,7 +543,7 @@ export function EmployeeClosingModal({
           <button className="close-button" type="button" onClick={onClose}>关闭</button>
         </div>
         {error && <p className="form-error" role="alert">{error}</p>}
-        {!preview && !error && <div className="loading-card"><span className="spinner" /><strong>正在核对个人日结…</strong></div>}
+        {!preview && loading && <div className="loading-card"><span className="spinner" /><strong>正在核对个人日结…</strong></div>}
         {preview && <EmployeeClosingSummary preview={preview} canSend={canSend} />}
       </section>
     </div>

@@ -1,6 +1,5 @@
 export function financeCashHref(storeId: string, businessDate: string): string {
-  const params = new URLSearchParams({ store: storeId, tab: "cash", date: businessDate });
-  return `/finance?${params.toString()}`;
+  return financeClosingHref(storeId, businessDate);
 }
 
 export function financeClosingHref(storeId: string, businessDate: string): string {

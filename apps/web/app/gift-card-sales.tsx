@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useAutoDismissState } from "./use-auto-dismiss-state";
+
+import { useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
 import { giftCardActualDiscount, giftCardSerialNumberForCreate } from "../lib/gift-card";
 import { formatMoneyInput, formatUsd } from "../lib/money";
@@ -65,14 +67,8 @@ export function GiftCardSales({
     defaultOperatorMembershipId,
   );
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(""), 3_000);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
+  const [error, setError] = useAutoDismissState("");
+  const [notice, setNotice] = useAutoDismissState("");
 
   const cashCents = cashAmount.trim() === ""
     ? 0

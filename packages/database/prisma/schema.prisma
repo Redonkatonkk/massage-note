@@ -874,9 +874,22 @@ model PayrollSettlement {
 
   store      Store           @relation(fields: [storeId], references: [id])
   membership StoreMembership @relation(fields: [membershipId], references: [id])
+  confirmation PayrollSettlementConfirmation?
 
   @@index([storeId, membershipId, settlementDate])
   @@map("payroll_settlements")
+}
+
+// Range, employee and scope belong to the linked ledger entry, so edits and
+// soft deletion/restoration always change the calendar together with the ledger.
+model PayrollSettlementConfirmation {
+  payrollSettlementId String   @id @map("payroll_settlement_id") @db.Uuid
+  unsettledCents       BigInt   @map("unsettled_cents")
+  deductionCents       BigInt   @map("deduction_cents")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  payrollSettlement PayrollSettlement @relation(fields: [payrollSettlementId], references: [id], onDelete: Cascade, map: "payroll_confirmation_ledger_fkey")
+
+  @@map("payroll_settlement_confirmations")
 }
 
 model AuditLog {

@@ -386,7 +386,7 @@ export class EmployeeSettlementsService {
     return { retryScheduled: retry };
   }
 
-  private async buildPreview(storeId: string, query: EmployeeSettlementQuery, client: Prisma.TransactionClient = this.prisma) {
+  async buildPreview(storeId: string, query: EmployeeSettlementQuery, client: Prisma.TransactionClient = this.prisma) {
     const member = await client.storeMembership.findFirst({
       where: { id: query.membershipId, storeId, status: "ACTIVE", deletedAt: null },
       include: { store: { select: { name: true, timezone: true } } },

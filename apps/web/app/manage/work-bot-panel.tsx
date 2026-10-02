@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "../use-auto-dismiss-state";
+
 import { useState } from "react";
 import { apiRequest } from "../../lib/api";
 import type { CatalogResponse, WorkBotSettings } from "../../lib/types";
@@ -21,7 +23,7 @@ const intentLabels: Record<string, string> = { BIND_STORE: "绑定店铺", BIND_
 
 export function WorkBotPanel({ storeId, catalog, settings, busy, run, reload }: Props) {
   const [draft, setDraft] = useState<{ text: string; version: number } | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useAutoDismissState(false);
   const instructions = draft?.text ?? settings.instructions;
   const dirty = instructions !== settings.instructions;
   const services = catalog.serviceItems.filter((item) => item.isEnabled && !item.deletedAt);

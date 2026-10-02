@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "./use-auto-dismiss-state";
+
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiRequest, errorMessage } from "../lib/api";
@@ -83,7 +85,7 @@ export function FloatingAiAssistant({
   const [conversationId, setConversationId] = useState("");
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
   const endRef = useRef<HTMLDivElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);

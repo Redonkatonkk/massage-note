@@ -26,6 +26,7 @@ const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
 
 const payrollInclude = {
+  confirmation: true,
   membership: {
     select: { id: true, displayName: true, role: true, status: true },
   },

@@ -126,6 +126,13 @@ export interface EmployeeSettlementPreview {
   };
   records: EmployeeSettlementRecord[];
   generatedAt: string;
+  payment?: { unsettledCents: number; fullyConfirmed: boolean; revision: string };
+}
+
+export interface EmployeeSettlementCalendar {
+  membershipId: string;
+  month: string;
+  days: Array<{ businessDate: string; hasCash: boolean; hasNonCash: boolean; cashSettled: boolean; nonCashSettled: boolean; cashUnsettledCents: number; nonCashUnsettledCents: number }>;
 }
 
 export interface EmployeeSettlementDelivery {

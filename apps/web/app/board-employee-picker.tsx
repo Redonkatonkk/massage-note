@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "./use-auto-dismiss-state";
+
 import { useRef, useState, type ReactNode } from "react";
 import { errorMessage } from "../lib/api";
 import type { StoreMember } from "../lib/types";
@@ -26,7 +28,7 @@ export function BoardEmployeePicker({ storeId, businessDate, members, allMembers
   const [selected, setSelected] = useState<string[]>([]);
   const [singleId, setSingleId] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
 
   function openPicker() {
     setSelected([]);

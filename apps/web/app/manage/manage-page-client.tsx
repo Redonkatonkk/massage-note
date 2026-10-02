@@ -1,12 +1,13 @@
 "use client";
 
+import { useAutoDismissState } from "../use-auto-dismiss-state";
+
 import { browserStorage } from "../../lib/browser-storage";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
 import { formatMoneyInput, formatUsd } from "../../lib/money";
 import {
-  CLOSING_DELIVERY_PHONE_REQUIRED_MESSAGE,
   effectiveClosingDeliveryPhone,
   displayUsPhone,
   usPhoneToE164,
@@ -32,7 +33,6 @@ import type {
 import { useStoreRealtime } from "../../lib/realtime";
 import { isWorkRecordChange } from "../../lib/realtime-scope";
 import { AppNav } from "../app-nav";
-import { useLanguage } from "../language-provider";
 import { WorkBotPanel } from "./work-bot-panel";
 import { manageNavigationTabs, resolveManageTab, type ManageTab } from "../../lib/app-navigation";
 import { useNavigationTab } from "../use-navigation-tab";
@@ -171,7 +171,7 @@ export function ManagePageClient() {
   const selectTab = useNavigationTab(membership?.role, resolveManageTab, setTab);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
 
   const canManage = membership?.role !== "EMPLOYEE";
 
@@ -230,7 +230,8 @@ export function ManagePageClient() {
   }
 
   if (loading || !me || !membership || !store || !catalog) {
-    return <main className="center-page"><div className="loading-card"><span className="spinner" /><strong>{error || "正在加载管理设置…"}</strong></div></main>;
+    if (!loading) return <main className="center-page"><section className="error-card"><h1>暂时无法读取管理设置</h1>{error && <p role="alert">{error}</p>}<button className="primary-action" type="button" onClick={() => window.location.reload()}>重新加载</button></section></main>;
+    return <main className="center-page"><div className="loading-card"><span className="spinner" /><strong>正在加载管理设置…</strong></div></main>;
   }
 
   const tabs = manageNavigationTabs(membership.role);
@@ -276,19 +277,13 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
   const [agentStatus, setAgentStatus] = useState<null | { tokenPrefix: string; lastSeenAt: string | null; revokedAt: string | null; lastStatusJson?: { messagesAvailable?: boolean; serviceTypes?: string[]; lastError?: string | null } | null }>(null);
   const [agentToken, setAgentToken] = useState("");
   const [nextOwner, setNextOwner] = useState("");
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useAutoDismissState(false);
   const canManage = membership.role !== "EMPLOYEE";
 
   useEffect(() => {
     if (!canManage) return;
     void apiRequest<typeof agentStatus>(`/stores/${store.id}/closing-delivery-agent/status`).then(setAgentStatus).catch(() => undefined);
   }, [canManage, store.id]);
-
-  useEffect(() => {
-    if (!saved) return;
-    const timer = window.setTimeout(() => setSaved(false), 4_000);
-    return () => window.clearTimeout(timer);
-  }, [saved]);
 
   useEffect(() => {
     setSaved(false);
@@ -346,13 +341,7 @@ function MembersPanel({ storeId, dailyRankingEnabled, members, requests, catalog
   const [employeeName, setEmployeeName] = useState("");
   const [employmentType, setEmploymentType] = useState<"FULL_TIME" | "PART_TIME">("PART_TIME");
   const [requestEmploymentTypes, setRequestEmploymentTypes] = useState<Record<string, "FULL_TIME" | "PART_TIME">>({});
-  const [savedMember, setSavedMember] = useState<{ id: string; refreshedToday: boolean } | null>(null);
-
-  useEffect(() => {
-    if (!savedMember) return;
-    const timer = window.setTimeout(() => setSavedMember(null), 4_000);
-    return () => window.clearTimeout(timer);
-  }, [savedMember]);
+  const [savedMember, setSavedMember] = useAutoDismissState<{ id: string; refreshedToday: boolean } | null>(null);
 
   async function createEmployee() {
     await apiRequest(`/stores/${storeId}/members`, {
@@ -370,7 +359,6 @@ function MembersPanel({ storeId, dailyRankingEnabled, members, requests, catalog
 }
 
 function MemberEditor({ storeId, dailyRankingEnabled, member, catalog, busy, saved, refreshedToday, onDirty, onSaved, run, reload }: { storeId: string; dailyRankingEnabled: boolean; member: StoreMember; catalog: CatalogResponse; busy: boolean; saved: boolean; refreshedToday: boolean; onDirty: () => void; onSaved: (refreshedToday: boolean) => void; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
-  const { t } = useLanguage();
   const [name, setName] = useState(member.displayName);
   const [role, setRole] = useState(member.role);
   const [provider, setProvider] = useState(member.isServiceProvider);
@@ -390,16 +378,11 @@ function MemberEditor({ storeId, dailyRankingEnabled, member, catalog, busy, sav
 
   async function saveMember() {
     if (role === "OWNER" && member.role !== "OWNER") throw new Error("店主身份只能通过店主转移流程修改");
-    try {
-      validateClosingDeliveryPhone(
-        closingDeliveryEnabled,
-        closingDeliveryPhone,
-        member.user?.phoneE164,
-      );
-    } catch (caught) {
-      window.alert(t(CLOSING_DELIVERY_PHONE_REQUIRED_MESSAGE));
-      throw caught;
-    }
+    validateClosingDeliveryPhone(
+      closingDeliveryEnabled,
+      closingDeliveryPhone,
+      member.user?.phoneE164,
+    );
     const commissionBps = parsePercent(defaultCommission, "员工默认提成", true);
     let version = member.version;
     let refreshedToday = false;
@@ -609,7 +592,7 @@ function AuditPanel({ storeId, members }: { storeId: string; members: StoreMembe
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
   const [action, setAction] = useState("");
   const [actor, setActor] = useState("");
   const [entityType, setEntityType] = useState("");

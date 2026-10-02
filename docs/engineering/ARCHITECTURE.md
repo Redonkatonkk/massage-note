@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.14.21` 代码结构核对。
+> 状态：与 `1.15.8` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -100,7 +100,7 @@ Web 视觉按 `globals.css`（基础规则与颜色变量）、`design-system.cs
 | `realtime` | PostgreSQL outbox 的 SSE 事件流 |
 | `ai` | 记工预览、确定性财务解释和短录音转写 |
 
-`work-bot` 的金额解析与回复格式化放在 `work-bot-format.ts`，Service 保留权限和事务编排；Mac 附件的 XML 转义、金额和时间显示由 `apps/messages-agent/src/render-format.ts` 共用，各渲染器保留布局职责。日结与区间结算发送共用 `finance/delivery-agent.ts` 的凭证哈希与鉴权，租约状态仍由 `delivery-lease.ts` 和各 Service 检查。
+`work-bot` 的金额解析与回复格式化放在 `work-bot-format.ts`，Service 保留权限和事务编排；Mac 附件的 XML 转义、金额和时间显示由 `apps/messages-agent/src/render-format.ts` 共用，个人日结及员工小计渲染器保留布局职责。区间结算长图的纯 SVG 排版由 `packages/domain/src/employee-settlement-image.ts` 共用，Web 在本机转换 PNG 并预览/保存，Mac 代理继续转换受大小限制的 JPEG 发送。日结与区间结算发送共用 `finance/delivery-agent.ts` 的凭证哈希与鉴权，租约状态仍由 `delivery-lease.ts` 和各 Service 检查。
 
 Controller 只负责 HTTP 适配和共享契约解析。权限、对象归属、状态与事务放在 Service 或领域函数中；金额最终值不信任前端合计。
 
@@ -128,7 +128,7 @@ Web 表单
 - 公式事实来源是 `packages/domain/src/finance.ts`，金额格式化不是账本计算。
 - 记工创建时保存项目、时长、价格、折扣、提成及来源、工资、时区和营业日截止快照。
 - 修改目录或提成不能重写已日结历史；允许的当前营业日重算必须经过服务端流程。
-- 日结、现金结算和工资结算是不同账本/状态，不应合并成一个可覆盖总数。工资登记通过 `PayrollEntryForm` 统一员工、日期范围、金额和工资来源；结算单“已结算”复用工资账本接口、事务内审计及幂等服务，独立保存 `PayrollSettlement.paymentScope`，旧记录来源保持未知。
+- 日结、现金结算和工资结算是不同账本/状态，不应合并成一个可覆盖总数。工资登记通过 `PayrollEntryForm` 统一员工、日期范围、金额和工资来源；日历付款由 `EmployeeSettlementPaymentsService` 计算未结金额及 revision，在 Serializable 事务中获取相关营业日锁、校验修订并保存实付账本、审计及幂等结果。`PayrollSettlementConfirmation` 一对一关联账本，只保存确认时未结金额与手工抵扣，员工、范围、来源及软删除状态读取父账本，避免修改/恢复不同步。领域函数 `settlement-calendar.ts` 合并范围确认和每日现金已取得收入；单据/短信继续沿用完整记工快照。手工及历史工资账本不推断结清确认，旧来源保持未知。
 - 详细产品口径见 [`PRODUCT.md`](../product/PRODUCT.md)。
 
 ## 认证、安全与隔离

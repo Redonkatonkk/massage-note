@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "../use-auto-dismiss-state";
+
 import { useCallback, useEffect, useState } from "react";
 import { displayUsPhone, usPhoneToE164 } from "../../lib/member-closing-delivery";
 import { apiRequest, errorMessage } from "../../lib/api";
@@ -131,7 +133,7 @@ export function EmployeeSubtotalSection({
   const [recipientPhone, setRecipientPhone] = useState(displayUsPhone(ownerPhone));
   const [deliveries, setDeliveries] = useState<EmployeeSettlementDeliveryList | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [sendMessage, setSendMessage] = useState("");
+  const [sendMessage, setSendMessage] = useAutoDismissState("");
   const [sending, setSending] = useState(false);
   const loadDeliveries = useCallback(async () => setDeliveries(await apiRequest<EmployeeSettlementDeliveryList>(`/stores/${storeId}/employee-settlements/summary-deliveries`)), [storeId]);
 

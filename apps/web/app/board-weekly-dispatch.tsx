@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "./use-auto-dismiss-state";
+
 import { useRef, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
 import type { StoreMember, WeeklyDispatchConfig, WeeklyDispatchDay, WeeklyDispatchSchedule } from "../lib/types";
@@ -19,7 +21,7 @@ export function BoardWeeklyDispatch({ storeId, businessDate, members, disabled, 
   const [version, setVersion] = useState(0);
 
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
   const employees = members.filter((member) => member.status === "ACTIVE" && member.isServiceProvider);
 
   async function open() {

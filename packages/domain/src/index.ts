@@ -7,3 +7,5 @@ export * from "./money.js";
 export * from "./permission.js";
 export * from "./discount.js";
 export * from "./finance-analytics.js";
+export * from "./settlement-calendar.js";
+export { createEmployeeSettlementSvg, type SettlementSnapshot } from "./employee-settlement-image.js";

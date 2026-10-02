@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { businessDateSchema, uuidSchema } from "./common.js";
+import { businessDateSchema, moneyCentsSchema, uuidSchema } from "./common.js";
 
 export const employeeSettlementPaymentScopeSchema = z.enum(["CASH", "NON_CASH", "ALL"]);
 
@@ -15,6 +15,27 @@ export const employeeSettlementQuerySchema = z.object({
 });
 
 export const createEmployeeSettlementDeliverySchema = employeeSettlementQuerySchema;
+
+export const employeeSettlementCalendarQuerySchema = z.object({
+  membershipId: uuidSchema,
+  month: z.string().regex(/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/, "月份格式应为 YYYY-MM"),
+});
+
+export const confirmEmployeeSettlementSchema = z.object({
+  membershipId: uuidSchema,
+  dateFrom: businessDateSchema,
+  dateTo: businessDateSchema,
+  paymentScope: employeeSettlementPaymentScopeSchema,
+  deductionCents: moneyCentsSchema,
+  revision: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict().superRefine((value, context) => {
+  if (value.dateTo < value.dateFrom) {
+    context.addIssue({ code: "custom", path: ["dateTo"], message: "结束日期不能早于开始日期" });
+  }
+});
+
+export type EmployeeSettlementCalendarQuery = z.output<typeof employeeSettlementCalendarQuerySchema>;
+export type ConfirmEmployeeSettlementInput = z.output<typeof confirmEmployeeSettlementSchema>;
 
 export const createEmployeeSummaryDeliverySchema = z.object({
   dateFrom: businessDateSchema,

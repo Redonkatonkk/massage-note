@@ -16,6 +16,7 @@ import { ClosingDeliveriesController, ClosingDeliveryAgentController, ClosingDel
 import { ClosingDeliveriesService } from "./closing-deliveries.service.js";
 import { EmployeeSettlementDeliveryAgentController, EmployeeSettlementsController } from "./employee-settlements.controller.js";
 import { EmployeeSettlementsService } from "./employee-settlements.service.js";
+import { EmployeeSettlementPaymentsService } from "./employee-settlement-payments.service.js";
 
 @Module({
   imports: [AuthModule, StoresModule],
@@ -40,6 +41,7 @@ import { EmployeeSettlementsService } from "./employee-settlements.service.js";
     IdempotencyService,
     ClosingDeliveriesService,
     EmployeeSettlementsService,
+    EmployeeSettlementPaymentsService,
   ],
   exports: [FinanceQueriesService, CashSettlementsService],
 })

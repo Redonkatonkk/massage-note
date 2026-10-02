@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "../use-auto-dismiss-state";
+
 import {
   RecaptchaVerifier,
   signInWithCustomToken,
@@ -75,7 +77,7 @@ export function LoginForm() {
   const [account, setAccount] = useState<AccountStatus | null>(null);
   const [verifiedIdToken, setVerifiedIdToken] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
   const [countdown, setCountdown] = useState(0);
   const confirmationRef = useRef<ConfirmationResult | null>(null);
   const verifierRef = useRef<RecaptchaVerifier | null>(null);

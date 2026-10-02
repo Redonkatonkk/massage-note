@@ -10,6 +10,8 @@
   --brand-dark: #713024;
   --brand-soft: #f8e6df;
   --success: #176b45;
+  --settlement-cash-check: #a97900;
+  --settlement-pressed-shadow: #211d1840;
   --pending: #fff0d8;
   --pending-line: #d98b2b;
   --highlight: #fff4a8;
@@ -3416,9 +3418,4 @@ body { position: relative; }
   overflow-wrap: anywhere;
   box-shadow: 0 8px 28px #0003;
   pointer-events: none;
-  animation: record-error-dismiss 1.25s ease-in forwards;
-}
-@keyframes record-error-dismiss {
-  0%, 80% { opacity: 1; }
-  100% { opacity: 0; }
 }

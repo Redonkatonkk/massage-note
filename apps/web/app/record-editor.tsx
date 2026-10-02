@@ -1,5 +1,7 @@
 "use client";
 
+import { useAutoDismissState } from "./use-auto-dismiss-state";
+
 import { calculateDiscountAmount, parseDiscountInput } from "@massage-note/domain";
 import { createPortal } from "react-dom";
 import { WorkTimeInput } from "./work-time-input";
@@ -223,7 +225,7 @@ export function RecordEditor({
   );
   const [note, setNote] = useState(record.note);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const draftKey = `massage_note_record_draft_${record.id}`;
@@ -721,6 +723,10 @@ export function RecordEditor({
   const draftMismatchText = draftDifference !== null && draftDifference !== 0
     ? `实收服务费与折后大费业绩不一致，相差 ${formatUsd(Math.abs(draftDifference))}（${draftDifference > 0 ? "多收" : "少收"}）。系统允许确认，但会保留这条异常。`
     : null;
+  const [timeNotice, setTimeNotice] = useAutoDismissState<string | null>(null);
+  const [mismatchNotice, setMismatchNotice] = useAutoDismissState<string | null>(null);
+  useEffect(() => { setTimeNotice(recordTimeError(startAt, endAt)); }, [startAt, endAt, setTimeNotice]);
+  useEffect(() => { setMismatchNotice(draftMismatchText); }, [draftMismatchText, setMismatchNotice]);
   const selectedCatalogService = catalog.serviceItems.find(
     (item) => item.id === serviceChoice,
   );
@@ -764,7 +770,7 @@ export function RecordEditor({
             <WorkTimeInput value={endAt.slice(11)} onChange={(value) => changeEndAt(`${startAt.slice(0, 10)}T${value}`)} onValidityChange={setEndTimeValid} />
           </div>
         </div>
-        {recordTimeError(startAt, endAt) && <p className="form-error" role="alert">{recordTimeError(startAt, endAt)}</p>}
+        {timeNotice && <p className="form-error" role="alert">{timeNotice}</p>}
         <section className="editor-section record-service-section">
           <h3>项目与金额</h3>
           <div className="editor-grid">
@@ -888,7 +894,7 @@ export function RecordEditor({
           <div><span>实收服务费（按当前填写）</span><strong>{draftServicePaid === null ? "未填写" : formatUsd(draftServicePaid)}</strong></div>
           <div><span>当前已保存员工大费工资</span><strong>{formatUsd(record.totalLargeFeeWageCents)}</strong></div>
         </section>
-        {draftMismatchText && <p className="mismatch-warning" role="status">{draftMismatchText}</p>}
+        {mismatchNotice && <p className="mismatch-warning" role="status">{mismatchNotice}</p>}
 
         {closedBusinessDate && <p className="record-save-help">{closedBusinessDate} · 取消日结</p>}
         <p className="record-save-help">
@@ -900,7 +906,7 @@ export function RecordEditor({
         </p>
 
         {error && createPortal(
-          <div className="record-error-toast" role="alert" aria-atomic="true" onAnimationEnd={() => setError("")}>
+          <div className="record-error-toast" role="alert" aria-atomic="true">
             {error}
           </div>,
           document.body,

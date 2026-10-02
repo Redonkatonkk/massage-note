@@ -943,6 +943,43 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     }, `closing-payment-${date}`, "closing-payment");
   }
 
+  it.each([0, 1, 2])("现金已结清 %i/2 时普通日结成功，现金状态独立且日结后可继续结清", async settledCount => {
+    const date = `2026-02-0${settledCount + 1}`;
+    await addClosingRecord(date);
+    const record = await workRecords.create(actor(managerId), storeId, {
+      employeeMembershipId: managerMembershipId, serviceItemId,
+      startAt: `${date}T16:00:00.000Z`,
+    }, `independent-cash-record-${date}`, "independent-cash");
+    await workRecords.confirmPayment(actor(managerId), storeId, record.id, {
+      version: record.version, cashServiceCents: 10_000, cardServiceCents: 0,
+      cashTipCents: 0, cardTipCents: 0,
+    }, `independent-cash-payment-${date}`, "independent-cash");
+    const initial = await cash.list(actor(managerId), storeId, date);
+    expect(initial.rows).toHaveLength(2);
+    for (const row of initial.rows.slice(0, settledCount)) {
+      await cash.settle(actor(managerId), storeId, date, row.membershipId, { version: row.version }, `independent-settle-${date}-${row.membershipId}`, "independent-cash");
+    }
+    const before = await cash.list(actor(managerId), storeId, date);
+    expect(before.rows.filter(row => row.status === "SETTLED")).toHaveLength(settledCount);
+    const closed = await closings.close(actor(managerId), storeId, date, { force: false }, `independent-close-${date}`, "independent-cash");
+    expect(closed.closing).toMatchObject({ status: "CLOSED", isForced: false });
+    expect((await cash.list(actor(managerId), storeId, date)).rows).toEqual(before.rows);
+    await expect(cash.settle(actor(employeeId), storeId, date, employeeMembershipId, { version: 0 }, `forbidden-post-close-${date}`, "independent-cash")).rejects.toBeInstanceOf(ForbiddenException);
+    const pending = before.rows.filter(row => row.status === "UNSETTLED");
+    if (pending.length) {
+      const row = pending[0]!;
+      await cash.settle(actor(managerId), storeId, date, row.membershipId, { version: row.version }, `post-close-single-${date}`, "independent-cash");
+      await expect(cash.settle(actor(managerId), storeId, date, row.membershipId, { version: row.version }, `post-close-stale-${date}`, "independent-cash")).rejects.toBeInstanceOf(ConflictException);
+    }
+    const afterSingle = await cash.list(actor(managerId), storeId, date);
+    await cash.settleAll(actor(managerId), storeId, date, { settlements: afterSingle.rows.map(row => ({ membershipId: row.membershipId, version: row.version })) }, `post-close-all-${date}`, "independent-cash");
+    expect((await cash.list(actor(managerId), storeId, date)).rows.every(row => row.status === "SETTLED")).toBe(true);
+    const own = await cash.list(actor(employeeId), storeId, date);
+    expect(own.rows.map(row => row.membershipId)).toEqual([employeeMembershipId]);
+    await closings.cancel(actor(managerId), storeId, date, { version: closed.closing.version }, `independent-cancel-${date}`, "independent-cash");
+    expect((await cash.list(actor(managerId), storeId, date)).rows.every(row => row.status === "UNSETTLED")).toBe(true);
+  });
+
   it("无记工的营业日正常自动日结但不发送短信", async () => {
     await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { closingDeliveryEnabled: true } });
     const closed = await closings.close(actor(ownerId), storeId, "2026-01-01", { force: false }, "empty-auto", "empty-auto", true);

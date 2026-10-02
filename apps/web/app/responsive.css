@@ -536,3 +536,64 @@ button, summary { overflow-wrap: anywhere; }
   .quick-work-modal > .modal-heading { padding: 20px 16px; }
   .quick-modal-content { padding: 0 16px max(20px, env(safe-area-inset-bottom)); }
 }
+
+@media (max-width: 767px) {
+  .settlement-selection-layout { grid-template-columns: minmax(0, 1fr); max-width: 360px; gap: 12px; }
+  .settlement-employee-buttons { flex-direction: row; max-height: none; overflow-x: auto; overflow-y: hidden; padding: 2px 2px 6px; }
+  .settlement-employee-buttons button { text-align: center; }
+  .settlement-calendar { padding: 12px; }
+  .settlement-calendar-legend { gap: 8px 12px; font-size: .75rem; }
+  .settlement-payment { padding: 14px; }
+  .settlement-payment-amounts { grid-template-columns: 1fr; gap: 12px; }
+}
+@media (max-width: 389px) {
+  .settlement-calendar-days, .settlement-calendar-weekdays { gap: 2px; }
+}
+
+@media (min-width: 1024px) {
+  .settlement-selection-layout { align-items: stretch; }
+  .settlement-selection-sidebar { display: flex; flex-direction: column; }
+  .settlement-selection-sidebar .settlement-calendar-controls { margin-top: auto; }
+  .settlement-calendar-column { display: flex; }
+  .settlement-calendar-column .settlement-calendar { display: flex; flex-direction: column; }
+  .settlement-calendar-days { flex: 1 0 auto; grid-auto-rows: minmax(44px, 1fr); }
+  .settlement-preview-compact { display: flex; flex-direction: column; }
+  .settlement-preview-compact .settlement-preview-footer { margin-top: auto; }
+  .settlement-selection-layout.has-many-employees { --settlement-sidebar-width: 224px; }
+  .has-many-employees .settlement-employee-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+  .has-many-employees .settlement-employee-buttons button { padding-inline: 10px; text-align: center; }
+}
+
+@media (max-width: 1023px) {
+  .settlement-selection-layout.has-preview { grid-template-columns: minmax(120px, 160px) minmax(0, 360px); max-width: 536px; }
+  .settlement-preview-compact { grid-column: 1 / -1; }
+}
+@media (max-width: 767px) {
+  .settlement-selection-layout.has-preview { grid-template-columns: minmax(0, 1fr); max-width: 360px; }
+}
+@media (max-width: 389px) {
+  .settlement-preview-compact .employee-settlement-summary.mode-single { grid-template-columns: minmax(0, 1fr); }
+  .settlement-preview-compact .settlement-payment-amounts { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Use the available statement width for readable amounts without enlarging the calendar. */
+@container settlement-summary (min-width: 480px) {
+  .settlement-preview-compact > header .eyebrow { font-size: .8rem; }
+  .settlement-preview-compact > header h2 { font-size: 1.5rem; }
+  .settlement-preview-compact > header p:last-child { font-size: .85rem; }
+  .settlement-preview-compact .employee-settlement-summary { gap: 10px; }
+  .settlement-preview-compact .employee-settlement-summary article { padding: 12px; }
+  .settlement-preview-compact .employee-settlement-summary article span { font-size: .8rem; }
+  .settlement-preview-compact .employee-settlement-summary article strong { font-size: 1.25rem; }
+  .settlement-preview-compact .mode-all article.total strong { font-size: 1.6rem; }
+  .settlement-preview-compact .employee-settlement-matrix { padding: 8px 10px; }
+  .settlement-preview-compact .employee-settlement-matrix > * { padding: 8px 6px; font-size: .85rem; }
+  .settlement-preview-compact .settlement-payment { padding: 14px; }
+  .settlement-preview-compact .settlement-payment-amounts { gap: 14px; }
+  .settlement-preview-compact .settlement-payment-amounts span, .settlement-preview-compact .settlement-payment-amounts label { font-size: .8rem; }
+  .settlement-preview-compact .settlement-payment-amounts strong { font-size: 1.25rem; }
+  .settlement-preview-compact .settlement-payment-amounts input { min-height: 40px; font-size: 1rem; }
+  .settlement-preview-compact .settlement-payment-note, .settlement-preview-compact .settlement-payment p { font-size: .8rem; }
+  .settlement-preview-compact .employee-settlement-send-actions { gap: 10px; }
+  .settlement-preview-compact .employee-settlement-send-actions > button { min-height: 42px; padding: 9px 12px; font-size: .85rem; }
+}

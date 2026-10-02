@@ -1,16 +1,19 @@
 "use client";
 
+import { useAutoDismissState } from "../use-auto-dismiss-state";
+
 import { AnalyticsPanel } from "./analytics-panel";
 
 import { browserStorage } from "../../lib/browser-storage";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LatestRequest } from "../../lib/latest-request";
-import { apiBase, apiRequest, errorMessage } from "../../lib/api";
+import { ApiError, apiBase, apiRequest, errorMessage } from "../../lib/api";
 import { hasBlockingClosingWarnings } from "../../lib/closing";
 import { formatUsd, formatUsdPrecise } from "../../lib/money";
 import type {
   CashSettlementResponse,
+  CashSettlementRow,
   CatalogResponse,
   ClosingPreview,
   ClosingDeliveryItem,
@@ -38,6 +41,7 @@ import { RecordEditor } from "../record-editor";
 import { GiftCardLedger } from "./gift-card-ledger";
 import { BusinessDatePicker } from "../business-date-picker";
 import { EmployeeSettlementPanel } from "./employee-settlement-panel";
+import { CashSettlementDetails, ClosingEmployeeTable } from "./closing-employee-table";
 import { PayrollEntryForm } from "./payroll-entry-form";
 import { EmployeeSubtotalSection } from "./employee-subtotal-section";
 import { dateOnly, shiftDate } from "./date-utils";
@@ -141,7 +145,8 @@ export function FinancePageClient() {
   const [summary, setSummary] = useState<FinanceSummaryResponse | null>(null);
   const [details, setDetails] = useState<FinanceDetailsResponse | null>(null);
   const [detailsTitle, setDetailsTitle] = useState("财务数据");
-  const [cashData, setCashData] = useState<CashSettlementResponse | null>(null);
+  const [loadedCash, setCashData] = useState<CashSettlementResponse | null>(null);
+  const [cashLoadFailed, setCashLoadFailed] = useState(false);
   const [closing, setClosing] = useState<ClosingPreview | null>(null);
   const [closingDeliveries, setClosingDeliveries] = useState<ClosingDeliveryList | null>(null);
   const [myClosing, setMyClosing] = useState<EmployeeClosingPreview | null>(null);
@@ -151,6 +156,7 @@ export function FinancePageClient() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cashDate, setCashDate] = useState("");
+  const cashData = loadedCash?.storeId === membership?.store.id && loadedCash?.businessDate === cashDate ? loadedCash : null;
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<FinanceSummaryResponse["filters"]["paymentMethod"]>("ALL");
   const [amountType, setAmountType] = useState("ALL");
@@ -158,7 +164,8 @@ export function FinancePageClient() {
   const [busy, setBusy] = useState(false);
   const [showDailyColumns, setShowDailyColumns] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useAutoDismissState("");
+  const [notice, setNotice] = useAutoDismissState("");
 
   const canManage = membership ? membership.role !== "EMPLOYEE" : false;
 
@@ -181,8 +188,11 @@ export function FinancePageClient() {
   const financeScope = `${membership?.store.id}:${financeParams()}`;
   summaryRequests.setScope(financeScope);
   detailRequests.setScope(financeScope);
-  cashRequests.setScope(`${membership?.store.id}:${cashDate}`);
-  closingRequests.setScope(`${membership?.store.id}:${cashDate}`);
+  const currentDayScope = `${membership?.store.id}:${cashDate}`;
+  const dayScope = useRef(currentDayScope);
+  dayScope.current = currentDayScope;
+  cashRequests.setScope(currentDayScope);
+  closingRequests.setScope(currentDayScope);
 
   const loadSummary = useCallback(async (override: FinanceRangeOverride = {}, background = false) => {
     if (!membership) return;
@@ -224,14 +234,18 @@ export function FinancePageClient() {
   }, [membership, currentFinanceParams]);
 
   const loadCash = useCallback(async () => {
-    if (!membership || !cashDate) return;
+    if (!membership || !cashDate || dayScope.current !== `${membership.store.id}:${cashDate}`) return;
     const isCurrent = cashRequests.begin();
-    const result = await apiRequest<CashSettlementResponse>(`/stores/${membership.store.id}/cash-settlements/${cashDate}`);
-    if (isCurrent()) setCashData(result);
+    try {
+      const result = await apiRequest<CashSettlementResponse>(`/stores/${membership.store.id}/cash-settlements/${cashDate}`);
+      if (isCurrent()) { setCashData(result); setCashLoadFailed(false); }
+    } catch (caught) {
+      if (isCurrent()) { setCashData(null); setCashLoadFailed(true); throw caught; }
+    }
   }, [membership, cashDate]);
 
   const loadClosing = useCallback(async () => {
-    if (!membership || !cashDate) return;
+    if (!membership || !cashDate || dayScope.current !== `${membership.store.id}:${cashDate}`) return;
     const isCurrent = closingRequests.begin();
     if (canManage) {
       setClosing(null);
@@ -254,7 +268,7 @@ export function FinancePageClient() {
     if (!membership || !cashDate) return;
     const result = await apiRequest<{ queuedCount: number; skippedCount: number }>(`/stores/${membership.store.id}/closings/${cashDate}/deliveries/batch`, { method: "POST", idempotent: true });
     setClosingDeliveries(await apiRequest<ClosingDeliveryList>(`/stores/${membership.store.id}/closings/${cashDate}/deliveries`));
-    window.alert(`已排队 ${result.queuedCount} 位员工${result.skippedCount ? `，跳过 ${result.skippedCount} 位` : ""}`);
+    setNotice(`已排队 ${result.queuedCount} 位员工${result.skippedCount ? `，跳过 ${result.skippedCount} 位` : ""}`);
   }, [membership, cashDate]);
 
   const cancelClosingDelivery = useCallback(async (delivery: ClosingDeliveryItem) => {
@@ -381,6 +395,10 @@ export function FinancePageClient() {
   useEffect(() => {
     if (!cashDate || !membership) return;
     setCashData(null);
+    setCashLoadFailed(false);
+    setClosing(null);
+    setMyClosing(null);
+    setClosingDeliveries(null);
     void loadCash().catch((caught) => setError(errorMessage(caught)));
     void loadClosing().catch((caught) => setError(errorMessage(caught)));
   }, [cashDate, membership, canManage, loadCash, loadClosing]);
@@ -414,6 +432,28 @@ export function FinancePageClient() {
     }
   }
 
+  async function mutateCash(action: () => Promise<void>) {
+    try {
+      await action();
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 409) {
+        await Promise.allSettled([loadCash(), loadClosing(), loadSummary({}, true), loadPayroll()]);
+      }
+      throw caught;
+    }
+    await Promise.all([loadCash(), loadClosing(), loadSummary({}, true), loadPayroll()]);
+  }
+
+  async function toggleCash(row: CashSettlementRow) {
+    const reason = row.status === "SETTLED" ? window.prompt("请填写取消结清原因")?.trim() : undefined;
+    if (row.status === "SETTLED" && !reason) return;
+    await mutateCash(async () => {
+      await apiRequest(`/stores/${membership!.store.id}/cash-settlements/${cashDate}/${row.membershipId}/${row.status === "SETTLED" ? "reopen" : "settle"}`, {
+        method: "POST", idempotent: true, body: { version: row.version, ...(reason ? { reason } : {}) },
+      });
+    });
+  }
+
   function detailAmount(value: string | number, label: string, override: FinanceRangeOverride) {
     return <button className="amount-link" type="button" aria-label={`${label}，查看组成明细`} onClick={() => void run(async () => { setDetailsTitle(label); setDetails(null); await loadDetails(override); })}>{value}</button>;
   }
@@ -429,7 +469,8 @@ export function FinancePageClient() {
   }
 
   if (loading || !membership || !me || !day) {
-    return <main className="center-page"><div className="loading-card"><span className="spinner" /><strong>{error || "正在加载财务数据…"}</strong></div></main>;
+    if (!loading) return <main className="center-page"><section className="error-card"><h1>暂时无法读取财务数据</h1>{error && <p role="alert">{error}</p>}<button className="primary-action" type="button" onClick={() => window.location.reload()}>重新加载</button></section></main>;
+    return <main className="center-page"><div className="loading-card"><span className="spinner" /><strong>正在加载财务数据…</strong></div></main>;
   }
 
   const financeTabs = financeNavigationTabs(membership.role);
@@ -451,6 +492,7 @@ export function FinancePageClient() {
           <button key={value} className={tab === value ? "active" : ""} type="button" aria-pressed={tab === value} onClick={() => selectTab(value)}>{label}</button>
         ))}
       </nav>
+      {notice && <p className="success-banner" role="status">✓ {notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
 
       {tab === "analytics" && canManage && <AnalyticsPanel key={membership.store.id} storeId={membership.store.id} today={day.businessDate} />}
@@ -553,18 +595,9 @@ export function FinancePageClient() {
         </section>
       )}
 
-      {tab === "cash" && cashData && (
+      {tab === "closing" && canManage && closing?.storeId === membership.store.id && closing.businessDate === cashDate && (
         <section className="finance-section">
-          <div className="date-toolbar"><label>营业日<input type="date" value={cashDate} max={day.businessDate} onChange={(event) => setCashDate(event.target.value)} /></label>{canManage && cashData.rows.length > 0 && <button className="primary-action" type="button" disabled={busy || cashData.rows.every((row) => row.status === "SETTLED")} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/cash-settlements/${cashDate}/settle-all`, { method: "POST", idempotent: true, body: { settlements: cashData.rows.map((row) => ({ membershipId: row.membershipId, version: row.version, ...(row.note ? { note: row.note } : {}) })) } }); await loadCash(); await loadSummary(); })}>一键全部结清</button>}</div>
-          <p className="field-help">现金结算只记录“未结清/已全部结清”，不记录部分提交，也不把员工应交现金与老板尚欠合并。</p>
-          <div className="cash-grid">{cashData.rows.map((row) => <article key={row.membershipId} className={row.status === "SETTLED" ? "settled" : ""}><header><div><strong>{row.displayName}</strong><span>{row.status === "SETTLED" ? "已全部结清" : "未结清"}</span></div><em>{row.status === "SETTLED" ? "已结清" : "待确认"}</em></header><dl><div><dt>现金大费</dt><dd>{money(row.cashServiceCents)}</dd></div><div><dt>现金小费</dt><dd>{money(row.cashTipCents)}</dd></div><div><dt>共收到现金</dt><dd>{money(row.cashReceivedCents)}</dd></div><div><dt>现金对应工资</dt><dd>{money(row.cashAllocatedServiceWageCents)}</dd></div><div><dt>实际取得工资</dt><dd>{money(row.cashAcquiredServiceWageCents)}</dd></div><div><dt>工资缺口</dt><dd>{money(row.cashWageShortfallCents)}</dd></div><div><dt>员工应保留</dt><dd>{money(row.cashRetainedCents)}</dd></div><div><dt>应提交店铺</dt><dd>{money(row.cashToSubmitToStoreCents)}</dd></div></dl><p className="cash-settlement-meta"><span>备注：{row.note || "未填写"}</span><span>结算人：{row.settledByDisplayName || "尚未结算"}</span><span>结算时间：{row.settledAt ? new Date(row.settledAt).toLocaleString("zh-CN") : "尚未结算"}</span></p>{canManage && <button className={row.status === "SETTLED" ? "secondary-action" : "primary-action"} type="button" disabled={busy} onClick={() => run(async () => { if (row.status === "SETTLED") { const reason = window.prompt("请填写取消结清原因"); if (!reason?.trim()) return; await apiRequest(`/stores/${membership.store.id}/cash-settlements/${cashDate}/${row.membershipId}/reopen`, { method: "POST", idempotent: true, body: { version: row.version, reason: reason.trim() } }); } else { await apiRequest(`/stores/${membership.store.id}/cash-settlements/${cashDate}/${row.membershipId}/settle`, { method: "POST", idempotent: true, body: { version: row.version } }); } await loadCash(); await loadSummary(); })}>{row.status === "SETTLED" ? "取消结清" : "标记全部结清"}</button>}</article>)}</div>
-          {cashData.rows.length === 0 && <p className="empty-state">当日没有记工，无需现金结算。</p>}
-        </section>
-      )}
-
-      {tab === "closing" && canManage && closing && (
-        <section className="finance-section">
-          <div className="date-toolbar"><div className="business-date-field"><span>营业日</span><BusinessDatePicker storeId={membership.store.id} value={cashDate} max={day.businessDate} ariaLabel="选择日结营业日" onChange={setCashDate} /></div><button className="secondary-action" type="button" disabled={busy} onClick={() => run(loadClosing)}>重新检查</button></div>
+          <div className="date-toolbar"><div className="business-date-field"><span>营业日</span><BusinessDatePicker storeId={membership.store.id} value={cashDate} max={day.businessDate} ariaLabel="选择日结营业日" onChange={setCashDate} /></div><button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { await Promise.all([loadClosing(), loadCash()]); })}>重新检查</button></div>
           <div className={`closing-status ${closing.hasWarnings ? "warning" : "ready"}`}><div><span>{closing.isClosed ? "已日结" : closingHasBlockingWarnings ? "发现日结异常" : "可以正常日结"}</span><strong>{closing.isClosed ? `第 ${closing.activeClosing?.cycleNo ?? 0} 次日结` : closing.hasWarnings ? `${closing.warningCount} 项提醒` : "检查通过"}</strong></div>{closing.isClosed ? <button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { if (!closing.activeClosing) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}/cancel`, { method: "POST", idempotent: true, body: { version: closing.activeClosing.version } }); await loadClosing(); await loadCash(); })}>取消日结</button> : <div className="closing-actions"><button className="primary-action" type="button" disabled={busy || closingHasBlockingWarnings} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: false } }); await loadClosing(); })}>确认日结</button>{closingHasBlockingWarnings && <button className="danger-button" type="button" disabled={busy} onClick={() => run(async () => { const reason = window.prompt("强制日结会保留全部异常快照，请填写原因"); if (!reason?.trim()) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: true, forceReason: reason.trim() } }); await loadClosing(); })}>强制日结</button>}</div>}</div>
           {closing.warnings.length > 0 && <div className="warning-list">{closing.warnings.map((warning) => <article key={warning.code}><div className="warning-list__heading"><strong>{warning.labelZh}</strong><span>{warning.count} 条记录</span></div>{warning.blocking === false && <p className="warning-list__notice">仅提醒，不影响正常日结</p>}<div className="warning-record-links">{warning.recordIds.map((recordId, index) => <button className="secondary-action compact" key={recordId} type="button" disabled={busy} onClick={() => openWarningRecord(recordId)} aria-label={`查看${warning.labelZh}第 ${index + 1} 单`}>查看第 {index + 1} 单</button>)}</div></article>)}</div>}
           <section className="closing-delivery-panel">
@@ -573,15 +606,37 @@ export function FinancePageClient() {
             {closingDeliveries && <ClosingDeliveryQueue value={closingDeliveries} busy={busy} onCancel={(delivery) => void run(() => cancelClosingDelivery(delivery))} />}
           </section>
           <h2 className="table-title">全店日结合计</h2><div className="finance-cards closing-totals"><article><span>全部项目数量</span><strong>{closing.storeTotals.itemCount} 项</strong><small>{closing.storeTotals.recordCount} 条记工 · {closing.storeTotals.giftCardSaleCount} 张礼物卡</small></article><article><span>全店大费基数</span><strong>{money(closing.storeTotals.grossFeeBaseCents)}</strong></article><article><span>全店折扣总额</span><strong>{money(closing.storeTotals.discountTotalCents)}</strong></article><article className="balance-card"><span>全店折后大费业绩</span><strong>{money(closing.storeTotals.discountedFeePerformanceCents)}</strong></article><article><span>全店小费总额</span><strong>{money(closing.storeTotals.totalTipCents)}</strong></article><article><span>全店客人总付款</span><strong>{money(closing.storeTotals.customerTotalPaidCents)}</strong><small>含服务、小费和礼物卡销售实收</small></article><article><span>礼物卡销售收入</span><strong>{money(closing.storeTotals.giftCardSalesAmountCents)}</strong><small>{closing.storeTotals.giftCardSaleCount} 张 · 现金 {money(closing.storeTotals.giftCardSaleCashCents)} · 刷卡 {money(closing.storeTotals.giftCardSaleCardCents)}</small></article><article><span>礼物卡核销支出</span><strong>{money(closing.storeTotals.giftCardRedemptionCents)}</strong><small>礼物卡大费＋礼物卡小费</small></article><article className="balance-card"><span>店铺收入</span><strong>{money(closing.storeTotals.storeIncomeCents)}</strong><small>卖卡记收入，核销记支出</small></article></div>
-          <h2 className="table-title">每位员工日结检查</h2><div className="table-scroll"><table className="data-table"><thead><tr><th>员工</th><th>单数</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>小费</th><th>应得工资</th><th>待结账</th></tr></thead><tbody>{closing.employees.map((row) => <tr key={row.membershipId}><td>{row.displayName}</td><td>{row.recordCount}</td><td>{money(row.grossFeeBaseCents)}</td><td>{money(row.discountTotalCents)}</td><td>{money(row.discountedFeePerformanceCents)}</td><td>{money(row.totalTipCents)}</td><td>{money(row.employeeIncomeCents)}</td><td>{row.incompleteRecordCount}</td></tr>)}</tbody></table></div>
+          <ClosingEmployeeTable
+            key={`${membership.store.id}-${cashDate}`}
+            employees={closing.employees}
+            cashRows={cashData?.rows ?? null}
+            busy={busy}
+            cashLoadFailed={cashLoadFailed}
+            onReloadCash={() => void run(loadCash)}
+            onSettleAll={() => void run(() => mutateCash(async () => {
+              if (!cashData) return;
+              await apiRequest(`/stores/${membership.store.id}/cash-settlements/${cashDate}/settle-all`, { method: "POST", idempotent: true, body: { settlements: cashData.rows.map(row => ({ membershipId: row.membershipId, version: row.version, ...(row.note ? { note: row.note } : {}) })) } });
+            }))}
+            onToggleCash={row => void run(() => toggleCash(row))}
+          />
         </section>
       )}
 
       {tab === "closing" && !canManage && (
         <section className="finance-section employee-closing-finance-section">
-          <div className="date-toolbar"><div className="business-date-field"><span>营业日</span><BusinessDatePicker storeId={membership.store.id} value={cashDate} max={day.businessDate} ariaLabel="选择日结营业日" onChange={setCashDate} /></div><button className="secondary-action" type="button" disabled={busy} onClick={() => run(loadClosing)}>重新加载</button></div>
+          <div className="date-toolbar"><div className="business-date-field"><span>营业日</span><BusinessDatePicker storeId={membership.store.id} value={cashDate} max={day.businessDate} ariaLabel="选择日结营业日" onChange={setCashDate} /></div><button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { await Promise.all([loadClosing(), loadCash()]); })}>重新加载</button></div>
+          <section className="personal-cash-settlement">
+            <h2 className="table-title">现金结算</h2>
+            <p className="field-help">现金未结清不影响正常日结，日结后仍可结清现金。</p>
+            {cashData ? cashData.rows.filter(row => row.membershipId === membership.id).map(row => <div key={row.membershipId}>
+              <p>{row.status === "SETTLED" ? "已全部结清" : "未结清"}</p>
+              <dl className="personal-cash-amounts"><div><dt>应提交店铺</dt><dd>{money(row.cashToSubmitToStoreCents)}</dd></div><div><dt>员工应保留</dt><dd>{money(row.cashRetainedCents)}</dd></div></dl>
+              <CashSettlementDetails row={row} />
+            </div>) : <p className="field-help">{cashLoadFailed ? "现金结算暂不可用" : "正在加载现金结算…"}{cashLoadFailed && <button className="secondary-action compact" type="button" disabled={busy} onClick={() => void run(loadCash)}>重新加载现金</button>}</p>}
+            {cashData?.rows.length === 0 && <p className="empty-state">当日没有记工，无需现金结算。</p>}
+          </section>
           <p className="employee-closing-privacy">这里只显示你自己的收入、现金大费和非现金分红，不会加载或展示全店及其他员工日结。</p>
-          {myClosing ? <EmployeeClosingSummary key={`${myClosing.businessDate}-${myClosing.employee.membershipId}`} preview={myClosing} /> : <div className="loading-card"><span className="spinner" /><strong>正在加载个人日结…</strong></div>}
+          {myClosing?.storeId === membership.store.id && myClosing.businessDate === cashDate ? <EmployeeClosingSummary key={`${myClosing.businessDate}-${myClosing.employee.membershipId}`} preview={myClosing} /> : <div className="loading-card"><span className="spinner" /><strong>正在加载个人日结…</strong></div>}
         </section>
       )}
 
@@ -620,7 +675,7 @@ export function FinancePageClient() {
 function PayrollPanel({ storeId, businessDate, canManage, members, settlements, busy, run, reload }: { storeId: string; businessDate: string; canManage: boolean; members: StoreMember[]; settlements: PayrollSettlement[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
   const [editing, setEditing] = useState<PayrollSettlement | null>(null);
   return <section className="finance-section">
-    {canManage && <EmployeeSettlementPanel storeId={storeId} businessDate={businessDate} members={members} settlements={settlements} busy={busy} run={run} onSettled={reload} />}
+    {canManage && <EmployeeSettlementPanel key={storeId} storeId={storeId} businessDate={businessDate} members={members} settlements={settlements} busy={busy} run={run} onSettled={reload} />}
     {canManage && <details className="finance-metric-group finance-metric-disclosure payroll-entry">
       <summary><strong>登记已付工资</strong><span>展开填写</span></summary>
       <PayrollEntryForm storeId={storeId} businessDate={businessDate} members={members} busy={busy} run={run} onSaved={reload} />

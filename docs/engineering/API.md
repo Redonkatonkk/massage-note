@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.14.21`
+> 适用版本：`1.15.8`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -73,20 +73,22 @@
 | POST | `/stores/:storeId/gift-card-sales/:saleId/restore` | 恢复已删除卖卡记录 |
 | GET | `/stores/:storeId/closings/:businessDate/preview` | 全店日结预览 |
 | GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人；返回目标员工按开始时间排序的逐笔记工、项目/加项名称、逐笔 `grossFeeBaseCents` 折前大费、现金/刷卡/礼物卡实收拆分、单笔工资收入，以及现金/刷卡大费分红、现金/刷卡小费分红和对应合计；仅计已确认付款；每日小结“现金大费”使用 `cashLargeFeeDividendCents` 表示店里应付员工的现金大费工资（折前提成按现金付款占比分摊，不含现金小费）；`cashToSubmitToStoreCents` 仅保留旧口径兼容；不含全店或他人数据 |
-| POST | `/stores/:storeId/closings/:businessDate`、`.../cancel` | 正常/强制日结与取消日结；取消仅需 `version`，`reason` 可省略 |
+| POST | `/stores/:storeId/closings/:businessDate`、`.../cancel` | 正常/强制日结与取消日结；现金结清状态不阻止正常日结，日结不自动结清现金；取消仅需 `version`，`reason` 可省略 |
 | GET | `/stores/:storeId/closings/:businessDate/deliveries` | 店主或经理查看个人日结短信发送历史、错误和 Mac 代理状态 |
 | POST | `/stores/:storeId/closings/:businessDate/deliveries/batch` | 日结后把所有已开启、号码有效且当天有记工的成员幂等加入发送队列 |
 | DELETE | `/stores/:storeId/closings/:businessDate/deliveries/:deliveryId` | 店主或经理取消仍处于排队状态的单条员工日结短信任务 |
 | POST | `/stores/:storeId/closings/:businessDate/deliveries/members/:membershipId` | 单独发送或补发一位员工的个人日结；未日结也可发送，按营业日和请求键保存当时快照 |
 | GET/POST/DELETE | `/stores/:storeId/closing-delivery-agent/status`、`credential` | 查看代理状态、生成一次性代理令牌或撤销令牌 |
 | POST | `/closing-delivery-agent/jobs/claim`、`jobs/:id/authorize`、`complete`、`fail`、`heartbeat` | Mac 代理使用 Bearer 令牌领取租约任务、发送前复核并回写结果 |
-| GET | `/stores/:storeId/cash-settlements/:businessDate` | 当日现金结算列表，只含当日有记工的员工 |
+| GET | `/stores/:storeId/cash-settlements/:businessDate` | 当日现金结算列表，只含当日有记工的员工，供财务日结表现金列读取；员工仅返回本人 |
 | POST | `/stores/:storeId/cash-settlements/:businessDate/settle-all` | 批量结清未结清员工 |
 | POST | `/stores/:storeId/cash-settlements/:businessDate/:membershipId/settle`、`reopen` | 单人结清或回退；个人日结的“已结现金”复用此接口，回退 `reason` 可省略 |
 | GET/POST | `/stores/:storeId/payroll-settlements` | 查询或新增工资结算账本 |
 | GET/PATCH/DELETE | `/stores/:storeId/payroll-settlements/:settlementId` | 工资结算详情、修改和软删除 |
 | POST | `/stores/:storeId/payroll-settlements/:settlementId/restore` | 恢复工资结算 |
 | GET | `/stores/:storeId/employee-settlements/preview` | Owner/Manager 按 `membershipId`、`dateFrom`、`dateTo` 和 `paymentScope=CASH|NON_CASH|ALL` 预览员工区间结算；只含已确认且未删除记工，最多 999 笔 |
+| GET | `/stores/:storeId/employee-settlements/calendar` | Owner/Manager 按 `membershipId`、`month=YYYY-MM` 查询该月有已确认记工日期的现金/非现金状态 |
+| POST | `/stores/:storeId/employee-settlements/confirm` | Owner/Manager 依据预览 revision 和抵扣金额确认结清，原子登记实际支付与范围确认；要求幂等键 |
 | GET/POST | `/stores/:storeId/employee-settlements/deliveries` | 查看区间结算短信队列，或把服务端重算后的不可变快照加入单张 JPEG 长图发送队列 |
 | DELETE | `/stores/:storeId/employee-settlements/deliveries/:deliveryId` | 取消仍在排队的区间结算发送任务 |
 | POST | `/stores/:storeId/employee-settlements/deliveries/:deliveryId/retry` | 重试失败的长图发送任务 |
@@ -111,7 +113,7 @@
 
 LangBot 的 `work-context` 同时返回启用的 `discounts`、`addons` 名称和简称。`FINISH` 支持 `memberName/memberMention` 指定员工，以及 `discounts/addons: [{ name, mention }]`；新增 `ADJUST` 使用相同可选字段单独添加折扣或加项。操作按同店在职员工唯一待付款记录定位，包含人工记工；多条匹配不写账，预设金额和提成由服务端读取。
 
-Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直接打开指定营业日的全店日结；在日结异常列表点击单据时，财务页原地读取 `GET /work-records/:recordId` 并打开单笔记工弹窗，不离开当前页面。`/?store=<storeId>&date=<businessDate>&record=<recordId>` 深链接仍可用于从外部直接打开今日页的指定记工。读取不会自动执行日结或修改记录。
+Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直接打开指定营业日的全店日结及员工现金结算；旧 `tab=cash` 兼容解析为 `closing`，保留店铺与日期；在日结异常列表点击单据时，财务页原地读取 `GET /work-records/:recordId` 并打开单笔记工弹窗，不离开当前页面。`/?store=<storeId>&date=<businessDate>&record=<recordId>` 深链接仍可用于从外部直接打开今日页的指定记工。读取不会自动执行日结或修改记录。
 
 两个 AI 消息端点都接受可选的 `conversationId`（UUID）。首轮省略时创建会话；后续传回响应中的同一个 ID，服务端校验店铺、用户和助手类型，匹配失败返回 `AI_CONVERSATION_NOT_FOUND`。历史由服务端读取，不需要客户端上传消息列表。
 
@@ -241,7 +243,11 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 这些字段采用当前日期、员工、付款方式、金额类型和高亮筛选口径。`finance/summary.employees[]` 还返回员工当前 `defaultCommissionBps` 和是否存在不同项目专属设置的 `hasDifferentItemCommission`；Web 与员工小计短信直接显示该设置，不再用筛选后的工资反推比例。Web 的每日小计位于员工小计之前，日期后显示按当前界面语言本地化的星期；员工范围使用复选框多选，空选择表示全部员工。
 
-工资结算列表支持成员和 `includeDeleted=true`；每条记录返回 `paymentScope`（`CASH` / `NON_CASH` / `ALL`，历史未指定为 `null`）。新增 `POST /stores/:storeId/payroll-settlements` 的简化请求为 `{ membershipId, periodStart, periodEnd, totalPaidCents, paymentScope }`，总额使用非负整数美分，登记日期自动按设备时区自然日期记录。生成单“已结算”直接使用预览的 `employee.membershipId`、`dateFrom/dateTo`、`summary.totalIncomeCents` 与 `paymentScope` 提交；保存和重试带同一幂等键。修改 `PATCH` 接受同样字段并要求 `version`，保留原登记日期；来源与旧金额拆分不能混为同一总额请求。旧客户端的拆分字段仍兼容，旧来源不回填猜测值。审计列表支持 `dateFrom`、`dateTo`、`entityType`、`action`、`actorUserId` 与游标分页。
+工资结算列表支持成员和 `includeDeleted=true`；每条记录返回 `paymentScope`（`CASH` / `NON_CASH` / `ALL`，历史未指定为 `null`）。新增 `POST /stores/:storeId/payroll-settlements` 的简化请求为 `{ membershipId, periodStart, periodEnd, totalPaidCents, paymentScope }`，总额使用非负整数美分，登记日期自动按设备时区自然日期记录。手工登记不生成结清确认。列表与详情额外返回可空 `confirmation`（`payrollSettlementId`、`unsettledCents`、`deductionCents`、`createdAt`）。修改 `PATCH` 接受同样字段并要求 `version`，保留原登记日期；来源与旧金额拆分不能混为同一总额请求。旧客户端的拆分字段仍兼容，旧来源不回填猜测值。审计列表支持 `dateFrom`、`dateTo`、`entityType`、`action`、`actorUserId` 与游标分页。
+
+员工区间预览保留完整 `records` / `summary`，增加 `payment: { unsettledCents, fullyConfirmed, revision }`；金额为整数美分，revision 为服务端生成的 64 位十六进制修订值。日历响应为 `{ membershipId, month, days }`，各日包含 `businessDate`、`hasCash`、`hasNonCash`、`cashSettled`、`nonCashSettled`、`cashConfirmed`、`nonCashConfirmed`、`cashUnsettledCents`、`nonCashUnsettledCents`。黄色状态与现金工资缺口可以同时存在。
+
+付款确认请求为 `{ membershipId, dateFrom, dateTo, paymentScope, deductionCents, revision }`，服务端不接受客户端指定实付。响应为带 `confirmation` 的工资账本记录，本次实付由服务端重新计算为未结金额减抵扣。可实付 $0；空记工、店主、抵扣超额或已全部结清的范围拒绝。旧 revision 返回 `409 SETTLEMENT_DATA_CHANGED`，已结范围返回 `409 SETTLEMENT_ALREADY_CONFIRMED`，抵扣超额返回 `400 SETTLEMENT_DEDUCTION_TOO_LARGE`。失败重试保持相同请求与幂等键，重新生成后使用新键。关联账本修改、软删除及恢复即时改变有效确认，不改变旧单据和已入队长图快照。
 
 ## 错误与排查
 

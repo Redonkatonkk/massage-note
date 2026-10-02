@@ -248,7 +248,7 @@ button, summary { overflow-wrap: anywhere; }
   }
   .employee-row:not(.employee-row--collapsed) .employee-avatar { width: 30px; height: 30px; border-radius: 10px; font-size: .9rem; }
   .employee-row:not(.employee-row--collapsed) .employee-toggle strong { font-size: 1rem; }
-  .employee-row:not(.employee-row--collapsed) .employee-toggle small { font-size: .75rem; }
+  .employee-row:not(.employee-row--collapsed) .employee-toggle small:not(.on-duty) { font-size: .75rem; }
   .employee-row:not(.employee-row--collapsed) .chevron { grid-column: 2; margin-left: 0; font-size: .75rem; }
   .employee-row:not(.employee-row--collapsed) .hidden-badge { grid-column: 1 / -1; }
   .employee-row:not(.employee-row--collapsed) .row-tools {
@@ -596,4 +596,14 @@ button, summary { overflow-wrap: anywhere; }
   .settlement-preview-compact .settlement-payment-note, .settlement-preview-compact .settlement-payment p { font-size: .8rem; }
   .settlement-preview-compact .employee-settlement-send-actions { gap: 10px; }
   .settlement-preview-compact .employee-settlement-send-actions > button { min-height: 42px; padding: 9px 12px; font-size: .85rem; }
+}
+
+@media (max-width: 767px) {
+  .expenses-summary { grid-template-columns: 1fr; gap: 10px; }
+  .expenses-summary strong { font-size: 1.5rem; }
+  .expenses-item { flex-direction: column; }
+  .expenses-item-actions { justify-content: start; }
+  .expenses-toolbar { align-items: stretch; }
+  .expenses-toolbar label { flex: 1 1 100%; }
+  .expenses-editor { padding: 18px; max-height: calc(100dvh - 32px); }
 }

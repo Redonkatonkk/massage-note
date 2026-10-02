@@ -123,13 +123,19 @@ export class ClosingsService {
       : null;
     const cashSettlement = await client.dailyCashSettlement.findFirst({
       where: { storeId, businessDate: dateAtUtc(businessDate), membershipId: targetMembershipId, deletedAt: null },
-      select: { status: true, version: true, settledAt: true },
+      select: { status: true, version: true, settledAt: true, dailySettlementEnabled: true, cashAcquiredServiceWageCents: true, additionalServiceWagePaidCents: true, nonCashTipPaidCents: true },
     });
     const confirmedLargeFeeWageCents =
       this.safeNumber(BigInt(employee.cashLargeFeeDividendCents) + BigInt(employee.cardLargeFeeDividendCents));
     const confirmedTipWageCents =
       this.safeNumber(BigInt(employee.cashTipDividendCents) + BigInt(employee.cardTipDividendCents));
+    const dailySettlementEnabled = cashSettlement?.status === "SETTLED" ? cashSettlement.dailySettlementEnabled : target.dailySettlementEnabled;
+    const dailySettlementPayoutCents = cashSettlement?.status === "SETTLED" && dailySettlementEnabled
+      ? this.safeNumber(cashSettlement.cashAcquiredServiceWageCents + cashSettlement.additionalServiceWagePaidCents + cashSettlement.nonCashTipPaidCents)
+      : this.safeNumber(BigInt(confirmedLargeFeeWageCents) + BigInt(employee.cardTipDividendCents));
     return {
+      dailySettlementEnabled,
+      dailySettlementPayoutCents,
       storeId,
       storeName: target.store.name,
       storeTimezone: target.store.timezone,
@@ -146,7 +152,7 @@ export class ClosingsService {
         confirmedIncomeCents:
           this.safeNumber(BigInt(confirmedLargeFeeWageCents) + BigInt(confirmedTipWageCents)),
       },
-      cashSettlement: cashSettlement ?? { status: "UNSETTLED", version: 0, settledAt: null },
+      cashSettlement: cashSettlement ? { status: cashSettlement.status, version: cashSettlement.version, settledAt: cashSettlement.settledAt, dailySettlementEnabled: cashSettlement.dailySettlementEnabled } : { status: "UNSETTLED", version: 0, settledAt: null },
       records: preview.personalRecords ?? [],
     };
   }

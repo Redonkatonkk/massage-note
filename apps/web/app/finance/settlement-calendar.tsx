@@ -33,6 +33,7 @@ export function SettlementCalendar({ month, range, data, loading, error, failed,
         const inRange = Boolean(range.dateTo && date >= range.dateFrom && date <= range.dateTo);
         const statuses = [day?.cashSettled ? (en ? "Cash settled" : "现金已结") : "", day?.nonCashSettled ? (en ? "Card + gift card settled" : "刷卡＋礼物卡已结") : ""];
         if (day?.cashSettled && day.cashUnsettledCents > 0) statuses.push(`${en ? "Cash wage shortfall" : "现金工资缺口"} ${formatUsdPrecise(day.cashUnsettledCents)}`);
+        if (day?.dailySettlementEnabled) statuses.push(en ? "Daily wages fully settled" : "当天工资已全部结清");
         const label = [date, ...statuses].filter(Boolean).join(" · ");
         return <button key={date} type="button" disabled={disabled} className={`settlement-calendar-day${inRange ? " is-in-range" : ""}${selected ? " is-endpoint" : ""}`} aria-pressed={selected || inRange} aria-label={label} title={label} onClick={() => onDate(date)}>
           <time dateTime={date}>{Number(date.slice(8))}</time>

@@ -29,6 +29,7 @@ function membershipSnapshot(membership: StoreMembership) {
     isServiceProvider: membership.isServiceProvider,
     employmentType: membership.employmentType,
     defaultCommissionBps: membership.defaultCommissionBps,
+    dailySettlementEnabled: membership.dailySettlementEnabled,
     closingDeliveryEnabled: membership.closingDeliveryEnabled,
     closingDeliveryPhoneE164: membership.closingDeliveryPhoneE164,
     closingImageLocale: membership.closingImageLocale,
@@ -92,6 +93,7 @@ export class MembershipsService {
           data: {
             storeId,
             userId: null,
+            dailySettlementEnabled: input.dailySettlementEnabled ?? false,
             role: "EMPLOYEE",
             displayName: input.name,
             displayNameNormalized: normalizeDisplayName(input.name),
@@ -366,6 +368,9 @@ export class MembershipsService {
             ...(input.defaultCommissionBps === undefined
               ? {}
               : { defaultCommissionBps: input.defaultCommissionBps }),
+            ...(input.dailySettlementEnabled === undefined
+              ? {}
+              : { dailySettlementEnabled: input.dailySettlementEnabled }),
             ...(input.closingDeliveryEnabled === undefined
               ? {}
               : { closingDeliveryEnabled: input.closingDeliveryEnabled }),

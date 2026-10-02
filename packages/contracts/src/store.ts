@@ -191,6 +191,7 @@ export const approveJoinRequestSchema = z.object({
 });
 
 export const createEmployeeSchema = z.object({
+  dailySettlementEnabled: z.boolean().optional(),
   name: z.string().trim().min(1, "员工名字不能为空").max(80),
   employmentType: employmentTypeSchema.optional(),
 });
@@ -208,6 +209,7 @@ export const updateMembershipSchema = z
     isServiceProvider: z.boolean().optional(),
     employmentType: employmentTypeSchema.nullable().optional(),
     defaultCommissionBps: commissionBpsSchema.nullable().optional(),
+    dailySettlementEnabled: z.boolean().optional(),
     closingDeliveryEnabled: z.boolean().optional(),
     closingDeliveryPhoneE164: optionalE164PhoneSchema.optional(),
     closingImageLocale: closingImageLocaleSchema.nullable().optional(),
@@ -219,6 +221,7 @@ export const updateMembershipSchema = z
       value.isServiceProvider !== undefined ||
       value.employmentType !== undefined ||
       value.defaultCommissionBps !== undefined ||
+      value.dailySettlementEnabled !== undefined ||
       value.closingDeliveryEnabled !== undefined ||
       value.closingDeliveryPhoneE164 !== undefined ||
       value.closingImageLocale !== undefined,

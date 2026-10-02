@@ -152,3 +152,10 @@ describe("门店输入契约", () => {
     ).toBe(false);
   });
 });
+
+
+it("每日结清可单独更新，旧客户端省略时不覆盖设置", () => {
+  expect(updateMembershipSchema.parse({ version: 1, dailySettlementEnabled: true })).toEqual({ version: 1, dailySettlementEnabled: true });
+  expect(updateMembershipSchema.parse({ version: 1, displayName: "员工" })).not.toHaveProperty("dailySettlementEnabled");
+  expect(updateMembershipSchema.safeParse({ version: 1, dailySettlementEnabled: "yes" }).success).toBe(false);
+});

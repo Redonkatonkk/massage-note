@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.15.8`
+> 适用版本：`1.17.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -374,3 +374,31 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 - `POST /stores/:storeId/boards/:businessDate/apply-weekly-dispatch`：Web 在加载看板前调用。当前在职成员可触发当日既定规则，仅管理者可触发未来日。营业日锁保护初始化与刷新，返回 `{ applied, addedCount?, ranked? }`；历史、已日结、未生效和已应用的当前日期跳过。未来日期允许刷新，按最新模板同步系统加入的行，并按最新出勤顺序重算；没有变化时返回 `applied: false`，不递增版本或重复发送 outbox。
 
 `stores.weekly_dispatch_json`、`weekly_dispatch_effective_from` 与 `daily_boards.weekly_dispatch_applied_at` 由迁移 `20260928120000_weekly_dispatch` 添加。模板初始化复用轮转领域排序及排名解释快照，店铺未启用每日开门排位时仅按模板顺序加入；当前日期已安排的人员保持不变；未来日期持续更新。自动管理的成员 ID 保存在 `board.weekly_dispatch_applied` 审计的 `managedMembershipIds`，兼容旧审计 `addedMembershipIds`，只移除模板取消且无任何记工或班次的自动行，保留手动加入的行。
+
+
+### 成员每日全部结清
+
+- `POST /stores/:storeId/members`、`PATCH /stores/:storeId/members/:membershipId` 接受可选布尔 `dailySettlementEnabled`。新成员省略为 `false`，更新省略则保留；成员响应包含此字段。
+- 个人预览返回 `dailySettlementEnabled` 与 `dailySettlementPayoutCents`（全部已确认大费工资＋刷卡/礼物卡小费，不含现金小费）。已结日期使用结清时设置与金额快照。
+- 单人 `settle` 及 `settle-all.settlements[]` 接受可选 `dailySettlementEnabled` 作为预览设置校验；版本或设置变化返回 409。启用时保存 `additionalServiceWagePaidCents`（全部大费工资减原现金已取得工资）及 `nonCashTipPaidCents`。待结账记工返回 `DAILY_SETTLEMENT_PENDING_PAYMENT`，覆盖当日的有效工资确认返回 `DAILY_SETTLEMENT_PAYROLL_CONFLICT`；事务回滚。相同幂等请求复用原结果。
+- 现金列表补充 `dailySettlementEnabled`、`dailySettlementPayoutCents` 及上述金额快照。工资月历日期补充 `dailySettlementEnabled`；有效每日全额结清覆盖现金及非现金确认、未结金额为零。工资余额与汇总把额外已发工资/非现金小费计入已支付，仅在每日结算为 `SETTLED` 且未删除时生效。回退及自动回退失效，其他工资账本确认继续有效。
+
+## 店铺支出
+
+所有路径位于 `/stores/:storeId/expenses`，仅在职店主/经理拥有 `EXPENSE_MANAGE` 权限。所有写入要求 `Idempotency-Key`；创建以外的写入携带项目 `version`，冲突返回 409 与最新项目。金额输入为非负整数美分，响应金额为美分字符串（含汇总），日期不包含时间。
+
+| 方法 | 相对路径 | 请求与行为 |
+| --- | --- | --- |
+| GET | `?month=YYYY-MM` | 返回月总额、整月天数、日均、预算部分、分摊明细及项目（含已删除项目和规则历史） |
+| POST | 空路径 | 创建 `kind=ONCE`：`name,note?,occurredOn,amountCents`；或 `kind=RECURRING`：`name,note?,rule` |
+| PATCH | `/:id` | `version` 加可选 `name,note`；一次性项目可更新 `occurredOn,amountCents` |
+| POST | `/:id/rules` | `version,rule`，追加规则并关闭上一条有效规则；HTTP 200 |
+| POST | `/:id/stop` | `version,effectiveFrom`，从该周期起点停止新周期；HTTP 200 |
+| POST | `/:id/periods` | `version,ruleId,periodStart,amountCents`，写入/替换整期实际金额；HTTP 200 |
+| DELETE | `/:id/periods` | `version,ruleId,periodStart`，清除实际金额覆盖 |
+| DELETE | `/:id` | `version`，软删除项目 |
+| POST | `/:id/restore` | `version`，恢复项目；HTTP 200 |
+
+`rule` 为 `{ startDate, unit: DAY|MONTH, interval, amountMode: FIXED|BUDGET, amountCents }`，周期间隔为 1–1200；月周期开始日必须为每月第一天。规则变更必须在最新规则的后续周期起点，停止允许在最新规则的起点；已停止规则可在其停止日期或之后的后续周期重新开始。已有未来实际账单时拒绝覆盖其生效范围，须先撤销对应单期覆盖。
+
+月响应的 `lines` 含项目/规则 ID、完整周期起止日（均包含）、整期金额、本月分摊金额、`source=ACTUAL|FIXED|BUDGET` 和 `hasOverride`。规则的 `endExclusive` 为停止开始新周期的日期，不截断已开始周期。支出接口独立于营业日日结，不因已日结而禁止补录。

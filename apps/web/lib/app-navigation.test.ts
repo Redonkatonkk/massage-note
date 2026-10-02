@@ -6,6 +6,7 @@ describe("角色菜单与分区深链接", () => {
     expect(financeNavigationTabs("EMPLOYEE")).toEqual([["summary", "财务汇总"], ["closing", "我的日结"], ["payroll", "工资结算明细"]]);
     expect(manageNavigationTabs("EMPLOYEE")).toEqual([["store", "店铺信息"], ["catalog", "项目说明"]]);
     expect(resolveFinanceTab("cash", "EMPLOYEE")).toBe("closing");
+    expect(resolveFinanceTab("expenses", "EMPLOYEE")).toBe("summary");
     expect(resolveFinanceTab("analytics", "EMPLOYEE")).toBe("summary");
     expect(resolveFinanceTab("giftCards", "EMPLOYEE")).toBe("summary");
     expect(resolveManageTab("audit", "EMPLOYEE")).toBe("store");
@@ -17,6 +18,7 @@ describe("角色菜单与分区深链接", () => {
     for (const [tab] of manageNavigationTabs(role)) expect(resolveManageTab(tab, role)).toBe(tab);
     expect(financeNavigationTabs(role).some(([tab]) => String(tab) === "cash")).toBe(false);
     expect(resolveFinanceTab("cash", role)).toBe("closing");
+    expect(resolveFinanceTab("expenses", role)).toBe("expenses");
     expect(resolveFinanceTab("analytics", role)).toBe("analytics");
     expect(resolveManageTab("work-bot", role)).toBe("work-bot");
     expect(resolveManageTab("unknown", role)).toBe("store");

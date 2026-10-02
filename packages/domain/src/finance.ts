@@ -399,6 +399,23 @@ export function calculatePersonalClosingPaymentDividends(
   };
 }
 
+/** Daily wage handoff excludes cash tips already received directly from guests. */
+export function calculateDailyFullSettlement(
+  records: readonly Pick<WorkRecordFinance, "totalLargeFeeWageCents" | "cashAcquiredServiceWageCents" | "cardTipCents" | "giftCardTipCents">[],
+) {
+  const serviceWageCents = sumCents(records.map((record) => cents(record.totalLargeFeeWageCents)));
+  const acquiredServiceCents = sumCents(records.map((record) => cents(record.cashAcquiredServiceWageCents)));
+  if (acquiredServiceCents > serviceWageCents) {
+    throw new DomainError("CASH_ACQUIRED_WAGE_EXCEEDS_TOTAL", "已取得现金工资不能超过大费工资");
+  }
+  const nonCashTipPaidCents = sumCents(records.map((record) => cents(record.cardTipCents) + cents(record.giftCardTipCents)));
+  return {
+    payoutCents: serviceWageCents + nonCashTipPaidCents,
+    additionalServiceWagePaidCents: serviceWageCents - acquiredServiceCents,
+    nonCashTipPaidCents,
+  };
+}
+
 export interface PayrollBalance {
   rawBalanceCents: bigint;
   employerOwesCents: Cents;

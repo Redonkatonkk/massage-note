@@ -39,6 +39,7 @@ export const cancelBusinessDayClosingSchema = z.object({
 const expectedSettlementVersionSchema = z.number().int().min(0);
 
 export const settleCashSchema = z.object({
+  dailySettlementEnabled: z.boolean().optional(),
   version: expectedSettlementVersionSchema,
   note: z.string().trim().max(1_000).optional(),
 });
@@ -53,6 +54,7 @@ export const settleAllCashSchema = z.object({
     .array(
       z.object({
         membershipId: uuidSchema,
+        dailySettlementEnabled: z.boolean().optional(),
         version: expectedSettlementVersionSchema,
         note: z.string().trim().max(1_000).optional(),
       }),

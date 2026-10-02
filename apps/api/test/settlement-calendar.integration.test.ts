@@ -10,6 +10,8 @@ import { FinanceQueriesService } from "../src/finance/finance-queries.service.js
 import { EmployeeSettlementsService } from "../src/finance/employee-settlements.service.js";
 import { EmployeeSettlementPaymentsService } from "../src/finance/employee-settlement-payments.service.js";
 import { PayrollSettlementsService } from "../src/finance/payroll-settlements.service.js";
+import { ClosingsService } from "../src/finance/closings.service.js";
+import { MembershipsService } from "../src/stores/memberships.service.js";
 import { CashSettlementsService } from "../src/finance/cash-settlements.service.js";
 import type { EmployeeSettlementPaymentScope } from "@massage-note/contracts";
 
@@ -22,6 +24,8 @@ const documents = new EmployeeSettlementsService(prisma, access, finance);
 const payments = new EmployeeSettlementPaymentsService(prisma, access, idempotency, documents);
 const payroll = new PayrollSettlementsService(prisma, access, idempotency);
 const cash = new CashSettlementsService(prisma, access, idempotency);
+const closings = new ClosingsService(prisma, access, idempotency);
+const members = new MembershipsService(prisma, access);
 const work = new WorkRecordsService(prisma, access, idempotency);
 const storeId = randomUUID(), ownerId = randomUUID(), employeeId = randomUUID();
 const ownerMembershipId = randomUUID(), membershipId = randomUUID(), otherMemberId = randomUUID(), serviceItemId = randomUUID();
@@ -71,6 +75,7 @@ describe.skipIf(!enabled).sequential("工资日历、抵扣与结清事务", () 
       await prisma.serviceItem.deleteMany({ where: { storeId } });
       await prisma.store.updateMany({ where: { id: storeId }, data: { ownerMembershipId: null } });
       await prisma.storeMembership.deleteMany({ where: { storeId } });
+      await prisma.businessDayClosing.deleteMany({ where: { storeId } });
       await prisma.store.deleteMany({ where: { id: storeId } });
       await prisma.user.deleteMany({ where: { id: { in: [ownerId, employeeId] } } });
     }
@@ -162,6 +167,57 @@ describe.skipIf(!enabled).sequential("工资日历、抵扣与结清事务", () 
     const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
     expect(rejected.reason).toBeInstanceOf(ConflictException);
     expect(await prisma.payrollSettlement.count({ where: { storeId, periodStart: new Date("2026-09-10T00:00:00Z") } })).toBe(1);
+  });
+
+  it("每日结清默认关闭，启用后保存完整工资快照；幂等、历史和取消同步工资日历", async () => {
+    const before = await prisma.storeMembership.findUniqueOrThrow({ where: { id: membershipId } });
+    expect(before.dailySettlementEnabled).toBe(false);
+    await record("2026-09-12");
+    expect((await closings.previewMember(owner, storeId, "2026-09-12", membershipId)).dailySettlementEnabled).toBe(false);
+    const changed = await members.updateMember(owner, storeId, membershipId, { version: before.version, dailySettlementEnabled: true }, key());
+    const personal = await closings.previewMember(employee, storeId, "2026-09-12", membershipId);
+    expect(personal).toMatchObject({ dailySettlementEnabled: true, dailySettlementPayoutCents: 8300 });
+    await expect(cash.settle(owner, storeId, "2026-09-12", membershipId, { version: 0, dailySettlementEnabled: false }, key(), key())).rejects.toBeInstanceOf(ConflictException);
+    await expect(cash.settle(employee, storeId, "2026-09-12", membershipId, { version: 0 }, key(), key())).rejects.toBeInstanceOf(ForbiddenException);
+    const beforeBalance = await finance.myBalance(employee, storeId);
+    const requestKey = key();
+    const paid = await cash.settle(owner, storeId, "2026-09-12", membershipId, { version: 0, dailySettlementEnabled: true }, requestKey, key());
+    expect(paid).toMatchObject({ dailySettlementEnabled: true, additionalServiceWagePaidCents: 3600n, nonCashTipPaidCents: 2300n });
+    expect((await cash.settle(owner, storeId, "2026-09-12", membershipId, { version: 0, dailySettlementEnabled: true }, requestKey, key())).id).toBe(paid.id);
+    const afterBalance = await finance.myBalance(employee, storeId);
+    expect(beforeBalance.rawBalanceCents - afterBalance.rawBalanceCents).toBe(9300n);
+    expect((await preview("2026-09-12")).payment).toMatchObject({ unsettledCents: 0, fullyConfirmed: true });
+    expect((await calendar()).days.find((d) => d.businessDate === "2026-09-12")).toMatchObject({ dailySettlementEnabled: true, cashSettled: true, nonCashSettled: true });
+    await expect(confirm("2026-09-12")).rejects.toBeInstanceOf(ConflictException);
+    const disabled = await members.updateMember(owner, storeId, membershipId, { version: changed.version, dailySettlementEnabled: false }, key());
+    expect((await closings.previewMember(owner, storeId, "2026-09-12", membershipId))).toMatchObject({ dailySettlementEnabled: true, dailySettlementPayoutCents: 8300 });
+    await cash.reopen(owner, storeId, "2026-09-12", membershipId, { version: paid.version }, key(), key());
+    expect((await preview("2026-09-12")).payment.unsettledCents).toBe(9300);
+    expect((await calendar()).days.find((d) => d.businessDate === "2026-09-12")).toMatchObject({ cashSettled: false, nonCashSettled: false });
+    await members.updateMember(owner, storeId, membershipId, { version: disabled.version, dailySettlementEnabled: true }, key());
+    const restored = await cash.settle(owner, storeId, "2026-09-12", membershipId, { version: paid.version + 1 }, key(), key());
+    const row = await prisma.workRecord.findFirstOrThrow({ where: { storeId, businessDate: new Date("2026-09-12T00:00:00Z") } });
+    await work.update(owner, storeId, row.id, { version: row.version, isHighlighted: true }, key(), key());
+    expect((await preview("2026-09-12")).payment.unsettledCents).toBe(9300);
+    expect(await prisma.dailyCashSettlement.findUnique({ where: { id: restored.id } })).toMatchObject({ status: "UNSETTLED" });
+  });
+
+  it("每日结清纳入礼物卡大费及小费；拒绝未结账记工和已有工资确认", async () => {
+    const created = await work.create(owner, storeId, { employeeMembershipId: membershipId, startAt: "2026-09-13T16:00:00Z", serviceItemId }, key(), key());
+    await expect(cash.settle(owner, storeId, "2026-09-13", membershipId, { version: 0 }, key(), key())).rejects.toBeInstanceOf(ConflictException);
+    expect(await prisma.dailyCashSettlement.count({ where: { storeId, businessDate: new Date("2026-09-13T00:00:00Z") } })).toBe(0);
+    await work.confirmPayment(owner, storeId, created.id, { version: created.version, cashServiceCents: 0, cardServiceCents: 0, cardTipCents: 0, giftCardServiceCents: 10000, giftCardTipCents: 500, cashTipCents: 700, giftCardSerialNumber: "DAILY-TEST" }, key(), key());
+    expect((await closings.previewMember(owner, storeId, "2026-09-13", membershipId)).dailySettlementPayoutCents).toBe(6500);
+    await cash.settleAll(owner, storeId, "2026-09-13", { settlements: [{ membershipId, version: 0, dailySettlementEnabled: true }] }, key(), key());
+    expect((await preview("2026-09-13")).payment).toMatchObject({ unsettledCents: 0, fullyConfirmed: true });
+    await record("2026-09-14");
+    await confirm("2026-09-14", "2026-09-14", "NON_CASH");
+    await expect(cash.settle(owner, storeId, "2026-09-14", membershipId, { version: 0 }, key(), key())).rejects.toBeInstanceOf(ConflictException);
+    await record("2026-09-15");
+    await cash.settle(owner, storeId, "2026-09-15", membershipId, { version: 0 }, key(), key());
+    const closed = await closings.close(owner, storeId, "2026-09-15", { force: false }, key(), key());
+    await closings.cancel(owner, storeId, "2026-09-15", { version: closed.closing.version }, key(), key());
+    expect((await preview("2026-09-15")).payment).toMatchObject({ unsettledCents: 9300, fullyConfirmed: false });
   });
 
   it("权限、跨店归属、空记工和店主仅预览边界", async () => {

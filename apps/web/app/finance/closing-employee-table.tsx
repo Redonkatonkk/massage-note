@@ -16,6 +16,7 @@ export function CashSettlementDetails({ row }: { row: CashSettlementRow }) {
       <div><dt>实际取得工资</dt><dd>{formatUsd(row.cashAcquiredServiceWageCents, locale)}</dd></div>
       <div><dt>工资缺口</dt><dd>{formatUsd(row.cashWageShortfallCents, locale)}</dd></div>
       <div><dt>员工应保留</dt><dd>{formatUsd(row.cashRetainedCents, locale)}</dd></div>
+      {row.dailySettlementEnabled && <div><dt>{locale === "en-US" ? "Daily wages to pay (excluding cash tips)" : "每日结清应发工资（不含现金小费）"}</dt><dd>{formatUsd(row.dailySettlementPayoutCents ?? 0, locale)}</dd></div>}
       <div><dt>应提交店铺</dt><dd>{formatUsd(row.cashToSubmitToStoreCents, locale)}</dd></div>
     </dl>
     <p className="cash-settlement-meta">
@@ -55,7 +56,7 @@ export function ClosingEmployeeTable({ employees, cashRows, busy, cashLoadFailed
           <td>{formatUsd(employee.employeeIncomeCents, locale)}</td><td>{employee.incompleteRecordCount}</td>
           <td>{cash ? formatUsd(cash.cashToSubmitToStoreCents, locale) : "—"}</td>
           <td>{cash ? formatUsd(cash.cashRetainedCents, locale) : "—"}</td>
-          <td>{cash ? <><span>{cash.status === "SETTLED" ? "已全部结清" : "未结清"}</span><CashSettlementDetails row={cash} /></> : "—"}</td>
+          <td>{cash ? <><span>{cash.status === "SETTLED" ? (cash.dailySettlementEnabled ? "当天工资已全部结清" : "已全部结清") : "未结清"}</span><CashSettlementDetails row={cash} /></> : "—"}</td>
           <td><button className="table-action" type="button" disabled={busy || !cash} onClick={() => { if (cash) onToggleCash(cash); }}>{cash?.status === "SETTLED" ? "取消结清" : "标记全部结清"}</button></td>
         </tr>;
       })}</tbody>

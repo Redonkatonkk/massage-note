@@ -173,7 +173,7 @@ export class FinanceQueriesService {
           status: "SETTLED",
           deletedAt: null,
         },
-        _sum: { cashAcquiredServiceWageCents: true, cashTipCents: true },
+        _sum: { cashAcquiredServiceWageCents: true, cashTipCents: true, additionalServiceWagePaidCents: true, nonCashTipPaidCents: true },
       }),
     ]);
     const includeSettledCash =
@@ -239,7 +239,7 @@ export class FinanceQueriesService {
         managerWorkerIncomeCents,
         ...storeSettlement,
         payrollPaidWithinRangeCents:
-          payrollWithinRange._sum.totalPaidCents ?? 0n,
+          (payrollWithinRange._sum.totalPaidCents ?? 0n) + (settledCashWithinRange._sum.additionalServiceWagePaidCents ?? 0n) + (settledCashWithinRange._sum.nonCashTipPaidCents ?? 0n),
         settledCashAcquiredWithinRangeCents,
         employerOwesCents: balances.reduce(
           (sum, balance) => sum + balance.employerOwesCents,
@@ -785,6 +785,8 @@ export class FinanceQueriesService {
         _sum: {
           cashAcquiredServiceWageCents: true,
           cashTipCents: true,
+          additionalServiceWagePaidCents: true,
+          nonCashTipPaidCents: true,
         },
       }),
       client.payrollSettlement.aggregate({
@@ -797,7 +799,7 @@ export class FinanceQueriesService {
     const settledCashAcquiredCents =
       (cash._sum.cashAcquiredServiceWageCents ?? 0n) +
       (cash._sum.cashTipCents ?? 0n);
-    const payrollPaidCents = payroll._sum.totalPaidCents ?? 0n;
+    const payrollPaidCents = (payroll._sum.totalPaidCents ?? 0n) + (cash._sum.additionalServiceWagePaidCents ?? 0n) + (cash._sum.nonCashTipPaidCents ?? 0n);
     const balance = calculatePayrollBalance({
       cumulativeEmployeeIncomeCents,
       settledCashAcquiredCents,

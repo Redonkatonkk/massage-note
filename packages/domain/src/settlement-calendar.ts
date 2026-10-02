@@ -18,17 +18,19 @@ export interface SettlementRangeConfirmation {
 export function calculateSettlementDays(
   incomes: SettlementDayIncome[],
   confirmations: SettlementRangeConfirmation[],
-  cashSettlements: Array<{ businessDate: string; cashRetainedCents: bigint }>,
+  cashSettlements: Array<{ businessDate: string; cashRetainedCents: bigint; dailySettlementEnabled?: boolean }>,
 ) {
   const cashByDate = new Map(cashSettlements.map((item) => [item.businessDate, item.cashRetainedCents]));
+  const fullByDate = new Set(cashSettlements.filter((item) => item.dailySettlementEnabled).map((item) => item.businessDate));
   return incomes.map((day) => {
     const covering = confirmations.filter((item) => item.periodStart <= day.businessDate && item.periodEnd >= day.businessDate);
-    const cashConfirmed = covering.some((item) => item.paymentScope !== "NON_CASH");
-    const nonCashConfirmed = covering.some((item) => item.paymentScope !== "CASH");
+    const cashConfirmed = fullByDate.has(day.businessDate) || covering.some((item) => item.paymentScope !== "NON_CASH");
+    const nonCashConfirmed = fullByDate.has(day.businessDate) || covering.some((item) => item.paymentScope !== "CASH");
     const cashAcquired = cashByDate.get(day.businessDate) ?? 0n;
     const cashRemaining = day.cashIncomeCents - cashAcquired;
     return {
       businessDate: day.businessDate,
+      dailySettlementEnabled: fullByDate.has(day.businessDate),
       hasCash: day.hasCash,
       hasNonCash: day.hasNonCash,
       cashConfirmed,

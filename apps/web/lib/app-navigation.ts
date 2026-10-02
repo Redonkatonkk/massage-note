@@ -2,13 +2,13 @@ import type { MembershipSummary } from "./types";
 
 export type NavigationRole = MembershipSummary["role"];
 export type AppNavPage = "today" | "finance" | "manage" | "profile";
-export type FinanceTab = "analytics" | "summary" | "closing" | "giftCards" | "payroll";
+export type FinanceTab = "expenses" | "analytics" | "summary" | "closing" | "giftCards" | "payroll";
 export type ManageTab = "store" | "members" | "catalog" | "work-bot" | "recovery" | "audit";
 
 export function financeNavigationTabs(role: NavigationRole): Array<[FinanceTab, string]> {
   const canManage = role !== "EMPLOYEE";
   const tabs: Array<[FinanceTab, string]> = [["summary", "财务汇总"]];
-  if (canManage) tabs.push(["analytics", "经营分析"]);
+  if (canManage) tabs.push(["analytics", "经营分析"], ["expenses", "支出"]);
   tabs.push(["closing", canManage ? "日结" : "我的日结"]);
   if (canManage) tabs.push(["giftCards", "礼物卡"]);
   tabs.push(["payroll", canManage ? "工资结算" : "工资结算明细"]);

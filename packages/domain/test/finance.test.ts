@@ -6,6 +6,7 @@ import {
   calculateBoardTotalIncome,
   calculateDailyTurnover,
   calculateDailyCashSettlement,
+  calculateDailyFullSettlement,
   calculatePersonalClosingCashToSubmit,
   calculatePersonalClosingPaymentDividends,
   calculatePayrollBalance,
@@ -493,4 +494,21 @@ it("店铺收入复用含卖卡营业额，卖卡收入只计一次", () => {
   expect(calculateStoreIncome(input)).toBe(52000n);
   expect(calculateStoreIncome({ ...input, giftCardSalesAmountCents: 0n })).toBe(44000n);
   expect(calculateStoreIncome({ ...input, giftCardRedemptionCents: 0n })).toBe(55000n);
+});
+
+
+describe("每日全部工资交接", () => {
+  it("包含所有大费提成与非现金小费，不包含客人直接支付的现金小费，并保留美分", () => {
+    const records = [
+      { totalLargeFeeWageCents: 6001n, cashAcquiredServiceWageCents: 2400n, cardTipCents: 2002n, giftCardTipCents: 303n, cashTipCents: 9000n },
+      { totalLargeFeeWageCents: 3000n, cashAcquiredServiceWageCents: 3000n, cardTipCents: 0n, giftCardTipCents: 0n, cashTipCents: 1000n },
+      { totalLargeFeeWageCents: 1000n, cashAcquiredServiceWageCents: 0n, cardTipCents: 0n, giftCardTipCents: 111n, cashTipCents: 0n },
+    ];
+    expect(calculateDailyFullSettlement(records)).toEqual({ payoutCents: 12417n, additionalServiceWagePaidCents: 4601n, nonCashTipPaidCents: 2416n });
+    expect(calculateDailyFullSettlement([])).toEqual({ payoutCents: 0n, additionalServiceWagePaidCents: 0n, nonCashTipPaidCents: 0n });
+  });
+  it("现金工资不足时全部结清仍补足工资", () => {
+    expect(calculateDailyFullSettlement([{ totalLargeFeeWageCents: 6000n, cashAcquiredServiceWageCents: 1000n, cardTipCents: 0n, giftCardTipCents: 0n }]))
+      .toEqual({ payoutCents: 6000n, additionalServiceWagePaidCents: 5000n, nonCashTipPaidCents: 0n });
+  });
 });

@@ -44,6 +44,7 @@ export interface StoreMember {
   status: string;
   version: number;
   defaultCommissionBps: number | null;
+  dailySettlementEnabled?: boolean;
   closingDeliveryEnabled: boolean;
   closingDeliveryPhoneE164: string | null;
   closingImageLocale: "zh_CN" | "en_US" | null;
@@ -132,7 +133,7 @@ export interface EmployeeSettlementPreview {
 export interface EmployeeSettlementCalendar {
   membershipId: string;
   month: string;
-  days: Array<{ businessDate: string; hasCash: boolean; hasNonCash: boolean; cashSettled: boolean; nonCashSettled: boolean; cashUnsettledCents: number; nonCashUnsettledCents: number }>;
+  days: Array<{ dailySettlementEnabled?: boolean; businessDate: string; hasCash: boolean; hasNonCash: boolean; cashSettled: boolean; nonCashSettled: boolean; cashUnsettledCents: number; nonCashUnsettledCents: number }>;
 }
 
 export interface EmployeeSettlementDelivery {
@@ -571,6 +572,10 @@ export interface FinanceDetailsResponse {
 }
 
 export interface CashSettlementRow {
+  dailySettlementEnabled?: boolean;
+  dailySettlementPayoutCents?: number;
+  additionalServiceWagePaidCents?: number;
+  nonCashTipPaidCents?: number;
   membershipId: string;
   displayName: string;
   role: StoreRole;
@@ -665,7 +670,9 @@ export interface ClosingPreview {
 }
 
 export interface EmployeeClosingPreview {
-  cashSettlement: { status: "SETTLED" | "UNSETTLED"; version: number; settledAt: string | null };
+  dailySettlementEnabled?: boolean;
+  dailySettlementPayoutCents?: number;
+  cashSettlement: { dailySettlementEnabled?: boolean; status: "SETTLED" | "UNSETTLED"; version: number; settledAt: string | null };
   storeId: string;
   storeName: string;
   storeTimezone: string;

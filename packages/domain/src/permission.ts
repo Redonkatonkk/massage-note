@@ -10,6 +10,7 @@ export type StoreCapability =
   | "MEMBERSHIP_MANAGE"
   | "DAY_CLOSE_MANAGE"
   | "CASH_SETTLEMENT_MANAGE"
+  | "EXPENSE_MANAGE"
   | "PAYROLL_MANAGE"
   | "AUDIT_READ_STORE"
   | "STORE_SETTINGS_MANAGE"
@@ -31,6 +32,7 @@ const managerCapabilities = new Set<StoreCapability>([
   "DAY_CLOSE_MANAGE",
   "CASH_SETTLEMENT_MANAGE",
   "PAYROLL_MANAGE",
+  "EXPENSE_MANAGE",
   "AUDIT_READ_STORE",
   "STORE_SETTINGS_MANAGE",
 ]);

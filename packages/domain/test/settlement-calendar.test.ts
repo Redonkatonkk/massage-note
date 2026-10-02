@@ -34,3 +34,12 @@ describe("区间结清和付款金额", () => {
     expect(calculateSettlementDays([], [], [])).toEqual([]);
   });
 });
+
+
+it("每日全部结清覆盖两种来源及现金工资缺口，取消后恢复未结", () => {
+  const income = days.slice(0, 1);
+  const settled = calculateSettlementDays(income, [], [{ businessDate: "2026-09-30", cashRetainedCents: 1000n, dailySettlementEnabled: true }]);
+  expect(settled[0]).toMatchObject({ dailySettlementEnabled: true, cashSettled: true, nonCashSettled: true, cashUnsettledCents: 0n, nonCashUnsettledCents: 0n });
+  expect(settlementUnsettledTotal(settled, "ALL")).toBe(0n);
+  expect(settlementUnsettledTotal(calculateSettlementDays(income, [], []), "ALL")).toBe(9300n);
+});

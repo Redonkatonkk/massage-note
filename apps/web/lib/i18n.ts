@@ -8,6 +8,28 @@ export function isAppLocale(value: unknown): value is AppLocale {
 }
 
 const ENGLISH_TRANSLATIONS: Record<string, string> = {
+  "支出": "Expenses",
+  "店铺支出": "Store expense",
+  "新增店铺支出": "Create store expense",
+  "修改店铺支出": "Update store expense",
+  "变更支出周期规则": "Change expense schedule",
+  "停止周期支出": "Stop recurring expense",
+  "填写实际支出账单": "Record actual expense bill",
+  "撤销支出账单覆盖": "Clear actual expense override",
+  "删除店铺支出": "Delete store expense",
+  "恢复店铺支出": "Restore store expense",
+  "周期费用请修改单期金额或新增生效规则": "For recurring expenses, edit a period amount or add an effective rule.",
+  "生效日期必须是最新规则之后的周期起点；历史单期请修改实际金额": "Choose a period boundary after the latest rule start. Correct historical periods using actual amounts.",
+  "重新开始日期不能早于停止日期": "The restart date cannot precede the stop date.",
+  "生效日期之后已有单期账单，请先撤销对应覆盖金额再修改规则": "Clear actual bills on or after the effective date before changing the rule.",
+  "停止日期必须是仍有效的最新规则的周期起点": "Choose a period boundary of the latest active rule as the stop date.",
+  "停止日期之后已有账单，请先撤销对应覆盖金额": "Clear actual bills on or after the stop date first.",
+  "没有找到该支出的有效周期": "No valid period was found for this expense.",
+  "一次性支出没有周期规则": "One-time expenses have no recurring rules.",
+  "月周期必须从自然月第一天开始": "Monthly periods must start on the first day of a calendar month.",
+  "是否每日结清（选填）": "Settle wages daily (optional)",
+  "选择是：个人日结发放全部大费工资与刷卡/礼物卡小费，现金小费由员工直接收取。": "Yes pays all service wages and card/gift card tips at daily closing. Employees receive cash tips directly.",
+  "当天工资已全部结清": "Daily wages fully settled",
   "展开子菜单": "Expand submenu",
   "收起子菜单": "Collapse submenu",
   "经营分析": "Business analytics",
@@ -1519,7 +1541,6 @@ const DYNAMIC_TRANSLATIONS: Array<[RegExp, (...groups: string[]) => string]> = [
   [/^已隐藏 (.+)$/u, (name) => `Hidden ${name}`],
   [/^已恢复 (.+)$/u, (name) => `Restored ${name}`],
   [/^已隐藏员工 · (\d+)$/u, (count) => `Hidden employees · ${count}`],
-  [/^下工时间 · (.+)$/u, (time) => `Ends · ${time === "未定" ? "TBD" : time}`],
   [/^折扣 (.+)$/u, (amount) => `Discount ${amount.replace(/^US\$/, "$")}`],
   [/^(\d+) 秒后可重发$/u, (seconds) => `Resend in ${seconds}s`],
   [/^(\d+) 条记工$/u, (count) => `${count} records`],
@@ -1842,6 +1863,8 @@ export function translateText(value: string, locale: AppLocale): string {
 }
 
 const API_ERROR_ENGLISH: Record<string, string> = {
+  EXPENSE_NOT_FOUND: "Expense record not found.",
+  EXPENSE_VERSION_CONFLICT: "This expense changed. Refresh and review it before retrying.",
   LOST_CUSTOMER_HISTORY_FORBIDDEN: "Employees can only view lost customers for today.",
   LOST_CUSTOMER_FUTURE_DATE: "Lost customers cannot be recorded for a future date.",
   LOST_CUSTOMER_WRITE_FORBIDDEN: "Employees can only change lost customers for today.",

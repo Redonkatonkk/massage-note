@@ -528,7 +528,7 @@ export function TodayBoard({
             ? activeWorkRecord(row.workRecords, statusNow)
             : null;
           const workStatus = activeRecord
-            ? `下工时间 · ${activeRecord.endAt ? displayTime(activeRecord.endAt, currentDay.timezone) : "未定"}`
+            ? (activeRecord.endAt ? displayTime(activeRecord.endAt, currentDay.timezone) : "未定")
             : "空闲";
           const showTotals = canViewEmployeeTotals({
             role: membership.role,

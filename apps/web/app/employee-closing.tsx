@@ -309,7 +309,9 @@ function downloadImage(image: GeneratedClosingImage) {
   link.remove();
 }
 
-export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClosingSummaryProps) {
+export function EmployeeClosingSummary({ preview: initialPreview, canSend = false }: EmployeeClosingSummaryProps) {
+  const [preview, setPreview] = useState(initialPreview);
+  useEffect(() => { setPreview(initialPreview); }, [initialPreview]);
   const { locale, t } = useLanguage();
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<GeneratedClosingImage | null>(null);
@@ -327,13 +329,15 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
     try {
       const result = await apiRequest<EmployeeClosingPreview["cashSettlement"]>(
         `/stores/${preview.storeId}/cash-settlements/${preview.businessDate}/${preview.employee.membershipId}/${cashSettlement.status === "SETTLED" ? "reopen" : "settle"}`,
-        { method: "POST", idempotent: true, body: { version: cashSettlement.version } },
+        { method: "POST", idempotent: true, body: { version: cashSettlement.version, dailySettlementEnabled: preview.dailySettlementEnabled ?? false } },
       );
       setCashSettlement(result);
+      const latest = await apiRequest<EmployeeClosingPreview>(`/stores/${preview.storeId}/closings/${preview.businessDate}/members/${preview.employee.membershipId}/preview`);
+      setPreview(latest);
     } catch (caught) {
       setImageError(errorMessage(caught));
       const latest = await apiRequest<EmployeeClosingPreview>(`/stores/${preview.storeId}/closings/${preview.businessDate}/members/${preview.employee.membershipId}/preview`).catch(() => null);
-      if (latest) setCashSettlement(latest.cashSettlement);
+      if (latest) { setPreview(latest); setCashSettlement(latest.cashSettlement); }
     } finally {
       setSettlingCash(false);
     }
@@ -452,13 +456,13 @@ export function EmployeeClosingSummary({ preview, canSend = false }: EmployeeClo
       </header>
 
       <section className="employee-closing-handoff" aria-labelledby="employee-closing-settlement-title">
-        <div><h3 id="employee-closing-settlement-title">现金交接</h3><p>店里应发给员工的现金大费工资；现金小费由员工自行收取。</p></div>
-        <article><span>现金大费</span><strong>{money(employee.cashLargeFeeDividendCents, locale)}</strong><small>已确认项目按折前金额和提成比例计算，混合付款按现金占比分摊；折扣由店里承担。</small></article>
+        <div><h3 id="employee-closing-settlement-title">现金交接</h3><p>{preview.dailySettlementEnabled ? (locale === "en-US" ? "All service wages and card/gift card tips; cash tips are received directly from guests." : "当天全部大费工资＋刷卡/礼物卡小费；现金小费已由客人直接给员工，不计入交接。") : "店里应发给员工的现金大费工资；现金小费由员工自行收取。"}</p></div>
+        <article><span>{preview.dailySettlementEnabled ? (locale === "en-US" ? "Daily wages to pay" : "当日应发工资") : "现金大费"}</span><strong>{money(preview.dailySettlementEnabled ? preview.dailySettlementPayoutCents ?? 0 : employee.cashLargeFeeDividendCents, locale)}</strong><small>{preview.dailySettlementEnabled ? (locale === "en-US" ? "Includes service wages from every payment method and card/gift card tips." : "包含现金、刷卡和礼物卡的全部大费提成，以及刷卡/礼物卡小费。") : "已确认项目按折前金额和提成比例计算，混合付款按现金占比分摊；折扣由店里承担。"}</small></article>
       </section>
 
       <div className="employee-closing-image-actions">
-        <span role="status">{cashSettlement.status === "SETTLED" ? "已结现金：当天现金大费工资已发放" : "现金尚未结清"}</span>
-        {canSend && preview.records.length > 0 && <button className="secondary-action" type="button" disabled={settlingCash} onClick={() => void toggleCashSettlement()}>{settlingCash ? "正在保存…" : cashSettlement.status === "SETTLED" ? "取消已结现金" : "已结现金"}</button>}
+        <span role="status">{preview.dailySettlementEnabled ? (cashSettlement.status === "SETTLED" ? (locale === "en-US" ? "Daily wages fully settled" : "已结：当天工资已全部结清") : (locale === "en-US" ? "Daily wages pending" : "当天工资尚未结清")) : (cashSettlement.status === "SETTLED" ? "已结现金：当天现金大费工资已发放" : "现金尚未结清")}</span>
+        {canSend && preview.records.length > 0 && <button className="secondary-action" type="button" disabled={settlingCash} onClick={() => void toggleCashSettlement()}>{settlingCash ? "正在保存…" : cashSettlement.status === "SETTLED" ? (preview.dailySettlementEnabled ? (locale === "en-US" ? "Undo settlement" : "取消已结") : "取消已结现金") : (preview.dailySettlementEnabled ? (locale === "en-US" ? "Settled" : "已结") : "已结现金")}</button>}
       </div>
 
       <section className="employee-closing-records" aria-labelledby="employee-closing-records-title">

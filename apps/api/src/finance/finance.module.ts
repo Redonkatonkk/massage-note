@@ -1,3 +1,5 @@
+import { ExpensesController } from "./expenses.controller.js";
+import { ExpensesService } from "./expenses.service.js";
 import { FinanceAnalyticsService } from "./finance-analytics.service.js";
 import { ClosingSchedulerService } from "./closing-scheduler.service.js";
 import { Module } from "@nestjs/common";
@@ -21,6 +23,7 @@ import { EmployeeSettlementPaymentsService } from "./employee-settlement-payment
 @Module({
   imports: [AuthModule, StoresModule],
   controllers: [
+    ExpensesController,
     ClosingsController,
     CashSettlementsController,
     PayrollSettlementsController,
@@ -32,6 +35,7 @@ import { EmployeeSettlementPaymentsService } from "./employee-settlement-payment
     EmployeeSettlementDeliveryAgentController,
   ],
   providers: [
+    ExpensesService,
     ClosingsService,
     ClosingSchedulerService,
     CashSettlementsService,

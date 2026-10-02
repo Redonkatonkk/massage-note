@@ -162,6 +162,7 @@ model Store {
   settlementDeliveries EmployeeSettlementDelivery[]
   closingDeliveryAgent ClosingDeliveryAgent?
   cashSettlements      DailyCashSettlement[]
+  expenseItems        ExpenseItem[]
   payrollSettlements   PayrollSettlement[]
   audits               AuditLog[]
   idempotencyRequests  IdempotencyRequest[]
@@ -187,6 +188,7 @@ model StoreMembership {
   isServiceProvider     Boolean          @default(true) @map("is_service_provider")
   employmentType        EmploymentType?  @map("employment_type")
   defaultCommissionBps  Int?             @map("default_commission_bps")
+  dailySettlementEnabled Boolean         @default(false) @map("daily_settlement_enabled")
   closingDeliveryEnabled Boolean         @default(false) @map("closing_delivery_enabled")
   closingDeliveryPhoneE164 String?       @map("closing_delivery_phone_e164")
   closingImageLocale    ClosingImageLocale? @map("closing_image_locale")
@@ -829,6 +831,9 @@ model DailyCashSettlement {
   cashWageShortfallCents            BigInt               @map("cash_wage_shortfall_cents")
   cashRetainedCents                 BigInt               @map("cash_retained_cents")
   cashToSubmitToStoreCents          BigInt               @map("cash_to_submit_to_store_cents")
+  dailySettlementEnabled           Boolean              @default(false) @map("daily_settlement_enabled")
+  additionalServiceWagePaidCents    BigInt               @default(0) @map("additional_service_wage_paid_cents")
+  nonCashTipPaidCents               BigInt               @default(0) @map("non_cash_tip_paid_cents")
   status                            CashSettlementStatus @default(UNSETTLED)
   note                              String               @default("")
   settledBy                         String?              @map("settled_by") @db.Uuid
@@ -1013,4 +1018,50 @@ model AiChangePreview {
 
   @@index([storeId, userId, status, expiresAt])
   @@map("ai_change_previews")
+}
+
+model ExpenseItem {
+  id String @id @default(uuid()) @db.Uuid
+  storeId String @map("store_id") @db.Uuid
+  store Store @relation(fields: [storeId], references: [id])
+  name String @db.VarChar(100)
+  note String @default("") @db.Text
+  kind String @db.VarChar(16)
+  occurredOn DateTime? @map("occurred_on") @db.Date
+  amountCents BigInt? @map("amount_cents")
+  version Int @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedBy String? @map("deleted_by") @db.Uuid
+  createdBy String @map("created_by") @db.Uuid
+  updatedBy String @map("updated_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  rules ExpenseRuleRevision[]
+  @@index([storeId, deletedAt])
+  @@map("expense_items")
+}
+model ExpenseRuleRevision {
+  id String @id @default(uuid()) @db.Uuid
+  itemId String @map("item_id") @db.Uuid
+  item ExpenseItem @relation(fields: [itemId], references: [id])
+  startDate DateTime @map("start_date") @db.Date
+  endExclusive DateTime? @map("end_exclusive") @db.Date
+  unit String @db.VarChar(8)
+  interval Int
+  amountMode String @map("amount_mode") @db.VarChar(8)
+  amountCents BigInt @map("amount_cents")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  periods ExpensePeriodOverride[]
+  @@unique([itemId, startDate])
+  @@map("expense_rule_revisions")
+}
+model ExpensePeriodOverride {
+  id String @id @default(uuid()) @db.Uuid
+  ruleId String @map("rule_id") @db.Uuid
+  rule ExpenseRuleRevision @relation(fields: [ruleId], references: [id])
+  periodStart DateTime @map("period_start") @db.Date
+  amountCents BigInt @map("amount_cents")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  @@unique([ruleId, periodStart])
+  @@map("expense_period_overrides")
 }

@@ -89,7 +89,7 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .employee-row:nth-child(4n+4) .employee-avatar { border-color: #dfd0c7; background: #f5eee9; color: #76574a; }
 .employee-toggle .on-duty, .employee-toggle .off-duty { display: flex; align-items: center; gap: 5px; font-weight: 500; }
 .employee-toggle :is(.on-duty, .off-duty)::before { content: ""; width: 5px; height: 5px; flex: 0 0 5px; border-radius: 50%; background: currentColor; }
-.employee-toggle .on-duty { color: var(--success); }
+.employee-toggle .on-duty { color: var(--success); font-size: 1.125rem; font-weight: 700; white-space: nowrap; }
 .employee-toggle .off-duty { color: var(--muted); }
 .chevron { font-weight: 500; }
 .row-management summary { color: var(--muted); }
@@ -279,3 +279,28 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 
 .personal-cash-amounts { display: flex; flex-wrap: wrap; gap: 12px 24px; }
 .personal-cash-amounts dd { margin: 4px 0 0; font-weight: 700; }
+
+/* Operating expenses use the existing finance palette and shared table controls. */
+.expenses-panel { min-width: 0; }
+.expenses-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.expenses-toolbar label { display: grid; gap: 6px; }
+.expenses-toolbar h2 { flex: 1; margin: 0; }
+.expenses-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
+.expenses-summary article { display: grid; gap: 8px; min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.expenses-summary strong { font-size: 1.7rem; color: var(--brand-dark); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.expenses-summary small { color: var(--muted); }
+.expenses-budget-note { padding: 12px 16px; border-left: 3px solid var(--brand); background: var(--brand-soft); }
+.expenses-table { min-width: 850px; }
+.expenses-table td { font-variant-numeric: tabular-nums; }
+.expenses-items { display: grid; gap: 12px; }
+.expenses-item { display: flex; justify-content: space-between; align-items: start; gap: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; }
+.expenses-item > div { min-width: 0; }
+.expenses-item h3 { margin: 0 0 8px; overflow-wrap: anywhere; }
+.expenses-item p { margin: 6px 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.expenses-item-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: end; }
+.expenses-deleted { margin-top: 20px; }
+.expenses-editor { display: grid; gap: 16px; width: min(560px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; padding: 24px; border-radius: 18px; background: var(--surface); box-shadow: 0 20px 70px #211d1830; }
+.expenses-editor label { display: grid; gap: 6px; min-width: 0; }
+.expenses-editor input, .expenses-editor select, .expenses-editor textarea { min-width: 0; width: 100%; }
+.expenses-editor .expenses-checkbox { display: flex; align-items: center; gap: 8px; }
+.expenses-checkbox input { width: auto; }

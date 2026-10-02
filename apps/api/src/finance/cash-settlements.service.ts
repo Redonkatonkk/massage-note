@@ -13,6 +13,7 @@ import type {
 } from "@massage-note/contracts";
 import {
   calculateDailyCashSettlement,
+  calculateDailyFullSettlement,
   hasStoreCapability,
 } from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
@@ -35,6 +36,11 @@ interface CalculatedCashRow {
   cashWageShortfallCents: bigint;
   cashRetainedCents: bigint;
   cashToSubmitToStoreCents: bigint;
+  dailySettlementEnabled: boolean;
+  additionalServiceWagePaidCents: bigint;
+  nonCashTipPaidCents: bigint;
+  dailySettlementPayoutCents: bigint;
+  incompleteRecordCount: number;
   status: "UNSETTLED" | "SETTLED";
   note: string;
   settledBy: string | null;
@@ -97,6 +103,9 @@ export class CashSettlementsService {
         const rows = await this.calculateRows(transaction, storeId, businessDate);
         const row = rows.find((item) => item.membershipId === membershipId);
         if (!row) this.throwCashRowNotFound();
+        if (input.dailySettlementEnabled !== undefined && input.dailySettlementEnabled !== row.dailySettlementEnabled) {
+          throw new ConflictException({ code: "CASH_SETTLEMENT_MODE_CHANGED", messageZh: "成员每日结清设置已变化，请重新打开个人日结核对" });
+        }
         return this.settleRow(
           transaction,
           actor,
@@ -155,7 +164,7 @@ export class CashSettlementsService {
         for (const row of rows) {
           const expected = requested.get(row.membershipId);
           if (!expected) continue;
-          if (expected.version !== row.version) {
+          if (expected.version !== row.version || (expected.dailySettlementEnabled !== undefined && expected.dailySettlementEnabled !== row.dailySettlementEnabled)) {
             throw new ConflictException({
               code: "CASH_SETTLEMENT_VERSION_CONFLICT",
               messageZh: "现金结算金额或状态已发生变化，请刷新后重试",
@@ -302,8 +311,26 @@ export class CashSettlementsService {
         latestResource: current ?? row,
       });
     }
+    if (current?.status === "SETTLED" && current.deletedAt === null) return current;
+    if (row.dailySettlementEnabled) {
+      if (row.incompleteRecordCount > 0) {
+        throw new ConflictException({ code: "DAILY_SETTLEMENT_PENDING_PAYMENT", messageZh: "当天还有未确认付款的记工，请结账后再结清全部工资" });
+      }
+      const alreadyPaid = await transaction.payrollSettlement.findFirst({
+        where: { storeId, membershipId: row.membershipId, deletedAt: null,
+          periodStart: { lte: dateAtUtc(businessDate) }, periodEnd: { gte: dateAtUtc(businessDate) },
+          confirmation: { isNot: null } },
+        select: { id: true },
+      });
+      if (alreadyPaid) {
+        throw new ConflictException({ code: "DAILY_SETTLEMENT_PAYROLL_CONFLICT", messageZh: "当天已有工资结清记录，请在工资结算页核对，避免重复发放" });
+      }
+    }
     const settledAt = new Date();
     const amounts = {
+      dailySettlementEnabled: row.dailySettlementEnabled,
+      additionalServiceWagePaidCents: row.additionalServiceWagePaidCents,
+      nonCashTipPaidCents: row.nonCashTipPaidCents,
       cashServiceCents: row.cashServiceCents,
       cashTipCents: row.cashTipCents,
       cashReceivedCents: row.cashReceivedCents,
@@ -371,6 +398,8 @@ export class CashSettlementsService {
           : Prisma.JsonNull,
         afterJson: {
           status: settlement.status,
+          dailySettlementEnabled: settlement.dailySettlementEnabled,
+          dailySettlementPayoutCents: row.dailySettlementPayoutCents.toString(),
           cashReceivedCents: settlement.cashReceivedCents.toString(),
           cashRetainedCents: settlement.cashRetainedCents.toString(),
           cashToSubmitToStoreCents:
@@ -409,6 +438,8 @@ export class CashSettlementsService {
         messageZh: "不能结算未来营业日的现金",
       });
     }
+    // Serialize mode changes with settlement snapshots, including settle-all.
+    await client.$queryRaw`SELECT id FROM store_memberships WHERE store_id = ${storeId}::uuid ORDER BY id FOR SHARE`;
     const [records, existing, allStoreMemberships] = await Promise.all([
       client.workRecord.findMany({
         where: {
@@ -420,12 +451,15 @@ export class CashSettlementsService {
         select: {
           employeeMembershipId: true,
           status: true,
+          totalLargeFeeWageCents: true,
+          cardTipCents: true,
+          giftCardTipCents: true,
           cashServiceCents: true,
           cashTipCents: true,
           cashAllocatedServiceWageCents: true,
           cashAcquiredServiceWageCents: true,
           cashWageShortfallCents: true,
-          employee: { select: { displayName: true, role: true } },
+          employee: { select: { displayName: true, role: true, dailySettlementEnabled: true } },
         },
       }),
       client.dailyCashSettlement.findMany({
@@ -449,7 +483,7 @@ export class CashSettlementsService {
     }
     const identities = new Map<
       string,
-      { id: string; displayName: string; role: string }
+      { id: string; displayName: string; role: string; dailySettlementEnabled: boolean }
     >();
     for (const record of records) {
       if (!identities.has(record.employeeMembershipId)) {
@@ -457,6 +491,7 @@ export class CashSettlementsService {
           id: record.employeeMembershipId,
           displayName: record.employee.displayName,
           role: record.employee.role,
+          dailySettlementEnabled: record.employee.dailySettlementEnabled,
         });
       }
     }
@@ -471,6 +506,9 @@ export class CashSettlementsService {
             record.status === "CONFIRMED",
         )
         .map((record) => ({
+          totalLargeFeeWageCents: record.totalLargeFeeWageCents,
+          cardTipCents: record.cardTipCents ?? 0n,
+          giftCardTipCents: record.giftCardTipCents ?? 0n,
           cashServiceCents: record.cashServiceCents ?? 0n,
           cashTipCents: record.cashTipCents ?? 0n,
           cashAllocatedServiceWageCents:
@@ -482,7 +520,16 @@ export class CashSettlementsService {
       const calculated = calculateDailyCashSettlement(memberRecords);
       const stored = storedByMembership.get(membership.id);
       const amounts = stored?.status === "SETTLED" ? stored : calculated;
+      const dailySettlementEnabled = stored?.status === "SETTLED" ? stored.dailySettlementEnabled : membership.dailySettlementEnabled;
+      const daily = calculateDailyFullSettlement(memberRecords);
+      const additionalServiceWagePaidCents = stored?.status === "SETTLED" ? stored.additionalServiceWagePaidCents : dailySettlementEnabled ? daily.additionalServiceWagePaidCents : 0n;
+      const nonCashTipPaidCents = stored?.status === "SETTLED" ? stored.nonCashTipPaidCents : dailySettlementEnabled ? daily.nonCashTipPaidCents : 0n;
       return {
+        dailySettlementEnabled,
+        additionalServiceWagePaidCents,
+        nonCashTipPaidCents,
+        dailySettlementPayoutCents: amounts.cashAcquiredServiceWageCents + additionalServiceWagePaidCents + nonCashTipPaidCents,
+        incompleteRecordCount: records.filter((record) => record.employeeMembershipId === membership.id && record.status !== "CONFIRMED").length,
         membershipId: membership.id,
         displayName: membership.displayName,
         role: membership.role,

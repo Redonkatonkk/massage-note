@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.15.8` 代码结构核对。
+> 状态：与 `1.17.0` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -200,3 +200,14 @@ Web 表单
 弹窗“应用”通过 `replace-weekly-dispatch` 使用当前勾选覆盖所选日期，不保存模板；目标日期已有记工（含待结账或删除历史）、已日结或属于历史时拒绝并回滚。覆盖标记让后续自动加载保留该日期的人工结果。
 
 `discount_items.rate_bps` 为可空万分比；预设折扣与自定义折扣复用既有记工比例快照和领域金额计算。礼物卡台账从已确认记工按规范化序列号分组补入无销售登记的老卡，查询不产生销售账目。
+
+
+成员 `StoreMembership.dailySettlementEnabled` 默认为 false。每日全额结清沿用 `CashSettlementsService` 的营业日锁、版本、幂等和审计，结清快照存入 `DailyCashSettlement`，额外工资与非现金小费分开保存，原现金收取/留存字段保留各自含义。金额由 domain `calculateDailyFullSettlement` 计算，现金小费不进入交接金额但计入员工已经取得的收入；工资余额仅追加额外已发部分，避免重复扣现金工资。工资日历合并有效每日全额结清快照，确认两种来源；自动回退以原状态为准使快照失效，无需回写独立工资账本。已结快照不读取后来成员设置；结清期间以成员共享行锁串行化设置更新，已有工资确认和待结账记工阻止全额日结。
+
+## 店铺支出数据流
+
+财务 `expenses` 标签使用独立 `ExpensesPanel`，按店铺和自然月请求；复用 LatestRequest、刷新队列和实时订阅。切换月份/店铺或卸载时使旧请求失效。`expense_item` 事件仅刷新支出，避免重查收入和日结。
+
+`FinanceModule` 的 ExpensesController/Service 通过共享支出契约接受操作，以 `EXPENSE_MANAGE` 检查店主/经理权限与店铺归属。数据库新增 ExpenseItem、ExpenseRuleRevision、ExpensePeriodOverride；项目版本为规则和单期覆盖操作的统一乐观锁，并在同一幂等事务中更新版本、业务数据及审计，现有审计触发器创建 outbox。支出不锁营业日、不重写日结快照。
+
+领域 `calculateExpenseMonth` 使用 BigInt，按查询月份直接定位相交周期，不从首次费用逐日扫描。月周期以整月为分摊单位，天周期以自然日为单位，余数归较早单位。实际单期覆盖优先于规则默认值；软删除项目不参与汇总。前端只格式化金额和编辑输入，不重新计算月成本。

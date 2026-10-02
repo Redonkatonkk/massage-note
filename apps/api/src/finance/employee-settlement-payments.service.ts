@@ -130,7 +130,7 @@ export class EmployeeSettlementPaymentsService {
       }),
       tx.dailyCashSettlement.findMany({
         where: { storeId, membershipId: query.membershipId, businessDate: dateRange, status: "SETTLED", deletedAt: null },
-        select: { businessDate: true, cashRetainedCents: true, version: true }, orderBy: { businessDate: "asc" },
+        select: { businessDate: true, cashRetainedCents: true, dailySettlementEnabled: true, version: true }, orderBy: { businessDate: "asc" },
       }),
       tx.payrollSettlement.findMany({
         where: { storeId, membershipId: query.membershipId, periodStart: { lte: atUtc(query.dateTo) }, periodEnd: { gte: atUtc(query.dateFrom) }, deletedAt: null },
@@ -154,7 +154,7 @@ export class EmployeeSettlementPaymentsService {
     const confirmations = payroll.flatMap((entry) => entry.confirmation && ["CASH", "NON_CASH", "ALL"].includes(entry.paymentScope ?? "")
       ? [{ periodStart: dateOnly(entry.periodStart), periodEnd: dateOnly(entry.periodEnd), paymentScope: entry.paymentScope as SettlementScope }] : []);
     const days = calculateSettlementDays([...byDay.values()].sort((a, b) => a.businessDate.localeCompare(b.businessDate)), confirmations,
-      cash.map((item) => ({ businessDate: dateOnly(item.businessDate), cashRetainedCents: item.cashRetainedCents })));
+      cash.map((item) => ({ businessDate: dateOnly(item.businessDate), cashRetainedCents: item.cashRetainedCents, dailySettlementEnabled: item.dailySettlementEnabled })));
     return { days, records, cash, payroll };
   }
 }

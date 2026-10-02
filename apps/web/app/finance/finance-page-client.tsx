@@ -2,6 +2,7 @@
 
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
+import { ExpensesPanel } from "./expenses-panel";
 import { AnalyticsPanel } from "./analytics-panel";
 
 import { browserStorage } from "../../lib/browser-storage";
@@ -305,6 +306,7 @@ export function FinancePageClient() {
   }, [membership, canManage]);
 
   const realtimeState = useStoreRealtime(membership?.store.id, async change => {
+    if (!change.full && change.changes.length > 0 && change.changes.every(item => item.entityType === "expense_item")) return;
     const workOnly = isWorkRecordChange(change);
     const cashAffected = !workOnly || change.changes.some(item => !item.businessDate || item.businessDate.slice(0, 10) === cashDate);
     await Promise.all([
@@ -449,7 +451,7 @@ export function FinancePageClient() {
     if (row.status === "SETTLED" && !reason) return;
     await mutateCash(async () => {
       await apiRequest(`/stores/${membership!.store.id}/cash-settlements/${cashDate}/${row.membershipId}/${row.status === "SETTLED" ? "reopen" : "settle"}`, {
-        method: "POST", idempotent: true, body: { version: row.version, ...(reason ? { reason } : {}) },
+        method: "POST", idempotent: true, body: { version: row.version, dailySettlementEnabled: row.dailySettlementEnabled ?? false, ...(reason ? { reason } : {}) },
       });
     });
   }
@@ -495,6 +497,7 @@ export function FinancePageClient() {
       {notice && <p className="success-banner" role="status">✓ {notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
 
+      {tab === "expenses" && canManage && <ExpensesPanel key={membership.store.id} storeId={membership.store.id} today={day.businessDate} />}
       {tab === "analytics" && canManage && <AnalyticsPanel key={membership.store.id} storeId={membership.store.id} today={day.businessDate} />}
 
       {tab === "summary" && summary && (
@@ -615,7 +618,7 @@ export function FinancePageClient() {
             onReloadCash={() => void run(loadCash)}
             onSettleAll={() => void run(() => mutateCash(async () => {
               if (!cashData) return;
-              await apiRequest(`/stores/${membership.store.id}/cash-settlements/${cashDate}/settle-all`, { method: "POST", idempotent: true, body: { settlements: cashData.rows.map(row => ({ membershipId: row.membershipId, version: row.version, ...(row.note ? { note: row.note } : {}) })) } });
+              await apiRequest(`/stores/${membership.store.id}/cash-settlements/${cashDate}/settle-all`, { method: "POST", idempotent: true, body: { settlements: cashData.rows.map(row => ({ membershipId: row.membershipId, version: row.version, dailySettlementEnabled: row.dailySettlementEnabled ?? false, ...(row.note ? { note: row.note } : {}) })) } });
             }))}
             onToggleCash={row => void run(() => toggleCash(row))}
           />

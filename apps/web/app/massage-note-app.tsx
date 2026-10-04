@@ -389,12 +389,9 @@ export function MassageNoteApp() {
       <TodayBoard
         wideLayout={wideLayout}
         heading={<><p className="eyebrow">{membership.store.name} · 店铺代码 {membership.store.storeCode}</p><h1>{viewDate === currentDay.businessDate ? "今日记工" : viewDate > currentDay.businessDate ? "未来记工" : "历史记工"}</h1><p className="business-date">{chineseDate(viewDate)} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></>}
-        accountActions={<>
-          {me.memberships.length > 1 && <select className="store-switcher" aria-label="切换店铺" value={membership.store.id} onChange={(event) => {
+        accountActions={me.memberships.length > 1 ? <select className="store-switcher" aria-label="切换店铺" value={membership.store.id} onChange={(event) => {
             const selected = me.memberships.find((item) => item.store.id === event.target.value); if (selected) { storeLoadGeneration.current += 1; viewDateRef.current = ""; setViewDate(""); setMembership(selected); setCurrentDay(null); setBoard(null); setStoreDetails(null); browserStorage.setItem("massage_note_store_id", selected.store.id); }
-          }}>{me.memberships.map((item) => <option key={item.store.id} value={item.store.id}>{item.store.name}</option>)}</select>}
-          <button className="store-switcher" type="button" onClick={() => apiRequest("/auth/session", { method: "DELETE" }).finally(() => window.location.replace("/login"))}>退出</button>
-        </>}
+          }}>{me.memberships.map((item) => <option key={item.store.id} value={item.store.id}>{item.store.name}</option>)}</select> : null}
         returnToToday={returnToToday}
         dateControls={<section className="history-toolbar" aria-label="切换营业日">
           <div className="history-date-form"><div className="business-date-field"><span>{dateLabel}</span>{dateCalendar}</div></div>

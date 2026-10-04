@@ -498,8 +498,8 @@ export function TodayBoard({
           <div className="today-header-calendar">{calendar}</div>
           {dailyActions}
           <div className="today-heading">{heading}</div>
-          <div className="today-header-utilities"><div className="topbar-actions">{accountActions}</div></div>
-        </> : <><div className="today-heading">{heading}</div><div className="topbar-actions">{accountActions}</div></>}
+          {accountActions && <div className="today-header-utilities"><div className="topbar-actions">{accountActions}</div></div>}
+        </> : <><div className="today-heading">{heading}</div>{accountActions && <div className="topbar-actions">{accountActions}</div>}</>}
       </header>
       {loadError && <p className="form-error" role="alert">{loadError}</p>}
       {!wideLayout && <div className="business-day-toolbar business-day-toolbar--compact">{dateControls}{dailyActions}</div>}

@@ -156,7 +156,7 @@ export function BusinessDatePicker({
                   onClick={() => { onChange(date); setOpen(false); }}
                 >
                   <span>{day}</span>
-                  {amount !== undefined && <small className="business-date-picker__revenue" style={amount.length > 5 ? { fontSize: `${44 / amount.length}px` } : undefined}>{amount}</small>}
+                  {amount !== undefined && <small className="business-date-picker__revenue">{amount}</small>}
                   {marked && <i aria-hidden="true" />}
                 </button>
               );

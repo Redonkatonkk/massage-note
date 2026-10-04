@@ -714,7 +714,8 @@ button, summary { overflow-wrap: anywhere; }
   .members-roster-item { gap: 8px; }
 }
 @media (min-width: 1200px) and (max-width: 1399px) {
-  .today-topbar { grid-template-columns: minmax(0, 1fr) 250px; grid-template-areas: "heading calendar" "actions calendar" "utilities calendar"; }
+  .today-topbar, .today-topbar:has(> .today-header-utilities) { grid-template-columns: minmax(0, 1fr) 304px; }
+  .today-topbar:has(> .today-header-utilities) { grid-template-areas: "heading calendar" "actions calendar" "utilities calendar"; }
   .today-header-utilities { align-items: flex-start; }
   .today-header-utilities > .topbar-actions { flex-direction: row; }
   .today-header-calendar { padding-right: 0; border-right: 0; }

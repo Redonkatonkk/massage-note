@@ -2,11 +2,9 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { apiRequest } from "../lib/api";
+import type { BusinessDateCalendarCache, OpenWorkDatesResponse } from "../lib/business-date-calendar-cache";
 
-interface OpenWorkDatesResponse {
-  dates: string[];
-  closedDates: Array<{ date: string; discountedFeePerformanceCents: number; revenueCents: number }>;
-}
+const emptyMarks: OpenWorkDatesResponse = { dates: [], closedDates: [] };
 
 function monthBounds(month: string): { first: string; last: string } {
   const [year, monthNumber] = month.split("-").map(Number);
@@ -38,6 +36,7 @@ export function BusinessDatePicker({
   ariaLabel,
   inline = false,
   refreshKey,
+  cache,
 }: {
   storeId: string;
   value: string;
@@ -46,12 +45,17 @@ export function BusinessDatePicker({
   ariaLabel: string;
   inline?: boolean;
   refreshKey?: string | undefined;
+  cache?: BusinessDateCalendarCache;
 }) {
   const [open, setOpen] = useState(false);
   const expanded = inline || open;
   const [month, setMonth] = useState(value.slice(0, 7));
-  const [markedDates, setMarkedDates] = useState<Set<string>>(new Set());
-  const [closedRevenue, setClosedRevenue] = useState<Map<string, number>>(new Map());
+  const [marks, setMarks] = useState(() => ({
+    storeId, month: value.slice(0, 7), data: cache?.peek(storeId, value.slice(0, 7)) ?? emptyMarks,
+  }));
+  const data = marks.storeId === storeId && marks.month === month ? marks.data : emptyMarks;
+  const markedDates = useMemo(() => new Set(data.dates), [data]);
+  const closedRevenue = useMemo(() => new Map((data.closedDates ?? []).map(item => [item.date, item.revenueCents])), [data]);
   const [loadingMarks, setLoadingMarks] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const requestGeneration = useRef(0);
@@ -81,26 +85,24 @@ export function BusinessDatePicker({
     if (!expanded) return;
     const generation = ++requestGeneration.current;
     const { first, last } = monthBounds(month);
-    setLoadingMarks(true);
-    setMarkedDates(new Set());
-    setClosedRevenue(new Map());
-    apiRequest<OpenWorkDatesResponse>(
+    const cached = cache?.peek(storeId, month);
+    if (cached) setMarks({ storeId, month, data: cached });
+    setLoadingMarks(!cached);
+    const fetchDates = () => apiRequest<OpenWorkDatesResponse>(
       "/stores/" + storeId + "/business-days/open-work-dates?dateFrom=" + first + "&dateTo=" + last,
-    )
+    );
+    (cache ? cache.load(storeId, month, fetchDates) : fetchDates())
       .then((result) => {
         if (generation === requestGeneration.current) {
-          setMarkedDates(new Set(result.dates));
-          setClosedRevenue(new Map((result.closedDates ?? []).map((item) => [item.date, item.revenueCents])));
+          setMarks({ storeId, month, data: { ...result, closedDates: result.closedDates ?? [] } });
         }
       })
-      .catch(() => {
-        if (generation === requestGeneration.current) setMarkedDates(new Set());
-      })
+      .catch(() => undefined)
       .finally(() => {
         if (generation === requestGeneration.current) setLoadingMarks(false);
       });
     return () => { requestGeneration.current += 1; };
-  }, [month, expanded, storeId, refreshKey]);
+  }, [month, expanded, storeId, refreshKey, cache]);
 
   const calendar = useMemo(() => {
     const { first, last } = monthBounds(month);

@@ -1,5 +1,7 @@
 # AI Development Prompt
 
+> 历史引用，不是现行规则。保留原因：保存当时设计、审查或交付证据，供追溯；所有旧要求不再约束当前代码。
+
 > **归档文档**：这是项目开始编码前使用的一次性开发提示，里面的“等待确认后再编码”、建议技术栈和交付清单已完成，不适用于当前维护。当前接管流程见 [`../engineering/AI_HANDOFF.md`](../engineering/AI_HANDOFF.md)，当前架构见 [`../engineering/ARCHITECTURE.md`](../engineering/ARCHITECTURE.md)。
 
 你是一名资深产品架构师、全栈工程师、数据库工程师、财务系统工程师与移动端架构师。

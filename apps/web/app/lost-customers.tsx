@@ -98,12 +98,12 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
     }
   }
 
-  return <section className="lost-customers" data-empty={!loading && !loadError && records.length === 0} aria-label={t("跑客记录", "Lost customers")}>
+  return <section className="board-panel lost-customers" data-empty={!loading && !loadError && records.length === 0} aria-label={t("跑客记录", "Lost customers")}>
     <header className="gift-card-sales__compact-header">
       <div className="lost-customers__heading"><h2>{t("跑客记录", "Lost customers")}</h2><p>{loading ? t("正在加载…", "Loading…") : t(`${totalCustomers} 位 · ${records.length} 条记录`, `${totalCustomers} ${totalCustomers === 1 ? "customer" : "customers"} · ${records.length} ${records.length === 1 ? "record" : "records"}`)}</p></div>
       {canEdit && <button className="secondary-action compact" type="button" disabled={busy || loading || !!loadError} onClick={() => open(null)}>＋ {t("记录跑客", "Record lost customer")}</button>}
     </header>
-    {loadError && <p className={loadNotice ? "form-error" : undefined} role={loadNotice ? "alert" : undefined}>{loadNotice} <button type="button" onClick={() => void queue.current?.request()}>{t("重试", "Retry")}</button></p>}
+    {loadError && <p className={loadNotice ? "form-error" : undefined} role={loadNotice ? "alert" : undefined}>{loadNotice} <button className="table-action" type="button" onClick={() => void queue.current?.request()}>{t("重试", "Retry")}</button></p>}
     {records.length > 0 && <ul className="lost-customers__list">{records.map(record => <li key={record.id}>
       <button type="button" disabled={!canEdit || busy} onClick={() => open(record)} aria-label={t(`修改 ${formatWorkTime(record.occurredTime)} 的跑客记录`, `Edit lost customer at ${formatWorkTime(record.occurredTime)}`)}>
         <time dateTime={`${businessDate}T${record.occurredTime}`}>{formatWorkTime(record.occurredTime)}</time><span>{t(`${record.customerCount} 位`, `${record.customerCount} ${record.customerCount === 1 ? "customer" : "customers"}`)}</span>{record.note && <span className="lost-customers__note">{record.note}</span>}

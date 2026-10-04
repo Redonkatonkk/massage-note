@@ -1,9 +1,4 @@
-type Locale = "zh_CN" | "en_US";
-
-const escapeXml = (value: unknown) => String(value).replace(/[<>&"']/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[character]!);
-const localeName = (locale: Locale) => locale === "zh_CN" ? "zh-CN" : "en-US";
-const money = (cents: number | null, locale: Locale) => cents === null ? "—" : new Intl.NumberFormat(localeName(locale), { style: "currency", currency: "USD" }).format(cents / 100);
-const recordTime = (value: string | null, timezone: string, locale: Locale) => value ? new Intl.DateTimeFormat(localeName(locale), { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)) : "—";
+import { escapeImageXml as escapeXml, imageLocaleName as localeName, formatImageMoney as money, formatImageTime as recordTime, type ImageLocale as Locale } from "./image-format.js";
 
 type Scope = "CASH" | "NON_CASH" | "ALL";
 

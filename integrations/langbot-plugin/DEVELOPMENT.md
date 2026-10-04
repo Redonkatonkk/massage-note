@@ -1,6 +1,6 @@
 # LangBot 插件开发与目录
 
-版本由 [manifest.yaml](manifest.yaml) 的 `metadata.version` 定义，当前为 **1.4.1**，与应用版本独立。完整能力要求 API 至少 1.7.0、协议版本 2。
+版本由 [manifest.yaml](manifest.yaml) 的 `metadata.version` 定义，当前为 **1.4.1**，与应用版本独立。完整能力要求 API 至少 1.7.0、协议版本 2。保留原因：插件安装包版本与应用独立，协议二及多人意图需要对应的后端支持。
 
 ## 目录职责
 

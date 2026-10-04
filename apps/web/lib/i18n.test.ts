@@ -7,6 +7,15 @@ import {
 } from "./i18n";
 
 describe("bilingual UI translation", () => {
+  it("translates member search, draft conflicts and inline validation", () => {
+    expect(translateText("搜索成员姓名或手机号", "en-US")).toBe("Search members by name or phone");
+    expect(translateText("资料已更新，当前输入已保留。请载入最新资料后重新核对。", "en-US"))
+      .toBe("Member settings changed. Your input is retained. Load the latest settings and review before saving.");
+    expect(translateText("有未保存的修改，确认放弃吗？", "en-US")).toBe("Discard your unsaved changes?");
+    expect(translateText("提成比例必须是 0 到 100 之间的数字，最多两位小数。", "en-US"))
+      .toBe("Commission must be between 0 and 100 with at most two decimal places.");
+  });
+
   it("keeps Chinese as the default source language", () => {
     expect(translateText("今日", "zh-CN")).toBe("今日");
     expect(isAppLocale("zh-CN")).toBe(true);
@@ -158,8 +167,8 @@ describe("bilingual UI translation", () => {
     expect(translateText("长图待发送", "en-US")).toBe("Long image pending");
   });
 
-  it("explains that highlighted cards use only the yellow card background", () => {
-    expect(translateText("需要重点跟进时，点击弹窗顶部的“高亮标记”；保存后首页整张记工卡会显示黄色背景，不另显示右上角星标。详情页也可随时添加或取消高亮。", "en-US"))
+  it("explains that highlighted cards use only the muted sage card background", () => {
+    expect(translateText("需要重点跟进时，点击弹窗顶部的“高亮标记”；保存后首页整张记工卡会显示浅灰绿色背景，不另显示右上角星标。详情页也可随时添加或取消高亮。", "en-US"))
       .toContain("without a separate star badge at the upper right");
   });
 

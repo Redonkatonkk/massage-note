@@ -11,8 +11,10 @@ import type { EmployeeSettlementCalendar, EmployeeSettlementDelivery, EmployeeSe
 import { payrollAmountCents } from "../../lib/payroll-settlement";
 import { selectSettlementDate, type SettlementDateRange } from "../../lib/settlement-calendar";
 import { SettlementCalendar } from "./settlement-calendar";
+import { SettlementSummary } from "./settlement-summary";
 import { useLanguage } from "../language-provider";
 import { dateOnly } from "./date-utils";
+import { MobileDataCard, RecordFacts, ResponsiveDataView } from "../ui/responsive-data-view";
 
 const money = (value: number) => formatUsdPrecise(value);
 const scopeLabel = (scope: EmployeeSettlementPaymentScope) => scope === "CASH" ? "现金" : scope === "NON_CASH" ? "刷卡＋礼物卡" : "全部";
@@ -41,6 +43,7 @@ function DeliveryHistoryModal({ value, busy, action, close }: { value: EmployeeS
     if (item.detailSentAt) return "长图已发送";
     return item.status === "CLAIMED" ? "正在发送长图" : "长图待发送";
   };
+  const deliveryAction = (item: EmployeeSettlementDelivery) => item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={() => action(item, "cancel")}>取消</button> : item.status === "FAILED" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry")}>重试长图</button> : item.status === "SENT" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry-detail")}>重发长图</button> : null;
   return (
     <div className="modal-backdrop settlement-delivery-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
       <section className="settlement-delivery-modal" role="dialog" aria-modal="true" aria-labelledby="settlement-delivery-title">
@@ -53,23 +56,21 @@ function DeliveryHistoryModal({ value, busy, action, close }: { value: EmployeeS
           <button className="close-button" type="button" onClick={close} aria-label="关闭短信发送记录">关闭</button>
         </div>
         {!value ? <p className="empty-state">正在读取发送记录…</p> : value.deliveries.length === 0 ? <p className="empty-state">还没有短信发送记录。</p> : (
-          <div className="table-scroll settlement-delivery-table">
+          <ResponsiveDataView desktop={<div className="table-scroll settlement-delivery-table">
             <table className="data-table">
               <thead><tr><th>员工</th><th>区间</th><th>分类</th><th>附件进度</th><th>接收号码</th><th>尝试</th><th>错误</th><th>操作</th></tr></thead>
-              <tbody>{value.deliveries.map((item) => <tr key={item.id}><td>{item.membership?.displayName ?? "员工小计汇总"}</td><td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td><td>{scopeLabel(item.paymentScope)}</td><td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{stage(item)}</span></td><td>{item.recipientPhoneE164}</td><td>{item.attemptCount}</td><td>{item.lastError || "—"}</td><td>{item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={() => action(item, "cancel")}>取消</button> : item.status === "FAILED" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry")}>重试长图</button> : item.status === "SENT" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry-detail")}>重发长图</button> : "—"}</td></tr>)}</tbody>
+              <tbody>{value.deliveries.map((item) => <tr key={item.id}><td>{item.membership?.displayName ?? "员工小计汇总"}</td><td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td><td>{scopeLabel(item.paymentScope)}</td><td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{stage(item)}</span></td><td>{item.recipientPhoneE164}</td><td>{item.attemptCount}</td><td>{item.lastError || "—"}</td><td>{deliveryAction(item) ?? "—"}</td></tr>)}</tbody>
             </table>
-          </div>
+          </div>}>
+            <ul className="mobile-data-list">{value.deliveries.map(item => <li key={item.id}><MobileDataCard title={item.membership?.displayName ?? "员工小计汇总"} subtitle={`${dateOnly(item.periodStart)} 至 ${dateOnly(item.periodEnd)}`} status={<span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{stage(item)}</span>} actions={deliveryAction(item)}>
+              <RecordFacts items={[{ label: "工资来源", value: scopeLabel(item.paymentScope) }, { label: "接收号码", value: item.recipientPhoneE164 }, { label: "尝试", value: item.attemptCount }]} />
+              {item.lastError && <p className="form-error">{item.lastError}</p>}
+            </MobileDataCard></li>)}</ul>
+          </ResponsiveDataView>
         )}
       </section>
     </div>
   );
-}
-
-function SettlementSummary({ preview }: { preview: EmployeeSettlementPreview }) {
-  const summary = preview.summary;
-  if (preview.paymentScope === "CASH") return <div className="employee-settlement-summary mode-single"><article><span>现金大费工资</span><strong>{money(summary.cashLargeFeeWageCents)}</strong></article><article><span>现金小费</span><strong>{money(summary.cashTipCents)}</strong></article><article className="total"><span>现金工资合计</span><strong>{money(summary.cashIncomeCents)}</strong></article></div>;
-  if (preview.paymentScope === "NON_CASH") return <div className="employee-settlement-summary mode-single"><article><span>刷卡＋礼卡大费工资</span><strong>{money(summary.nonCashLargeFeeWageCents)}</strong></article><article><span>刷卡＋礼卡小费</span><strong>{money(summary.nonCashTipCents)}</strong></article><article className="total"><span>非现金工资合计</span><strong>{money(summary.nonCashIncomeCents)}</strong></article></div>;
-  return <div className="employee-settlement-summary mode-all"><div className="employee-settlement-matrix"><span /><b>现金</b><b>刷卡＋礼卡</b><b>合计</b><strong>大费工资</strong><span>{money(summary.cashLargeFeeWageCents)}</span><span>{money(summary.nonCashLargeFeeWageCents)}</span><span>{money(summary.cashLargeFeeWageCents + summary.nonCashLargeFeeWageCents)}</span><strong>小费工资</strong><span>{money(summary.cashTipCents)}</span><span>{money(summary.nonCashTipCents)}</span><span>{money(summary.cashTipCents + summary.nonCashTipCents)}</span></div><article className="total"><span>区间总收入</span><strong>{money(summary.totalIncomeCents)}</strong></article></div>;
 }
 
 function localizedBusinessDate(value: string, locale: "zh-CN" | "en-US") {

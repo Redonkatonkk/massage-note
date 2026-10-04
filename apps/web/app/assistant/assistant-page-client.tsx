@@ -44,7 +44,7 @@ export function AssistantPageClient() {
       if (!selected) window.location.replace("/"); else setMembership(selected);
     }).catch((caught) => { if ((caught as { status?: number }).status === 401) window.location.replace("/login"); else setError(errorMessage(caught)); });
   }, []);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, type]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" }); }, [messages, type]);
 
   async function send() {
     if (!membership || !input.trim() || inputBusy || voice.recording) return;

@@ -1,7 +1,6 @@
 import { deviceTimeMiddleware } from "./common/device-time.js";
 import { Module, type NestModule, type MiddlewareConsumer } from "@nestjs/common";
 import { HealthController } from "./health/health.controller.js";
-import { FinanceCalculatorService } from "./finance/finance-calculator.service.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { StoresModule } from "./stores/stores.module.js";
@@ -37,7 +36,6 @@ import { LostCustomersModule } from "./lost-customers/lost-customers.module.js";
   ],
   controllers: [HealthController],
   providers: [
-    FinanceCalculatorService,
     RateLimitService,
     { provide: APP_INTERCEPTOR, useClass: JsonSafeInterceptor },
   ],

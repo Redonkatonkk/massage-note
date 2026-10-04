@@ -76,6 +76,29 @@ it("suspends in background and offline, resumes with a full read", async () => {
   expect(refresh).toHaveBeenCalledOnce();
 });
 
+it("date-panel subscriptions and remounts only initialize the new listener", async () => {
+  const { channel, source, refresh, state } = subscribe();
+  source.emit("heartbeat");
+  await vi.advanceTimersByTimeAsync(250);
+  refresh.mockClear();
+  const panel = vi.fn().mockResolvedValue(undefined);
+  const unsubscribe = channel.subscribe(panel, vi.fn());
+  await vi.advanceTimersByTimeAsync(0);
+  expect(panel).toHaveBeenCalledOnce();
+  expect(panel).toHaveBeenLastCalledWith({ full: true, changes: [] });
+  expect(refresh).not.toHaveBeenCalled();
+  expect(state).toHaveBeenLastCalledWith("已同步");
+  unsubscribe();
+  cleanups.push(channel.subscribe(panel, vi.fn()));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(panel).toHaveBeenCalledTimes(2);
+  expect(refresh).not.toHaveBeenCalled();
+  source.emit("store.changed", { entityType: "business_day_closing", businessDate: "2026-10-01" });
+  await vi.advanceTimersByTimeAsync(250);
+  expect(refresh).toHaveBeenCalledOnce();
+  expect(panel).toHaveBeenCalledTimes(3);
+});
+
 it("replaces a silently stalled connection after ten seconds with bounded fallback reads", async () => {
   const { source, refresh, state } = subscribe();
   source.emit("heartbeat");

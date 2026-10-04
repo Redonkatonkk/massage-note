@@ -4,6 +4,7 @@ import { useAutoDismissState } from "./use-auto-dismiss-state";
 
 import { createRefreshQueue } from "../lib/refresh-queue";
 import { browserStorage } from "../lib/browser-storage";
+import { createBusinessDateCalendarCache } from "../lib/business-date-calendar-cache";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
@@ -39,6 +40,10 @@ function serverWorkLayoutSnapshot() { return false; }
 function chineseDate(value: string): string {
   const [year, month, day] = value.split("-");
   return `${year} 年 ${Number(month)} 月 ${Number(day)} 日`;
+}
+
+function employeeBoardMembers(board: BoardResponse): StoreMember[] {
+  return board.rows.map(row => ({ ...row.membership, version: 1, defaultCommissionBps: null, closingDeliveryEnabled: false, closingDeliveryPhoneE164: null, closingImageLocale: null, deletedAt: null }));
 }
 
 function deduplicateBoardRows(board: BoardResponse): BoardResponse {
@@ -227,6 +232,12 @@ export function MassageNoteApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useAutoDismissState("");
   const storeLoadGeneration = useRef(0);
+  const [calendarCache] = useState(createBusinessDateCalendarCache);
+  const [calendarRevision, setCalendarRevision] = useState(0);
+  const refreshCalendar = useCallback(() => {
+    calendarCache.invalidate();
+    setCalendarRevision(current => current + 1);
+  }, [calendarCache]);
 
   const loadMe = useCallback(async () => {
     try {
@@ -273,8 +284,12 @@ export function MassageNoteApp() {
         await apiRequest(`/stores/${selectedMembership.store.id}/boards/${targetDate}/apply-weekly-dispatch`, { method: "POST", idempotent: true, body: {} });
         const nextBoard = await apiRequest<BoardResponse>(`/stores/${selectedMembership.store.id}/boards/${targetDate}`);
         if (generation !== storeLoadGeneration.current) return;
+        viewDateRef.current = targetDate;
+        setViewDate(targetDate);
+        currentDayRef.current = day.businessDate;
         setCurrentDay(day);
         setBoard(deduplicateBoardRows(nextBoard));
+        if (selectedMembership.role === "EMPLOYEE") setMembers(employeeBoardMembers(nextBoard));
         return;
       }
       const [nextBoard, nextCatalog, nextStoreDetails, fetchedMembers] = await Promise.all([
@@ -292,14 +307,19 @@ export function MassageNoteApp() {
       if (selectedMembership.role !== "EMPLOYEE") {
         nextMembers = fetchedMembers!;
       } else {
-        nextMembers = nextBoard.rows.map((row) => ({ ...row.membership, version: 1, defaultCommissionBps: null, closingDeliveryEnabled: false, closingDeliveryPhoneE164: null, closingImageLocale: null, deletedAt: null }));
+        nextMembers = employeeBoardMembers(nextBoard);
       }
-      if (generation !== storeLoadGeneration.current) return;
+      if (generation !== storeLoadGeneration.current) {
+        // A date change must not drop a pending catalog/membership refresh.
+        fullRefreshPending.current = true;
+        return;
+      }
       viewDateRef.current = targetDate;
       setViewDate(targetDate);
       currentDayRef.current = day.businessDate;
       setCurrentDay(day); setBoard(deduplicateBoardRows(nextBoard)); setCatalog(nextCatalog); setStoreDetails({ ...nextStoreDetails, timezone: day.timezone }); setMembers(nextMembers);
     } catch (caught) {
+      if (full && generation !== storeLoadGeneration.current) fullRefreshPending.current = true;
       if (generation === storeLoadGeneration.current) { lastReadError.current = caught; setError(errorMessage(caught)); }
     }
   }, [membership]);
@@ -313,11 +333,18 @@ export function MassageNoteApp() {
     };
   }, [readStore]);
   const loadStore = useCallback(() => {
+    refreshCalendar();
     fullRefreshPending.current = true;
-    // Invalidate an in-flight response immediately, including a date change.
+    // Invalidate an in-flight board response immediately.
     storeLoadGeneration.current += 1;
     return refreshQueue.current?.request() ?? Promise.resolve();
-  }, [readStore]);
+  }, [readStore, refreshCalendar]);
+  const selectDate = (date: string) => {
+    if (date === viewDateRef.current && date === viewDate) return;
+    viewDateRef.current = date;
+    storeLoadGeneration.current += 1;
+    void refreshQueue.current?.request();
+  };
 
   useEffect(() => { void loadMe(); }, [loadMe]);
   useEffect(() => { if (membership) void loadStore(); }, [membership, loadStore]);
@@ -333,6 +360,7 @@ export function MassageNoteApp() {
     return () => { window.clearInterval(timer); window.removeEventListener("focus", refreshDate); };
   }, [membership, loadStore]);
   const realtimeState = useStoreRealtime(membership?.store.id, async change => {
+    // Automatic synchronization refreshes board data while retaining the month calendar cache.
     const scope = boardRefreshScope(change, viewDateRef.current);
     if (scope === "none") return;
     if (scope === "full") fullRefreshPending.current = true;
@@ -351,10 +379,10 @@ export function MassageNoteApp() {
   }
   if (catalog.serviceItems.length === 0) return <CatalogSetup membership={membership} onDone={loadStore} />;
 
-  const dateCalendar = <BusinessDatePicker inline={wideLayout} storeId={membership.store.id} value={viewDate} max={membership.role === "EMPLOYEE" ? currentDay.businessDate : undefined} refreshKey={wideLayout ? currentDay.serverTime : undefined} ariaLabel="查看营业日" onChange={(value) => { viewDateRef.current = value; void loadStore(); }} />;
+  const dateCalendar = <BusinessDatePicker inline={wideLayout} storeId={membership.store.id} value={viewDate} max={membership.role === "EMPLOYEE" ? currentDay.businessDate : undefined} cache={calendarCache} refreshKey={String(calendarRevision)} ariaLabel="查看营业日" onChange={selectDate} />;
   const dateHint = viewDate === currentDay.businessDate ? "" : viewDate > currentDay.businessDate ? "未来营业日；可提前添加员工" : membership.role === "EMPLOYEE" ? "历史营业日；只显示你自己的记工" : "历史营业日；已日结时须先取消日结才能修改";
   const dateLabel = viewDate === currentDay.businessDate ? "当前营业日：" : membership.role === "EMPLOYEE" ? "查看自己的营业日" : "查看营业日";
-  const returnToToday = viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => { viewDateRef.current = currentDay.businessDate; void loadStore(); }}>返回今天</button>;
+  const returnToToday = viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => selectDate(currentDay.businessDate)}>返回今天</button>;
 
   return (
     <main className="app-shell">

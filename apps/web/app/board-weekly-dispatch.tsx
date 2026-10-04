@@ -56,7 +56,7 @@ export function BoardWeeklyDispatch({ storeId, businessDate, members, disabled, 
     {error && <p className="form-error" role="alert">{error}</p>}
     <dialog ref={dialog} className="board-delivery-dialog weekly-dispatch-dialog" aria-labelledby="weekly-dispatch-title" onCancel={(event) => { if (busy) event.preventDefault(); }}>
       <div className="modal-heading"><div><p className="eyebrow">固定每周名单</p><h2 id="weekly-dispatch-title">每周排工</h2></div><button className="close-button" type="button" disabled={busy} onClick={() => dialog.current?.close()}>取消</button></div>
-      <p className="field-help">保存后立即生效，可随时通过营业日日历查看明天的排工。未来日期按最新模板更新，开启每日开门排位时按最新出勤顺序重算；今天已安排的人员和手动调整保持不变。点击“应用”可用当前勾选覆盖当前查看日期的排工（不保存每周模板）；该日期已有记工时应用失败。</p>
+      <p className="field-help">保存后立即生效，可随时通过营业日日历查看明天的排工。未来日期按最新模板更新名单；开启每日开门排位时按最新出勤顺序重算，但手动上移、下移后的顺序会保留，直到重新生成。今天已安排的人员和手动调整保持不变。点击“应用”可用当前勾选覆盖当前查看日期的排工（不保存每周模板）；该日期已有记工时应用失败。</p>
       <p className="field-help weekly-dispatch-scroll-hint">左右滑动查看整周。</p>
       <div className="weekly-dispatch-table-wrap"><table className="weekly-dispatch-table"><thead><tr><th scope="col">员工</th>{days.map((day) => <th scope="col" key={day.key}>{day.label}</th>)}</tr></thead><tbody>{employees.map((member) => <tr key={member.id}><th scope="row">{member.displayName}</th>{days.map((day) => <td key={day.key}><label aria-label={`${member.displayName} ${day.label}`}><input type="checkbox" checked={schedule[day.key].includes(member.id)} disabled={busy} onChange={() => toggle(day.key, member.id)} /></label></td>)}</tr>)}</tbody></table></div>
       {employees.length === 0 && <p className="empty-state">目前没有在职的上班人员。</p>}

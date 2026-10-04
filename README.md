@@ -1,6 +1,6 @@
 # Massage note
 
-当前版本：`1.17.0`
+当前版本：`1.18.7`
 
 面向美国按摩店的中英文记工与财务管理 Web 应用，支持手机、iPad 和电脑。系统覆盖多店成员、今日记工、礼物卡、提成、确定性财务、日结、现金与工资结算、审计、实时同步和带确认预览的 AI 助手。
 
@@ -9,7 +9,7 @@
 - 想了解业务：[`docs/product/PRODUCT.md`](docs/product/PRODUCT.md)
 - 想看代码框架：[`docs/engineering/ARCHITECTURE.md`](docs/engineering/ARCHITECTURE.md)
 - 准备本地开发：[`docs/engineering/DEVELOPMENT.md`](docs/engineering/DEVELOPMENT.md)
-- 维护 UI 与设计参考：[`docs/engineering/UI_DESIGN.md`](docs/engineering/UI_DESIGN.md)
+- 学习项目审美与维护 UI：[UI 设计与审美准则](docs/engineering/UI_DESIGN.md)
 - 准备部署或排障：[`docs/operations/NAS_DEPLOYMENT.md`](docs/operations/NAS_DEPLOYMENT.md)、[`docs/operations/OPERATIONS.md`](docs/operations/OPERATIONS.md)
 - 查全部文档：[`docs/README.md`](docs/README.md)
 - 让 AI 接管维护：[`docs/engineering/AI_HANDOFF.md`](docs/engineering/AI_HANDOFF.md)
@@ -23,7 +23,7 @@
 - 可按店铺开启每日开门排位，根据全职/兼职与最近一次实际出勤顺序生成当天员工排名，不干预逐笔记工。
 - 整数美分确定性计算，覆盖折扣、工资、日结、现金结算、工资账本和财务 CSV。
 - 中英文响应式 UI、断网说明、短期本地草稿、个人日结 PNG，以及通过固定 Mac“信息”代理发送员工小结。
-- MiniMax 记工/财务助手支持同一会话连续追问，并提供短录音转写；写入必须先预览再确认，AI 未配置时核心流程照常可用。
+- MiniMax 记工/财务助手支持同一会话连续追问，并提供短录音转写；写入必须先预览再确认，AI 未配置时核心流程照常可用。保留原因：现有 AI 只产生候选参数，不拥有自主写账权限。
 - Docker Compose、GHCR/NAS 镜像、数据库账号加固、Redis 限流、备份恢复脚本和 CI。
 
 ## 仓库结构
@@ -48,7 +48,7 @@ docs/               当前文档与归档设计
 
 ## 本地启动
 
-需要 Node.js 24、pnpm 11 和 Docker Compose。
+需要 Node.js 24、pnpm 11 和 Docker Compose。保留原因：仓库包管理器、构建镜像和本地数据库入口按这些版本维护。
 
 ```bash
 cp .env.example .env
@@ -59,7 +59,7 @@ pnpm db:deploy
 pnpm dev
 ```
 
-打开 `http://localhost:3000`；API 就绪检查为 `http://localhost:4000/api/v1/health/ready`。本地无 Firebase 时可以显式启用开发登录，生产环境绝不能开启。
+Web 固定使用 `http://localhost:3000`，默认用命令行确认；API 就绪检查为 `http://localhost:4000/api/v1/health/ready`。本地无 Firebase 时可以显式启用开发登录，生产环境绝不能开启。保留原因：开发登录只用于本机演示，生产必须验证真实身份。
 
 需要固定演示数据时运行 `pnpm demo:seed`，然后使用 `+1 (770) 575-0450` 和登录页的“使用此号码直接进入”。脚本会创建 `本地演示店` 及最近一周的多种付款与结算场景；详细说明见 [`docs/engineering/DEVELOPMENT.md`](docs/engineering/DEVELOPMENT.md#固定本地演示数据)。
 
@@ -87,4 +87,4 @@ pnpm build
 - 发布检查：[`docs/operations/RELEASE_CHECKLIST.md`](docs/operations/RELEASE_CHECKLIST.md)
 - 版本记录：[`CHANGELOG.md`](CHANGELOG.md)
 
-生产部署必须使用 HTTPS、真实 Firebase 配置、随机且互不相同的数据库/Redis 密码，并在首次营业前完成一次独立数据库恢复演练。
+生产配置、备份及恢复要求统一见 [安全说明](docs/operations/SECURITY.md) 和 [发布检查](docs/operations/RELEASE_CHECKLIST.md)。保留原因：入口页只负责导航，避免在这里复制另一套部署规矩。

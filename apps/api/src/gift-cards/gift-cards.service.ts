@@ -83,6 +83,17 @@ export class GiftCardsService {
         messageZh: "店铺不存在或已停用",
       });
     }
+    const serializeUsageRecord = (record: (typeof records)[number]) => ({
+      id: record.id,
+      businessDate: record.businessDate,
+      startAt: record.startAt,
+      serviceShortName: record.serviceSnapshot?.shortName ?? null,
+      employee: record.employee,
+      serviceCents: record.giftCardServiceCents ?? 0n,
+      tipCents: record.giftCardTipCents ?? 0n,
+      amountCents:
+        (record.giftCardServiceCents ?? 0n) + (record.giftCardTipCents ?? 0n),
+    });
     const usageBySerial = new Map<string, typeof records>();
     for (const record of records) {
       const serial = record.giftCardSerialNumber;
@@ -98,17 +109,7 @@ export class GiftCardsService {
       .filter(([serial]) => !registeredSerials.has(serial))
       .map(([, matchingRecords]) => ({
         serialNumber: matchingRecords[0]!.giftCardSerialNumber!.trim(),
-        usageRecords: matchingRecords.map((record) => ({
-          id: record.id,
-          businessDate: record.businessDate,
-          startAt: record.startAt,
-          serviceShortName: record.serviceSnapshot?.shortName ?? null,
-          employee: record.employee,
-          serviceCents: record.giftCardServiceCents ?? 0n,
-          tipCents: record.giftCardTipCents ?? 0n,
-          amountCents:
-            (record.giftCardServiceCents ?? 0n) + (record.giftCardTipCents ?? 0n),
-        })),
+        usageRecords: matchingRecords.map(serializeUsageRecord),
       }))
       .sort((left, right) => this.compareSerialNumbers(left.serialNumber, right.serialNumber));
     return {
@@ -116,17 +117,7 @@ export class GiftCardsService {
       legacyUsages,
       sales: sales.map((sale) => ({
         ...sale,
-        usageRecords: (usageBySerial.get(this.normalizeSerial(sale.serialNumber)) ?? []).map((record) => ({
-          id: record.id,
-          businessDate: record.businessDate,
-          startAt: record.startAt,
-          serviceShortName: record.serviceSnapshot?.shortName ?? null,
-          employee: record.employee,
-          serviceCents: record.giftCardServiceCents ?? 0n,
-          tipCents: record.giftCardTipCents ?? 0n,
-          amountCents:
-            (record.giftCardServiceCents ?? 0n) + (record.giftCardTipCents ?? 0n),
-        })),
+        usageRecords: (usageBySerial.get(this.normalizeSerial(sale.serialNumber)) ?? []).map(serializeUsageRecord),
       })),
     };
   }

@@ -218,7 +218,26 @@ export class BoardsService {
       const visible = rows.filter((row) => !row.isHidden);
       let explanation: Prisma.InputJsonValue | undefined;
       let rankedAt: Date | undefined;
-      if (!preserveCurrentRows && currentStore.automaticDispatchEnabled && visible.length && visible.every((row) => row.membership.employmentType)) {
+      let preserveManualOrder = false;
+      if (!replacement && isFuture && currentStore.automaticDispatchEnabled) {
+        const orderChanges = await transaction.auditLog.findMany({
+          where: { storeId, entityType: "daily_board", entityId: board.id,
+            action: { in: ["board.rows_reordered", "board.rows_ranked"] } },
+          select: { action: true, afterJson: true },
+        });
+        // Day locks serialize board versions; timestamps can share a millisecond.
+        // Explicit regeneration resumes automatic order updates, while roster
+        // synchronization alone must not undo a later manual move.
+        let latestOrderVersion = 0;
+        for (const change of orderChanges) {
+          const version = (change.afterJson as { version?: number } | null)?.version;
+          if (typeof version === "number" && version > latestOrderVersion) {
+            latestOrderVersion = version;
+            preserveManualOrder = change.action === "board.rows_reordered";
+          }
+        }
+      }
+      if (!preserveCurrentRows && !preserveManualOrder && currentStore.automaticDispatchEnabled && visible.length && visible.every((row) => row.membership.employmentType)) {
         const candidates = await Promise.all(visible.map(async (row) => {
           const previous = await transaction.dailyEmployeeRow.findFirst({ where: { membershipId: row.membershipId, storeId, isHidden: false, board: { businessDate: { lt: dateAtUtc(businessDate) } } }, orderBy: { board: { businessDate: "desc" } }, select: { board: { select: { businessDate: true, rows: { where: { isHidden: false }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], select: { membershipId: true } } } } } });
           const lastPosition = previous ? previous.board.rows.findIndex((item) => item.membershipId === row.membershipId) + 1 : null;

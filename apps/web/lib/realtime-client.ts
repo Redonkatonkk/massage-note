@@ -144,7 +144,10 @@ export function createStoreChannel(url: string) {
         document.addEventListener("visibilitychange", resume);
         timer = setInterval(tick, 1_000);
         resume();
-      } else { schedule(fullResync()); }
+      } else {
+        // A remounted date panel needs its own initial read, not a page-wide resync.
+        void drain(listener);
+      }
       publish();
       return () => {
         listeners.delete(listener);

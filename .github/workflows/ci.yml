@@ -36,7 +36,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: 检查版本、文档链接并准备共享包
-        run: pnpm version:check && pnpm docs:check && pnpm predev
+        run: pnpm version:check && pnpm docs:check && pnpm ui:check && pnpm ui:mobile && pnpm predev
       - name: 类型检查
         run: pnpm -r typecheck
       - name: 工具与单元测试（API 在集成测试阶段一并运行）

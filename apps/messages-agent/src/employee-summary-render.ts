@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";
-import { escapeXml, localeName, money, type Locale } from "./render-format.js";
+import { escapeImageXml as escapeXml, imageLocaleName as localeName, formatImageMoney as money, type ImageLocale as Locale } from "@massage-note/domain";
 
 export interface EmployeeSummarySnapshot {
   documentType: "EMPLOYEE_SUMMARY";

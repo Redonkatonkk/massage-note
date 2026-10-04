@@ -1,8 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";
-import { createEmployeeSettlementSvg, type SettlementSnapshot } from "@massage-note/domain";
-import type { Locale } from "./render-format.js";
+import { createEmployeeSettlementSvg, type SettlementSnapshot, type ImageLocale as Locale } from "@massage-note/domain";
 
 export type { SettlementSnapshot } from "@massage-note/domain";
 

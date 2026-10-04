@@ -55,9 +55,10 @@ export function ProfilePageClient() {
   const selectedMembership = me.memberships.find((membership) => membership.store.id === selectedStoreId);
   const roleText = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工" } as const;
   return (
-    <main className="app-shell manage-shell">
+    <main className="app-shell manage-shell profile-shell">
       <header className="topbar"><div><p className="eyebrow">账号与偏好</p><h1>我的</h1><p className="business-date">{me.phoneE164}</p></div><a className="store-switcher header-link" href="/help">使用帮助</a></header>
       <section className="manage-section profile-layout">
+        <aside className="profile-summary"><div className="profile-avatar" aria-hidden="true">{Array.from(me.firstName || me.phoneE164)[0]}</div><p className="eyebrow">个人账号</p><h2>{[me.firstName, me.lastName].filter(Boolean).join(" ") || me.phoneE164}</h2><p>{me.phoneE164}</p>{selectedMembership && <div><strong>{selectedMembership.store.name}</strong><span>{roleText[selectedMembership.role]}</span></div>}<a className="secondary-action button-link" href="/">返回工作台</a></aside>
         <form className="manage-card" onSubmit={(event) => {
           event.preventDefault();
           setProfileBusy(true); setProfileError(""); setProfileSaved(false);

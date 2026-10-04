@@ -61,7 +61,7 @@ export function BoardEmployeePicker({ storeId, businessDate, members, allMembers
   }
 
   return <>
-    {(members.length > 0 || rankingAction || weeklyDispatchEnabled) && <section className="add-employee-panel">
+    {(members.length > 0 || rankingAction || weeklyDispatchEnabled) && <section className="board-panel add-employee-panel" aria-label="员工与排工操作">
       {weeklyDispatchEnabled && <BoardWeeklyDispatch storeId={storeId} businessDate={businessDate} members={allMembers} disabled={disabled} onSaved={onReload} />}
       <label className="field-label">手动添加员工到今日表格
         {empty

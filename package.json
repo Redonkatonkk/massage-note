@@ -1,11 +1,13 @@
 {
   "name": "massage-note",
-  "version": "1.17.0",
+  "version": "1.18.7",
   "private": true,
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "version:check": "node scripts/check-version.mjs",
     "docs:check": "node scripts/check-doc-links.mjs",
+    "ui:check": "node scripts/check-ui-styles.mjs",
+    "ui:mobile": "node scripts/check-mobile-ui.mjs",
     "test:tooling": "node --test scripts/test/*.test.mjs",
     "predev": "pnpm --filter @massage-note/domain --filter @massage-note/contracts --filter @massage-note/database build",
     "dev": "pnpm --parallel --filter @massage-note/api --filter @massage-note/web dev",

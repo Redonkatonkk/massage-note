@@ -209,7 +209,7 @@ export function GiftCardSales({
   }
 
   return (
-    <section className={`gift-card-sales${sales.length === 0 ? " gift-card-sales--empty" : ""}`} aria-label="店铺礼物卡销售">
+    <section className={`board-panel gift-card-sales${sales.length === 0 ? " gift-card-sales--empty" : ""}`} aria-label="店铺礼物卡销售">
       {sales.length === 0 ? (
         <header className="gift-card-sales__compact-header">
           <div>

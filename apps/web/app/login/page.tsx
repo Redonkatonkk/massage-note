@@ -11,8 +11,8 @@ export default function LoginPage() {
     <main className="login-page">
       <section className="login-intro" aria-labelledby="login-title">
         <div className="login-brand"><BrandMark /><span>massage note.</span></div>
-        <p className="eyebrow login-kicker">把日常，打理得更从容。</p>
-        <h1 id="login-title">一天的账，清清楚楚。</h1>
+        <p className="eyebrow login-kicker">门店记工与财务</p>
+        <h1 id="login-title"><span>每一笔服务，</span><span>每一天的账。</span></h1>
         <p>
           用手机快速记工、补充付款和小费。历史价格与提成会保留当时快照，不会因为后来修改设置而变化。
         </p>

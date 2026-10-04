@@ -8,6 +8,7 @@ import { createRefreshQueue } from "../../lib/refresh-queue";
 import { useStoreRealtime } from "../../lib/realtime";
 import { useLanguage } from "../language-provider";
 import { expenseInputAmount, expenseInputCents, expenseMoney, nextExpenseStart } from "./expense-helpers";
+import { MobileDataCard, RecordFacts, ResponsiveDataView } from "../ui/responsive-data-view";
 
 type Editor = { mode: "create" } | { mode: "edit" | "rule" | "stop"; item: ExpenseItemResponse } | { mode: "period"; item: ExpenseItemResponse; line: ExpenseMonthLine };
 type Preset = "monthly" | "days" | "months" | "variable" | "once";
@@ -65,15 +66,22 @@ export function ExpensesPanel({ storeId, today }: { storeId: string; today: stri
     const rule = item.rules.find(r => r.id === ruleId) ?? item.rules.at(-1);
     return rule ? rule.unit === "MONTH" ? t(`每 ${rule.interval} 个月`, `Every ${rule.interval} month(s)`) : t(`每 ${rule.interval} 天`, `Every ${rule.interval} day(s)`) : "—";
   };
+  const lineActions = (line: ExpenseMonthLine) => {
+    const item = data!.items.find(i => i.id === line.itemId)!;
+    return <><button type="button" className="table-action" disabled={busy} onClick={() => setEditor(line.ruleId ? { mode: "period", item, line } : { mode: "edit", item })}>{t("填写 / 修改金额", "Record / edit amount")}</button>
+      {line.hasOverride && <button type="button" className="table-action" disabled={busy} onClick={() => { if (window.confirm(t("撤销此期实际金额，恢复默认金额？", "Clear this actual amount and restore the default?"))) run(`/${item.id}/periods`, "DELETE", { version: item.version, ruleId: line.ruleId, periodStart: line.periodStart }); }}>{t("撤销覆盖", "Clear override")}</button>}</>;
+  };
   return <section className="finance-section expenses-panel">
-    <div className="expenses-toolbar">
-      <label>{t("支出月份", "Expense month")}<input type="month" required value={month} disabled={busy} onChange={e => { if (/^\d{4}-(0[1-9]|1[0-2])$/.test(e.target.value)) setMonth(e.target.value); }} /></label>
-      <button type="button" disabled={busy} onClick={() => setMonth(today.slice(0, 7))}>{t("本月", "This month")}</button>
-      <button type="button" className="primary-action" disabled={busy || loading || !data} onClick={() => setEditor({ mode: "create" })}>{t("新增支出", "Add expense")}</button>
+    <div className="expenses-filter">
+      <div className="expenses-toolbar">
+        <label>{t("支出月份", "Expense month")}<input type="month" required value={month} disabled={busy} onChange={e => { if (/^\d{4}-(0[1-9]|1[0-2])$/.test(e.target.value)) setMonth(e.target.value); }} /></label>
+        <button type="button" className="secondary-action" disabled={busy} onClick={() => setMonth(today.slice(0, 7))}>{t("本月", "This month")}</button>
+        <button type="button" className="primary-action" disabled={busy || loading || !data} onClick={() => setEditor({ mode: "create" })}>{t("新增支出", "Add expense")}</button>
+      </div>
+      <p className="expenses-description">{t("按自然月计算成本，包含未营业日期；预算会在录入实际账单后替换。", "Costs use calendar months, including non-working days. Actual bills replace budgets.")}</p>
     </div>
-    <p>{t("按自然月计算成本，包含未营业日期；预算会在录入实际账单后替换。", "Costs use calendar months, including non-working days. Actual bills replace budgets.")}</p>
     {loading && <p role="status">{t("正在更新支出…", "Updating expenses…")}</p>}
-    {error && <p className="form-error" role="alert">{error} <button type="button" disabled={busy} onClick={() => void queue.current?.request()}>{t("刷新", "Refresh")}</button></p>}
+    {error && <p className="form-error" role="alert">{error} <button type="button" className="table-action" disabled={busy} onClick={() => void queue.current?.request()}>{t("刷新", "Refresh")}</button></p>}
     {data && <>
       <div className="expenses-summary">
         <article><span>{t("本月总支出", "Monthly expenses")}</span><strong>{money(data.totalCents)}</strong><small>{data.month}</small></article>
@@ -82,15 +90,18 @@ export function ExpensesPanel({ storeId, today }: { storeId: string; today: stri
       </div>
       {data.lines.some(line => line.source === "BUDGET") && <p className="expenses-budget-note">{t("当前结果包含预算估算，请录入实际账单以获得准确成本。", "These totals include estimates. Record actual bills for accurate costs.")}</p>}
       <h2>{t("当月费用明细", "Monthly expense details")}</h2>
-      {data.lines.length === 0 ? <p className="empty-state">{t("本月暂无支出。", "No expenses this month.")}</p> : <div className="table-scroll"><table className="data-table expenses-table"><thead><tr>
+      {data.lines.length === 0 ? <p className="empty-state">{t("本月暂无支出。", "No expenses this month.")}</p> : <ResponsiveDataView desktop={<div className="table-scroll"><table className="data-table expenses-table"><thead><tr>
         <th>{t("费用名称", "Expense")}</th><th>{t("周期", "Schedule")}</th><th>{t("覆盖日期", "Coverage")}</th><th>{t("整期金额", "Period amount")}</th><th>{t("本月分摊", "This month")}</th><th>{t("金额来源", "Source")}</th><th>{t("操作", "Actions")}</th>
       </tr></thead><tbody>{data.lines.map(line => {
         const item = data.items.find(i => i.id === line.itemId)!;
         return <tr key={`${line.itemId}:${line.ruleId}:${line.periodStart}`}><td>{line.name}</td><td>{cycleLabel(item, line.ruleId)}</td><td>{line.periodStart}{line.periodEnd !== line.periodStart && ` — ${line.periodEnd}`}</td><td>{money(line.periodAmountCents)}</td><td><strong>{money(line.allocatedCents)}</strong></td><td>{line.source === "BUDGET" ? t("预算估算", "Budget estimate") : line.source === "FIXED" ? t("固定金额", "Fixed amount") : t("实际金额", "Actual amount")}</td><td><span className="table-actions">
-          <button type="button" className="table-action" disabled={busy} onClick={() => setEditor(line.ruleId ? { mode: "period", item, line } : { mode: "edit", item })}>{t("填写 / 修改金额", "Record / edit amount")}</button>
-          {line.hasOverride && <button type="button" className="table-action" disabled={busy} onClick={() => { if (window.confirm(t("撤销此期实际金额，恢复默认金额？", "Clear this actual amount and restore the default?"))) run(`/${item.id}/periods`, "DELETE", { version: item.version, ruleId: line.ruleId, periodStart: line.periodStart }); }}>{t("撤销覆盖", "Clear override")}</button>}
+          {lineActions(line)}
         </span></td></tr>;
-      })}</tbody></table></div>}
+      })}</tbody></table></div>}>
+        <ul className="mobile-data-list">{data.lines.map(line => <li key={`${line.itemId}:${line.ruleId}:${line.periodStart}`}><MobileDataCard title={line.name} subtitle={cycleLabel(data.items.find(i => i.id === line.itemId)!, line.ruleId)} status={line.source === "BUDGET" ? t("预算估算", "Budget estimate") : line.source === "FIXED" ? t("固定金额", "Fixed amount") : t("实际金额", "Actual amount")} actions={lineActions(line)}>
+          <RecordFacts items={[{ label: t("本月分摊", "This month"), value: money(line.allocatedCents) }, { label: t("整期金额", "Period amount"), value: money(line.periodAmountCents) }, { label: t("覆盖日期", "Coverage"), value: `${line.periodStart}${line.periodEnd !== line.periodStart ? ` — ${line.periodEnd}` : ""}`, wide: true }]} />
+        </MobileDataCard></li>)}</ul>
+      </ResponsiveDataView>}
       <h2>{t("支出项目管理", "Manage expense items")}</h2>
       <div className="expenses-items">{data.items.filter(i => !i.deletedAt).map(item => {
         const latest = item.rules.at(-1);
@@ -98,13 +109,13 @@ export function ExpensesPanel({ storeId, today }: { storeId: string; today: stri
           {latest && <p>{t("开始", "Starts")} {latest.startDate}{latest.endExclusive && ` · ${t("停止新周期", "No new periods from")} ${latest.endExclusive}`}</p>}{item.note && <p>{item.note}</p>}
           {item.rules.length > 1 && <details><summary>{t("历史规则", "Rule history")}</summary>{item.rules.map(r => <p key={r.id}>{r.startDate} — {r.endExclusive ?? t("持续", "Ongoing")} · {cycleLabel(item, r.id)} · {money(r.amountCents)} · {r.amountMode === "BUDGET" ? t("预算", "Budget") : t("固定", "Fixed")}</p>)}</details>}
         </div><div className="expenses-item-actions">
-          <button type="button" disabled={busy} onClick={() => setEditor({ mode: "edit", item })}>{t("编辑", "Edit")}</button>
-          {latest && <button type="button" disabled={busy} onClick={() => setEditor({ mode: "rule", item })}>{latest.endExclusive ? t("重新开始", "Resume") : t("变更周期 / 金额", "Change schedule / amount")}</button>}
-          {latest && !latest.endExclusive && <button type="button" disabled={busy} onClick={() => setEditor({ mode: "stop", item })}>{t("停止", "Stop")}</button>}
-          <button type="button" className="danger" disabled={busy} onClick={() => { if (window.confirm(t("删除会将该项目从所有月份的支出统计中移除，之后可以恢复。确认删除？", "Delete this item from all monthly expense totals? It can be restored later."))) run(`/${item.id}`, "DELETE", { version: item.version }); }}>{t("删除", "Delete")}</button>
+          <button type="button" className="table-action" disabled={busy} onClick={() => setEditor({ mode: "edit", item })}>{t("编辑", "Edit")}</button>
+          {latest && <button type="button" className="table-action" disabled={busy} onClick={() => setEditor({ mode: "rule", item })}>{latest.endExclusive ? t("重新开始", "Resume") : t("变更周期 / 金额", "Change schedule / amount")}</button>}
+          {latest && !latest.endExclusive && <button type="button" className="table-action" disabled={busy} onClick={() => setEditor({ mode: "stop", item })}>{t("停止", "Stop")}</button>}
+          <button type="button" className="table-action danger" disabled={busy} onClick={() => { if (window.confirm(t("删除会将该项目从所有月份的支出统计中移除，之后可以恢复。确认删除？", "Delete this item from all monthly expense totals? It can be restored later."))) run(`/${item.id}`, "DELETE", { version: item.version }); }}>{t("删除", "Delete")}</button>
         </div></article>;
       })}</div>
-      {data.items.some(i => i.deletedAt) && <details className="expenses-deleted"><summary>{t("已删除支出", "Deleted expenses")}</summary>{data.items.filter(i => i.deletedAt).map(item => <div className="expenses-toolbar" key={item.id}><span>{item.name}</span><button type="button" disabled={busy} onClick={() => run(`/${item.id}/restore`, "POST", { version: item.version })}>{t("恢复", "Restore")}</button></div>)}</details>}
+      {data.items.some(i => i.deletedAt) && <details className="expenses-deleted"><summary>{t("已删除支出", "Deleted expenses")}</summary>{data.items.filter(i => i.deletedAt).map(item => <div className="expenses-toolbar" key={item.id}><span>{item.name}</span><button type="button" className="table-action" disabled={busy} onClick={() => run(`/${item.id}/restore`, "POST", { version: item.version })}>{t("恢复", "Restore")}</button></div>)}</details>}
     </>}
     {editor && <ExpenseEditor key={`${editor.mode}:${"item" in editor ? editor.item.id : "new"}`} editor={editor} today={today} month={month} busy={busy} save={save} close={() => setEditor(null)} />}
   </section>;
@@ -155,7 +166,7 @@ function ExpenseEditor({ editor, today, month, busy, save, close }: { editor: Ed
     } catch (caught) { setError(errorMessage(caught)); }
   }
   return <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget && !busy) close(); }}><form ref={form} className="expenses-editor" role="dialog" aria-modal="true" aria-labelledby="expense-editor-title" onSubmit={e => { e.preventDefault(); if (!busy) void submit(); }}>
-    <div className="expenses-toolbar"><h2 id="expense-editor-title">{title}</h2><button type="button" disabled={busy} onClick={close}>{t("关闭", "Close")}</button></div>
+    <div className="expenses-toolbar"><h2 id="expense-editor-title">{title}</h2><button type="button" className="close-button" disabled={busy} onClick={close}>{t("关闭", "Close")}</button></div>
     {item && <p>{item.name}</p>}
     {editor.mode === "period" && <p>{editor.line.periodStart} — {editor.line.periodEnd}<br />{t("填写整个周期的实际金额，系统自动重新分摊至对应月份。", "Enter the full period amount. Its monthly allocations update automatically.")}</p>}
     {editor.mode === "rule" && <p>{t("从原规则的周期起点生效，保留此前费用；规则按生效时间依次添加。", "Effective from an existing period boundary; earlier costs remain unchanged. Append changes in chronological order.")}</p>}

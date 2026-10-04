@@ -1,6 +1,7 @@
 import type { GiftCardLedgerResponse } from "../../lib/types";
 import { formatUsd } from "../../lib/money";
 import { dateOnly } from "./date-utils";
+import { MobileDataCard, RecordFacts, ResponsiveDataView } from "../ui/responsive-data-view";
 
 function money(cents: number): string {
   return formatUsd(cents);
@@ -51,7 +52,7 @@ export function GiftCardLedger({ ledger }: { ledger: GiftCardLedgerResponse }) {
         <p className="field-help">使用记录来自普通记账中的礼物卡付款，可在同一张卡下保留多条记录。</p>
       </div>
       {ledger.sales.length > 0 || ledger.legacyUsages.length > 0 ? (
-        <div className="table-scroll">
+        <ResponsiveDataView desktop={<div className="table-scroll">
           <table className="data-table gift-card-ledger__table">
             <thead>
               <tr><th>序列号</th><th>售出日</th><th>礼物卡面值</th><th>折扣</th><th>实际收款</th><th>售出人</th><th>付款方式</th><th>使用记录</th></tr>
@@ -79,7 +80,12 @@ export function GiftCardLedger({ ledger }: { ledger: GiftCardLedgerResponse }) {
                 ))}
             </tbody>
           </table>
-        </div>
+        </div>}>
+          <ul className="mobile-data-list">{ledgerRows.map(row => <li key={row.kind === "sale" ? row.sale.id : `legacy-${row.card.serialNumber}`}><MobileDataCard title={`礼物卡 ${row.serialNumber}`} subtitle={row.kind === "sale" ? `售出日 ${dateOnly(row.sale.businessDate)}` : "未登记销售 · 老卡使用记录"}>
+            {row.kind === "sale" && <RecordFacts items={[{ label: "礼物卡面值", value: money(row.sale.faceValueCents) }, { label: "实际收款", value: money(row.sale.amountCents) }, { label: "折扣", value: row.sale.discountCents > 0 ? `${(row.sale.discountRateBps / 100).toFixed(2)}% · -${money(row.sale.discountCents)}` : "—" }, { label: "售出人", value: row.sale.operator.displayName }, { label: "付款方式", value: paymentMethod(row.sale.cashCents, row.sale.cardCents), wide: true }]} />}
+            <div className="mobile-card-usages"><h4>使用记录</h4>{(row.kind === "sale" ? row.sale.usageRecords : row.card.usageRecords).length ? usageDetails(row.kind === "sale" ? row.sale.usageRecords : row.card.usageRecords) : <p className="field-help">暂无使用记录</p>}</div>
+          </MobileDataCard></li>)}</ul>
+        </ResponsiveDataView>
       ) : (
         <p className="empty-state">还没有售出或使用过的礼物卡。第一张销售卡会从序列号 1001 开始。</p>
       )}

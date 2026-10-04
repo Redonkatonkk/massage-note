@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.17.0`
+> 适用版本：`1.18.7`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -10,7 +10,7 @@
 - 首次注册由 Firebase Phone Auth 验证手机号，并在 `POST /auth/session` 中同时提交姓名和 8 至 72 字符的密码；密码仅以随机盐 `scrypt` 摘要保存。
 - 老用户可以用密码换取 Firebase Custom Token，也可以继续使用验证码。客户端最终都把 Firebase ID Token 提交到 `POST /auth/session`，服务端返回 `HttpOnly` 会话 Cookie。
 - 浏览器业务请求携带会话 Cookie；LangBot 和 Mac 发送代理接口分别使用独立 Bearer 凭据。保留原因：这些入口的身份体系不同，不能将集成接口误记为浏览器会话接口。
-- 已有店铺内的关键写入必须发送 `Idempotency-Key` 请求头；建议使用 UUID。相同键和相同请求会返回首次结果，相同键配不同内容会返回冲突。创建店铺尚无 `storeId`，因此以“店主＋自选店铺代码＋相同配置”做语义去重；加入申请以“用户＋店铺＋待审状态”去重。
+- 已有店铺内的关键写入必须发送 `Idempotency-Key` 请求头；建议使用 UUID。相同键和相同请求会返回首次结果，相同键配不同内容会返回冲突。创建店铺尚无 `storeId`，因此以“店主＋自选店铺代码＋相同配置”做语义去重；加入申请以“用户＋店铺＋待审状态”去重。保留原因：身份、幂等和版本保护由当前认证及写入服务执行，客户端不能绕过。
 - 修改、删除和恢复请求中的 `version` 是乐观锁版本。若资源已被其他设备修改，接口返回 `409` 和最新资源，客户端应刷新后让用户重新核对。
 - 网页店铺业务路径包含 `storeId`；集成接口从受限绑定或代理身份确定店铺。服务端校验成员关系、角色能力和对象归属，不能依赖前端隐藏按钮实现权限。保留原因：客户端参数和界面都不能证明租户归属。
 - 普通请求和响应使用 JSON；CSV 导出、音频上传和 SSE 流使用对应格式。错误格式为 `{ code, messageZh, requestId, latestResource? }`。版本冲突的 `latestResource` 也必须经过 JSON 安全转换。保留原因：数据库 `BigInt` 金额不能让应有的 409 响应退化为 500，也不能将流或二进制请求按 JSON 处理。
@@ -113,17 +113,17 @@
 
 LangBot 的 `work-context` 同时返回启用的 `discounts`、`addons` 名称和简称。`FINISH` 支持 `memberName/memberMention` 指定员工，以及 `discounts/addons: [{ name, mention }]`；新增 `ADJUST` 使用相同可选字段单独添加折扣或加项。操作按同店在职员工唯一待付款记录定位，包含人工记工；多条匹配不写账，预设金额和提成由服务端读取。
 
-Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直接打开指定营业日的全店日结及员工现金结算；旧 `tab=cash` 兼容解析为 `closing`，保留店铺与日期；在日结异常列表点击单据时，财务页原地读取 `GET /work-records/:recordId` 并打开单笔记工弹窗，不离开当前页面。`/?store=<storeId>&date=<businessDate>&record=<recordId>` 深链接仍可用于从外部直接打开今日页的指定记工。读取不会自动执行日结或修改记录。
+Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直接打开指定营业日的全店日结及员工现金结算；旧 `tab=cash` 兼容解析为 `closing`，保留店铺与日期；在日结异常列表点击单据时，财务页原地读取 `GET /work-records/:recordId` 并打开单笔记工弹窗，不离开当前页面。`/?store=<storeId>&date=<businessDate>&record=<recordId>` 深链接仍可用于从外部直接打开今日页的指定记工。读取不会自动执行日结或修改记录。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
 两个 AI 消息端点都接受可选的 `conversationId`（UUID）。首轮省略时创建会话；后续传回响应中的同一个 ID，服务端校验店铺、用户和助手类型，匹配失败返回 `AI_CONVERSATION_NOT_FOUND`。历史由服务端读取，不需要客户端上传消息列表。
 
-已保存的成功/追问/预览轮次按时间顺序作为 user/assistant 消息传给模型，包含完整回复及已保存的查询、预览上下文；错误日志不重放。新日志保存成员 ID 和角色范围，当前范围不一致时不重放；旧日志缺少范围时仅保留用户提问并提示重新查询，不恢复旧业务结果。财务续问先使用模型解析完整筛选，再走原有鉴权和确定性财务查询；解析未调用筛选工具时返回 `AI_QUERY_AMBIGUOUS`。未配置模型时仍使用原有单句安全降级逻辑。
+已保存的成功/追问/预览轮次按时间顺序作为 user/assistant 消息传给模型，包含完整回复及已保存的查询、预览上下文；错误日志不重放。新日志保存成员 ID 和角色范围，当前范围不一致时不重放；旧日志缺少范围时仅保留用户提问并提示重新查询，不恢复旧业务结果。财务续问先使用模型解析完整筛选，再走原有鉴权和确定性财务查询；解析未调用筛选工具时返回 `AI_QUERY_AMBIGUOUS`。未配置模型时仍使用原有单句安全降级逻辑。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
-历史结果是快照，最新业务数据需重新查询；历史预览不是已执行记录，也不能替代当前预览确认。当前实现没有历史摘要或自动截断，长会话仍受模型上下文容量限制；前端刷新后不会自动恢复会话 ID。
+历史结果是快照，最新业务数据需重新查询；历史预览不是已执行记录，也不能替代当前预览确认。当前实现没有历史摘要或自动截断，长会话仍受模型上下文容量限制；前端刷新后不会自动恢复会话 ID。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
 两个 AI 消息端点的请求体均接受 `locale: "zh-CN" | "en-US"`，省略时默认 `zh-CN`。该字段决定模型提示、确定性财务回答和安全降级说明的语言。语音转写端点接收浏览器生成的 MP4/AAC 原始请求体，限制为 6–60 秒且不超过 8 MB，通过与文本模型相同的 `MINIMAX_API_KEY` 调用 `MINIMAX_TRANSCRIPTION_MODEL`（默认 `music-cover`）内置 ASR；`Accept-Language` 决定主要识别语言，另一种语言仍作为候选。其他业务错误继续返回稳定 `code` 与 `messageZh`；Web 英文界面按稳定错误码显示英语说明，未知错误码使用不泄露内部信息的通用英语提示。
 
-店主或经理创建的待认领员工拥有正常的成员 ID，可立即进入今日表格、记工和配置提成，只是 `userId` 暂时为空。员工注册后用店铺代码加入时，服务端仅以账号注册资料中的 First Name 对本店待认领员工名字做规范化精确匹配；匹配成功返回 `{ "autoMatched": true, "membership": ... }` 并在原成员关系上绑定账号，因此既有记录不会搬迁或丢失。未匹配时仍返回带 `autoMatched: false` 的待审批申请。加入表单中临时填写的显示名不能用于冒领其他员工账号。
+店主或经理创建的待认领员工拥有正常的成员 ID，可立即进入今日表格、记工和配置提成，只是 `userId` 暂时为空。员工注册后用店铺代码加入时，服务端仅以账号注册资料中的 First Name 对本店待认领员工名字做规范化精确匹配；匹配成功返回 `{ "autoMatched": true, "membership": ... }` 并在原成员关系上绑定账号，因此既有记录不会搬迁或丢失。未匹配时仍返回带 `autoMatched: false` 的待审批申请。加入表单中临时填写的显示名不能用于冒领其他员工账号。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
 主要项目使用 `priceOptions` 表示一个或多个时长价格档位，例如：
 
@@ -138,9 +138,9 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 }
 ```
 
-快速创建或把记工切换到预设项目时提交 `serviceItemId` 和 `serviceDurationMinutes`。若项目只有一个档位，服务端为旧客户端兼容可补选该档位；项目有多个档位时缺少时长会返回 `SERVICE_PRICE_OPTION_REQUIRED`。更新记工且没有明确提交 `endAt` 时，服务端会在修改 `startAt` 后保留当前实际工作时长，并按主要项目及额外项目新旧配置分钟数的总差值调整结束时间；明确提交的 `endAt` 仍优先。记工保存的仍是名称、时长、价格和提成快照，后续修改或删除价格档位不会改变历史记录。
+快速创建或把记工切换到预设项目时提交 `serviceItemId` 和 `serviceDurationMinutes`。若项目只有一个档位，服务端为旧客户端兼容可补选该档位；项目有多个档位时缺少时长会返回 `SERVICE_PRICE_OPTION_REQUIRED`。更新记工且没有明确提交 `endAt` 时，服务端会在修改 `startAt` 后保留当前实际工作时长，并按主要项目及额外项目新旧配置分钟数的总差值调整结束时间；明确提交的 `endAt` 仍优先。记工保存的仍是名称、时长、价格和提成快照，后续修改或删除价格档位不会改变历史记录。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
-店铺设置可通过同一次 `PATCH /stores/:storeId` 写入周一至周四自动折扣；三个字段必须一起提交：
+店铺设置可通过同一次 `PATCH /stores/:storeId` 写入周一至周四自动折扣；三个字段必须一起提交。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
 ```json
 {
@@ -151,9 +151,9 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 }
 ```
 
-启用时门槛和额度必须为正数，且折扣额度不能高于门槛。系统按记工的营业日判断周一至周四，在非高亮记工的“主要项目 + 额外项目”折前大费达到门槛时生成自动折扣快照；该快照与普通折扣共同计算折后业绩，不进入员工工资公式。修改设置不会批量改写历史记工，新建或再次编辑记工时才按当前规则判断。
+启用时门槛和额度必须为正数，且折扣额度不能高于门槛。系统按记工的营业日判断周一至周四，在非高亮记工的“主要项目 + 额外项目”折前大费达到门槛时生成自动折扣快照；该快照与普通折扣共同计算折后业绩，不进入员工工资公式。修改设置不会批量改写历史记工，新建或再次编辑记工时才按当前规则判断。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
-同一个店铺设置接口也可保存礼物卡满额百分比自动折扣；三个字段必须一起提交，关闭时门槛和比例均为 0：
+同一个店铺设置接口也可保存礼物卡满额百分比自动折扣；三个字段必须一起提交，关闭时门槛和比例均为 0。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
 ```json
 {
@@ -177,9 +177,9 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 }
 ```
 
-设为 `true` 后，服务端删除该笔自动折扣快照并持久保留停用状态，之后再次编辑也不会自动加回；设为 `false` 时按当前营业日、折前大费和店铺设置重新判断。该字段走既有记工权限、营业日锁、版本冲突、幂等、审计与现金结算回退规则。
+设为 `true` 后，服务端删除该笔自动折扣快照并持久保留停用状态，之后再次编辑也不会自动加回；设为 `false` 时按当前营业日、折前大费和店铺设置重新判断。该字段走既有记工权限、营业日锁、版本冲突、幂等、审计与现金结算回退规则。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
-快速记工和详情修改都可提交布尔字段 `isHighlighted`，用于黄色卡片、财务筛选及信用卡手续费计算，同时排除周一至周四自动折扣。新建高亮记工不生成该自动折扣，编辑为高亮时删除既有自动折扣快照、保留手动折扣和实际付款；取消高亮后重新按当前规则判断，但不会解除 `automaticDiscountSuppressed`。该规则同样适用于机器人复用记工编辑服务的操作，不批量改写历史数据。手续费规则：未高亮刷卡金额按 2.5%，含刷卡付款的高亮记工每笔 $3。财务汇总、明细和 CSV 使用同一 `highlightFilter`。保留原因：领域层已有高亮手续费分支，旧说法“不进入任何金额公式”会误导财务查询和改动。
+快速记工和详情修改都可提交布尔字段 `isHighlighted`，用于灰绿色高亮卡片、财务筛选及信用卡手续费计算，同时排除周一至周四自动折扣。新建高亮记工不生成该自动折扣，编辑为高亮时删除既有自动折扣快照、保留手动折扣和实际付款；取消高亮后重新按当前规则判断，但不会解除 `automaticDiscountSuppressed`。该规则同样适用于机器人复用记工编辑服务的操作，不批量改写历史数据。手续费规则：未高亮刷卡金额按 2.5%，含刷卡付款的高亮记工每笔 $3。财务汇总、明细和 CSV 使用同一 `highlightFilter`。保留原因：领域层已有高亮手续费分支，旧说法“不进入任何金额公式”会误导财务查询和改动。
 
 确认付款可在原有现金与刷卡字段之外提交礼物卡拆分：
 
@@ -210,11 +210,11 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 }
 ```
 
-若店铺规则是“满 `$100.00` 折扣 `5%`”，上述请求的折扣为 `$7.50`，折后应付和实际收款均为 `$142.50`。响应包含自动分配的 `serialNumber`、`faceValueCents`、`discountThresholdCents`、`discountRateBps`、`discountCents` 与 `amountCents`，并满足 `faceValueCents - discountCents = amountCents = cashCents + cardCents`。同一店铺序列号唯一，自动号在事务内递增且软删除后不复用；界面默认显示系统建议号码，也允许改成自定义号码，服务端按规范化结果检查当前和软删除历史记录防重。实际收款全部加入店铺收入，不进入员工提成、工资或现金结算；客人后续使用礼物卡支付的大费和小费全部计入礼物卡核销支出。
+若店铺规则是“满 `$100.00` 折扣 `5%`”，上述请求的折扣为 `$7.50`，折后应付和实际收款均为 `$142.50`。响应包含自动分配的 `serialNumber`、`faceValueCents`、`discountThresholdCents`、`discountRateBps`、`discountCents` 与 `amountCents`，本例恰好满足 `faceValueCents - discountCents = amountCents`；所有响应的 `amountCents = cashCents + cardCents`，实际收款可不同于折后应付。同一店铺序列号唯一，自动号在事务内递增且软删除后不复用；界面默认显示系统建议号码，也允许改成自定义号码，服务端按规范化结果检查当前和软删除历史记录防重。实际收款全部加入店铺收入，不进入员工提成、工资或现金结算；客人后续使用礼物卡支付的大费和小费全部计入礼物卡核销支出。
 
 项目排序提交完整的未删除项目列表及当前版本，例如 `{ "type": "SERVICE", "items": [{ "id": "...", "version": 2 }] }`。服务端在同一事务中校验列表、项目归属和全部版本，再统一写入顺序；列表不完整或任一版本过期时返回 `CATALOG_ORDER_CONFLICT`，不会留下半套排序。
 
-今日记工页面只调用 `POST /stores/:storeId/shifts/clock-in` 支持普通员工把本人加入当前营业日表格，不调用下班接口。新营业日上班若发现本人仍有旧营业日未结束班次，会先原子结束旧班次并记录 `shift.stale_auto_closed` 审计，再创建当前班次和本人表格行；同一营业日重复上班返回 `SHIFT_ALREADY_OPEN`。`clock-out` 继续保留给旧客户端和历史审计兼容，员工页面不提供对应按钮；员工工作状态仍完全由记工时间段计算。
+今日记工页面只调用 `POST /stores/:storeId/shifts/clock-in` 支持普通员工把本人加入当前营业日表格，不调用下班接口。新营业日上班若发现本人仍有旧营业日未结束班次，会先原子结束旧班次并记录 `shift.stale_auto_closed` 审计，再创建当前班次和本人表格行；同一营业日重复上班返回 `SHIFT_ALREADY_OPEN`。`clock-out` 继续保留给旧客户端和历史审计兼容，员工页面不提供对应按钮；员工工作状态仍完全由记工时间段计算。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
 ## 财务查询参数
 
@@ -226,7 +226,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 - `amountType`：`SERVICE`、`TIP` 或 `ALL`。
 - `highlightFilter`：`ALL`、`ONLY_HIGHLIGHTED` 或 `EXCLUDE_HIGHLIGHTED`。
 
-店主或经理未限定员工且选择全部金额时，汇总、明细和 CSV 会纳入店铺级礼物卡销售：`itemCount = recordCount + giftCardSaleCount`，`customerTotalPaidCents = actualServiceCollectedCents + totalTipCents + giftCardSalesAmountCents`。员工小计、明确员工筛选、仅大费、仅小费或仅高亮记工不分摊卖卡记录。`giftCardRedemptionCents = giftCardServiceCents + giftCardTipCents`，`storeIncomeCents = calculateRevenue({ discountedFeePerformanceCents, giftCardSalesAmountCents }) + totalTipCents - employeeIncomeCents - giftCardRedemptionCents`（营业额已含卖卡实收，不再单独追加卖卡金额）。
+店主或经理未限定员工且选择全部金额时，汇总、明细和 CSV 会纳入店铺级礼物卡销售：`itemCount = recordCount + giftCardSaleCount`，`customerTotalPaidCents = actualServiceCollectedCents + totalTipCents + giftCardSalesAmountCents`。员工小计、明确员工筛选、仅大费、仅小费或仅高亮记工不分摊卖卡记录。`giftCardRedemptionCents = giftCardServiceCents + giftCardTipCents`，`storeIncomeCents = calculateRevenue({ discountedFeePerformanceCents, giftCardSalesAmountCents }) + totalTipCents - employeeIncomeCents - giftCardRedemptionCents`（营业额已含卖卡实收，不再单独追加卖卡金额）。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
 
 `finance/summary` 的每个 `days[]` 行额外返回 `dailyTurnoverCents = discountedFeePerformanceCents + giftCardSalesAmountCents - giftCardRedemptionCents`。每日行同时返回 `totalIncomeCents = 店铺收入 + 店长收入 + 经理收入`，复用看板领域公式，不额外加减礼物卡净收入或信用卡手续费。上述字段由服务端使用整数美分计算；Web 每日小计前三列依次显示日期、星期和今日流水，最后一列显示总收入，并隐藏全部项目数、记工数、实收服务费、小费和客人总付款列。
 
@@ -241,13 +241,13 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 - `creditCardFeeCents`：未高亮记工的所选刷卡大费与刷卡小费合计按 `2.5%` 四舍五入到美分，再加上每条含所选刷卡金额的高亮记工 `$3.00`；部分刷卡仍按一笔，高亮但没有刷卡金额不收费，礼物卡付款和卖卡刷卡不计入；
 - `totalIncomeCents = storeIncomeCents + ownerWorkerIncomeCents + managerWorkerIncomeCents - creditCardFeeCents`。
 
-这些字段采用当前日期、员工、付款方式、金额类型和高亮筛选口径。`finance/summary.employees[]` 还返回员工当前 `defaultCommissionBps` 和是否存在不同项目专属设置的 `hasDifferentItemCommission`；Web 与员工小计短信直接显示该设置，不再用筛选后的工资反推比例。Web 的每日小计位于员工小计之前，日期后显示按当前界面语言本地化的星期；员工范围使用复选框多选，空选择表示全部员工。
+这些字段采用当前日期、员工、付款方式、金额类型和高亮筛选口径。`finance/summary.employees[]` 还返回员工当前 `defaultCommissionBps` 和是否存在不同项目专属设置的 `hasDifferentItemCommission`；Web 与员工小计短信直接显示该设置，不再用筛选后的工资反推比例。Web 的每日小计位于员工小计之前，日期后显示按当前界面语言本地化的星期；员工范围使用复选框多选，空选择表示全部员工。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
 
-工资结算列表支持成员和 `includeDeleted=true`；每条记录返回 `paymentScope`（`CASH` / `NON_CASH` / `ALL`，历史未指定为 `null`）。新增 `POST /stores/:storeId/payroll-settlements` 的简化请求为 `{ membershipId, periodStart, periodEnd, totalPaidCents, paymentScope }`，总额使用非负整数美分，登记日期自动按设备时区自然日期记录。手工登记不生成结清确认。列表与详情额外返回可空 `confirmation`（`payrollSettlementId`、`unsettledCents`、`deductionCents`、`createdAt`）。修改 `PATCH` 接受同样字段并要求 `version`，保留原登记日期；来源与旧金额拆分不能混为同一总额请求。旧客户端的拆分字段仍兼容，旧来源不回填猜测值。审计列表支持 `dateFrom`、`dateTo`、`entityType`、`action`、`actorUserId` 与游标分页。
+工资结算列表支持成员和 `includeDeleted=true`；每条记录返回 `paymentScope`（`CASH` / `NON_CASH` / `ALL`，历史未指定为 `null`）。新增 `POST /stores/:storeId/payroll-settlements` 的简化请求为 `{ membershipId, periodStart, periodEnd, totalPaidCents, paymentScope }`，总额使用非负整数美分，登记日期自动按设备时区自然日期记录。手工登记不生成结清确认。列表与详情额外返回可空 `confirmation`（`payrollSettlementId`、`unsettledCents`、`deductionCents`、`createdAt`）。修改 `PATCH` 接受同样字段并要求 `version`，保留原登记日期；来源与旧金额拆分不能混为同一总额请求。旧客户端的拆分字段仍兼容，旧来源不回填猜测值。审计列表支持 `dateFrom`、`dateTo`、`entityType`、`action`、`actorUserId` 与游标分页。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
 
-员工区间预览保留完整 `records` / `summary`，增加 `payment: { unsettledCents, fullyConfirmed, revision }`；金额为整数美分，revision 为服务端生成的 64 位十六进制修订值。日历响应为 `{ membershipId, month, days }`，各日包含 `businessDate`、`hasCash`、`hasNonCash`、`cashSettled`、`nonCashSettled`、`cashConfirmed`、`nonCashConfirmed`、`cashUnsettledCents`、`nonCashUnsettledCents`。黄色状态与现金工资缺口可以同时存在。
+员工区间预览保留完整 `records` / `summary`，增加 `payment: { unsettledCents, fullyConfirmed, revision }`；金额为整数美分，revision 为服务端生成的 64 位十六进制修订值。日历响应为 `{ membershipId, month, days }`，各日包含 `businessDate`、`hasCash`、`hasNonCash`、`cashSettled`、`nonCashSettled`、`cashConfirmed`、`nonCashConfirmed`、`cashUnsettledCents`、`nonCashUnsettledCents`。黄色状态与现金工资缺口可以同时存在。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
 
-付款确认请求为 `{ membershipId, dateFrom, dateTo, paymentScope, deductionCents, revision }`，服务端不接受客户端指定实付。响应为带 `confirmation` 的工资账本记录，本次实付由服务端重新计算为未结金额减抵扣。可实付 $0；空记工、店主、抵扣超额或已全部结清的范围拒绝。旧 revision 返回 `409 SETTLEMENT_DATA_CHANGED`，已结范围返回 `409 SETTLEMENT_ALREADY_CONFIRMED`，抵扣超额返回 `400 SETTLEMENT_DEDUCTION_TOO_LARGE`。失败重试保持相同请求与幂等键，重新生成后使用新键。关联账本修改、软删除及恢复即时改变有效确认，不改变旧单据和已入队长图快照。
+付款确认请求为 `{ membershipId, dateFrom, dateTo, paymentScope, deductionCents, revision }`，服务端不接受客户端指定实付。响应为带 `confirmation` 的工资账本记录，本次实付由服务端重新计算为未结金额减抵扣。可实付 $0；空记工、店主、抵扣超额或已全部结清的范围拒绝。旧 revision 返回 `409 SETTLEMENT_DATA_CHANGED`，已结范围返回 `409 SETTLEMENT_ALREADY_CONFIRMED`，抵扣超额返回 `400 SETTLEMENT_DEDUCTION_TOO_LARGE`。失败重试保持相同请求与幂等键，重新生成后使用新键。关联账本修改、软删除及恢复即时改变有效确认，不改变旧单据和已入队长图快照。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
 
 ## 错误与排查
 
@@ -267,23 +267,23 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 `work-context` 提供自然语言 `instructions`；兼容字段 `aliases` 现在来自所有启用的项目目录，`alias` 为项目 UUID。AI 根据说明选择项目 UUID，服务端仍检查店铺、启用状态和可用价格档。说明明确约定的默认时长可使用 `durationSource: "SKILL"`，显式时长继续提供原文 `durationMention`。旧 aliases 接口仅用于兼容已有接入。
 
-`work-events` 的原文证据校验保留 `@员工` 的姓名文字；解析结果与原文不符时返回 `outcome: "INTENT_EVIDENCE_REJECTED"` 和未记账说明，不执行写账。一般帮助仍为 `HELP`。
+`work-events` 的原文证据校验保留 `@员工` 的姓名文字；解析结果与原文不符时返回 `outcome: "INTENT_EVIDENCE_REJECTED"` 和未记账说明，不执行写账。一般帮助仍为 `HELP`。保留原因：说明和模型意图仍须通过实时目录、原文证据及权限校验。
 
 ### 事务、实时同步与发送重试
 
-- 网页一次“保存”涉及详情和付款时调用 `/work-records/:recordId/save`，任一步失败均回滚；单独修改详情仍可 PATCH。409 后应重新读取并核对，不得自动采用新版本重发旧字段。
-- AI 确认的创建、详情、付款、审计和预览消费处于同一事务；并发确认返回 `AI_PREVIEW_EXECUTING`。AI UPDATE 中省略的付款项保留，切换方式必须显式将原方式置零；原有礼物卡金额和序列号保留。
-- SSE 同实例同店共享 2 秒 outbox 轮询，每个连接仍独立验证成员及账号状态，慢轮询不会被取消；同账号多个连接均收通知。每轮发送 `heartbeat`，新连接及每 30 秒发出不带事件 ID 的 `store.changed`（`reason: resync`），覆盖共享游标之前的状态与延迟提交事务。接口及事件 payload 保持兼容，客户端恢复连接后完整读取 REST。响应显式设置 `X-Accel-Buffering: no` 与禁缓存/转换指令；没有订阅时释放店铺轮询。
+- 网页一次“保存”涉及详情和付款时调用 `/work-records/:recordId/save`，任一步失败均回滚；单独修改详情仍可 PATCH。409 后应重新读取并核对，不得自动采用新版本重发旧字段。保留原因：业务、审计与状态必须共同提交，独立连接和租约仍需鉴权。
+- AI 确认的创建、详情、付款、审计和预览消费处于同一事务；并发确认返回 `AI_PREVIEW_EXECUTING`。AI UPDATE 中省略的付款项保留，切换方式必须显式将原方式置零；原有礼物卡金额和序列号保留。保留原因：业务、审计与状态必须共同提交，独立连接和租约仍需鉴权。
+- SSE 同实例同店共享 2 秒 outbox 轮询，每个连接仍独立验证成员及账号状态，慢轮询不会被取消；同账号多个连接均收通知。每轮发送 `heartbeat`，新连接及每 30 秒发出不带事件 ID 的 `store.changed`（`reason: resync`），覆盖共享游标之前的状态与延迟提交事务。接口及事件 payload 保持兼容，客户端恢复连接后完整读取 REST。响应显式设置 `X-Accel-Buffering: no` 与禁缓存/转换指令；没有订阅时释放店铺轮询。保留原因：业务、审计与状态必须共同提交，独立连接和租约仍需鉴权。
 - 发送代理的授权、检查点、完成和失败回写均检查未过期租约及当前令牌；租约失效返回 `DELIVERY_LEASE_INVALID`。
 - 员工小计发送的幂等内容包含日期、员工列表、付款方式、金额类型、高亮筛选及接收号码；相同键更换筛选返回 `IDEMPOTENCY_KEY_REUSED`。
 
 ### 完整微信记工与数据查询
 
-`POST /integrations/langbot/work-context` 返回协议版本 2、店铺当前营业日期/时区、员工 ID 和实时意图 JSON Schema。`work-events` 扩展 QUERY 与 MANAGE；QUERY 支持最近 1–366 个营业日或完整起止日期、员工/状态/高亮筛选、按记录/天/员工分组及每页 20 条分页。总计覆盖完整范围。MANAGE 支持 CREATE、UPDATE、PAYMENT、DELETE、RESTORE，输入事实须有原文依据，编辑与付款共用事务；完整契约见 `packages/contracts/src/work-bot.ts`。
+`POST /integrations/langbot/work-context` 返回协议版本 2、店铺当前营业日期/时区、员工 ID 和实时意图 JSON Schema。`work-events` 扩展 QUERY 与 MANAGE；QUERY 支持最近 1–366 个营业日或完整起止日期、员工/状态/高亮筛选、按记录/天/员工分组及每页 20 条分页。总计覆盖完整范围。MANAGE 支持 CREATE、UPDATE、PAYMENT、DELETE、RESTORE，输入事实须有原文依据，编辑与付款共用事务；完整契约见 `packages/contracts/src/work-bot.ts`。保留原因：绑定姓名不是身份验证，查询和写入依实际成员权限执行。
 
 `PATCH /stores/:storeId/work-bot/members/:bindingId/verification` 接受 `{version, verified}`，需要 `STORE_SETTINGS_MANAGE`。核实前按普通员工限制写当日，核实后仍按实际成员角色授权；历史财务查询需核实，员工只能读本人。重绑不同身份取消核实，查询重放重新鉴权。
 
-下工服务金额表示实收，不自动覆盖项目原价。完整用法与部署顺序见 [LangBot 记工机器人](../operations/LANGBOT_WORK_BOT.md)。
+下工服务金额表示实收，不自动覆盖项目原价。完整用法与部署顺序见 [LangBot 记工机器人](../operations/LANGBOT_WORK_BOT.md)。保留原因：绑定姓名不是身份验证，查询和写入依实际成员权限执行。
 
 ### 群机器人上工开始时间
 
@@ -293,54 +293,54 @@ START 的开始时间由 API 从 rawText 解析，使用店铺时区及 occurred
 
 个人预览返回 `cashSettlement: { status, version, settledAt }`；无记录时为 `UNSETTLED`、版本 0。仅返回目标员工状态，现金写入仍由管理权限保护。
 
-短信任务独立存储 `businessDate`；未日结逐人任务的 `closingId` 和列表中的 `closing` 为 null，代理领取返回 `cycleNo: 0`，PNG 不显示周期。关联有效日结的任务仍在取消该周期时撤销；未关联周期的任务保留排队时快照。迁移 `20260910010000_independent_member_closing_delivery` 从旧周期回填营业日并放宽周期外键非空限制；旧记录保留。回退应用前须处理无周期任务，不能直接恢复非空约束。
+短信任务独立存储 `businessDate`；未日结逐人任务的 `closingId` 和列表中的 `closing` 为 null，代理领取返回 `cycleNo: 0`，PNG 不显示周期。关联有效日结的任务仍在取消该周期时撤销；未关联周期的任务保留排队时快照。迁移 `20260910010000_independent_member_closing_delivery` 从旧周期回填营业日并放宽周期外键非空限制；旧记录保留。回退应用前须处理无周期任务，不能直接恢复非空约束。保留原因：未日结逐人任务已有可空周期设计，个人状态不能泄露其他成员。
 
 ### 今日看板顶部总收入
 
 `GET /stores/:storeId/boards/:businessDate` 的顶层 `statistics.totalIncomeCents` 由服务端整数美分计算：`storeIncomeCents + 店长大费工资及小费 + 所有经理大费工资及小费`。成员角色按当前记录关联成员读取，不依赖行是否隐藏；使用看板相同的未删除记录范围（包含待结账已知工资和小费），员工历史仍限定本人。该字段不额外加入礼物卡净收入或扣除信用卡手续费，区别于 `finance/summary` 的总结算字段。顶部营业额读取新增的 `revenueCents = discountedFeePerformanceCents + giftCardSalesAmountCents`；原 `discountedFeePerformanceCents` 仍仅为折后服务业绩，礼物卡总额读取 `giftCardSalesAmountCents`。
 
-礼物卡对记工页总收入、财务每日小计及财务总结算均只影响一次：卖卡按实际收款增加，用卡按大费与小费合计减少；这些收支已包含在店铺收入中，礼物卡净收入字段只用于展示组成，不再次加减。财务总结算继续扣除信用卡手续费；记工页及每日小计保留手续费前口径。
+礼物卡对记工页总收入、财务每日小计及财务总结算均只影响一次：卖卡按实际收款增加，用卡按大费与小费合计减少；这些收支已包含在店铺收入中，礼物卡净收入字段只用于展示组成，不再次加减。财务总结算继续扣除信用卡手续费；记工页及每日小计保留手续费前口径。保留原因：看板采用手续费前口径，礼卡组成不能再次增加总收入。
 
 ### 营业日日历已日结金额
 
-`GET /stores/:storeId/business-days/open-work-dates` 保留 `dates` 未日结日期数组，并返回 `closedDates: [{ date, discountedFeePerformanceCents, revenueCents }]`。仅返回当前 CLOSED 的日期，金额由数据库按营业日汇总未删除记工的折后项目金额（整数美分）。日历显示新增 `revenueCents`，为折后服务业绩加卖卡实收；店主/经理可见全店，已日结无记工且无卖卡显示零；员工仅返回本人有记工日期及本人金额。取消日结不再返回该日期金额。前端仅展示美元数值，不附币种、单位或标签；翻月、切店和重新打开时清除旧标记并防止旧请求覆盖。
+`GET /stores/:storeId/business-days/open-work-dates` 保留 `dates` 未日结日期数组，并返回 `closedDates: [{ date, discountedFeePerformanceCents, revenueCents }]`。仅返回当前 CLOSED 的日期，金额由数据库按营业日汇总未删除记工的折后项目金额（整数美分）。日历显示新增 `revenueCents`，为折后服务业绩加卖卡实收；店主/经理可见全店，已日结无记工且无卖卡显示零；员工仅返回本人有记工日期及本人金额。取消日结不再返回该日期金额。前端仅展示美元数值，不附币种、单位或标签；记工页复用页面内月缓存，刷新期间保留同月标记，财务页打开时读取；旧请求不能覆盖已失效上下文。缓存规则见 [产品规则](../product/PRODUCT.md)。保留原因：样本、权限和缓存生命周期共同决定可见金额，缺日结不是零样本。
 
 已日结的记工看板向拥有者和经理返回 `statistics.recentClosedRevenue: { dayCount, averageCents }`。窗口为所选当日及之前29个自然日，仅纳入当前 `CLOSED` 日期。`dayCount` 是实际已日结日期数（1–30），不是固定30；`averageCents` 是这些日期的全店未删除记工 折后服务业绩与未删除卖卡实收合计除以 `dayCount`，四舍五入至美分。当日取看板记工与卖卡汇总且只计一次。缺少日结或未日结日期不计入，已日结但无记工且无卖卡按零计入，不向窗口外补足。所选当日未日结、取消日结后或员工请求返回 `null`。
 
 `finance/summary.totals` 增加 `averageRevenueCents: number | null` 和 `averageRevenueDayCount: number`。按所选日期范围（含两端）内去重后的 `CLOSED` 营业日计算当前筛选的折后大费业绩加卖卡实际收款的平均值，无匹配记工及卖卡的日结日按零计入，沿用领域层整数美分舍入；没有已日结日期时分别返回 `null`、`0`。不含未日结日期和小费；卖卡沿用店铺级销售的权限及筛选规则，不限制为30天。
 
-`PATCH /stores/:storeId/boards/:date/rows/:rowId` 隐藏无任何记工（含已删除历史）的员工时，在营业日锁和同一事务内删除当天员工行及班次，递增表格版本并写入审计/outbox；返回 `{ row, board, removed: true }`，`row` 为移除前更新后的快照。有记工时仅切换显示状态，`removed: false`。两种路径均保留权限、日结、幂等与行版本检查。
+`PATCH /stores/:storeId/boards/:date/rows/:rowId` 隐藏无任何记工（含已删除历史）的员工时，在营业日锁和同一事务内删除当天员工行及班次，递增表格版本并写入审计/outbox；返回 `{ row, board, removed: true }`，`row` 为移除前更新后的快照。有记工时仅切换显示状态，`removed: false`。两种路径均保留权限、日结、幂等与行版本检查。保留原因：样本、权限和缓存生命周期共同决定可见金额，缺日结不是零样本。
 
 ### 设备日期上下文
 
-Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timezone`（IANA 时区）；二者须同时提供且有效，否则返回 400。当前营业日和当前日写权限使用设备日期，新记工按开始时间的设备本地自然日期归属。无此请求头的机器人/后台调用回退服务端当前时间及店铺时区。`businessCutoffLocal` 和历史截止快照保留兼容但不参与归日；已有记录未更改开始时间时保留营业日。
+Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timezone`（IANA 时区）；二者须同时提供且有效，否则返回 400。当前营业日和当前日写权限使用设备日期，新记工按开始时间的设备本地自然日期归属。无此请求头的机器人/后台调用回退服务端当前时间及店铺时区。`businessCutoffLocal` 和历史截止快照保留兼容但不参与归日；已有记录未更改开始时间时保留营业日。保留原因：请求内必须使用一致设备上下文，旧截止字段不再决定归日。
 
 ### 记工百分比折扣
 
-记工更新与合并保存的 `discounts[]` 支持可选 `rateBps`（0–10000 的整数万分比，或 `null`）。`amountCents` 继续必填以兼容现有请求；提供非空 `rateBps` 时服务端忽略该金额，按本次主要项目与全部加项合计重新计算减免金额，四舍五入到美分。省略或传 `null` 表示固定金额。快照同时返回 `rateBps` 与计算后的 `amountCents`；未提交 `discounts` 时保留原比例，并随本次项目金额重算。多项折扣相加仍受总折扣不超过折前大费的约束。
+记工更新与合并保存的 `discounts[]` 支持可选 `rateBps`（0–10000 的整数万分比，或 `null`）。`amountCents` 继续必填以兼容现有请求；提供非空 `rateBps` 时服务端忽略该金额，按本次主要项目与全部加项合计重新计算减免金额，四舍五入到美分。省略或传 `null` 表示固定金额。快照同时返回 `rateBps` 与计算后的 `amountCents`；未提交 `discounts` 时保留原比例，并随本次项目金额重算。多项折扣相加仍受总折扣不超过折前大费的约束。保留原因：比例减免由本单折前基数重算，不能信任旧金额或超额折扣。
 
 ### 首次日结的自动发送副作用
 
-`POST /stores/:storeId/closings/:date` 首次成功日结时同步持久化符合条件的员工小结任务，无需额外调用批量发送接口；响应结构保持不变。只触发当天第一个日结周期，按店铺、营业日、成员跳过已有 SENT/QUEUED/CLAIMED 任务，含日结前手动发送。所有在职且开启接收、号码有效的成员均参与（可无记工）；可通过既有发送列表接口查看结果。
+`POST /stores/:storeId/closings/:date` 首次成功日结时同步持久化符合条件的员工小结任务，无需额外调用批量发送接口；响应结构保持不变。只触发当天第一个日结周期，按店铺、营业日、成员跳过已有 SENT/QUEUED/CLAIMED 任务，含日结前手动发送。所有在职且开启接收、号码有效的成员均参与（可无记工）；可通过既有发送列表接口查看结果。保留原因：日结与首次队列原子保存，取消重结不能重复发送。
 
-每天店铺时区 23:30 的自动日结由 API 内部调度执行，不开放新的 HTTP 接口。自动模式要求所有检查项无异常，不允许强制日结，也不会重新日结已取消的日期。
+每天店铺时区 23:30 的自动日结由 API 内部调度执行，不开放新的 HTTP 接口。自动模式要求所有检查项无异常，不允许强制日结，也不会重新日结已取消的日期。保留原因：日结与首次队列原子保存，取消重结不能重复发送。
 
 已绑定的 `POST /integrations/langbot/work-context` 响应新增 `storeId`，供插件持久学习按店铺隔离；未绑定响应不包含该字段。协议版本仍为 2。
 
-## 多人员指令（API 1.7.0 / 插件 1.4.0）
+## 多人员指令
 
-`Ling Jessie 上工 大力` 表示为 Ling 和 Jessie 分别上工，共用明确项目与店铺默认时长。插件识别完整员工姓名，不将多人拼成一个姓名；每人可有不同的明确项目和时长。多人下工的共同金额必须明确为每人金额，合计或分配不清先澄清。
+`Ling Jessie 上工 大力` 表示为 Ling 和 Jessie 分别上工，共用明确项目与店铺默认时长。插件识别完整员工姓名，不将多人拼成一个姓名；每人可有不同的明确项目和时长。多人下工的共同金额必须明确为每人金额，合计或分配不清先澄清。保留原因：每人金额和身份必须明确，消息级幂等及同事务防止部分或重复提交。
 
-解析结果使用 `{ "kind": "BATCH", "actions": [...] }`，含2–10个 START、FINISH 或 ADJUST，每项必须有 memberName/memberMention，员工不得重复，不能嵌套或带 recordId。原文逐项校验，权限及目录逐项复核；同事务全部成功才返回 BATCH_COMPLETED，任一失败回滚全部写入。消息级幂等保存合并回复，重发原消息不会再次执行。需要升级 API 并构建、安装插件包。
+解析结果使用 `{ "kind": "BATCH", "actions": [...] }`，含2–10个 START、FINISH 或 ADJUST，每项必须有 memberName/memberMention，员工不得重复，不能嵌套或带 recordId。原文逐项校验，权限及目录逐项复核；同事务全部成功才返回 BATCH_COMPLETED，任一失败回滚全部写入。消息级幂等保存合并回复，重发原消息不会再次执行。需要升级 API 并构建、安装插件包。保留原因：每人金额和身份必须明确，消息级幂等及同事务防止部分或重复提交。
 
-可重试的发送失败固定等待 60 秒后重新排队领取，最多重试 3 次（首次发送加重试共 4 次）；达到上限标记失败，停止自动重试。队列繁忙或代理离线时实际重试可能更晚。已交给“信息”但结果不明确的任务仍需人工核对，不自动重发。
+发送重试、冷却及结果不明确处理见 [代理手册](../operations/MESSAGES_AGENT.md)。保留原因：发送限制在统一运行手册维护，不能混在多人记工协议中。
 
 
-## 经营分析（1.8.1）
+## 经营分析
 
 `GET /stores/:storeId/finance/analytics`：仅具有 `FINANCE_READ_STORE` 能力的当前店铺活跃成员可读取。
 
-查询为独立的 `FinanceAnalyticsQuery`：可选 `dateFrom`、`dateTo`（ISO营业日期，包含两端）。省略起日取最早有效业务/日结日，省略止日取当前营业日；没有历史时起日等于止日。拒绝反向、未来结束日期和其他筛选参数。
+查询为独立的 `FinanceAnalyticsQuery`：可选 `dateFrom`、`dateTo`（ISO营业日期，包含两端）。省略起日取最早有效业务/日结日，省略止日取当前营业日；没有历史时起日等于止日。拒绝反向、未来结束日期和其他筛选参数。保留原因：聚合来自历史业务日期，展示裁剪不能改变完整统计和权限。
 
 响应 `FinanceAnalyticsResponse`：`dateFrom`、`dateTo`、`hasData`，以及 `hours`（24项hour/count）、`days`（businessDate/count/lostCustomerCount/hours/revenueCents/averageCents/averageDayCount）、`weekdays`（7项weekday/closedDayCount/calendarDayCount/averageCents/hours）。weekday以0代表星期一；金额为整美分十进制字符串，无日结金额/无平均样本为null；weekdays.hours为24项累计笔数；days.hours为该营业日的24项小时笔数，记工和跑客均无数据的日期补零，只有跑客的日期仍返回，小时沿用记工时区快照。每日跑客数量按有效记录的 `customerCount` 求和；每日数量图把跑客数量显示在记工数量上方，0笔跑客不绘制额外区段。
 
@@ -348,7 +348,7 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 
 统计口径见[产品规则](../product/PRODUCT.md)第15.0节。后端在一致性读取事务内排除已删除业务并读取窗口前6天；不传输记工或跑客明细、不写账。跑客记录使用独立数据库表保存，并通过向前迁移创建。
 
-小时统计接口仍返回完整24小时；前端两张小时图共同裁掉首尾无记工小时，保留中间零值。
+小时统计接口仍返回完整24小时；前端两张小时图共同裁掉首尾无记工小时，保留中间零值。保留原因：聚合来自历史业务日期，展示裁剪不能改变完整统计和权限。
 
 ### 排序解释快照
 
@@ -356,11 +356,11 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 
 快照遵循共享契约 `RankingExplanation`：`schemaVersion: 1`、`generatedAt` 和 `entries`；每项包含 `membershipId`、生成时 `displayName`/`employmentType`、`lastBusinessDate`/`lastPosition`、`generatedPosition` 及 `ties`。同位比较项记录对方 `membershipId`、本成员是否在前 `ahead` 和原因 `EMPLOYMENT_TYPE` / `RECENT_ATTENDANCE` / `STABLE_ID`。
 
-现有 `POST .../rank` 在原有营业日锁、版本检查和幂等事务中同时保存顺序与快照。重新生成替换快照，手动调序、员工行变化和成员资料变更不改写快照。前端根据当前名单对比展示变化，不能用当前资料重新推算当时原因。旧数据不回填推测解释。
+现有 `POST .../rank` 在原有营业日锁、版本检查和幂等事务中同时保存顺序与快照。重新生成替换快照，手动调序、员工行变化和成员资料变更不改写快照。前端根据当前名单对比展示变化，不能用当前资料重新推算当时原因。旧数据不回填推测解释。保留原因：解释应反映生成时决策，不能由当前资料推测旧原因。
 
 ### 老礼物卡使用台账
 
-礼物卡台账响应保留 `sales` 与 `nextSerialNumber`，新增 `legacyUsages: [{ serialNumber, usageRecords }]`。每组为没有有效销售登记但在本店未删除、已确认记工中使用过的序列号；序列号按与销售相同的规范化规则合并。使用明细结构与 `sales[].usageRecords` 相同，支持仅礼物卡小费的使用。老卡不计入售出数量或售出金额；前端单次使用直接展示，多次使用折叠汇总，并将两类卡按序列号自然排序。
+礼物卡台账响应保留 `sales` 与 `nextSerialNumber`，新增 `legacyUsages: [{ serialNumber, usageRecords }]`。每组为没有有效销售登记但在本店未删除、已确认记工中使用过的序列号；序列号按与销售相同的规范化规则合并。使用明细结构与 `sales[].usageRecords` 相同，支持仅礼物卡小费的使用。老卡不计入售出数量或售出金额；前端单次使用直接展示，多次使用折叠汇总，并将两类卡按序列号自然排序。保留原因：老卡只有使用事实，没有销售资料就不能补造收入。
 
 ### 百分比折扣目录
 
@@ -370,22 +370,22 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 
 - `GET /stores/:storeId/weekly-dispatch`：店主/经理读取 `{ version, effectiveFrom, schedule }`。`version` 为店铺版本；`schedule` 包含 `monday` 至 `sunday` 七个成员 ID 数组。
 - `PUT /stores/:storeId/weekly-dispatch`：提交 `{ version, schedule }` 和 `Idempotency-Key`；检查管理权限、成员归属/有效性、版本，事务内保存模板、审计和 outbox。配置从设备当前日期立即生效，版本冲突返回 409，应重新打开弹窗读取后核对。
-- `POST /stores/:storeId/boards/:businessDate/replace-weekly-dispatch`：店主/经理提交 `{ version, schedule }` 和 `Idempotency-Key`，使用目标日期对应星期的当前勾选覆盖全部员工行，不保存模板，后续自动刷新保留此次覆盖；校验店铺版本、目标人员有效性、营业日锁及日结。任何记工（含待结账和删除历史）返回 409 `WEEKLY_DISPATCH_HAS_WORK_RECORDS`，事务回滚保留原排工；历史日期拒绝。开启自动排位时重算顺序，写入审计和 outbox，返回 `{ applied, addedCount, ranked }`。
-- `POST /stores/:storeId/boards/:businessDate/apply-weekly-dispatch`：Web 在加载看板前调用。当前在职成员可触发当日既定规则，仅管理者可触发未来日。营业日锁保护初始化与刷新，返回 `{ applied, addedCount?, ranked? }`；历史、已日结、未生效和已应用的当前日期跳过。未来日期允许刷新，按最新模板同步系统加入的行，并按最新出勤顺序重算；没有变化时返回 `applied: false`，不递增版本或重复发送 outbox。
+- `POST /stores/:storeId/boards/:businessDate/replace-weekly-dispatch`：店主/经理提交 `{ version, schedule }` 和 `Idempotency-Key`，使用目标日期对应星期的当前勾选覆盖全部员工行，不保存模板，后续自动刷新保留此次覆盖；校验店铺版本、目标人员有效性、营业日锁及日结。任何记工（含待结账和删除历史）返回 409 `WEEKLY_DISPATCH_HAS_WORK_RECORDS`，事务回滚保留原排工；历史日期拒绝。开启自动排位时重算顺序，写入审计和 outbox，返回 `{ applied, addedCount, ranked }`。保留原因：现有共享契约和服务定义此边界，客户端行为须与实际输入及保存结果一致。
+- `POST /stores/:storeId/boards/:businessDate/apply-weekly-dispatch`：Web 在加载看板前调用。当前在职成员可触发当日既定规则，仅管理者可触发未来日。营业日锁保护初始化与刷新，返回 `{ applied, addedCount?, ranked? }`；历史、已日结、未生效和已应用的当前日期跳过。未来日期允许刷新，按最新模板同步系统加入的行，并按最新出勤顺序重算；该看板最新调序操作为手动 `reorder` 时保留顺序，新员工追加到末尾，名单同步返回 `ranked: false`。主动 `rank` 后恢复自动顺序更新；首次模板初始化也遵守已有手动顺序。没有变化时返回 `applied: false`，不递增版本或重复发送 outbox。保留原因：现有共享契约和服务定义此边界，客户端行为须与实际输入及保存结果一致。
 
-`stores.weekly_dispatch_json`、`weekly_dispatch_effective_from` 与 `daily_boards.weekly_dispatch_applied_at` 由迁移 `20260928120000_weekly_dispatch` 添加。模板初始化复用轮转领域排序及排名解释快照，店铺未启用每日开门排位时仅按模板顺序加入；当前日期已安排的人员保持不变；未来日期持续更新。自动管理的成员 ID 保存在 `board.weekly_dispatch_applied` 审计的 `managedMembershipIds`，兼容旧审计 `addedMembershipIds`，只移除模板取消且无任何记工或班次的自动行，保留手动加入的行。
+`stores.weekly_dispatch_json`、`weekly_dispatch_effective_from` 与 `daily_boards.weekly_dispatch_applied_at` 由迁移 `20260928120000_weekly_dispatch` 添加。模板初始化复用轮转领域排序及排名解释快照，店铺未启用每日开门排位时仅按模板顺序加入；当前日期已安排的人员保持不变；未来日期持续更新。自动管理的成员 ID 保存在 `board.weekly_dispatch_applied` 审计的 `managedMembershipIds`，兼容旧审计 `addedMembershipIds`，只移除模板取消且无任何记工或班次的自动行，保留手动加入的行。保留原因：现有共享契约和服务定义此边界，客户端行为须与实际输入及保存结果一致。
 
 
 ### 成员每日全部结清
 
-- `POST /stores/:storeId/members`、`PATCH /stores/:storeId/members/:membershipId` 接受可选布尔 `dailySettlementEnabled`。新成员省略为 `false`，更新省略则保留；成员响应包含此字段。
+- `POST /stores/:storeId/members`、`PATCH /stores/:storeId/members/:membershipId` 接受可选布尔 `dailySettlementEnabled`。新成员省略为 `false`，更新省略则保留；成员响应包含此字段。保留原因：历史发薪使用当时快照，冲突和回退须防止重复支付。
 - 个人预览返回 `dailySettlementEnabled` 与 `dailySettlementPayoutCents`（全部已确认大费工资＋刷卡/礼物卡小费，不含现金小费）。已结日期使用结清时设置与金额快照。
 - 单人 `settle` 及 `settle-all.settlements[]` 接受可选 `dailySettlementEnabled` 作为预览设置校验；版本或设置变化返回 409。启用时保存 `additionalServiceWagePaidCents`（全部大费工资减原现金已取得工资）及 `nonCashTipPaidCents`。待结账记工返回 `DAILY_SETTLEMENT_PENDING_PAYMENT`，覆盖当日的有效工资确认返回 `DAILY_SETTLEMENT_PAYROLL_CONFLICT`；事务回滚。相同幂等请求复用原结果。
 - 现金列表补充 `dailySettlementEnabled`、`dailySettlementPayoutCents` 及上述金额快照。工资月历日期补充 `dailySettlementEnabled`；有效每日全额结清覆盖现金及非现金确认、未结金额为零。工资余额与汇总把额外已发工资/非现金小费计入已支付，仅在每日结算为 `SETTLED` 且未删除时生效。回退及自动回退失效，其他工资账本确认继续有效。
 
 ## 店铺支出
 
-所有路径位于 `/stores/:storeId/expenses`，仅在职店主/经理拥有 `EXPENSE_MANAGE` 权限。所有写入要求 `Idempotency-Key`；创建以外的写入携带项目 `version`，冲突返回 409 与最新项目。金额输入为非负整数美分，响应金额为美分字符串（含汇总），日期不包含时间。
+所有路径位于 `/stores/:storeId/expenses`，仅在职店主/经理拥有 `EXPENSE_MANAGE` 权限。所有写入要求 `Idempotency-Key`；创建以外的写入携带项目 `version`，冲突返回 409 与最新项目。金额输入为非负整数美分，响应金额为美分字符串（含汇总），日期不包含时间。保留原因：项目版本保护规则及账单，周期变更不能隐去已录账目。
 
 | 方法 | 相对路径 | 请求与行为 |
 | --- | --- | --- |
@@ -399,6 +399,6 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 | DELETE | `/:id` | `version`，软删除项目 |
 | POST | `/:id/restore` | `version`，恢复项目；HTTP 200 |
 
-`rule` 为 `{ startDate, unit: DAY|MONTH, interval, amountMode: FIXED|BUDGET, amountCents }`，周期间隔为 1–1200；月周期开始日必须为每月第一天。规则变更必须在最新规则的后续周期起点，停止允许在最新规则的起点；已停止规则可在其停止日期或之后的后续周期重新开始。已有未来实际账单时拒绝覆盖其生效范围，须先撤销对应单期覆盖。
+`rule` 为 `{ startDate, unit: DAY|MONTH, interval, amountMode: FIXED|BUDGET, amountCents }`，周期间隔为 1–1200；月周期开始日必须为每月第一天。规则变更必须在最新规则的后续周期起点，停止允许在最新规则的起点；已停止规则可在其停止日期或之后的后续周期重新开始。已有未来实际账单时拒绝覆盖其生效范围，须先撤销对应单期覆盖。保留原因：项目版本保护规则及账单，周期变更不能隐去已录账目。
 
-月响应的 `lines` 含项目/规则 ID、完整周期起止日（均包含）、整期金额、本月分摊金额、`source=ACTUAL|FIXED|BUDGET` 和 `hasOverride`。规则的 `endExclusive` 为停止开始新周期的日期，不截断已开始周期。支出接口独立于营业日日结，不因已日结而禁止补录。
+月响应的 `lines` 含项目/规则 ID、完整周期起止日（均包含）、整期金额、本月分摊金额、`source=ACTUAL|FIXED|BUDGET` 和 `hasOverride`。规则的 `endExclusive` 为停止开始新周期的日期，不截断已开始周期。支出接口独立于营业日日结，不因已日结而禁止补录。保留原因：停止只约束新周期，已有周期与独立支出账目不能被关账或新规则截断。

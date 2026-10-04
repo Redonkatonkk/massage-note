@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ClosingDeliveryItem, ClosingDeliveryList, ClosingDeliveryStatus } from "../lib/types";
 import { useLanguage } from "./language-provider";
+import { MobileDataCard, RecordFacts, ResponsiveDataView } from "./ui/responsive-data-view";
 
 const statusLabels: Record<ClosingDeliveryStatus, string> = {
   QUEUED: "排队",
@@ -26,6 +27,9 @@ interface ClosingDeliveryQueueProps {
 export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }: ClosingDeliveryQueueProps) {
   const deliveries = value.deliveries;
   if (deliveries.length === 0) return null;
+  const cancelAction = (item: ClosingDeliveryItem) => item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={() => {
+    if (window.confirm(`确认取消 ${item.membership.displayName} 的这条短信发送任务？`)) onCancel(item);
+  }}>取消发送</button> : null;
 
   return (
     <div className="closing-delivery-queue">
@@ -39,7 +43,7 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
           </span>
           <span className="delivery-queue-summary-label">查看短信队列详情</span>
         </summary>
-        <div className="table-scroll">
+        <ResponsiveDataView desktop={<div className="table-scroll">
           <table className="data-table delivery-queue-table">
             <thead>
               <tr><th>员工</th><th>接收号码</th><th>日结</th><th>类型</th><th>语言</th><th>状态</th><th>尝试</th><th>排队时间</th><th>发送时间／错误</th><th>操作</th></tr>
@@ -56,14 +60,18 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
                   <td>{item.attemptCount}</td>
                   <td>{formatTime(item.createdAt)}</td>
                   <td>{item.status === "SENT" ? formatTime(item.sentAt) : item.lastError || "—"}</td>
-                  <td>{item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={() => {
-                    if (window.confirm(`确认取消 ${item.membership.displayName} 的这条短信发送任务？`)) onCancel(item);
-                  }}>取消发送</button> : "—"}</td>
+                  <td>{cancelAction(item) ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </div>}>
+          <ul className="mobile-data-list">{deliveries.map(item => <li key={item.id}><MobileDataCard title={item.membership.displayName} subtitle={`${item.closing ? `第 ${item.closing.cycleNo} 次日结` : "未日结"} · ${item.kind === "INITIAL" ? "首次" : "补发"}`} status={<span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{statusLabels[item.status]}</span>} actions={cancelAction(item)}>
+            <RecordFacts items={[{ label: "接收号码", value: <span className={item.recipientPhoneE164 ? "delivery-phone" : "delivery-phone invalid"}>{item.recipientPhoneE164 || "号码缺失"}</span> }, { label: "语言", value: item.locale === "zh_CN" ? "中文" : "English" }]} />
+            {item.status !== "SENT" && item.lastError && <p className="form-error">{item.lastError}</p>}
+            <details className="mobile-data-card__details"><summary>发送详情</summary><RecordFacts items={[{ label: "排队时间", value: formatTime(item.createdAt) }, { label: "发送时间", value: formatTime(item.sentAt) }, { label: "尝试", value: item.attemptCount }]} /></details>
+          </MobileDataCard></li>)}</ul>
+        </ResponsiveDataView>
       </details>
     </div>
   );

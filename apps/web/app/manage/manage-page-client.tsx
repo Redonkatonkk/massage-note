@@ -7,18 +7,11 @@ import { browserStorage } from "../../lib/browser-storage";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
 import { formatMoneyInput, formatUsd } from "../../lib/money";
-import {
-  effectiveClosingDeliveryPhone,
-  displayUsPhone,
-  usPhoneToE164,
-  validateClosingDeliveryPhone,
-} from "../../lib/member-closing-delivery";
 import type {
   AddonItem,
   AuditLogItem,
   AuditLogPage,
   CatalogResponse,
-  CommissionHistoryResponse,
   DiscountItem,
   DeletedGiftCardSale,
   DeletedWorkRecord,
@@ -33,7 +26,12 @@ import type {
 import { useStoreRealtime } from "../../lib/realtime";
 import { isWorkRecordChange } from "../../lib/realtime-scope";
 import { AppNav } from "../app-nav";
+import { useLanguage } from "../language-provider";
 import { WorkBotPanel } from "./work-bot-panel";
+import { RecoveryPanel } from "./recovery-panel";
+import { AuditDetails } from "./audit-details";
+import { UiIcon } from "../ui/primitives";
+import { MembersPanel } from "./members-panel";
 import { manageNavigationTabs, resolveManageTab, type ManageTab } from "../../lib/app-navigation";
 import { useNavigationTab } from "../use-navigation-tab";
 
@@ -167,6 +165,8 @@ function formatTime(value: string) {
 }
 
 export function ManagePageClient() {
+  const { t } = useLanguage();
+  const [memberDirty, setMemberDirty] = useState(false);
   const [me, setMe] = useState<MeResponse | null>(null);
   const [membership, setMembership] = useState<MembershipSummary | null>(null);
   const [store, setStore] = useState<StoreDetails | null>(null);
@@ -244,32 +244,39 @@ export function ManagePageClient() {
   }
 
   const tabs = manageNavigationTabs(membership.role);
+  const pageDescriptions: Record<ManageTab, string> = {
+    store: canManage ? "维护门店资料、营业规则和发送设备。" : "查看门店资料与当前营业规则。",
+    members: "从员工名册进入档案，统一管理权限、工资和日结。",
+    catalog: "维护服务价格、加项与折扣，历史账目保留原有快照。",
+    "work-bot": "设置群内用语，核对绑定身份与机器人操作。",
+    recovery: "核对删除原因，按需恢复记工与礼物卡销售。",
+    audit: "按时间、成员和操作查找店铺的变更记录。",
+  };
+  function changeTab(value: string) {
+    if (value === tab) return;
+    if (memberDirty && !window.confirm(t("有未保存的修改，确认放弃吗？"))) return;
+    setMemberDirty(false); selectTab(value);
+  }
 
   return (
     <main className="app-shell manage-shell">
       <header className="topbar">
-        <div><p className="eyebrow">{store.name}</p><h1>店铺设置</h1><p className="business-date">店铺代码 {store.storeCode} · 你的身份：{roleText[membership.role]} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
+        <div><p className="eyebrow">{store.name}</p><h1>{tabs.find(([value]) => value === tab)?.[1]}</h1><p className="business-date">{pageDescriptions[tab]} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
         <div className="topbar-actions"><a className="store-switcher header-link" href="/help">使用帮助</a><a className="store-switcher header-link" href="/">返回今日记工</a></div>
       </header>
-      <nav className="section-tabs" aria-label="管理页面">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? "active" : ""} aria-pressed={tab === value} onClick={() => selectTab(value)}>{label}</button>)}</nav>
+      <nav className="section-tabs" aria-label="管理页面">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? "active" : ""} aria-pressed={tab === value} onClick={() => changeTab(value)}>{label}</button>)}</nav>
       {error && <p className="form-error" role="alert">{error}</p>}
       {tab === "store" && <StorePanel store={store} membership={membership} members={members} busy={busy} run={run} reload={loadAll} />}
-      {tab === "members" && canManage && <MembersPanel storeId={store.id} dailyRankingEnabled={store.automaticDispatchEnabled} members={members} requests={requests} catalog={catalog} busy={busy} run={run} reload={loadAll} />}
+      {tab === "members" && canManage && <MembersPanel key={store.id} storeId={store.id} dailyRankingEnabled={store.automaticDispatchEnabled} members={members} requests={requests} catalog={catalog} busy={busy} run={run} reload={loadAll} onDirtyChange={setMemberDirty} />}
       {tab === "catalog" && <CatalogPanel storeId={store.id} canManage={canManage} catalog={catalog} busy={busy} run={run} reload={loadAll} />}
       {tab === "work-bot" && canManage && workBot && <WorkBotPanel key={store.id} storeId={store.id} catalog={catalog} settings={workBot} busy={busy} run={run} reload={loadAll} />}
       {tab === "recovery" && canManage && <RecoveryPanel storeId={store.id} records={deletedRecords} giftCardSales={deletedGiftCardSales} busy={busy} run={run} reload={loadAll} />}
       {tab === "audit" && canManage && <AuditPanel storeId={store.id} members={members} />}
-      <AppNav active="manage" storeId={store.id} role={membership.role} activeTab={tab} onTabChange={selectTab} />
+      <AppNav active="manage" storeId={store.id} role={membership.role} activeTab={tab} onTabChange={changeTab} />
     </main>
   );
 }
 
-function RecoveryPanel({ storeId, records, giftCardSales, busy, run, reload }: { storeId: string; records: DeletedWorkRecord[]; giftCardSales: DeletedGiftCardSale[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
-  return <section className="manage-section">
-    <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">软删除记录</p><h2>记工回收站</h2></div><span className="status-chip">{records.length} 条</span></div><p className="field-help">恢复后会重新计入主表和财务；若该营业日已日结，请先到财务页面取消日结。</p>{records.length === 0 ? <p className="empty-state">目前没有已删除的记工记录。</p> : <div className="table-scroll"><table className="data-table"><thead><tr><th>营业日</th><th>员工</th><th>项目</th><th>开始时间</th><th>大费基数</th><th>删除时间</th><th>删除原因</th><th>操作</th></tr></thead><tbody>{records.map((record) => <tr key={record.id}><td>{record.businessDate.slice(0, 10)}</td><td>{record.employee.displayName}</td><td>{record.serviceSnapshot?.shortName ?? "自定义项目"}</td><td>{formatTime(record.startAt)}</td><td>{money(record.grossFeeBaseCents)}</td><td>{record.deletedAt ? formatTime(record.deletedAt) : "—"}</td><td>{record.deleteReason || "未填写"}</td><td><button className="primary-action compact" disabled={busy} type="button" onClick={() => { if (!window.confirm(`确认恢复 ${record.employee.displayName} 的这条记工吗？恢复后会重新计入财务。`)) return; void run(async () => { await apiRequest(`/stores/${storeId}/work-records/${record.id}/restore`, { method: "POST", idempotent: true, body: { version: record.version } }); await reload(); }); }}>恢复记工</button></td></tr>)}</tbody></table></div>}</section>
-    <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">软删除记录</p><h2>礼物卡销售回收站</h2></div><span className="status-chip">{giftCardSales.length} 条</span></div><p className="field-help">恢复后会重新计入对应营业日的店铺收入；若该营业日已日结，请先到财务页面取消日结。</p>{giftCardSales.length === 0 ? <p className="empty-state">目前没有已删除的礼物卡销售记录。</p> : <div className="table-scroll"><table className="data-table"><thead><tr><th>营业日</th><th>序列号</th><th>金额</th><th>操作人</th><th>删除时间</th><th>删除原因</th><th>操作</th></tr></thead><tbody>{giftCardSales.map((sale) => <tr key={sale.id}><td>{sale.businessDate.slice(0, 10)}</td><td>{sale.serialNumber}</td><td>{money(sale.amountCents)}</td><td>{sale.operator.displayName}</td><td>{sale.deletedAt ? formatTime(sale.deletedAt) : "—"}</td><td>{sale.deleteReason || "未填写"}</td><td><button className="primary-action compact" disabled={busy} type="button" onClick={() => { if (!window.confirm(`确认恢复礼物卡 ${sale.serialNumber} 的销售记录吗？恢复后会重新计入店铺收入。`)) return; void run(async () => { await apiRequest(`/stores/${storeId}/gift-card-sales/${sale.id}/restore`, { method: "POST", idempotent: true, body: { version: sale.version } }); await reload(); }); }}>恢复卖卡记录</button></td></tr>)}</tbody></table></div>}</section>
-  </section>;
-}
 
 function StorePanel({ store, membership, members, busy, run, reload }: { store: StoreDetails; membership: MembershipSummary; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
   const [name, setName] = useState(store.name);
@@ -298,7 +305,7 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
     setSaved(false);
   }, [name, timezone, commission, autoDiscountEnabled, autoDiscountThreshold, autoDiscountAmount, giftCardDiscountEnabled, giftCardDiscountThreshold, giftCardDiscountPercent, closingDefaultLocale, automaticDispatchEnabled]);
 
-  return <section className="manage-section">
+  return <section className="manage-section store-settings-layout">
     <form className="manage-card" onSubmit={(event) => { event.preventDefault(); setSaved(false); void run(async () => {
       const thresholdCents = autoDiscountThreshold.trim() ? parseMoney(autoDiscountThreshold, "自动折扣应用门槛") : 0;
       const amountCents = autoDiscountAmount.trim() ? parseMoney(autoDiscountAmount, "自动折扣额度") : 0;
@@ -346,88 +353,6 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
   </section>;
 }
 
-function MembersPanel({ storeId, dailyRankingEnabled, members, requests, catalog, busy, run, reload }: { storeId: string; dailyRankingEnabled: boolean; members: StoreMember[]; requests: JoinRequest[]; catalog: CatalogResponse; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
-  const [employeeName, setEmployeeName] = useState("");
-  const [newDailySettlementEnabled, setNewDailySettlementEnabled] = useState(false);
-  const [employmentType, setEmploymentType] = useState<"FULL_TIME" | "PART_TIME">("PART_TIME");
-  const [requestEmploymentTypes, setRequestEmploymentTypes] = useState<Record<string, "FULL_TIME" | "PART_TIME">>({});
-  const [savedMember, setSavedMember] = useAutoDismissState<{ id: string; refreshedToday: boolean } | null>(null);
-
-  async function createEmployee() {
-    await apiRequest(`/stores/${storeId}/members`, {
-      method: "POST",
-      body: { name: employeeName, employmentType, dailySettlementEnabled: newDailySettlementEnabled },
-    });
-    setEmployeeName("");
-    setNewDailySettlementEnabled(false);
-    await reload();
-  }
-  return <section className="manage-section">
-    <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">快速建档</p><h2>创建新员工</h2></div></div><p className="field-help">填写名字和全职/兼职。员工以后注册账号并用相同名字加入本店时，系统会自动关联这份资料和已有记工。</p><form className="inline-controls" onSubmit={(event) => { event.preventDefault(); void run(createEmployee); }}><label>员工名字<input required maxLength={80} value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} /></label><label>全职/兼职<select value={employmentType} onChange={(event) => setEmploymentType(event.target.value as "FULL_TIME" | "PART_TIME")}><option value="FULL_TIME">全职</option><option value="PART_TIME">兼职</option></select></label><label>是否每日结清（选填）<select value={newDailySettlementEnabled ? "yes" : "no"} onChange={(event) => setNewDailySettlementEnabled(event.target.value === "yes")}><option value="no">否</option><option value="yes">是</option></select></label><button className="primary-action compact" type="submit" disabled={busy || !employeeName.trim()}>{busy ? "正在创建…" : "创建员工"}</button></form></section>
-    <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">待处理</p><h2>加入申请</h2></div><span className="status-chip">{requests.length} 个</span></div>{requests.length === 0 ? <p className="empty-state">目前没有待审批的加入申请。</p> : <div className="request-list">{requests.map((request) => { const requestEmploymentType = requestEmploymentTypes[request.id] ?? "PART_TIME"; return <article key={request.id}><div><strong>{request.requestedDisplayName}</strong><span>账号姓名：{[request.user.firstName, request.user.lastName].filter(Boolean).join(" ") || "未填写"} · {formatTime(request.createdAt)}</span></div><div><select aria-label={`${request.requestedDisplayName}全职或兼职`} value={requestEmploymentType} onChange={(event) => setRequestEmploymentTypes((current) => ({ ...current, [request.id]: event.target.value as "FULL_TIME" | "PART_TIME" }))}><option value="FULL_TIME">全职</option><option value="PART_TIME">兼职</option></select><button className="primary-action compact" disabled={busy} type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/join-requests/${request.id}/approve`, { method: "POST", body: { version: request.version, role: "EMPLOYEE", isServiceProvider: true, employmentType: requestEmploymentType } }); await reload(); })}>批准为员工</button><button className="secondary-action compact" disabled={busy} type="button" onClick={() => { const note = window.prompt("拒绝备注（可留空）"); if (note === null) return; void run(async () => { await apiRequest(`/stores/${storeId}/join-requests/${request.id}/reject`, { method: "POST", body: { version: request.version, ...(note.trim() ? { reviewNote: note.trim() } : {}) } }); await reload(); }); }}>拒绝</button></div></article>; })}</div>}</section>
-    <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">权限与记工</p><h2>成员列表</h2></div><span className="status-chip">{members.filter((item) => item.status === "ACTIVE").length} 人在职</span></div><div className="member-list">{members.map((member) => <MemberEditor key={`${member.id}-${member.version}`} storeId={storeId} dailyRankingEnabled={dailyRankingEnabled} member={member} catalog={catalog} busy={busy} saved={savedMember?.id === member.id} refreshedToday={savedMember?.id === member.id && savedMember.refreshedToday} onDirty={() => setSavedMember(null)} onSaved={(refreshedToday) => setSavedMember({ id: member.id, refreshedToday })} run={run} reload={reload} />)}</div></section>
-  </section>;
-}
-
-function MemberEditor({ storeId, dailyRankingEnabled, member, catalog, busy, saved, refreshedToday, onDirty, onSaved, run, reload }: { storeId: string; dailyRankingEnabled: boolean; member: StoreMember; catalog: CatalogResponse; busy: boolean; saved: boolean; refreshedToday: boolean; onDirty: () => void; onSaved: (refreshedToday: boolean) => void; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
-  const [name, setName] = useState(member.displayName);
-  const [role, setRole] = useState(member.role);
-  const [provider, setProvider] = useState(member.isServiceProvider);
-  const [employmentType, setEmploymentType] = useState<"" | "FULL_TIME" | "PART_TIME">(member.employmentType ?? "");
-  const [defaultCommission, setDefaultCommission] = useState(member.defaultCommissionBps === null ? "" : (member.defaultCommissionBps / 100).toString());
-  const [dailySettlementEnabled, setDailySettlementEnabled] = useState(member.dailySettlementEnabled ?? false);
-  const [closingDeliveryEnabled, setClosingDeliveryEnabled] = useState(member.closingDeliveryEnabled);
-  const initialClosingDeliveryPhone = displayUsPhone(effectiveClosingDeliveryPhone(
-    member.closingDeliveryPhoneE164,
-    member.user?.phoneE164,
-  ));
-  const [closingDeliveryPhone, setClosingDeliveryPhone] = useState(initialClosingDeliveryPhone);
-  const [closingImageLocale, setClosingImageLocale] = useState(member.closingImageLocale ?? "");
-  const [commissionOpen, setCommissionOpen] = useState(false);
-  const [history, setHistory] = useState<CommissionHistoryResponse | null>(null);
-  const isOwner = member.role === "OWNER";
-  const active = member.status === "ACTIVE";
-
-  async function saveMember() {
-    if (role === "OWNER" && member.role !== "OWNER") throw new Error("店主身份只能通过店主转移流程修改");
-    validateClosingDeliveryPhone(
-      closingDeliveryEnabled,
-      closingDeliveryPhone,
-      member.user?.phoneE164,
-    );
-    const commissionBps = parsePercent(defaultCommission, "员工默认提成", true);
-    let version = member.version;
-    let refreshedToday = false;
-    try {
-      if (name.trim() !== member.displayName || role !== member.role || provider !== member.isServiceProvider || employmentType !== (member.employmentType ?? "") || dailySettlementEnabled !== (member.dailySettlementEnabled ?? false) || closingDeliveryEnabled !== member.closingDeliveryEnabled || closingDeliveryPhone.trim() !== initialClosingDeliveryPhone || closingImageLocale !== (member.closingImageLocale ?? "")) {
-        const updated = await apiRequest<StoreMember>(`/stores/${storeId}/members/${member.id}`, { method: "PATCH", body: { version, displayName: name, ...(isOwner ? {} : { role, isServiceProvider: provider }), employmentType: employmentType || null, dailySettlementEnabled, closingDeliveryEnabled, closingDeliveryPhoneE164: closingDeliveryPhone.trim() ? usPhoneToE164(closingDeliveryPhone) : null, closingImageLocale: closingImageLocale || null } });
-        version = updated.version;
-      }
-      const commissionResult = await apiRequest<{ refreshedCurrentDayRecordCount: number }>(`/stores/${storeId}/members/${member.id}/commissions/default`, { method: "PUT", idempotent: true, body: { version, commissionBps } });
-      refreshedToday = commissionResult.refreshedCurrentDayRecordCount > 0;
-    } catch (caught) {
-      await reload();
-      throw caught;
-    }
-    await reload();
-    onSaved(refreshedToday);
-  }
-  async function openCommission() {
-    setCommissionOpen(true);
-    setHistory(await apiRequest<CommissionHistoryResponse>(`/stores/${storeId}/members/${member.id}/commissions`));
-  }
-  return <article className={`member-card ${active ? "" : "inactive"}`}><header><div className="member-avatar">{member.displayName.slice(0, 1)}</div><div><strong>{member.displayName}</strong><span>{roleText[member.role]} · {active ? "在职" : "已离职/停用"} · {member.user ? "已关联账号" : "等待注册"}</span></div><em>{member.isServiceProvider ? "参与记工" : "不参与记工"}</em></header><div className="member-fields"><label>店内显示名<input disabled={!active} value={name} onChange={(event) => { onDirty(); setName(event.target.value); }} /></label><label>角色<select disabled={!active || isOwner} value={role} onChange={(event) => { onDirty(); setRole(event.target.value as "MANAGER" | "EMPLOYEE"); }}>
-  {isOwner && <option value="OWNER">店主</option>}<option value="EMPLOYEE">员工</option><option value="MANAGER">经理</option></select></label><label className="check-field"><input disabled={!active || isOwner} type="checkbox" checked={provider} onChange={(event) => { onDirty(); setProvider(event.target.checked); }} />参与记工</label><label>全职/兼职<select disabled={!provider} value={employmentType} onChange={(event) => { onDirty(); setEmploymentType(event.target.value as "" | "FULL_TIME" | "PART_TIME"); }}><option value="" disabled={dailyRankingEnabled}>未设置</option><option value="FULL_TIME">全职</option><option value="PART_TIME">兼职</option></select></label><label>员工默认提成（%）<input disabled={!active} placeholder="留空则继续向下匹配" inputMode="decimal" value={defaultCommission} onChange={(event) => { onDirty(); setDefaultCommission(event.target.value); }} /></label><label>是否每日结清（选填）<select disabled={!active} value={dailySettlementEnabled ? "yes" : "no"} onChange={(event) => { onDirty(); setDailySettlementEnabled(event.target.value === "yes"); }}><option value="no">否</option><option value="yes">是</option></select><span className="field-help">选择是：个人日结发放全部大费工资与刷卡/礼物卡小费，现金小费由员工直接收取。</span></label><label className="check-field"><input disabled={!active} type="checkbox" checked={closingDeliveryEnabled} onChange={(event) => { onDirty(); setClosingDeliveryEnabled(event.target.checked); }} />接收个人日结短信</label><label>专用接收号码<input disabled={!active || !closingDeliveryEnabled} type="tel" inputMode="tel" autoComplete="tel-national" value={closingDeliveryPhone} onChange={(event) => { onDirty(); setClosingDeliveryPhone(displayUsPhone(event.target.value)); }} /></label><label>图片语言<select disabled={!active || !closingDeliveryEnabled} value={closingImageLocale} onChange={(event) => { onDirty(); setClosingImageLocale(event.target.value as "" | "zh_CN" | "en_US"); }}><option value="">使用店铺默认</option><option value="zh_CN">中文</option><option value="en_US">English</option></select></label></div>{saved && <p className="success-banner manage-save-success" role="status">{refreshedToday ? "✓ 成员资料与默认提成已保存，今日记工小结已同步" : "✓ 成员资料与短信设置已保存"}</p>}<div className="member-actions">{active && <button className="secondary-action compact" disabled={busy || (dailyRankingEnabled && provider && !employmentType)} type="button" onClick={() => void run(saveMember)}>保存成员资料</button>}{active && !isOwner && <><button className="table-action" type="button" onClick={() => void run(openCommission)}>项目专属提成</button><button className="table-action danger" disabled={busy} type="button" onClick={() => { const reason = window.prompt("请填写离职或停用原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${storeId}/members/${member.id}`, { method: "DELETE", body: { version: member.version, reason: reason.trim() } }); await reload(); }); }}>离职/停用</button></>}{!active && !isOwner && <button className="primary-action compact" disabled={busy || (dailyRankingEnabled && provider && !employmentType)} type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/members/${member.id}/restore`, { method: "POST", body: { version: member.version, employmentType: employmentType || null } }); await reload(); })}>恢复为在职成员</button>}{isOwner && <span className="field-help">店主可在这里修改名字、默认提成和短信设置；店主身份通过转移流程修改。</span>}</div>{commissionOpen && <ItemCommissionPanel storeId={storeId} member={member} catalog={catalog} history={history} busy={busy} run={run} close={() => setCommissionOpen(false)} reload={reload} />}</article>;
-}
-
-function ItemCommissionPanel({ storeId, member, catalog, history, busy, run, close, reload }: { storeId: string; member: StoreMember; catalog: CatalogResponse; history: CommissionHistoryResponse | null; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; close: () => void; reload: () => Promise<void> }) {
-  const [itemKey, setItemKey] = useState("");
-  const [percent, setPercent] = useState("");
-  const activeHistory = history?.itemHistory.filter((item) => item.effectiveTo === null) ?? [];
-  const itemName = (type: string, id: string) => type === "SERVICE" ? catalog.serviceItems.find((item) => item.id === id)?.shortName : catalog.addonItems.find((item) => item.id === id)?.shortName;
-  return <div className="commission-panel"><div className="manage-heading"><div><h3>{member.displayName} 的项目专属提成</h3><p className="field-help">留空比例会清除该项目专属规则，并继续使用下一层规则。</p></div><button className="close-button" type="button" onClick={close}>关闭</button></div><div className="inline-controls"><select value={itemKey} onChange={(event) => setItemKey(event.target.value)}><option value="">选择主要或额外项目</option>{catalog.serviceItems.filter((item) => !item.deletedAt).map((item) => <option key={item.id} value={`SERVICE:${item.id}`}>主要：{item.shortName}</option>)}{catalog.addonItems.filter((item) => !item.deletedAt).map((item) => <option key={item.id} value={`ADDON:${item.id}`}>额外：{item.shortName}</option>)}</select><input aria-label="项目专属提成" placeholder="比例 %，留空为清除" value={percent} onChange={(event) => setPercent(event.target.value)} /><button className="primary-action compact" disabled={busy || !itemKey} type="button" onClick={() => void run(async () => { const [itemType, itemId] = itemKey.split(":") as ["SERVICE" | "ADDON", string]; await apiRequest(`/stores/${storeId}/members/${member.id}/commissions/item`, { method: "PUT", idempotent: true, body: { version: member.version, itemType, itemId, commissionBps: parsePercent(percent, "项目专属提成", true) } }); await reload(); close(); })}>保存规则</button></div><div className="commission-current">{!history ? <span>正在读取历史…</span> : activeHistory.length === 0 ? <span>暂无生效中的项目专属规则。</span> : activeHistory.map((item) => <span key={item.id}>{itemName(item.itemType, item.itemId) ?? "已删除项目"}：{item.commissionBps / 100}%</span>)}</div></div>;
-}
-
 interface PriceOptionDraft {
   key: string;
   duration: string;
@@ -460,9 +385,9 @@ function CatalogPanel({ storeId, canManage, catalog, busy, run, reload }: { stor
 
   return <section className="manage-section"><section className="manage-card">
     <div className="manage-heading"><div><p className="eyebrow">价格与规则</p><h2>项目目录</h2></div><span className="status-chip">{active} 项启用</span></div>
-    <p className="field-help">先看每项摘要，需要修改时再展开；新增表单按分类打开，页面更清楚。上移、下移的顺序也会用于今日记工和详情选择框。</p>
+    <p className="field-help">按分类维护服务。调整项目顺序后，今日记工与详情选择框会同步采用新顺序。</p>
     <CatalogGroup title="主要项目" description="一个项目可维护多组时长与价格，快速记工会沿用这里的顺序。" type="SERVICE" items={catalog.serviceItems} emptyText="还没有主要项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
-    <CatalogGroup title="额外项目" description="常用加项集中维护；金额、时间和默认提成在编辑时保持紧凑横排。" type="ADDON" items={catalog.addonItems} emptyText="还没有额外项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
+    <CatalogGroup title="额外项目" description="维护热石等服务加项的金额、时长与默认提成。" type="ADDON" items={catalog.addonItems} emptyText="还没有额外项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
     <CatalogGroup title="折扣项目" description="可设置固定金额或百分比折扣；折扣由店铺承担，不会降低员工项目提成。" type="DISCOUNT" items={catalog.discountItems} emptyText="还没有折扣项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
   </section></section>;
 }
@@ -614,5 +539,5 @@ function AuditPanel({ storeId, members }: { storeId: string; members: StoreMembe
   const params = useMemo(() => { const value = new URLSearchParams({ limit: "30" }); if (action) value.set("action", action); if (actor) value.set("actorMembershipId", actor); if (entityType) value.set("entityType", entityType); if (dateFrom) value.set("dateFrom", dateFrom); if (dateTo) value.set("dateTo", dateTo); return value; }, [action, actor, entityType, dateFrom, dateTo]);
   const load = useCallback(async (append = false) => { setLoading(true); setError(""); try { const query = new URLSearchParams(params); if (append && cursor) query.set("cursor", cursor); const page = await apiRequest<AuditLogPage>(`/stores/${storeId}/audit-logs?${query}`); setItems((current) => append ? [...current, ...page.items] : page.items); setCursor(page.nextCursor); } catch (caught) { setError(errorMessage(caught)); } finally { setLoading(false); } }, [storeId, params, cursor]);
   useEffect(() => { void load(false); }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <section className="manage-section"><section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">不可篡改的操作历史</p><h2>审计记录</h2></div></div><div className="audit-filters"><label>开始营业日<input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label><label>结束营业日<input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label><label>操作类型<select value={action} onChange={(event) => setAction(event.target.value)}><option value="">全部操作</option>{Object.entries(actionText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>对象类型<select value={entityType} onChange={(event) => setEntityType(event.target.value)}><option value="">全部对象</option>{Object.entries(entityText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>操作人<select value={actor} onChange={(event) => setActor(event.target.value)}><option value="">全部成员</option>{members.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label><button className="secondary-action compact" type="button" disabled={loading} onClick={() => void load(false)}>刷新</button></div>{error && <p className="form-error">{error}</p>}<div className="audit-list">{items.map((item) => <article key={item.id}><button type="button" onClick={() => setExpanded((current) => current === item.id ? null : item.id)}><span className="audit-icon">记</span><div><strong>{actionText[item.action] ?? "其他系统操作"}</strong><span>{item.actor?.displayName ?? "系统"} · {formatTime(item.createdAt)}{item.businessDate ? ` · 营业日 ${item.businessDate.slice(0, 10)}` : ""}</span></div><em>{expanded === item.id ? "收起" : "详情"}</em></button>{expanded === item.id && <div className="audit-detail"><p>对象：{entityText[item.entityType] ?? "其他对象"} · 记录编号 {item.entityId}</p>{item.reason && <p>原因：{item.reason}</p>}<div><section><strong>修改前</strong><pre>{item.beforeJson ? JSON.stringify(item.beforeJson, null, 2) : "无"}</pre></section><section><strong>修改后</strong><pre>{item.afterJson ? JSON.stringify(item.afterJson, null, 2) : "无"}</pre></section></div></div>}</article>)}{!loading && items.length === 0 && <p className="empty-state">没有符合条件的审计记录。</p>}</div>{loading && <p className="empty-state">正在读取审计记录…</p>}{cursor && <button className="secondary-action" disabled={loading} type="button" onClick={() => void load(true)}>加载更多</button>}</section></section>;
+  return <section className="manage-section"><section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">不可篡改的操作历史</p><h2>审计记录</h2></div></div><div className="audit-filters"><label>开始营业日<input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label><label>结束营业日<input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label><label>操作类型<select value={action} onChange={(event) => setAction(event.target.value)}><option value="">全部操作</option>{Object.entries(actionText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>对象类型<select value={entityType} onChange={(event) => setEntityType(event.target.value)}><option value="">全部对象</option>{Object.entries(entityText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>操作人<select value={actor} onChange={(event) => setActor(event.target.value)}><option value="">全部成员</option>{members.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label><button className="secondary-action compact" type="button" disabled={loading} onClick={() => void load(false)}>刷新</button></div>{error && <p className="form-error">{error}</p>}<div className="audit-list">{items.map((item) => <article key={item.id}><button type="button" aria-expanded={expanded === item.id} onClick={() => setExpanded((current) => current === item.id ? null : item.id)}><span className="audit-icon" aria-hidden="true"><UiIcon name="log" /></span><div><strong>{actionText[item.action] ?? "其他系统操作"}</strong><span>{item.actor?.displayName ?? "系统"} · {formatTime(item.createdAt)}{item.businessDate ? ` · 营业日 ${item.businessDate.slice(0, 10)}` : ""}</span></div><em>{expanded === item.id ? "收起" : "详情"}</em></button>{expanded === item.id && <AuditDetails item={item} entityLabel={entityText[item.entityType] ?? "其他对象"} /> }</article>)}{!loading && items.length === 0 && <p className="empty-state">没有符合条件的审计记录。</p>}</div>{loading && <p className="empty-state">正在读取审计记录…</p>}{cursor && <button className="secondary-action" disabled={loading} type="button" onClick={() => void load(true)}>加载更多</button>}</section></section>;
 }

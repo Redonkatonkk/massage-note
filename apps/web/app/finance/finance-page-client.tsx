@@ -3,6 +3,9 @@
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import { ExpensesPanel } from "./expenses-panel";
+import { PayrollLedger } from "./payroll-ledger";
+import { FinanceGiftSaleCards, FinanceRecordCards } from "./finance-detail-records";
+import { ResponsiveDataView } from "../ui/responsive-data-view";
 import { AnalyticsPanel } from "./analytics-panel";
 
 import { browserStorage } from "../../lib/browser-storage";
@@ -11,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LatestRequest } from "../../lib/latest-request";
 import { ApiError, apiBase, apiRequest, errorMessage } from "../../lib/api";
 import { hasBlockingClosingWarnings } from "../../lib/closing";
-import { formatUsd, formatUsdPrecise } from "../../lib/money";
+import { formatUsd } from "../../lib/money";
 import type {
   CashSettlementResponse,
   CashSettlementRow,
@@ -125,8 +128,8 @@ function FinanceDetailsDialog({
           </div>
           <button className="close-button" type="button" onClick={onClose}>关闭</button>
         </div>
-        <div className="table-scroll finance-details__table"><table className="data-table"><thead><tr><th>营业日</th><th>员工</th><th>项目</th><th>标记</th><th>状态</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>现金大费</th><th>刷卡大费</th><th>礼物卡序列号</th><th>礼物卡大费</th><th>现金小费</th><th>刷卡小费</th><th>礼物卡小费</th><th>客人总付款</th><th>所选大费工资</th><th>所选小费</th><th>所选员工收入</th></tr></thead><tbody>{details.records.map((record) => <tr className={record.isHighlighted ? "finance-record--highlighted" : undefined} key={record.id}><td>{dateOnly(record.businessDate)}</td><td>{record.employee.displayName}</td><td>{record.serviceSnapshot?.shortName ?? "自定义"}</td><td><span className="finance-record-labels">{record.isHighlighted && <span className="finance-highlight-label">★ 高亮</span>}{record.hasCashAndNonCashPayment && details.filters.paymentMethod !== "ALL" && <span className="finance-payment-label">混合付款 · 仅计{selectedScope}</span>}{!record.isHighlighted && (!record.hasCashAndNonCashPayment || details.filters.paymentMethod === "ALL") && "—"}</span></td><td>{record.status === "CONFIRMED" ? "已确认" : "待结账"}</td><td>{money(record.mainServiceAmountCents)}</td><td>{money(record.addonTotalCents)}</td><td>{money(record.grossFeeBaseCents)}</td><td>{money(record.discountTotalCents)}</td><td>{money(record.discountedFeePerformanceCents)}</td><td>{money(record.cashServiceCents)}</td><td>{money(record.cardServiceCents)}</td><td>{record.giftCardSerialNumber ?? "—"}</td><td>{money(record.giftCardServiceCents)}</td><td>{money(record.cashTipCents)}</td><td>{money(record.cardTipCents)}</td><td>{money(record.giftCardTipCents)}</td><td>{money(record.customerTotalPaidCents)}</td><td>{money(record.selectedLargeFeeWageCents)}</td><td>{money(record.selectedTipCents)}</td><td><strong>{money(record.selectedEmployeeIncomeCents)}</strong></td></tr>)}</tbody></table></div>
-        {details.giftCardSales.length > 0 && <><h3 className="table-title">礼物卡销售明细</h3><div className="table-scroll finance-details__table"><table className="data-table"><thead><tr><th>营业日</th><th>序列号</th><th>面值</th><th>折扣</th><th>现金收款</th><th>刷卡收款</th><th>实际收款</th><th>操作人</th></tr></thead><tbody>{details.giftCardSales.map((sale) => <tr key={sale.id}><td>{dateOnly(sale.businessDate)}</td><td>{sale.serialNumber}</td><td>{money(sale.faceValueCents)}</td><td>{money(sale.discountCents)}</td><td>{money(sale.cashCents)}</td><td>{money(sale.cardCents)}</td><td>{money(sale.amountCents)}</td><td>{sale.operator.displayName}</td></tr>)}</tbody></table></div></>}
+        <ResponsiveDataView desktop={<div className="table-scroll finance-details__table"><table className="data-table"><thead><tr><th>营业日</th><th>员工</th><th>项目</th><th>标记</th><th>状态</th><th>主要项目</th><th>加项</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>现金大费</th><th>刷卡大费</th><th>礼物卡序列号</th><th>礼物卡大费</th><th>现金小费</th><th>刷卡小费</th><th>礼物卡小费</th><th>客人总付款</th><th>所选大费工资</th><th>所选小费</th><th>所选员工收入</th></tr></thead><tbody>{details.records.map((record) => <tr className={record.isHighlighted ? "finance-record--highlighted" : undefined} key={record.id}><td>{dateOnly(record.businessDate)}</td><td>{record.employee.displayName}</td><td>{record.serviceSnapshot?.shortName ?? "自定义"}</td><td><span className="finance-record-labels">{record.isHighlighted && <span className="finance-highlight-label">★ 高亮</span>}{record.hasCashAndNonCashPayment && details.filters.paymentMethod !== "ALL" && <span className="finance-payment-label">混合付款 · 仅计{selectedScope}</span>}{!record.isHighlighted && (!record.hasCashAndNonCashPayment || details.filters.paymentMethod === "ALL") && "—"}</span></td><td>{record.status === "CONFIRMED" ? "已确认" : "待结账"}</td><td>{money(record.mainServiceAmountCents)}</td><td>{money(record.addonTotalCents)}</td><td>{money(record.grossFeeBaseCents)}</td><td>{money(record.discountTotalCents)}</td><td>{money(record.discountedFeePerformanceCents)}</td><td>{money(record.cashServiceCents)}</td><td>{money(record.cardServiceCents)}</td><td>{record.giftCardSerialNumber ?? "—"}</td><td>{money(record.giftCardServiceCents)}</td><td>{money(record.cashTipCents)}</td><td>{money(record.cardTipCents)}</td><td>{money(record.giftCardTipCents)}</td><td>{money(record.customerTotalPaidCents)}</td><td>{money(record.selectedLargeFeeWageCents)}</td><td>{money(record.selectedTipCents)}</td><td><strong>{money(record.selectedEmployeeIncomeCents)}</strong></td></tr>)}</tbody></table></div>}><FinanceRecordCards details={details} /></ResponsiveDataView>
+        {details.giftCardSales.length > 0 && <><h3 className="table-title">礼物卡销售明细</h3><ResponsiveDataView desktop={<div className="table-scroll finance-details__table"><table className="data-table"><thead><tr><th>营业日</th><th>序列号</th><th>面值</th><th>折扣</th><th>现金收款</th><th>刷卡收款</th><th>实际收款</th><th>操作人</th></tr></thead><tbody>{details.giftCardSales.map((sale) => <tr key={sale.id}><td>{dateOnly(sale.businessDate)}</td><td>{sale.serialNumber}</td><td>{money(sale.faceValueCents)}</td><td>{money(sale.discountCents)}</td><td>{money(sale.cashCents)}</td><td>{money(sale.cardCents)}</td><td>{money(sale.amountCents)}</td><td>{sale.operator.displayName}</td></tr>)}</tbody></table></div>}><FinanceGiftSaleCards sales={details.giftCardSales} /></ResponsiveDataView></>}
         {details.records.length === 0 && details.giftCardSales.length === 0 && <p className="empty-state">当前范围没有明细记录。</p>}
       </section>
     </div>
@@ -476,6 +479,14 @@ export function FinancePageClient() {
   }
 
   const financeTabs = financeNavigationTabs(membership.role);
+  const pageDescriptions = {
+    summary: "按日期核对收入、收款构成与员工小计。",
+    analytics: "查看营业趋势、服务时段与每周客流分布。",
+    expenses: "按月核对固定支出、周期预算与实际账单。",
+    closing: canManage ? "逐项核对记工与员工现金，再完成营业日日结。" : "查看自己的当日收入、现金与服务明细。",
+    giftCards: "从销售到核销，追踪每张礼物卡的完整记录。",
+    payroll: canManage ? "选择员工与日期范围，核对工资后记录支付。" : "查看自己的工资结算与支付明细。",
+  };
   const closingHasBlockingWarnings = closing
     ? hasBlockingClosingWarnings(closing.warnings)
     : false;
@@ -485,7 +496,7 @@ export function FinancePageClient() {
   return (
     <main className="app-shell finance-shell">
       <header className="topbar">
-        <div><p className="eyebrow">{membership.store.name}</p><h1>财务与结算</h1><p className="business-date">数据按店铺营业日和历史快照计算 <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
+        <div><p className="eyebrow">{membership.store.name}</p><h1>{financeTabs.find(([value]) => value === tab)?.[1]}</h1><p className="business-date">{pageDescriptions[tab]} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
         <a className="store-switcher header-link" href="/">返回今日记工</a>
       </header>
 
@@ -684,26 +695,14 @@ function PayrollPanel({ storeId, businessDate, canManage, members, settlements, 
       <PayrollEntryForm storeId={storeId} businessDate={businessDate} members={members} busy={busy} run={run} onSaved={reload} />
     </details>}
     <h2 className="table-title">工资结算账本</h2>
-    <div className="table-scroll"><table className="data-table">
-      <thead><tr><th>员工</th><th>日期范围</th><th>金额</th><th>工资来源</th>{canManage && <th>操作</th>}</tr></thead>
-      <tbody>{settlements.map((item) => <tr key={item.id} className={item.deletedAt ? "deleted-row" : ""}>
-        <td>{item.membership.displayName}</td>
-        <td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}{item.historyChangedAfterSettlement && <strong className="history-warning">结算后历史数据发生过修改</strong>}</td>
-        <td>{formatUsdPrecise(item.totalPaidCents)}</td>
-        <td>{item.paymentScope === "CASH" ? "现金" : item.paymentScope === "NON_CASH" ? "刷卡＋礼物卡" : item.paymentScope === "ALL" ? "全部" : "历史记录未指定"}</td>
-        {canManage && <td>{item.deletedAt ? <button className="table-action" type="button" disabled={busy} onClick={() => void run(async () => {
-          await apiRequest(`/stores/${storeId}/payroll-settlements/${item.id}/restore`, { method: "POST", idempotent: true, body: { version: item.version } });
-          await reload();
-        })}>恢复</button> : <span className="table-actions">
-          <button className="table-action" type="button" disabled={busy} onClick={() => setEditing(item)}>修改</button>
-          <button className="table-action danger" type="button" disabled={busy} onClick={() => void run(async () => {
-            if (!window.confirm("确认删除这条工资结算吗？余额会立即重新计算。")) return;
-            await apiRequest(`/stores/${storeId}/payroll-settlements/${item.id}`, { method: "DELETE", idempotent: true, body: { version: item.version } });
-            await reload();
-          })}>删除</button>
-        </span>}</td>}
-      </tr>)}</tbody>
-    </table></div>
+    <PayrollLedger settlements={settlements} canManage={canManage} busy={busy} onEdit={setEditing} onRestore={item => void run(async () => {
+      await apiRequest(`/stores/${storeId}/payroll-settlements/${item.id}/restore`, { method: "POST", idempotent: true, body: { version: item.version } });
+      await reload();
+    })} onDelete={item => void run(async () => {
+      if (!window.confirm("确认删除这条工资结算吗？余额会立即重新计算。")) return;
+      await apiRequest(`/stores/${storeId}/payroll-settlements/${item.id}`, { method: "DELETE", idempotent: true, body: { version: item.version } });
+      await reload();
+    })} />
     {editing && <div className="modal-backdrop" role="presentation"><PayrollEntryForm key={editing.id} storeId={storeId} businessDate={businessDate} members={members} settlement={editing} busy={busy} close={() => setEditing(null)} run={run} onSaved={reload} /></div>}
   </section>;
 }

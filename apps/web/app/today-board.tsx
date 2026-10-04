@@ -472,6 +472,25 @@ export function TodayBoard({
       </AutoCloseDetails>}
     </div>
   </section>;
+  const employeeRosterActions = <>
+      {canManage && board.isClosed && isCurrentBusinessDay && <section className="board-panel add-employee-panel"><BoardWeeklyDispatch storeId={membership.store.id} businessDate={currentDay.businessDate} members={members} disabled={busy} onSaved={onReload} /></section>}
+      {canManage && !board.isClosed && <BoardEmployeePicker
+        businessDate={currentDay.businessDate}
+        storeId={membership.store.id}
+        key={`${membership.store.id}:${currentDay.businessDate}`}
+        members={availableMembers}
+        allMembers={members}
+        weeklyDispatchEnabled={isCurrentBusinessDay || isFutureBusinessDay}
+        rankingAction={canGenerateRanking ? { label: dailyRankingActionLabel(board.ranking.rankedAt, isCurrentBusinessDay), onClick: () => run(rankBoard) } : undefined}
+        rankingHelp={<RankingExplanationButton board={board} />}
+        empty={activeRowCount === 0}
+        disabled={busy}
+        onAdd={async (membershipId) => {
+          await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows`, { method: "POST", idempotent: true, body: { membershipId } });
+        }}
+        onReload={onReload}
+      />}
+  </>;
   return (
     <>
       <header className={`topbar${wideLayout ? " today-topbar" : ""}`}>
@@ -488,7 +507,7 @@ export function TodayBoard({
       {canManage && <section className="board-overview" aria-label="今日全店汇总">
         <header className="overview-heading"><h2>经营概览</h2><span>当前查看的营业日</span></header>
         <div className="summary-strip board-desktop-metrics">
-          <OverviewMetric emphasis icon="chart" title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
+          <OverviewMetric icon="chart" title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
           {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric icon="clock" label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
           <OverviewMetric icon="discount" label="折扣总额" value={money(board.statistics.discountTotalCents)} />
           <OverviewMetric icon="gift" title="礼物卡销售实际收款" label="礼物卡总额" value={money(board.statistics.giftCardSalesAmountCents)} />
@@ -497,7 +516,7 @@ export function TodayBoard({
         </div>
         <div className="board-mobile-metrics">
         <div className="summary-strip board-key-metrics">
-          <OverviewMetric emphasis icon="chart" title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
+          <OverviewMetric icon="chart" title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
           <OverviewMetric icon="trend" title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
         </div>
         <details className="board-summary-details">
@@ -518,9 +537,10 @@ export function TodayBoard({
       {error && <p className="form-error" role="alert">{error}</p>}
 
       <div className="board-section-heading"><UiIcon name="log" /><h2>员工记工</h2><span>{visibleRows.length} <span>位员工</span></span></div>
+      {employeeRosterActions}
       <section className="board" id="today" aria-label={isCurrentBusinessDay ? "今日员工记工表" : canManage ? "历史员工记工表" : "我的历史记工表"}>
         {visibleRows.length === 0 && (
-          <div className="empty-state"><strong>{isCurrentBusinessDay ? "今日表格还是空的" : canManage ? "这个营业日没有记工" : "这个营业日没有你的记工"}</strong><p>{showEmployeeClockIn ? "点击上方“上班”，把自己加入今日表格。" : isCurrentBusinessDay ? "店长或经理可以把参与记工的员工加入今日表格。" : canManage ? "可以选择其他营业日继续查看。" : "这里只会显示你自己的历史记录，可以选择其他营业日继续查看。"}</p></div>
+          <div className="board-panel board-empty-state empty-state"><strong>{isCurrentBusinessDay ? "今日表格还是空的" : canManage ? "这个营业日没有记工" : "这个营业日没有你的记工"}</strong><p>{showEmployeeClockIn ? "点击上方“上班”，把自己加入今日表格。" : isCurrentBusinessDay ? "店长或经理可以把参与记工的员工加入今日表格。" : canManage ? "可以选择其他营业日继续查看。" : "这里只会显示你自己的历史记录，可以选择其他营业日继续查看。"}</p></div>
         )}
         {visibleRows.map((row) => {
           const isCollapsed = collapsed.includes(row.id);
@@ -673,24 +693,6 @@ export function TodayBoard({
         <header><div><strong>已隐藏员工 · {hiddenRows.length}</strong><p>隐藏只影响表格显示，不会删除记工。可在这里直接恢复。</p></div><button className="secondary-action compact" type="button" onClick={() => setShowHidden((value) => !value)}>{showHidden ? "收起隐藏内容" : "查看隐藏内容"}</button></header>
         <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{row.workRecords.length} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy || board.isClosed} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
       </section>}
-
-      {canManage && board.isClosed && isCurrentBusinessDay && <section className="add-employee-panel"><BoardWeeklyDispatch storeId={membership.store.id} businessDate={currentDay.businessDate} members={members} disabled={busy} onSaved={onReload} /></section>}
-      {canManage && !board.isClosed && <BoardEmployeePicker
-        businessDate={currentDay.businessDate}
-        storeId={membership.store.id}
-        key={`${membership.store.id}:${currentDay.businessDate}`}
-        members={availableMembers}
-        allMembers={members}
-        weeklyDispatchEnabled={isCurrentBusinessDay || isFutureBusinessDay}
-        rankingAction={canGenerateRanking ? { label: dailyRankingActionLabel(board.ranking.rankedAt, isCurrentBusinessDay), onClick: () => run(rankBoard) } : undefined}
-        rankingHelp={<RankingExplanationButton board={board} />}
-        empty={activeRowCount === 0}
-        disabled={busy}
-        onAdd={async (membershipId) => {
-          await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows`, { method: "POST", idempotent: true, body: { membershipId } });
-        }}
-        onReload={onReload}
-      />}
 
       {quickEmployeeId && createPortal(
         <div className="modal-backdrop" role="presentation">

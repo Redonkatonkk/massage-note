@@ -1,6 +1,6 @@
 # Massage Note Work Bot
 
-Current plugin: **1.4.1**; complete features require Massage Note API **1.7.0 or later**, protocol version 2. Version source: [manifest.yaml](manifest.yaml).
+Current plugin: **1.4.1**; complete features require Massage Note API **1.7.0 or later**, protocol version 2. Version source: [manifest.yaml](manifest.yaml). Reason: plugin releases are independent of the application, and protocol 2 and batch intents require compatible server support.
 
 Each routed group message loads the live store catalog and instructions, asks the model for a constrained intent, and submits it to the API. Supports binding, START/FINISH/ADJUST, batches of 2–10 employees, queries and record management. Ambiguities use local clarification and learning.
 

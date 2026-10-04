@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
-import { escapeXml, money, time, type Locale } from "./render-format.js";
+import { escapeImageXml as escapeXml, formatImageMoney as money, formatImageTime as time, type ImageLocale as Locale } from "@massage-note/domain";
 
 const execFileAsync = promisify(execFile);
 

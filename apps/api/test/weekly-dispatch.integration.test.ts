@@ -4,6 +4,7 @@ import { ConflictException, ForbiddenException } from "@nestjs/common";
 import type { User } from "@massage-note/database";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BoardsService } from "../src/boards/boards.service.js";
+import { DailyRankingService } from "../src/boards/daily-ranking.service.js";
 import { IdempotencyService } from "../src/common/idempotency.service.js";
 import { PrismaService } from "../src/database/prisma.service.js";
 import { StoreAccessService } from "../src/stores/store-access.service.js";
@@ -13,6 +14,7 @@ const prisma = new PrismaService();
 const access = new StoreAccessService(prisma);
 const idempotency = new IdempotencyService(prisma);
 const boards = new BoardsService(prisma, access, idempotency);
+const ranking = new DailyRankingService(access, idempotency);
 const storeId = randomUUID();
 const ownerId = randomUUID();
 const employeeId = randomUUID();
@@ -283,6 +285,103 @@ describe.skipIf(!enabled).sequential("每周排工", () => {
     expect(await prisma.dailyEmployeeRow.count({ where: { storeId, membershipId: employeeMembershipId, board: { businessDate: new Date(`${target}T00:00:00Z`) } } })).toBe(1);
     await prisma.businessDayClosing.create({ data: { storeId, businessDate: new Date(`${target}T00:00:00Z`), closedBy: ownerId, cycleNo: 1, warningSnapshotJson: [], totalsSnapshotJson: {} } });
     await expect(at(target, () => boards.replaceWeeklyDispatch(actor(ownerId), storeId, target, input, "replace-closed-0001", "replace-closed"))).rejects.toMatchObject({ response: { code: "BUSINESS_DAY_CLOSED" } });
+  });
+
+  const prepareFuture = async (previewDay: string, target: string, apply = true) => {
+    const config = await boards.getWeeklyDispatch(actor(ownerId), storeId);
+    await at(previewDay, () => boards.saveWeeklyDispatch(actor(ownerId), storeId, {
+      version: config.version, schedule: { ...empty(), tuesday: [ownerMembershipId, employeeMembershipId] },
+    }, `manual-order-template-${target}`, "manual-order-template"));
+    const previous = await prisma.dailyBoard.create({ data: { storeId, businessDate: new Date(`${previewDay}T00:00:00Z`) } });
+    await prisma.dailyEmployeeRow.createMany({ data: [
+      { boardId: previous.id, storeId, membershipId: ownerMembershipId, position: 1, addedBy: ownerId },
+      { boardId: previous.id, storeId, membershipId: employeeMembershipId, position: 2, addedBy: ownerId },
+    ] });
+    const refresh = () => at(previewDay, () => boards.applyWeeklyDispatch(actor(ownerId), storeId, target, "manual-order-refresh"));
+    const read = () => prisma.dailyBoard.findUniqueOrThrow({
+      where: { storeId_businessDate: { storeId, businessDate: new Date(`${target}T00:00:00Z`) } },
+      include: { rows: { orderBy: { position: "asc" } } },
+    });
+    if (apply) await refresh();
+    return { previous, refresh, read };
+  };
+
+  it("未来手动上下移动在刷新和历史变化后保持，模板增删仍同步且不重排已有员工", async () => {
+    const previewDay = "2026-11-16";
+    const target = "2026-11-17";
+    const { previous, refresh, read } = await prepareFuture(previewDay, target);
+    const initial = await read();
+    expect(initial.rows.map(row => row.membershipId)).toEqual([employeeMembershipId, ownerMembershipId]);
+    const input = { version: initial.version, rowIds: initial.rows.map(row => row.id).reverse() };
+    const reorder = () => at(previewDay, () => boards.reorder(actor(ownerId), storeId, target, input, "future-manual-order-01", "future-manual-order"));
+    const moved = await reorder();
+    const stable = await read();
+    const auditCount = await prisma.auditLog.count({ where: { storeId, entityId: stable.id } });
+    const outboxCount = await prisma.domainOutbox.count({ where: { storeId, aggregateId: stable.id } });
+    expect(await refresh()).toEqual({ applied: false });
+    expect(await read()).toEqual(stable);
+    await prisma.dailyEmployeeRow.updateMany({ where: { boardId: previous.id, membershipId: ownerMembershipId }, data: { position: 3 } });
+    expect(await refresh()).toEqual({ applied: false });
+    expect(await read()).toEqual(stable);
+    expect(await prisma.auditLog.count({ where: { storeId, entityId: stable.id } })).toBe(auditCount);
+    expect(await prisma.domainOutbox.count({ where: { storeId, aggregateId: stable.id } })).toBe(outboxCount);
+    expect(await reorder()).toEqual(JSON.parse(JSON.stringify(moved)));
+    await expect(at(previewDay, () => boards.reorder(actor(ownerId), storeId, target, input, "future-manual-stale-01", "future-manual-stale"))).rejects.toMatchObject({ response: { code: "BOARD_VERSION_CONFLICT" } });
+    await expect(at(previewDay, () => boards.reorder(actor(employeeId), storeId, target, { ...input, version: stable.version }, "future-manual-denied-01", "future-manual-denied"))).rejects.toBeInstanceOf(ForbiddenException);
+
+    const extra = await prisma.storeMembership.create({ data: {
+      storeId, role: "EMPLOYEE", employmentType: "FULL_TIME", displayName: "调序新增员工", displayNameNormalized: "调序新增员工",
+    } });
+    const saveTemplate = async (ids: string[], key: string) => {
+      const config = await boards.getWeeklyDispatch(actor(ownerId), storeId);
+      await at(previewDay, () => boards.saveWeeklyDispatch(actor(ownerId), storeId, { version: config.version, schedule: { ...empty(), tuesday: ids } }, key, key));
+    };
+    await saveTemplate([extra.id, employeeMembershipId, ownerMembershipId], "future-manual-add-template");
+    expect(await refresh()).toMatchObject({ applied: true, addedCount: 1, ranked: false });
+    expect((await read()).rows.map(row => row.membershipId)).toEqual([ownerMembershipId, employeeMembershipId, extra.id]);
+    await saveTemplate([ownerMembershipId, employeeMembershipId], "future-manual-remove-template");
+    expect(await refresh()).toMatchObject({ applied: true, addedCount: 0, ranked: false });
+    expect((await read()).rows.map(row => row.membershipId)).toEqual([ownerMembershipId, employeeMembershipId]);
+    expect(await refresh()).toEqual({ applied: false });
+    expect(await at(target, () => boards.applyWeeklyDispatch(actor(ownerId), storeId, target, "future-manual-becomes-today"))).toEqual({ applied: false });
+  });
+
+  it("主动重新生成解除手动顺序保护，之后再上下移动仍保持，并按版本区分同毫秒审计", async () => {
+    const previewDay = "2026-11-23";
+    const target = "2026-11-24";
+    const { previous, refresh, read } = await prepareFuture(previewDay, target);
+    const initial = await read();
+    await at(previewDay, () => boards.reorder(actor(ownerId), storeId, target, { version: initial.version, rowIds: initial.rows.map(row => row.id).reverse() }, "future-regenerate-move-01", "future-regenerate-move"));
+    const manual = await read();
+    await at(previewDay, () => ranking.rank(actor(ownerId), storeId, target, { version: manual.version }, "future-regenerate-rank-01", "future-regenerate-rank"));
+    const regenerated = await read();
+    expect(regenerated.rows.map(row => row.membershipId)).toEqual([employeeMembershipId, ownerMembershipId]);
+    // UUID order and millisecond timestamps do not identify the latest action.
+    const sameTime = new Date("2026-10-04T12:00:00Z");
+    await prisma.auditLog.updateMany({ where: { storeId, entityId: initial.id, action: { in: ["board.rows_reordered", "board.rows_ranked"] } }, data: { createdAt: sameTime } });
+    await prisma.dailyEmployeeRow.updateMany({ where: { boardId: previous.id, membershipId: ownerMembershipId }, data: { position: 3 } });
+    expect(await refresh()).toMatchObject({ applied: true, ranked: true });
+    const refreshed = await read();
+    expect(refreshed.rows.map(row => row.membershipId)).toEqual([ownerMembershipId, employeeMembershipId]);
+    await at(previewDay, () => boards.reorder(actor(ownerId), storeId, target, { version: refreshed.version, rowIds: refreshed.rows.map(row => row.id).reverse() }, "future-regenerate-move-02", "future-regenerate-move-again"));
+    await prisma.auditLog.updateMany({ where: { storeId, entityId: initial.id, action: "board.rows_reordered" }, data: { createdAt: sameTime } });
+    const movedAgain = await read();
+    expect(await refresh()).toEqual({ applied: false });
+    expect(await read()).toEqual(movedAgain);
+  });
+
+  it("未来日期首次应用模板也保留此前手动排序", async () => {
+    const previewDay = "2026-11-30";
+    const target = "2026-12-01";
+    const { refresh, read } = await prepareFuture(previewDay, target, false);
+    for (const membershipId of [employeeMembershipId, ownerMembershipId]) {
+      await at(previewDay, () => boards.addRow(actor(ownerId), storeId, target, { membershipId }, `before-template-add-${membershipId}`, "before-template-add"));
+    }
+    const initial = await read();
+    await at(previewDay, () => boards.reorder(actor(ownerId), storeId, target, { version: initial.version, rowIds: initial.rows.map(row => row.id).reverse() }, "before-template-reorder", "before-template-reorder"));
+    expect(await refresh()).toMatchObject({ applied: true, addedCount: 0, ranked: false });
+    expect((await read()).rows.map(row => row.membershipId)).toEqual([ownerMembershipId, employeeMembershipId]);
+    expect(await refresh()).toEqual({ applied: false });
   });
 
 });

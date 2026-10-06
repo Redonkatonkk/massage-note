@@ -1,7 +1,7 @@
 export interface TimedWorkRecord {
   startAt: string;
   endAt: string | null;
-  status: "PENDING_PAYMENT" | "CONFIRMED";
+  status: "PENDING_PAYMENT" | "CONFIRMED" | "PLACEHOLDER";
 }
 
 export function activeWorkRecord<T extends TimedWorkRecord>(

@@ -131,6 +131,7 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .record-card:active:not(:disabled) { transform: none; }
 .record-card--pending, .record-card--pending:hover:not(:disabled) { border-color: var(--pending-line); background: var(--pending); }
 .record-card--highlighted, .record-card--highlighted:hover:not(:disabled), .record-card--highlighted:active:not(:disabled), .record-card--highlighted:disabled, .record-card--highlighted:disabled:hover { border-color: var(--highlight-line); background: var(--highlight); box-shadow: none; transform: none; transition: none; }
+.record-card--placeholder, .record-card--placeholder:hover:not(:disabled), .record-card--placeholder:active:not(:disabled), .record-card--placeholder:disabled { border-color: var(--line); background: var(--surface); }
 .add-record { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; border: 1px dashed var(--line-strong); border-radius: var(--radius-control); background: var(--surface); color: var(--brand); font-weight: 500; transition: background-color var(--motion-fast), border-color var(--motion-fast); }
 .add-record > span { display: grid; place-items: center; width: 32px; height: 32px; }
 .add-record > span > .ui-icon { width: 18px; height: 18px; }

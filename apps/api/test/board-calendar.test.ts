@@ -29,7 +29,7 @@ describe("营业日日历折后营业额", () => {
       { date: "2026-09-11", discountedFeePerformanceCents: 0n, revenueCents: 0n },
     ] });
     expect(test.groupBy).toHaveBeenCalledWith(expect.objectContaining({
-      where: { storeId: "store", deletedAt: null, businessDate: { gte: new Date("2026-09-01"), lte: new Date("2026-09-30") } },
+      where: { storeId: "store", deletedAt: null, status: { not: "PLACEHOLDER" }, businessDate: { gte: new Date("2026-09-01"), lte: new Date("2026-09-30") } },
       _sum: { discountedFeePerformanceCents: true },
     }));
     expect(test.prisma.businessDayClosing.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId: "store", status: "CLOSED" }) }));

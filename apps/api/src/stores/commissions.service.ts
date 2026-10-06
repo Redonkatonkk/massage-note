@@ -303,6 +303,7 @@ export class CommissionsService {
           storeId,
           employeeMembershipId: membershipId,
           businessDate: businessDateValue,
+          status: { not: "PLACEHOLDER" },
           deletedAt: null,
         },
         include: {

@@ -277,7 +277,7 @@ export class WorkBotService {
     }
     const where: Prisma.WorkRecordWhereInput = { storeId: store.id, ...(target ? { employeeMembershipId: target } : {}), ...(intent.recordId ? { id: intent.recordId } : {}),
       businessDate: { gte: range.start, lte: range.end }, deletedAt: intent.status === "DELETED" ? { not: null } : null,
-      ...(intent.status && !["ALL", "DELETED"].includes(intent.status) ? { status: intent.status as "CONFIRMED" | "PENDING_PAYMENT" } : intent.status ? {} : { status: "CONFIRMED" }),
+      ...(intent.status && !["ALL", "DELETED"].includes(intent.status) ? { status: intent.status as "CONFIRMED" | "PENDING_PAYMENT" } : intent.status ? { status: { not: "PLACEHOLDER" } } : { status: "CONFIRMED" }),
       ...(intent.highlightedOnly ? { isHighlighted: true } : {}),
     };
     const page = intent.page ?? 1, size = 20;
@@ -315,6 +315,9 @@ export class WorkBotService {
     if (!intent.recordId || intent.create || (intent.operation === "PAYMENT" && intent.details)) throw new BadRequestException("请指定完整记录编号，并将修改字段放在 UPDATE 中");
     const record = await transaction.workRecord.findFirst({ where: { id: intent.recordId, storeId: group.storeId, ...(intent.operation === "RESTORE" ? {} : { deletedAt: null }) } });
     if (!record) throw new NotFoundException("没有找到本店的指定记工");
+    if (record.status === "PLACEHOLDER" && !["DELETE", "RESTORE"].includes(intent.operation)) {
+      throw new BadRequestException({ code: "PLACEHOLDER_READ_ONLY", messageZh: "占位只能删除或恢复，不能修改或付款" });
+    }
     let version = record.version;
     if (intent.operation === "UPDATE") {
       if (!intent.details || !Object.keys(intent.details).length) throw new BadRequestException("请说明要修改的记工字段");
@@ -334,6 +337,9 @@ export class WorkBotService {
     } else if (intent.operation === "PAYMENT") throw new BadRequestException("请提供付款明细");
     await transaction.auditLog.create({ data: { storeId: group.storeId, actorUserId: null, actorMembershipId: binding.membershipId, source: "langbot", action: `work_bot.${intent.operation.toLowerCase()}`, entityType: "work_record", entityId: record.id, afterJson: { messageId: input.messageId, operation: intent.operation }, requestId } });
     const updated = await transaction.workRecord.findUniqueOrThrow({ where: { id: record.id } });
+    if (updated.status === "PLACEHOLDER") {
+      return this.persistReply(transaction, input, intent, { outcome: "WORK_MANAGED", recordId: record.id, businessDate: updated.businessDate.toISOString().slice(0, 10), reply: `✅ 占位${intent.operation === "DELETE" ? "已删除" : "已恢复"}：${record.id}` }, group);
+    }
     return this.persistReply(transaction, input, intent, { outcome: "WORK_MANAGED", recordId: record.id, businessDate: updated.businessDate.toISOString().slice(0, 10), reply: `✅ 记工${intent.operation === "DELETE" ? "已删除" : intent.operation === "RESTORE" ? "已恢复" : "已更新"}：${record.id}\n折后大费 ${formatWorkBotMoney(updated.discountedFeePerformanceCents)}；实收 ${updated.actualServiceCollectedCents === null ? "未收款" : formatWorkBotMoney(updated.actualServiceCollectedCents)}；${updated.isHighlighted ? "已高亮" : "未高亮"}。` }, group);
   }
 
@@ -720,7 +726,7 @@ export class WorkBotService {
     }
     const records = await transaction.workRecord.findMany({
       where: { storeId: group.storeId, ...(intent.recordId ? { id: intent.recordId } : {}), ...(targetId ? { employeeMembershipId: targetId } : {}), deletedAt: null,
-        ...(!intent.recordId || intent.kind === "FINISH" ? { status: "PENDING_PAYMENT" } : {}), startAt: { lte: new Date(input.occurredAt) } },
+        ...(!intent.recordId || intent.kind === "FINISH" ? { status: "PENDING_PAYMENT" } : { status: { not: "PLACEHOLDER" } }), startAt: { lte: new Date(input.occurredAt) } },
       include: { employee: true, addonSnapshots: true, discountSnapshots: true }, take: 2,
     });
     if (records.length !== 1) return this.persistReply(transaction, input, intent, { outcome: records.length ? "ACTIVE_WORK_AMBIGUOUS" : "NO_ACTIVE_WORK", reply: records.length ? "该员工有多条待付款记工，请查询待付款列表后指定完整记录编号。" : "没有找到对应记工，请先上工或核对编号。" }, group);

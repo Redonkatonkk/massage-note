@@ -166,6 +166,7 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
         'gift_card_sales_valid_amounts',
         'service_item_price_options_valid_values',
         'work_records_non_negative_money',
+        'work_records_placeholder_empty',
         'work_records_confirmed_finance_complete'
       )
       ORDER BY conname
@@ -178,7 +179,39 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
       "stores_gift_card_auto_discount_valid",
       "work_records_confirmed_finance_complete",
       "work_records_non_negative_money",
+      "work_records_placeholder_empty",
     ]);
+  });
+
+  it("占位状态只允许空业务字段，不承载金额、付款或标记", async () => {
+    const record = await prisma.workRecord.create({
+      data: {
+        storeId, employeeMembershipId: ownerMembershipId,
+        businessDate: new Date("2026-10-06T00:00:00Z"),
+        storeTimezoneSnapshot: "America/New_York", businessCutoffSnapshot: "22:00",
+        startAt: new Date("2026-10-06T14:00:00Z"), status: "PLACEHOLDER",
+        mainServiceAmountCents: 0n, grossFeeBaseCents: 0n, discountedFeePerformanceCents: 0n,
+        mainServiceWageCents: 0n, totalLargeFeeWageCents: 0n,
+        createdBy: ownerId, updatedBy: ownerId,
+      },
+    });
+    try {
+      for (const data of [
+        { mainServiceAmountCents: 1n, grossFeeBaseCents: 1n, discountedFeePerformanceCents: 1n },
+        { endAt: record.startAt },
+        { cashServiceCents: 0n },
+        { isHighlighted: true },
+        { note: "不能给占位写备注" },
+      ]) {
+        await expect(prisma.workRecord.update({ where: { id: record.id }, data })).rejects.toThrow();
+      }
+      await expect(prisma.workRecord.findUniqueOrThrow({ where: { id: record.id } })).resolves.toMatchObject({
+        status: "PLACEHOLDER", mainServiceAmountCents: 0n, cashServiceCents: null,
+        endAt: null, actualDurationMinutes: null, isHighlighted: false, note: "",
+      });
+    } finally {
+      await prisma.workRecord.delete({ where: { id: record.id } });
+    }
   });
 
   it("1.0.1 只保留每日排位结构并清除逐工状态", async () => {

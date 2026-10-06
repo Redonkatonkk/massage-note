@@ -41,7 +41,22 @@ describe("AI business reading", () => {
   it("snapshot queries inherit the employee and store scope", async () => {
     const findMany = vi.fn().mockResolvedValue([]);
     await readBusinessData({ paymentBreakdown: { findMany } } as never, "store", { ...owner, role: "EMPLOYEE" }, { table: "PaymentBreakdown" });
-    expect(findMany.mock.calls[0]![0].where.AND[0]).toEqual({ workRecord: { storeId: "store", employeeMembershipId: "member" } });
+    expect(findMany.mock.calls[0]![0].where.AND[0]).toEqual({ workRecord: { storeId: "store", status: { not: "PLACEHOLDER" }, employeeMembershipId: "member" } });
+  });
+  it.each(["OWNER", "EMPLOYEE"])("excludes placeholders from direct historical queries for %s even with IDs or deleted records", async role => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const id = "00000000-0000-4000-8000-000000000001";
+    await readBusinessData({ workRecord: { findMany } } as never, "store", { ...owner, role }, { table: "WorkRecord", id, includeDeleted: true, dateFrom: "2026-08-26" });
+    expect(findMany.mock.calls[0]![0].where.AND).toEqual([
+      { storeId: "store", status: { not: "PLACEHOLDER" }, ...(role === "EMPLOYEE" ? { employeeMembershipId: "member" } : {}), businessDate: { gte: new Date("2026-08-26T00:00:00Z") } },
+      { id },
+    ]);
+    await expect(readBusinessData({} as never, "store", { ...owner, role }, { table: "WorkRecord", status: "PLACEHOLDER" })).rejects.toThrow("Invalid business query");
+  });
+  it.each(["WorkRecordServiceSnapshot", "WorkRecordAddonSnapshot", "WorkRecordDiscountSnapshot", "PaymentBreakdown"] as const)("excludes placeholder parents from %s queries", async table => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    await readBusinessData({ [table[0]!.toLowerCase() + table.slice(1)]: { findMany } } as never, "store", owner, { table, includeDeleted: true });
+    expect(findMany.mock.calls[0]![0].where.AND[0]).toEqual({ workRecord: { storeId: "store", status: { not: "PLACEHOLDER" } } });
   });
   it("work assistant queries 15 historical days even when today has no records", async () => {
     const empty = { findMany: vi.fn().mockResolvedValue([]) };

@@ -113,6 +113,28 @@ describe("记工项目来源契约", () => {
   const membershipId = "56d4a93a-5a73-49df-93c2-704ae844faa4";
   const itemId = "115e9be0-c76e-4d8d-bcec-55618c74450e";
 
+  it("占位只接收员工和占位时间，普通记工仍要求项目", () => {
+    const input = { employeeMembershipId: membershipId, startAt: "2026-10-06T14:00:00-04:00", isPlaceholder: true };
+    expect(createWorkRecordSchema.parse(input)).toEqual(input);
+    expect(createWorkRecordSchema.safeParse({ ...input, isPlaceholder: false }).success).toBe(false);
+    expect(createWorkRecordSchema.safeParse({ ...input, isPlaceholder: false, serviceItemId: itemId }).success).toBe(true);
+  });
+
+  it.each([
+    { serviceItemId: itemId },
+    { serviceDurationMinutes: 60 },
+    { customService: { name: "自定义", shortName: "自定", amountCents: 0, durationMinutes: 60 } },
+    { isHighlighted: true },
+    { isHighlighted: false },
+    { isHighlighted: undefined },
+    { note: "跳过" },
+    { amountCents: 0 },
+  ])("占位拒绝附带业务字段 %j", (extra) => {
+    expect(createWorkRecordSchema.safeParse({
+      employeeMembershipId: membershipId, startAt: "2026-10-06T14:00:00-04:00", isPlaceholder: true, ...extra,
+    }).success).toBe(false);
+  });
+
   it("自定义主要项目只接收自定义内容，不伪装成预设项目", () => {
     expect(
       createWorkRecordSchema.safeParse({

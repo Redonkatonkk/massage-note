@@ -58,6 +58,7 @@ export const discountInputSchema = z
 export const createWorkRecordSchema = z.object({
   employeeMembershipId: uuidSchema,
   startAt: instantSchema,
+  isPlaceholder: z.boolean().optional(),
   serviceItemId: uuidSchema.optional(),
   serviceDurationMinutes: z.number().int().min(1).max(720).optional(),
   customService: z
@@ -67,10 +68,17 @@ export const createWorkRecordSchema = z.object({
     })
     .optional(),
   isHighlighted: z.boolean().optional(),
-}).strict().refine((value) => Boolean(value.serviceItemId) !== Boolean(value.customService), {
+}).strict().superRefine((value, context) => {
+  if (!value.isPlaceholder) return;
+  for (const field of Object.keys(value)) {
+    if (!["employeeMembershipId", "startAt", "isPlaceholder"].includes(field)) {
+      context.addIssue({ code: "custom", path: [field], message: "占位只能提交员工和占位时间" });
+    }
+  }
+}).refine((value) => value.isPlaceholder || Boolean(value.serviceItemId) !== Boolean(value.customService), {
   message: "预设项目和自定义项目必须且只能选择一种",
   path: ["serviceItemId"],
-}).refine((value) => value.serviceItemId || value.serviceDurationMinutes === undefined, {
+}).refine((value) => value.isPlaceholder || value.serviceItemId || value.serviceDurationMinutes === undefined, {
   message: "项目时长只能与预设项目一起提交",
   path: ["serviceDurationMinutes"],
 });

@@ -69,7 +69,7 @@ it("每日30天基准跨筛选起点，排除窗口外和未日结日期，含�
   expect(result.get("2026-09-14")).toEqual({ averageCents: 5251n, dayCount: 2 });
   expect(result.has("2026-09-13")).toBe(false);
   expect(prisma.workRecord.groupBy).toHaveBeenCalledWith({
-    by: ["businessDate"], where: { storeId: "store", businessDate: { gte: day("2026-08-15"), lte: day("2026-09-14") }, deletedAt: null },
+    by: ["businessDate"], where: { storeId: "store", businessDate: { gte: day("2026-08-15"), lte: day("2026-09-14") }, status: { not: "PLACEHOLDER" }, deletedAt: null },
     _sum: { discountedFeePerformanceCents: true },
   });
   prisma.businessDayClosing.findMany.mockResolvedValue([]);

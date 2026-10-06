@@ -61,6 +61,17 @@ function button(text: string, scope: ParentNode) { const found = [...scope.query
 function fact(scope: ParentNode, label: string) { return [...scope.querySelectorAll("dl > div")].find(node => node.querySelector("dt")?.textContent === label)?.querySelector("dd")?.textContent; }
 
 describe("mobile reading order and protected actions in actual components", () => {
+  it("describes placeholder recovery without a service or amount and summarizes its audit status", async () => {
+    const placeholder = { ...record, status: "PLACEHOLDER" as const, serviceSnapshot: null, grossFeeBaseCents: 0 };
+    await mount(<RecoveryPanel storeId="store" records={[placeholder]} giftCardSales={[]} busy={false} run={run} reload={reload} />);
+    const card = mobileCards()[0]!;
+    expect(card.querySelector("header p")?.textContent).toContain("占位");
+    expect(fact(card, "大费基数")).toBeUndefined(); expect(card.textContent).not.toContain("$0");
+    vi.mocked(window.confirm).mockReturnValue(true); await act(async () => button("恢复占位", card).click());
+    expect(window.confirm).toHaveBeenCalledWith(`确认恢复 ${name} 的这张占位小卡吗？恢复后只在主表占位，不计入财务。`);
+    expect(request).toHaveBeenCalledWith("/stores/store/work-records/record/restore", { method: "POST", idempotent: true, body: { version: 9 } });
+    expect(auditFacts({ status: "PLACEHOLDER", grossFeeBaseCents: 0, cashServiceCents: null, commissionBps: 0, isHighlighted: false, durationMinutes: null, serviceName: null, note: "" })).toEqual([{ label: "状态", value: "占位" }]);
+  });
   it("shows deletion context before restore, and preserves confirmation, version and idempotency", async () => {
     await mount(recovery()); const [work, gift] = mobileCards();
     expect(work!.querySelector("h3")?.textContent).toBe(name);

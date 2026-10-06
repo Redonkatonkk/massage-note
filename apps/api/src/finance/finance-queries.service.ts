@@ -282,7 +282,7 @@ export class FinanceQueriesService {
         select: { businessDate: true }, distinct: ["businessDate"],
       }),
       client.workRecord.groupBy({
-        by: ["businessDate"], where: { storeId, businessDate, deletedAt: null },
+        by: ["businessDate"], where: { storeId, businessDate, status: { not: "PLACEHOLDER" }, deletedAt: null },
         _sum: { discountedFeePerformanceCents: true },
       }),
       client.giftCardSale.groupBy({
@@ -501,6 +501,7 @@ export class FinanceQueriesService {
       where: {
         storeId,
         employeeMembershipId: { in: context.membershipIds },
+        status: { not: "PLACEHOLDER" },
         businessDate: {
           gte: dateAtUtc(context.dateFrom),
           lte: dateAtUtc(context.dateTo),

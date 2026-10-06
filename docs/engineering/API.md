@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.18.10`
+> 适用版本：`1.19.1`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -60,7 +60,7 @@
 | POST | `/stores/:storeId/boards/:businessDate/reorder` | 原子调整每日员工行顺序 |
 | POST | `/stores/:storeId/boards/:businessDate/rank` | 店长或经理按最近一次可见出勤名次生成今天或未来日期员工顺序（过去日期返回 DAILY_RANKING_PAST_DAY_NOT_ALLOWED）；使用营业日锁、表格版本和幂等键 |
 | POST | `/stores/:storeId/boards/:businessDate/rows/:rowId/remove` | 移除尚无当天活动的误加员工 |
-| POST | `/stores/:storeId/work-records` | 快速创建预设或自定义记工；每日排位不会增加记工字段或限制记工入口 |
+| POST | `/stores/:storeId/work-records` | 快速创建预设、自定义记工或占位；每日排位不会增加记工字段或限制记工入口 |
 | GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改高亮及其他字段与软删除 |
 | POST | `/stores/:storeId/work-records/:recordId/save` | 详情与付款原子保存；body 为 `{ details, payment }`，两者必须带相同基准 `version`，需幂等键 |
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡/礼物卡大费和小费拆分；使用礼物卡时同时提交序列号 |
@@ -215,6 +215,14 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 项目排序提交完整的未删除项目列表及当前版本，例如 `{ "type": "SERVICE", "items": [{ "id": "...", "version": 2 }] }`。服务端在同一事务中校验列表、项目归属和全部版本，再统一写入顺序；列表不完整或任一版本过期时返回 `CATALOG_ORDER_CONFLICT`，不会留下半套排序。
 
 今日记工页面只调用 `POST /stores/:storeId/shifts/clock-in` 支持普通员工把本人加入当前营业日表格，不调用下班接口。新营业日上班若发现本人仍有旧营业日未结束班次，会先原子结束旧班次并记录 `shift.stale_auto_closed` 审计，再创建当前班次和本人表格行；同一营业日重复上班返回 `SHIFT_ALREADY_OPEN`。`clock-out` 继续保留给旧客户端和历史审计兼容，员工页面不提供对应按钮；员工工作状态仍完全由记工时间段计算。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
+
+### 记工占位
+
+`POST /stores/:storeId/work-records` 可提交 `{ employeeMembershipId, startAt, isPlaceholder: true }` 创建占位；禁止同时提交 `serviceItemId`、`serviceDurationMinutes`、`customService` 或 `isHighlighted`，包括显式 `false` 高亮。省略 `isPlaceholder` 或提交 `false` 时仍使用原普通记工校验。保留原因：占位不选择项目，高亮会影响业务规则，两个创建分支须明确区分。
+
+占位响应 `status: "PLACEHOLDER"`，`startAt` 仅用于日期归属与看板卡片顺序，必填金额为零，结束时间、时长及付款字段为空，项目快照为空、加项和折扣数组为空。看板 `workRecords` 保留占位，但工数及所有财务、日结、经营分析、工资、机器人查询和工作占用排除占位；仅有占位不产生财务日历标记。保留原因：占位要持久同步并能查看历史，不能形成服务或收款事实。
+
+占位使用原 DELETE 和 restore 接口，保留权限、营业日锁、版本、幂等、审计和 outbox，不回退现金结清；PATCH、save 和 confirm-payment 返回 `400 PLACEHOLDER_READ_ONLY`。回收站可由管理者恢复。数据库通过新增前向迁移扩展状态并限制占位的业务字段；旧服务记录及创建请求保持兼容。保留原因：删除恢复仍是受控写入，无业务内容的占位不能被普通编辑或付款入口补造成服务。
 
 ## 财务查询参数
 

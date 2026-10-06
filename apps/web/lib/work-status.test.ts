@@ -5,7 +5,7 @@ const record = (
   id: string,
   startAt: string,
   endAt: string | null,
-  status: "PENDING_PAYMENT" | "CONFIRMED" = "PENDING_PAYMENT",
+  status: "PENDING_PAYMENT" | "CONFIRMED" | "PLACEHOLDER" = "PENDING_PAYMENT",
 ) => ({
   id,
   startAt,
@@ -15,6 +15,10 @@ const record = (
 
 describe("今日员工工作状态", () => {
   const now = Date.parse("2026-08-11T16:00:00.000Z");
+
+  it("占位即使没有结束时间也不表示员工正在工作", () => {
+    expect(activeWorkRecord([record("placeholder", "2026-08-11T15:00:00.000Z", null, "PLACEHOLDER")], now)).toBeNull();
+  });
 
   it("没有覆盖当前时间的记工时为空闲", () => {
     expect(activeWorkRecord([

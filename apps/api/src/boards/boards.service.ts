@@ -319,6 +319,7 @@ export class BoardsService {
         where: {
           storeId,
           businessDate: dateRange,
+          status: { not: "PLACEHOLDER" },
           deletedAt: null,
           ...(canReadStore
             ? {}
@@ -464,7 +465,7 @@ export class BoardsService {
         .filter((day) => day.date !== businessDate)
         .map((day) => day.revenueCents);
       // Include the selected closed day exactly once using the board’s current records.
-      revenues.push(calculateRevenue({ discountedFeePerformanceCents: records.reduce((total, record) => total + record.discountedFeePerformanceCents, 0n), giftCardSalesAmountCents: giftCardSales.reduce((total, sale) => total + sale.amountCents, 0n) }));
+      revenues.push(calculateRevenue({ discountedFeePerformanceCents: records.filter((record) => record.status !== "PLACEHOLDER").reduce((total, record) => total + record.discountedFeePerformanceCents, 0n), giftCardSalesAmountCents: giftCardSales.reduce((total, sale) => total + sale.amountCents, 0n) }));
       const averageCents = calculateAverageRevenue(revenues);
       if (averageCents !== null) {
         recentClosedRevenue = { dayCount: revenues.length, averageCents };
@@ -521,7 +522,7 @@ export class BoardsService {
         revenueCents: calculateRevenue(statistics),
         totalIncomeCents: calculateBoardTotalIncome({
           storeIncomeCents: statistics.storeIncomeCents,
-          workers: records.map((record) => ({
+          workers: records.filter((record) => record.status !== "PLACEHOLDER").map((record) => ({
             role: record.employee.role,
             incomeCents: record.totalLargeFeeWageCents + (record.totalTipCents ?? 0n),
           })),
@@ -1152,6 +1153,7 @@ export class BoardsService {
 
   private calculateRowStatistics(
     records: Array<{
+      status: string;
       grossFeeBaseCents: bigint;
       discountTotalCents: bigint;
       discountedFeePerformanceCents: bigint;
@@ -1161,7 +1163,7 @@ export class BoardsService {
       giftCardTipCents: bigint | null;
     }>,
   ) {
-    const statistics = records.reduce<BoardStatistics>(
+    const statistics = records.filter((record) => record.status !== "PLACEHOLDER").reduce<BoardStatistics>(
       (total, record) => {
         const totalTipCents = record.totalTipCents ?? 0n;
         const employeeIncomeCents =

@@ -421,6 +421,10 @@ h2 {
   gap: 8px;
 }
 
+.record-card--placeholder { overflow: hidden; }
+.record-placeholder-lines { position: absolute; inset: 0; width: 100%; height: 100%; stroke: var(--line); pointer-events: none; }
+.record-placeholder-time { position: relative; z-index: 1; align-self: flex-start; padding: 2px 4px; background: var(--surface); }
+
 .record-card:hover,
 .add-record:hover {
   border-color: var(--line);
@@ -1654,7 +1658,11 @@ h2 {
   flex: 0 0 auto;
   margin: 0;
   padding: 24px 24px 20px;
+  flex-wrap: wrap;
 }
+
+.quick-work-modal > .modal-heading > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.quick-work-modal .modal-heading__actions { flex: 1 1 100%; flex-wrap: wrap; }
 
 .quick-modal-content {
   min-height: 0;
@@ -1730,6 +1738,9 @@ h2 {
   cursor: wait;
   opacity: 0.65;
 }
+
+.placeholder-toggle:hover, .placeholder-toggle.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+.board-delivery-dialog.placeholder-delete-dialog { width: min(480px, calc(100vw - 32px)); }
 
 .field-label,
 .service-picker legend {

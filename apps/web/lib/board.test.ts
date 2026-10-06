@@ -7,9 +7,21 @@ import {
   discountBadgeText,
   recordPaymentDisplay,
   recordTrackItems,
+  serviceRecordCount,
 } from "./board";
 
 describe("今日表格行整理", () => {
+  it("占位按普通时间顺序混排但不计入工数", () => {
+    const records = [
+      { id: "first", status: "CONFIRMED", isHighlighted: false },
+      { id: "placeholder", status: "PLACEHOLDER", isHighlighted: false },
+      { id: "highlighted", status: "PENDING_PAYMENT", isHighlighted: true },
+      { id: "last", status: "PENDING_PAYMENT", isHighlighted: false },
+    ];
+    expect(recordTrackItems(records, true).map((record) => record?.id ?? "add")).toEqual(["first", "placeholder", "last", "add", "highlighted"]);
+    expect(serviceRecordCount(records)).toBe(3);
+    expect(serviceRecordCount([records[1]!])).toBe(0);
+  });
   it("普通记工在左、新增居中，高亮按原时间顺序从右向左排列且不修改源记录", () => {
     const records = [
       { id: "early-highlight", isHighlighted: true },

@@ -9,6 +9,10 @@ export function recordTrackItems<T extends { isHighlighted: boolean }>(records: 
   ];
 }
 
+export function serviceRecordCount(records: readonly { status: string }[]): number {
+  return records.filter((record) => record.status !== "PLACEHOLDER").length;
+}
+
 export function deduplicateMembershipRows<T extends { membershipId: string }>(rows: T[]): T[] {
   const seen = new Set<string>();
   return rows.filter((row) => {

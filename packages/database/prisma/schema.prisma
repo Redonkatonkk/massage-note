@@ -46,6 +46,7 @@ enum JoinRequestStatus {
 enum WorkRecordStatus {
   PENDING_PAYMENT
   CONFIRMED
+  PLACEHOLDER
 }
 
 enum ClosingStatus {

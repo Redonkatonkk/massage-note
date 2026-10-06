@@ -1236,6 +1236,117 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     });
   });
 
+  it("占位幂等保存空卡，禁止写业务信息，删除恢复不回退现金结清", async () => {
+    const startAt = new Date();
+    const current = await boards.currentBusinessDay(actor(ownerId), storeId);
+    const businessDate = new Date(`${current.businessDate}T00:00:00.000Z`);
+    const settlementKey = { storeId, businessDate, membershipId: employeeMembershipId };
+    const previousSettlement = await prisma.dailyCashSettlement.findUnique({ where: { storeId_businessDate_membershipId: settlementKey } });
+    const settledAt = new Date();
+    const settlement = await prisma.dailyCashSettlement.upsert({
+      where: { storeId_businessDate_membershipId: settlementKey },
+      create: {
+        ...settlementKey, cashServiceCents: 0n, cashTipCents: 0n, cashReceivedCents: 0n,
+        cashAllocatedServiceWageCents: 0n, cashAcquiredServiceWageCents: 0n, cashWageShortfallCents: 0n,
+        cashRetainedCents: 0n, cashToSubmitToStoreCents: 0n,
+        status: "SETTLED", settledBy: ownerId, settledAt,
+      },
+      update: { status: "SETTLED", settledBy: ownerId, settledAt, deletedAt: null },
+    });
+    let placeholderId: string | null = null;
+    try {
+      const input = { employeeMembershipId, startAt: startAt.toISOString(), isPlaceholder: true };
+      const placeholder = await workRecords.create(actor(employeeId), storeId, input, "placeholder-create-key-0001", "placeholder-create");
+      placeholderId = placeholder.id;
+      expect(placeholder).toMatchObject({
+        status: "PLACEHOLDER", startAt, endAt: null, actualDurationMinutes: null,
+        mainServiceAmountCents: 0n, addonTotalCents: 0n, grossFeeBaseCents: 0n,
+        discountTotalCents: 0n, discountedFeePerformanceCents: 0n,
+        mainServiceWageCents: 0n, addonWageCents: 0n, totalLargeFeeWageCents: 0n,
+        cashServiceCents: null, cardServiceCents: null, giftCardServiceCents: null,
+        cashTipCents: null, cardTipCents: null, giftCardTipCents: null, giftCardSerialNumber: null,
+        totalTipCents: null, actualServiceCollectedCents: null, customerTotalPaidCents: null,
+        paymentDifferenceCents: null, employeeTotalIncomeCents: null,
+        cashAllocatedServiceWageCents: null, cashAcquiredServiceWageCents: null, cashWageShortfallCents: null,
+        isHighlighted: false, manualPriceFlag: false, automaticDiscountSuppressed: false,
+        tipSettledManualFlag: false, largeFeeSettledManualFlag: false, note: "",
+        serviceSnapshot: null, addonSnapshots: [], discountSnapshots: [], payment: null,
+      });
+      const replayed = await workRecords.create(actor(employeeId), storeId, input, "placeholder-create-key-0001", "placeholder-retry");
+      expect(replayed.id).toBe(placeholder.id);
+      await expect(prisma.auditLog.count({ where: { entityId: placeholder.id, action: "work_record.placeholder_created" } })).resolves.toBe(1);
+      await expect(prisma.domainOutbox.count({ where: { aggregateId: placeholder.id, aggregateType: "work_record" } })).resolves.toBe(1);
+      const board = await boards.getBoard(actor(ownerId), storeId, current.businessDate);
+      expect(board.rows.find(row => row.membershipId === employeeMembershipId)?.workRecords.some(record => record.id === placeholder.id)).toBe(true);
+
+      const payment = { version: placeholder.version, cashServiceCents: 0, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0,
+        giftCardSerialNumber: null, giftCardServiceCents: 0, giftCardTipCents: 0 };
+      for (const [index, details] of [
+        { version: placeholder.version, note: "备注" },
+        { version: placeholder.version, startAt: new Date(startAt.getTime() + 60_000).toISOString() },
+        { version: placeholder.version, isHighlighted: true },
+        { version: placeholder.version, serviceItemId, serviceDurationMinutes: 60 },
+      ].entries()) {
+        await expect(workRecords.update(actor(ownerId), storeId, placeholder.id, details, `placeholder-update-key-${index}`, "placeholder-update"))
+          .rejects.toMatchObject({ response: { code: "PLACEHOLDER_READ_ONLY" } });
+      }
+      await expect(workRecords.confirmPayment(actor(ownerId), storeId, placeholder.id, payment, "placeholder-pay-key-0001", "placeholder-pay"))
+        .rejects.toMatchObject({ response: { code: "PLACEHOLDER_READ_ONLY" } });
+      await expect(workRecords.save(actor(ownerId), storeId, placeholder.id, { details: { version: placeholder.version }, payment }, "placeholder-save-key-0001", "placeholder-save"))
+        .rejects.toMatchObject({ response: { code: "PLACEHOLDER_READ_ONLY" } });
+      await expect(prisma.workRecord.findUniqueOrThrow({ where: { id: placeholder.id } })).resolves.toMatchObject({ version: 1, note: "", paymentDifferenceCents: null });
+
+      const deleted = await workRecords.remove(actor(employeeId), storeId, placeholder.id, { version: placeholder.version }, "placeholder-delete-key-0001", "placeholder-delete");
+      expect(deleted).toMatchObject({ status: "PLACEHOLDER", version: 2, serviceSnapshot: null });
+      expect(deleted.deletedAt).not.toBeNull();
+      expect((await workRecords.listDeleted(actor(ownerId), storeId)).some(record => record.id === placeholder.id)).toBe(true);
+      await expect(workRecords.restore(actor(employeeId), storeId, placeholder.id, { version: deleted.version }, "placeholder-employee-restore-key-0001", "placeholder-employee-restore"))
+        .rejects.toBeInstanceOf(ForbiddenException);
+      const restored = await workRecords.restore(actor(ownerId), storeId, placeholder.id, { version: deleted.version }, "placeholder-restore-key-0001", "placeholder-restore");
+      expect(restored).toMatchObject({ status: "PLACEHOLDER", version: 3, deletedAt: null, serviceSnapshot: null, payment: null });
+      await expect(workRecords.remove(actor(ownerId), storeId, placeholder.id, { version: deleted.version }, "placeholder-stale-delete-key-0001", "placeholder-stale-delete"))
+        .rejects.toMatchObject({ response: { code: "WORK_RECORD_VERSION_CONFLICT" } });
+      await expect(prisma.dailyCashSettlement.findUniqueOrThrow({ where: { id: settlement.id } })).resolves.toMatchObject({
+        status: "SETTLED", version: settlement.version, settledBy: ownerId, settledAt,
+      });
+    } finally {
+      if (placeholderId) await prisma.workRecord.deleteMany({ where: { id: placeholderId } });
+      if (previousSettlement) {
+        await prisma.dailyCashSettlement.update({ where: { id: settlement.id }, data: {
+          status: previousSettlement.status, settledBy: previousSettlement.settledBy, settledAt: previousSettlement.settledAt, deletedAt: previousSettlement.deletedAt,
+        } });
+      } else await prisma.dailyCashSettlement.delete({ where: { id: settlement.id } });
+    }
+  });
+
+  it("占位沿用历史写入权限和已日结营业日保护", async () => {
+    const startAt = new Date();
+    startAt.setUTCDate(startAt.getUTCDate() - 2);
+    const input = { employeeMembershipId, startAt: startAt.toISOString(), isPlaceholder: true };
+    await expect(workRecords.create(actor(employeeId), storeId, input, "placeholder-history-employee-key-0001", "placeholder-history-employee"))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    const active = await workRecords.create(actor(ownerId), storeId, input, "placeholder-history-owner-key-0001", "placeholder-history-owner");
+    const second = await workRecords.create(actor(ownerId), storeId, input, "placeholder-history-owner-key-0002", "placeholder-history-owner-2");
+    await expect(workRecords.remove(actor(employeeId), storeId, active.id, { version: active.version }, "placeholder-history-delete-employee-key-0001", "placeholder-history-delete-employee"))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    const deleted = await workRecords.remove(actor(ownerId), storeId, second.id, { version: second.version }, "placeholder-history-delete-key-0001", "placeholder-history-delete");
+    const closing = await prisma.businessDayClosing.create({ data: {
+      storeId, businessDate: active.businessDate, cycleNo: 999, status: "CLOSED",
+      warningSnapshotJson: {}, totalsSnapshotJson: {}, closedBy: ownerId,
+    } });
+    try {
+      await expect(workRecords.create(actor(ownerId), storeId, input, "placeholder-closed-create-key-0001", "placeholder-closed-create"))
+        .rejects.toMatchObject({ response: { code: "BUSINESS_DAY_CLOSED" } });
+      await expect(workRecords.remove(actor(ownerId), storeId, active.id, { version: active.version }, "placeholder-closed-delete-key-0001", "placeholder-closed-delete"))
+        .rejects.toMatchObject({ response: { code: "BUSINESS_DAY_CLOSED" } });
+      await expect(workRecords.restore(actor(ownerId), storeId, deleted.id, { version: deleted.version }, "placeholder-closed-restore-key-0001", "placeholder-closed-restore"))
+        .rejects.toMatchObject({ response: { code: "BUSINESS_DAY_CLOSED" } });
+    } finally {
+      await prisma.businessDayClosing.delete({ where: { id: closing.id } });
+      await prisma.workRecord.deleteMany({ where: { id: { in: [active.id, second.id] } } });
+    }
+  });
+
   it("自定义项目跳过项目默认比例，使用员工默认比例", async () => {
     const custom = await workRecords.create(
       actor(ownerId),

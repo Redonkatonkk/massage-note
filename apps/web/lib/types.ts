@@ -316,7 +316,7 @@ export interface WorkRecord {
   startAt: string;
   endAt: string | null;
   actualDurationMinutes: number | null;
-  status: "PENDING_PAYMENT" | "CONFIRMED";
+  status: "PENDING_PAYMENT" | "CONFIRMED" | "PLACEHOLDER";
   mainServiceAmountCents: number;
   addonTotalCents: number;
   grossFeeBaseCents: number;

@@ -82,6 +82,7 @@ export class PayrollSettlementsService {
       where: {
         storeId,
         employeeMembershipId: { in: [...new Set(settlements.map((item) => item.membershipId))] },
+        status: { not: "PLACEHOLDER" },
         businessDate: {
           gte: new Date(Math.min(...settlements.map((item) => item.periodStart.getTime()))),
           lte: new Date(Math.max(...settlements.map((item) => item.periodEnd.getTime()))),

@@ -29,9 +29,10 @@ export async function readBusinessData(prisma: PrismaService, storeId: string, m
   const metadata = Prisma.dmmf.datamodel.models.find((model) => model.name === args.table)!;
   const has = (field: string) => metadata.fields.some((item) => item.name === field);
   const own = member.role === "EMPLOYEE";
-  const recordScope = { storeId, ...(own ? { employeeMembershipId: member.id } : {}) };
+  const recordScope = { storeId, status: { not: "PLACEHOLDER" }, ...(own ? { employeeMembershipId: member.id } : {}) };
   const where: Record<string, unknown> = has("storeId") ? { storeId } : args.table === "Store" ? { id: storeId }
     : args.table === "ServiceItemPriceOption" ? { serviceItem: { storeId } } : { workRecord: recordScope };
+  if (args.table === "WorkRecord") where.status = recordScope.status;
   const memberField = args.table === "StoreMembership" ? "id" : has("employeeMembershipId") ? "employeeMembershipId" : has("membershipId") ? "membershipId" : null;
   if (own) {
     if (memberField) where[memberField] = member.id;

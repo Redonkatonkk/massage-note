@@ -172,6 +172,12 @@ describe("bilingual UI translation", () => {
       .toContain("without a separate star badge at the upper right");
   });
 
+  it("translates placeholders and keeps them out of recovery financial wording", () => {
+    expect(translateText("占位", "en-US")).toBe("Placeholder");
+    expect(translateText("保存占位", "en-US")).toBe("Save placeholder");
+    expect(translateText("确认恢复 Amy 的这张占位小卡吗？恢复后只在主表占位，不计入财务。", "en-US")).toContain("excluded from financial totals");
+  });
+
   it("explains custom gift card serial numbers and duplicate checks", () => {
     expect(translateText("默认使用系统建议号码；也可以直接修改为自定义号码，保存时会检查同店重复。多人同时使用默认号码时，以保存后的号码为准。", "en-US"))
       .toContain("edit it to a custom number");

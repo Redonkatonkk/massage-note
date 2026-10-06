@@ -174,6 +174,50 @@ export class WorkRecordsService {
         businessDate,
       );
 
+      if (input.isPlaceholder) {
+        const record = await transaction.workRecord.create({
+          data: {
+            storeId,
+            employeeMembershipId: employee.id,
+            businessDate: new Date(`${businessDate}T00:00:00.000Z`),
+            storeTimezoneSnapshot: deviceTimezone(store.timezone),
+            businessCutoffSnapshot: store.businessCutoffLocal,
+            startAt,
+            status: "PLACEHOLDER",
+            mainServiceAmountCents: 0n,
+            grossFeeBaseCents: 0n,
+            discountedFeePerformanceCents: 0n,
+            mainServiceWageCents: 0n,
+            totalLargeFeeWageCents: 0n,
+            createdBy: actor.id,
+            updatedBy: actor.id,
+          },
+          include: recordInclude,
+        });
+        await ensureBoardRow(transaction, storeId, businessDate, employee.id, actor.id);
+        await transaction.auditLog.create({
+          data: {
+            storeId,
+            actorUserId: this.auditSource === "langbot" ? null : actor.id,
+            actorMembershipId: actorMembership.id,
+            source: this.auditSource,
+            action: "work_record.placeholder_created",
+            entityType: "work_record",
+            entityId: record.id,
+            businessDate: record.businessDate,
+            afterJson: {
+              employeeMembershipId: employee.id,
+              businessDate,
+              startAt: startAt.toISOString(),
+              status: record.status,
+              version: record.version,
+            },
+            requestId,
+          },
+        });
+        return record;
+      }
+
       const employeeDefaultBps = await this.resolveEmployeeDefaultCommission(
         transaction,
         storeId,
@@ -434,6 +478,7 @@ export class WorkRecordsService {
             include: recordInclude,
           });
           if (!record) this.throwRecordNotFound();
+          this.assertNotPlaceholder(record);
           if (!record.serviceSnapshot) {
             throw new ConflictException({
               code: "SERVICE_SNAPSHOT_MISSING",
@@ -877,7 +922,7 @@ export class WorkRecordsService {
           where: { id: recordId },
           include: recordInclude,
         });
-        await this.reopenCashSettlements(
+        if (record.status !== "PLACEHOLDER") await this.reopenCashSettlements(
           transaction,
           storeId,
           [this.dateOnly(record.businessDate)],
@@ -989,7 +1034,7 @@ export class WorkRecordsService {
           where: { id: recordId },
           include: recordInclude,
         });
-        await this.reopenCashSettlements(
+        if (record.status !== "PLACEHOLDER") await this.reopenCashSettlements(
           transaction,
           storeId,
           [this.dateOnly(record.businessDate)],
@@ -1067,6 +1112,7 @@ export class WorkRecordsService {
           include: recordInclude,
         });
         if (!record) this.throwRecordNotFound();
+        this.assertNotPlaceholder(record);
 
         const store: StoreBusinessSettings = {
           id: storeId,
@@ -1701,6 +1747,15 @@ export class WorkRecordsService {
       select: { commissionBps: true },
     });
     return history?.commissionBps ?? null;
+  }
+
+  private assertNotPlaceholder(record: { status: string }): void {
+    if (record.status === "PLACEHOLDER") {
+      throw new BadRequestException({
+        code: "PLACEHOLDER_READ_ONLY",
+        messageZh: "占位不包含记工或付款信息，只能删除或恢复",
+      });
+    }
   }
 
   private async assertCanWrite(

@@ -11,13 +11,15 @@ const labels: Record<string, string> = {
   commissionBps: "提成比例", defaultCommissionBps: "员工默认提成", globalCommissionBps: "店铺默认提成", periodStart: "开始日期", periodEnd: "结束日期", paymentScope: "工资来源", serialNumber: "序列号", durationMinutes: "时间（分钟）",
   mondayThursdayAutoDiscountEnabled: "周一至周四自动折扣", mondayThursdayAutoDiscountThresholdCents: "自动折扣门槛", mondayThursdayAutoDiscountAmountCents: "自动折扣金额", giftCardAutoDiscountEnabled: "礼物卡自动折扣", giftCardAutoDiscountThresholdCents: "礼物卡折扣门槛", giftCardAutoDiscountBps: "礼物卡折扣比例",
 };
-const values: Record<string, string> = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工", ACTIVE: "启用", INACTIVE: "已停用", PENDING: "待审核", WORKING: "正在记工", CONFIRMED: "已确认", OPEN: "营业中", CLOSED: "已日结", FULL_TIME: "全职", PART_TIME: "兼职", CASH: "现金", NON_CASH: "刷卡＋礼物卡", ALL: "全部", zh_CN: "中文", en_US: "English" };
+const values: Record<string, string> = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工", ACTIVE: "启用", INACTIVE: "已停用", PENDING: "待审核", WORKING: "正在记工", CONFIRMED: "已确认", PLACEHOLDER: "占位", OPEN: "营业中", CLOSED: "已日结", FULL_TIME: "全职", PART_TIME: "兼职", CASH: "现金", NON_CASH: "刷卡＋礼物卡", ALL: "全部", zh_CN: "中文", en_US: "English" };
 const enumFields = new Set(["role", "status", "employmentType", "paymentScope", "closingImageLocale", "closingDefaultLocale"]);
 
 /** Summaries only describe known scalar fields; the complete original snapshots remain available. */
 export function auditFacts(snapshot: unknown) {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return [];
+  const isPlaceholder = (snapshot as { status?: unknown }).status === "PLACEHOLDER";
   return Object.entries(snapshot).flatMap(([key, value]) => {
+    if (isPlaceholder && (key.endsWith("Cents") || key.endsWith("Bps") || ["serviceName", "endAt", "durationMinutes", "isHighlighted", "note"].includes(key))) return [];
     if (!labels[key] || (value !== null && typeof value === "object")) return [];
     let display = value === null ? "未设置" : typeof value === "boolean" ? value ? "是" : "否" : enumFields.has(key) ? values[String(value)] ?? String(value) : String(value);
     const numeric = typeof value === "number" || typeof value === "string" && /^-?\d+$/.test(value) ? Number(value) : NaN;

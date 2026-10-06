@@ -2,7 +2,7 @@
 
 import { useAutoDismissState } from "./use-auto-dismiss-state";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import {
@@ -12,6 +12,7 @@ import {
   discountBadgeText,
   recordPaymentDisplay,
   recordTrackItems,
+  serviceRecordCount,
 } from "../lib/board";
 import { homeClosingAction } from "../lib/closing";
 import {
@@ -45,6 +46,7 @@ import { BoardWeeklyDispatch } from "./board-weekly-dispatch";
 import { BoardEmployeePicker } from "./board-employee-picker";
 import { RecordTrack } from "./record-track";
 import { RecordEditor } from "./record-editor";
+import { PlaceholderDeleteDialog } from "./placeholder-delete-dialog";
 import { AutoCloseDetails } from "./auto-close-details";
 import { OverviewMetric, UiIcon } from "./ui/primitives";
 
@@ -80,7 +82,7 @@ function PaymentBreakdown({
   giftCardCents,
   zeroLabel = "金额为 0",
 }: {
-  status: WorkRecord["status"];
+  status: Exclude<WorkRecord["status"], "PLACEHOLDER">;
   cashCents: number | null;
   cardCents: number | null;
   giftCardCents: number | null;
@@ -142,6 +144,7 @@ export function TodayBoard({
   );
   const [quickMode, setQuickMode] = useState<"PRESET" | "CUSTOM">("PRESET");
   const [quickHighlighted, setQuickHighlighted] = useState(false);
+  const [quickPlaceholder, setQuickPlaceholder] = useState(false);
   const [customServiceName, setCustomServiceName] = useState("");
   const [customServiceShortName, setCustomServiceShortName] = useState("");
   const [customServiceAmount, setCustomServiceAmount] = useState("");
@@ -149,8 +152,10 @@ export function TodayBoard({
   const [startTimeValid, setStartTimeValid] = useState(true);
   const [startTime, setStartTime] = useState(currentStoreTime(currentDay.timezone));
   const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
+  const [deletingPlaceholder, setDeletingPlaceholder] = useState<WorkRecord | null>(null);
   const [closingEmployee, setClosingEmployee] = useState<{ id: string; displayName: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const actionInFlight = useRef(false);
   const [error, setError] = useAutoDismissState("");
   const [notice, setNotice] = useAutoDismissState("");
   const [deliveryList, setDeliveryList] = useState<ClosingDeliveryList | null>(null);
@@ -176,7 +181,8 @@ export function TodayBoard({
     if (row && record) {
       setCollapsed((current) => current.filter((id) => id !== row.id));
       if (row.isHidden) setShowHidden(true);
-      setEditingRecord(record);
+      if (record.status === "PLACEHOLDER") setDeletingPlaceholder(record);
+      else setEditingRecord(record);
     } else {
       setError("没有找到这条异常记工，记录可能已被删除或不属于当前店铺。");
     }
@@ -267,6 +273,8 @@ export function TodayBoard({
     hasOwnRow: board.rows.some((row) => row.membershipId === membership.id),
   });
   async function run(action: () => Promise<void>) {
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
     setBusy(true);
     setError("");
     try {
@@ -274,6 +282,7 @@ export function TodayBoard({
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
+      actionInFlight.current = false;
       setBusy(false);
     }
   }
@@ -353,6 +362,18 @@ export function TodayBoard({
   async function saveQuickRecord() {
     if (!startTimeValid) throw new Error("请填写有效的开始时间");
     if (!quickEmployeeId) return;
+    const startAt = businessTimeToIso(currentDay.businessDate, startTime, currentDay.timezone);
+    if (quickPlaceholder) {
+      await apiRequest(`/stores/${membership.store.id}/work-records`, {
+        method: "POST", idempotent: true,
+        body: { employeeMembershipId: quickEmployeeId, startAt, isPlaceholder: true },
+      });
+      setQuickEmployeeId(null);
+      setQuickPlaceholder(false);
+      setNotice("占位已保存");
+      await onReload();
+      return;
+    }
     let serviceSelection:
       | { serviceItemId: string; serviceDurationMinutes: number }
       | {
@@ -402,11 +423,7 @@ export function TodayBoard({
       idempotent: true,
       body: {
         employeeMembershipId: quickEmployeeId,
-        startAt: businessTimeToIso(
-          currentDay.businessDate,
-          startTime,
-          currentDay.timezone,
-        ),
+        startAt,
         isHighlighted: quickHighlighted,
         ...serviceSelection,
       },
@@ -578,9 +595,9 @@ export function TodayBoard({
                     {board.ranking.enabled && !board.isClosed && <button type="button" disabled={busy} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}/remove`, { method: "POST", idempotent: true, body: { version: row.version } }); setNotice(`已移除 ${row.membership.displayName}`); await onReload(); })}>移除</button>}
                     {!board.isClosed && <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>}
                   </div></AutoCloseDetails>}
-                  <span className="row-work-count" title="记工数" aria-label={`${row.workRecords.length} 条记工`}>
+                  <span className="row-work-count" title="记工数" aria-label={`${serviceRecordCount(row.workRecords)} 条记工`}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="16" rx="2" /><path d="M9 5V3h6v2M9 11h6M9 16h6" /></svg>
-                    <strong>{row.workRecords.length}</strong>
+                    <strong>{serviceRecordCount(row.workRecords)}</strong>
                   </span>
                   {(canManage || row.membershipId === membership.id) && <button className="row-closing-action" type="button" onClick={() => setClosingEmployee({ id: row.membershipId, displayName: row.membership.displayName })}>个人日结</button>}
                 </div>
@@ -591,8 +608,19 @@ export function TodayBoard({
                   <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
                       if (record === null) return (
-                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickEmployeeId(row.membershipId); }}>
+                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickPlaceholder(false); setQuickEmployeeId(row.membershipId); }}>
                           <span aria-hidden="true"><UiIcon name="plus" /></span>新增记工
+                        </button>
+                      );
+                      if (record.status === "PLACEHOLDER") return (
+                        <button className="record-card record-card--placeholder" key={record.id} type="button" aria-label="占位" aria-describedby={`placeholder-time-${record.id}`}
+                          disabled={!isCurrentBusinessDay && !canManage} title={!isCurrentBusinessDay && !canManage ? "历史记录只读" : undefined}
+                          onClick={() => setDeletingPlaceholder(record)}>
+                          <svg className="record-placeholder-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                            <line x1="0" y1="0" x2="100" y2="100" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                            <line x1="100" y1="0" x2="0" y2="100" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                          </svg>
+                          <time id={`placeholder-time-${record.id}`} className="record-time record-placeholder-time" dateTime={record.startAt}>{displayTime(record.startAt, currentDay.timezone)}</time>
                         </button>
                       );
                       const hasNote = Boolean(record.note.trim());
@@ -691,7 +719,7 @@ export function TodayBoard({
 
       {hiddenRows.length > 0 && <section className="hidden-rows-panel" aria-label="已隐藏员工管理">
         <header><div><strong>已隐藏员工 · {hiddenRows.length}</strong><p>隐藏只影响表格显示，不会删除记工。可在这里直接恢复。</p></div><button className="secondary-action compact" type="button" onClick={() => setShowHidden((value) => !value)}>{showHidden ? "收起隐藏内容" : "查看隐藏内容"}</button></header>
-        <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{row.workRecords.length} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy || board.isClosed} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
+        <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{serviceRecordCount(row.workRecords)} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy || board.isClosed} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
       </section>}
 
       {quickEmployeeId && createPortal(
@@ -700,14 +728,15 @@ export function TodayBoard({
             <div className="modal-heading">
               <div><p className="eyebrow">快速记工</p><h2 id="quick-modal-title">{members.find((item) => item.id === quickEmployeeId)?.displayName}</h2></div>
               <div className="modal-heading__actions">
-                <button className={`highlight-toggle${quickHighlighted ? " active" : ""}`} type="button" aria-pressed={quickHighlighted} onClick={() => setQuickHighlighted((current) => !current)}><span aria-hidden="true">★</span>{quickHighlighted ? "已高亮" : "高亮标记"}</button>
-                <button className="close-button" type="button" onClick={() => setQuickEmployeeId(null)}>关闭</button>
+                <button className={`highlight-toggle placeholder-toggle${quickPlaceholder ? " active" : ""}`} type="button" aria-pressed={quickPlaceholder} disabled={busy} onClick={() => setQuickPlaceholder((current) => !current)}>占位</button>
+                <button className={`highlight-toggle${quickHighlighted && !quickPlaceholder ? " active" : ""}`} type="button" aria-pressed={quickHighlighted && !quickPlaceholder} disabled={busy || quickPlaceholder} onClick={() => setQuickHighlighted((current) => !current)}><span aria-hidden="true">★</span>{quickHighlighted && !quickPlaceholder ? "已高亮" : "高亮标记"}</button>
+                <button className="close-button" type="button" disabled={busy} onClick={() => setQuickEmployeeId(null)}>关闭</button>
               </div>
             </div>
             <div className="quick-modal-content">
               <label className="field-label" htmlFor="start-time">开始时间</label>
               <WorkTimeInput id="start-time" value={startTime} onChange={setStartTime} onValidityChange={setStartTimeValid} />
-              <div className="quick-mode-switch" role="group" aria-label="项目类型">
+              {!quickPlaceholder && <><div className="quick-mode-switch" role="group" aria-label="项目类型">
                 <button className={quickMode === "PRESET" ? "active" : ""} type="button" onClick={() => setQuickMode("PRESET")}>预设项目</button>
                 <button className={quickMode === "CUSTOM" ? "active" : ""} type="button" onClick={() => setQuickMode("CUSTOM")}>＋ 自定义项目</button>
               </div>
@@ -737,15 +766,20 @@ export function TodayBoard({
                   <label className="field-label">时长（分钟）<input type="number" min="1" max="720" inputMode="numeric" placeholder="例如 60" value={customServiceDuration} onChange={(event) => setCustomServiceDuration(event.target.value)} /></label>
                   <p className="field-help">自定义项目无需审批，提成按该员工默认比例；未设置时使用全店默认比例。系统会保留审计记录。</p>
                 </div>
-              )}
-              <p className="modal-note">保存后先显示为浅橙色“待结账”，付款和小费可以稍后补充。</p>
+              )}</>}
+              <p className="modal-note">{quickPlaceholder ? "此工跳过该员工，只在主表占位，不计入记工数或任何金额。时间仅用于日期归属和排序。" : "保存后先显示为浅橙色“待结账”，付款和小费可以稍后补充。"}</p>
               {error && <p className="form-error" role="alert">{error}</p>}
-              <button className="save-record" type="button" disabled={busy || (quickMode === "PRESET" && (!selectedService || !selectedServiceDuration))} onClick={() => run(saveQuickRecord)}>{busy ? "正在保存…" : "保存记工"}</button>
+              <button className="save-record" type="button" disabled={busy || board.isClosed || (!quickPlaceholder && quickMode === "PRESET" && (!selectedService || !selectedServiceDuration))} onClick={() => run(saveQuickRecord)}>{busy ? "正在保存…" : quickPlaceholder ? "保存占位" : "保存记工"}</button>
             </div>
           </section>
         </div>,
         document.body,
       )}
+
+      {deletingPlaceholder && <PlaceholderDeleteDialog storeId={membership.store.id} record={deletingPlaceholder}
+        employeeName={members.find((member) => member.id === deletingPlaceholder.employeeMembershipId)?.displayName ?? "员工"}
+        timezone={currentDay.timezone} canDelete={isCurrentBusinessDay || canManage} isClosed={board.isClosed}
+        onClose={() => setDeletingPlaceholder(null)} onDeleted={() => setNotice("占位已删除")} onChanged={onReload} />}
 
       {editingRecord && (
         <RecordEditor

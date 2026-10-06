@@ -442,6 +442,7 @@ export class ClosingsService {
       client.workRecord.findMany({
         where: {
           storeId,
+          status: { not: "PLACEHOLDER" },
           businessDate: dateAtUtc(businessDate),
           deletedAt: null,
           ...(membershipId ? { employeeMembershipId: membershipId } : {}),

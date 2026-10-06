@@ -4,7 +4,8 @@ import { useAutoDismissState } from "./use-auto-dismiss-state";
 
 import { useEffect, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
-import { type AppLocale, translateText } from "../lib/i18n";
+import type { AppLocale } from "../lib/i18n";
+import { generateEmployeeClosingImage, type GeneratedClosingImage } from "../lib/employee-closing-image";
 import { formatUsd, formatWholeDollarAmount } from "../lib/money";
 import type { EmployeeClosingPreview, EmployeeClosingRecord } from "../lib/types";
 import { useStoreRealtime } from "../lib/realtime";
@@ -23,16 +24,6 @@ interface EmployeeClosingModalProps {
   canSend?: boolean;
   onClose: () => void;
 }
-
-interface GeneratedClosingImage {
-  blob: Blob;
-  fileName: string;
-  height: number;
-  url: string;
-  width: number;
-}
-
-const imageFont = '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
 function money(cents: number, locale: AppLocale = "zh-CN"): string {
   return formatUsd(cents, locale);
@@ -83,221 +74,6 @@ function recordAmounts(record: EmployeeClosingRecord) {
 
 function recordAmount(value: number | null) {
   return value === null ? "—" : formatWholeDollarAmount(value);
-}
-
-function roundedRect(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-) {
-  const safeRadius = Math.min(radius, width / 2, height / 2);
-  context.beginPath();
-  context.moveTo(x + safeRadius, y);
-  context.lineTo(x + width - safeRadius, y);
-  context.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
-  context.lineTo(x + width, y + height - safeRadius);
-  context.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
-  context.lineTo(x + safeRadius, y + height);
-  context.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
-  context.lineTo(x, y + safeRadius);
-  context.quadraticCurveTo(x, y, x + safeRadius, y);
-  context.closePath();
-}
-
-function fillRoundedRect(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-  color: string,
-) {
-  roundedRect(context, x, y, width, height, radius);
-  context.fillStyle = color;
-  context.fill();
-}
-
-function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error("图片生成失败，请重试"));
-    }, "image/png");
-  });
-}
-
-async function generateClosingImage(
-  preview: EmployeeClosingPreview,
-  locale: AppLocale,
-): Promise<GeneratedClosingImage> {
-  const tr = (value: string) => translateText(value, locale);
-  const logicalWidth = Math.max(1, Math.round(window.screen?.width || window.innerWidth));
-  const scale = logicalWidth / 390;
-  const margin = 24 * scale;
-  const contentWidth = logicalWidth - margin * 2;
-  const pixelRatio = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("当前设备无法生成图片");
-  const padding = 12 * scale;
-  const leftWidth = (contentWidth - padding * 3) * 0.43;
-  const rightWidth = contentWidth - padding * 3 - leftWidth;
-  const lineHeight = 14 * scale;
-  const wrap = (text: string, width: number, fontSize: number) => {
-    context.font = `800 ${Math.round(fontSize * scale)}px ${imageFont}`;
-    const lines: string[] = [];
-    let line = "";
-    for (const character of text) {
-      if (line && context.measureText(line + character).width > width) {
-        lines.push(line);
-        line = "";
-      }
-      line += character;
-    }
-    if (line) lines.push(line);
-    return lines;
-  };
-  const layouts = preview.records.map((record) => {
-    const names = wrap(recordLabel(record), leftWidth, 11);
-    const metadata = wrap(`${recordTime(record.startAt, preview.storeTimezone, locale)}–${recordTime(record.endAt, preview.storeTimezone, locale)}${record.status === "CONFIRMED" ? "" : ` · ${tr("待结账")}`}`, leftWidth, 8);
-    const height = Math.max((names.length + metadata.length) * lineHeight + 20 * scale, 76 * scale);
-    return { names, metadata, amounts: recordAmounts(record), height };
-  });
-  const logicalHeight = Math.ceil(margin * 2 + 290 * scale + layouts.reduce((sum, row) => sum + row.height + 7 * scale, 0));
-  canvas.width = Math.round(logicalWidth * pixelRatio);
-  canvas.height = Math.round(logicalHeight * pixelRatio);
-  context.scale(pixelRatio, pixelRatio);
-  const background = context.createLinearGradient(0, 0, logicalWidth, logicalHeight);
-  background.addColorStop(0, "#fffaf3");
-  background.addColorStop(0.55, "#f9eadf");
-  background.addColorStop(1, "#f2d7cb");
-  context.fillStyle = background;
-  context.fillRect(0, 0, logicalWidth, logicalHeight);
-
-  context.fillStyle = "rgba(142, 62, 47, 0.08)";
-  context.beginPath();
-  context.arc(logicalWidth * 0.88, logicalHeight * 0.08, logicalWidth * 0.3, 0, Math.PI * 2);
-  context.fill();
-
-  let y = margin;
-  context.fillStyle = "#8e3e2f";
-  context.font = `800 ${Math.round(12 * scale)}px ${imageFont}`;
-  context.fillText(tr(`${preview.storeName} · 个人日结`), margin, y + 12 * scale, contentWidth);
-  y += 32 * scale;
-
-  context.fillStyle = "#211d18";
-  context.font = `900 ${Math.round(30 * scale)}px ${imageFont}`;
-  context.fillText(preview.employee.displayName, margin, y + 29 * scale, contentWidth);
-  y += 42 * scale;
-  context.fillStyle = "#6b635a";
-  context.font = `600 ${Math.round(14 * scale)}px ${imageFont}`;
-  context.fillText(localizedDate(preview.businessDate, locale), margin, y + 14 * scale, contentWidth);
-  y += 30 * scale;
-
-  const summaryHeight = 132 * scale;
-  const totalWidth = Math.min(138 * scale, contentWidth * 0.34);
-  const tableWidth = contentWidth - totalWidth - 10 * scale;
-  fillRoundedRect(context, margin, y, contentWidth, summaryHeight, 18 * scale, "rgba(255,255,255,0.94)");
-  const labelWidth = tableWidth * 0.32;
-  const valueWidth = (tableWidth - labelWidth) / 3;
-  [tr("现金"), tr("刷卡"), tr("合计")].forEach((label, index) => {
-    context.fillStyle = "#756b62";
-    context.font = `800 ${Math.round(9 * scale)}px ${imageFont}`;
-    context.textAlign = "center";
-    context.fillText(label, margin + labelWidth + valueWidth * (index + 0.5), y + 24 * scale);
-  });
-  const summaryRows = [
-    [tr("大费工资"), preview.employee.cashLargeFeeDividendCents, preview.employee.cardLargeFeeDividendCents, preview.employee.confirmedLargeFeeWageCents],
-    [tr("小费工资"), preview.employee.cashTipDividendCents, preview.employee.cardTipDividendCents, preview.employee.confirmedTipWageCents],
-  ] as const;
-  summaryRows.forEach((row, rowIndex) => {
-    const baseline = y + (60 + rowIndex * 45) * scale;
-    context.textAlign = "left";
-    context.fillStyle = "#211d18";
-    context.font = `800 ${Math.round(10 * scale)}px ${imageFont}`;
-    context.fillText(row[0], margin + 12 * scale, baseline, labelWidth - 16 * scale);
-    [row[1], row[2], row[3]].forEach((value, column) => {
-      context.textAlign = "center";
-      context.font = `900 ${Math.round(12 * scale)}px ${imageFont}`;
-      context.fillText(compactMoney(value, locale), margin + labelWidth + valueWidth * (column + 0.5), baseline, valueWidth - 4 * scale);
-    });
-  });
-  context.strokeStyle = "#eee4dd";
-  context.lineWidth = 1.5 * scale;
-  context.beginPath();
-  context.moveTo(margin + 12 * scale, y + 75 * scale);
-  context.lineTo(margin + tableWidth - 8 * scale, y + 75 * scale);
-  context.stroke();
-  const totalX = margin + tableWidth + 2 * scale;
-  fillRoundedRect(context, totalX, y + 12 * scale, totalWidth, summaryHeight - 24 * scale, 14 * scale, "#f8dfcc");
-  context.textAlign = "left";
-  context.fillStyle = "#72311f";
-  context.font = `800 ${Math.round(11 * scale)}px ${imageFont}`;
-  context.fillText(tr("今日总收入"), totalX + 12 * scale, y + 42 * scale, totalWidth - 24 * scale);
-  context.fillStyle = "#632719";
-  context.font = `900 ${Math.round(23 * scale)}px ${imageFont}`;
-  context.fillText(money(preview.employee.confirmedIncomeCents, locale), totalX + 12 * scale, y + 86 * scale, totalWidth - 24 * scale);
-  y += summaryHeight + 10 * scale;
-
-  context.fillStyle = "#6b635a";
-  context.font = `800 ${Math.round(11 * scale)}px ${imageFont}`;
-  context.fillText(`${tr("逐笔记工")} · ${preview.records.length} ${tr("条")} · ${tr("方框表示含刷卡")}`, margin, y + 12 * scale);
-  y += 22 * scale;
-  layouts.forEach((row) => {
-    fillRoundedRect(context, margin, y, contentWidth, row.height, 13 * scale, "rgba(255,255,255,.88)");
-    let leftY = y + 18 * scale;
-    context.textAlign = "left";
-    context.fillStyle = "#211d18";
-    context.font = `900 ${Math.round(11 * scale)}px ${imageFont}`;
-    row.names.forEach((line) => { context.fillText(line, margin + padding, leftY); leftY += lineHeight; });
-    context.fillStyle = "#756b62";
-    context.font = `800 ${Math.round(8 * scale)}px ${imageFont}`;
-    row.metadata.forEach((line) => { context.fillText(line, margin + padding, leftY); leftY += lineHeight; });
-    const rightX = margin + padding * 2 + leftWidth;
-    const columnWidth = rightWidth / 2;
-    row.amounts.forEach((amount, index) => {
-      const centerX = rightX + columnWidth * (index + 0.5);
-      context.textAlign = "center";
-      context.fillStyle = "#756b62";
-      context.font = `600 ${Math.round(9 * scale)}px ${imageFont}`;
-      context.fillText(tr(amount.label), centerX, y + 19 * scale, columnWidth - 4 * scale);
-      context.fillStyle = "#211d18";
-      context.font = `800 ${Math.round(18 * scale)}px ${imageFont}`;
-      context.fillText(recordAmount(amount.value), centerX, y + 43 * scale, columnWidth - 12 * scale);
-      if (amount.card) {
-        context.strokeStyle = "#756b62";
-        context.lineWidth = scale;
-        roundedRect(context, centerX - columnWidth / 2 + 3 * scale, y + 25 * scale, columnWidth - 6 * scale, 25 * scale, 3 * scale);
-        context.stroke();
-      }
-      if (amount.gift) {
-        context.fillStyle = "#756b62";
-        context.font = `600 ${Math.round(8 * scale)}px ${imageFont}`;
-        context.fillText(tr("礼卡"), centerX, y + 63 * scale, columnWidth - 4 * scale);
-      }
-    });
-    context.textAlign = "left";
-    y += row.height + 7 * scale;
-  });
-
-  const footerY = logicalHeight - margin;
-  context.fillStyle = "#756b62";
-  context.font = `600 ${Math.round(10 * scale)}px ${imageFont}`;
-  context.textAlign = "left";
-  context.fillText(tr("Massage note · 数据以系统保存的营业日快照为准"), margin, footerY, contentWidth);
-
-  const blob = await canvasBlob(canvas);
-  return {
-    blob,
-    fileName: `${locale === "en-US" ? "employee-closing" : "个人日结"}-${preview.employee.displayName.replace(/[\\/:*?"<>|]/g, "-")}-${preview.businessDate}.png`,
-    height: canvas.height,
-    url: URL.createObjectURL(blob),
-    width: canvas.width,
-  };
 }
 
 function downloadImage(image: GeneratedClosingImage) {
@@ -358,7 +134,7 @@ export function EmployeeClosingSummary({ preview: initialPreview, canSend = fals
     setImageError("");
     setImageMessage("");
     try {
-      const next = await generateClosingImage(preview, locale);
+      const next = await generateEmployeeClosingImage(preview, locale);
       setGenerated(next);
       setImageMessage(`已按当前设备宽度生成 ${next.width} × ${next.height} PNG`);
     } catch (caught) {

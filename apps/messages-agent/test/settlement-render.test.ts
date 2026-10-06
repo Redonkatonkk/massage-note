@@ -28,13 +28,13 @@ describe.skipIf(process.platform !== "darwin")("employee settlement artifacts", 
       expect(result.longImage.byteLength).toBeLessThanOrEqual(4 * 1024 * 1024);
       expect((await readFile(detailsImage)).subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
       const detailSvg = await readFile(join(directory, "settlement-details-long.svg"), "utf8");
-      expect(detailSvg).toContain("大费: 现金 US$40.00 / 刷卡 US$60.00");
+      expect(detailSvg).toContain("大费实收: 现金 US$40.00 / 刷卡 US$60.00");
       expect(detailSvg).toContain("混合付款 · 仅计算刷卡＋礼卡部分");
       expect(detailSvg.match(/员工区间结算/g)).toHaveLength(1);
       expect(detailSvg).toContain("当日总结");
       expect(detailSvg).toContain("28 天");
-      expect(detailSvg).toContain("刷卡大费分红");
-      expect(detailSvg).toContain("刷卡小费");
+      expect(detailSvg).toContain("非现金大费工资");
+      expect(detailSvg).toContain("非现金小费");
       expect(detailSvg).toContain("非现金工资合计");
       expect(detailSvg).not.toContain("仅统计付款已确认记工");
       expect(detailSvg).not.toContain("…");

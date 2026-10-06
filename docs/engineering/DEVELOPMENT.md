@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`1.18.8`
+> 适用版本：`1.18.10`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
@@ -99,6 +99,7 @@ MASSAGE_NOTE_TEST_DATABASE_URL='postgresql://massage:massage@localhost:55432/mas
 - 数据库只追加描述性前向迁移，不改已发布迁移；生产使用 `prisma migrate deploy`，破坏性变化分阶段。保留原因：已有数据库必须能按同一历史重放升级，旧容器也需兼容过渡 schema。
 - Web 刷新复用 `refresh-queue.ts`，切店/卸载使旧结果失效；日历缓存规则以 [产品规则](../product/PRODUCT.md) 为准。保留原因：合并请求与过期响应隔离已有公共实现，重复定义缓存失效范围会产生冲突。
 - 视觉维护遵循 [UI 设计](UI_DESIGN.md)，样式变化运行 `pnpm ui:check`、`pnpm ui:mobile`；成员交互变化运行 `pnpm --filter @massage-note/web exec vitest run app/manage/members-panel.test.tsx`。保留原因：变量来源、手机层叠样式和草稿/冲突流程分别由对应检查覆盖；CI 同步运行两项样式检查，代码验证不代表视觉实测。
+- 图片主题与换行统一在 `packages/domain/src/image-layout.ts`，工资结算修改共享 `employee-settlement-image.ts`，个人日结修改共享 `employee-closing-image.ts`；同步检查对应 domain、Web `lib/*-image.test.ts` 与 Mac 代理 `test/settlement-render.test.ts`／`test/render.test.ts`。核对对象与日期、主要收入、来源汇总、时间顺序明细，以及精确金额、长文字、未知／零值和待结账提示；区间保留每天总结最左及长图容量边界，个人日结保留固定源宽和 Web 分享／下载适配。保留原因：Web 与代理使用不同图片转换环境，网页 CSS 检查不能覆盖附件阅读顺序和完整账目。
 - 保留 loading、重复点击保护和 409 核对；前端不另算最终财务或持久缓存业务响应。保留原因：等待状态、失败恢复和账目真相不能因清理丢失。
 - TypeScript workspace 继承未使用变量/参数检查；domain/contracts 测试放 `test/`，生产构建排除测试。保留原因：类型检查能发现局部死代码，构建产物不应混入测试入口。
 

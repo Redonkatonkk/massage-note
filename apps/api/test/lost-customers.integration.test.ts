@@ -60,22 +60,26 @@ describe.skipIf(!enabled).sequential("跑客记录", () => {
     ]);
     expect(replayed.id).toBe(created.id);
     expect(created.customerCount).toBe(1);
+    expect(created.isWalkIn).toBe(false);
     expect(created.note).toBe("带客户了解礼物卡");
     expect(await prisma.auditLog.count({ where: { storeId, entityType: "lost_customer", entityId: created.id, action: "lost_customer.created" } })).toBe(1);
     expect(await prisma.domainOutbox.count({ where: { storeId, aggregateType: "lost_customer", aggregateId: created.id } })).toBe(1);
     expect(await lostCustomers.list(actor(employeeId), storeId, { businessDate })).toMatchObject([{ id: created.id, occurredTime: "09:05", note: "带客户了解礼物卡", version: 1 }]);
-    const updated = await lostCustomers.update(actor(employeeId), storeId, created.id, { version: 1, occurredTime: "09:20", note: "客户考虑中", customerCount: 4 }, "lost-customer-update-key-01", "lost-update");
-    expect(updated).toMatchObject({ occurredTime: "09:20", note: "客户考虑中", version: 2 });
+    const updated = await lostCustomers.update(actor(employeeId), storeId, created.id, { version: 1, occurredTime: "09:20", note: "客户考虑中", customerCount: 4, isWalkIn: true }, "lost-customer-update-key-01", "lost-update");
+    expect(updated).toMatchObject({ occurredTime: "09:20", note: "客户考虑中", isWalkIn: true, version: 2 });
     const updatedAudit = await prisma.auditLog.findFirstOrThrow({ where: { storeId, entityType: "lost_customer", entityId: created.id, action: "lost_customer.updated" } });
-    expect(updatedAudit.beforeJson).toMatchObject({ note: "带客户了解礼物卡" });
-    expect(updatedAudit.afterJson).toMatchObject({ note: "客户考虑中", customerCount: 4 });
+    expect(updatedAudit.beforeJson).toMatchObject({ note: "带客户了解礼物卡", isWalkIn: false });
+    expect(updatedAudit.afterJson).toMatchObject({ note: "客户考虑中", customerCount: 4, isWalkIn: true });
     const preserved = await lostCustomers.update(actor(employeeId), storeId, created.id, { version: 2, occurredTime: "09:25" }, "lost-customer-update-key-02", "lost-update-preserve");
     expect(preserved.customerCount).toBe(4);
     expect((await lostCustomers.list(actor(employeeId), storeId, { businessDate }))[0]!.customerCount).toBe(4);
     expect(preserved.note).toBe("客户考虑中");
-    const cleared = await lostCustomers.update(actor(employeeId), storeId, created.id, { version: 3, occurredTime: "09:25", note: "" }, "lost-customer-update-key-03", "lost-update-clear");
+    expect(preserved.isWalkIn).toBe(true);
+    expect((await lostCustomers.list(actor(employeeId), storeId, { businessDate }))[0]!.isWalkIn).toBe(true);
+    const cleared = await lostCustomers.update(actor(employeeId), storeId, created.id, { version: 3, occurredTime: "09:25", note: "", isWalkIn: false }, "lost-customer-update-key-03", "lost-update-clear");
     expect(cleared.note).toBe("");
-    expect(await prisma.lostCustomer.findUniqueOrThrow({ where: { id: created.id } })).toMatchObject({ note: "", version: 4 });
+    expect(cleared.isWalkIn).toBe(false);
+    expect(await prisma.lostCustomer.findUniqueOrThrow({ where: { id: created.id } })).toMatchObject({ note: "", isWalkIn: false, version: 4 });
     expect(await prisma.auditLog.count({ where: { storeId, entityType: "lost_customer", entityId: created.id, action: "lost_customer.updated" } })).toBe(3);
     expect(await prisma.domainOutbox.count({ where: { storeId, aggregateType: "lost_customer", aggregateId: created.id } })).toBe(4);
     await expect(lostCustomers.remove(actor(employeeId), storeId, created.id, { version: 1 }, "lost-customer-delete-key-01", "lost-delete-stale")).rejects.toMatchObject({ response: expect.objectContaining({ code: "LOST_CUSTOMER_VERSION_CONFLICT" }) });
@@ -84,6 +88,24 @@ describe.skipIf(!enabled).sequential("跑客记录", () => {
     expect(await prisma.domainOutbox.count({ where: { storeId, aggregateType: "lost_customer", aggregateId: created.id } })).toBe(5);
     expect(await lostCustomers.list(actor(employeeId), storeId, { businessDate })).toEqual([]);
     expect(await prisma.lostCustomer.findUnique({ where: { id: created.id } })).toMatchObject({ deletedAt: expect.any(Date), version: 5 });
+  });
+
+  it("创建 Walk-in 后幂等重放和列表保留标记，软删除审计保留来源", async () => {
+    const businessDate = (await boards.currentBusinessDay(actor(employeeId), storeId)).businessDate;
+    const input = { businessDate, occurredTime: "10:00", isWalkIn: true };
+    const created = await lostCustomers.create(actor(employeeId), storeId, input, "lost-walk-in-create-key-01", "walk-in-create");
+    const replayed = await lostCustomers.create(actor(employeeId), storeId, input, "lost-walk-in-create-key-01", "walk-in-replay");
+    expect(replayed).toEqual(created);
+    expect(await lostCustomers.list(actor(employeeId), storeId, { businessDate })).toMatchObject([{ id: created.id, isWalkIn: true }]);
+    expect(await prisma.lostCustomer.findUniqueOrThrow({ where: { id: created.id } })).toMatchObject({ isWalkIn: true });
+    await expect(lostCustomers.update(actor(employeeId), storeId, created.id, { version: 2, occurredTime: "10:00", isWalkIn: false }, "lost-walk-in-stale-key-01", "walk-in-stale"))
+      .rejects.toMatchObject({ response: expect.objectContaining({ code: "LOST_CUSTOMER_VERSION_CONFLICT" }) });
+    const deleted = await lostCustomers.remove(actor(employeeId), storeId, created.id, { version: 1 }, "lost-walk-in-delete-key-01", "walk-in-delete");
+    expect(deleted.isWalkIn).toBe(true);
+    const audit = await prisma.auditLog.findFirstOrThrow({ where: { storeId, entityId: created.id, action: "lost_customer.deleted" } });
+    expect(audit.beforeJson).toMatchObject({ isWalkIn: true });
+    expect(audit.afterJson).toMatchObject({ isWalkIn: true });
+    expect(await lostCustomers.list(actor(employeeId), storeId, { businessDate })).toEqual([]);
   });
 
   it("拒绝未授权和跨店修改或删除", async () => {
@@ -111,13 +133,13 @@ describe.skipIf(!enabled).sequential("跑客记录", () => {
     const outboxBefore = await prisma.domainOutbox.count({ where: { storeId, aggregateType: "lost_customer" } });
     await expect(lostCustomers.create(actor(employeeId), storeId, { businessDate, occurredTime: "11:15" }, "lost-customer-close-create-02", "lost-close-create-rejected"))
       .rejects.toMatchObject({ response: expect.objectContaining({ code: "BUSINESS_DAY_CLOSED" }) });
-    await expect(lostCustomers.update(actor(employeeId), storeId, created.id, { version: 1, occurredTime: "11:30" }, "lost-customer-close-update-01", "lost-close-update-rejected"))
+    await expect(lostCustomers.update(actor(employeeId), storeId, created.id, { version: 1, occurredTime: "11:30", isWalkIn: true }, "lost-customer-close-update-01", "lost-close-update-rejected"))
       .rejects.toMatchObject({ response: expect.objectContaining({ code: "BUSINESS_DAY_CLOSED" }) });
     await expect(lostCustomers.remove(actor(employeeId), storeId, created.id, { version: 1 }, "lost-customer-close-delete-01", "lost-close-delete-rejected"))
       .rejects.toMatchObject({ response: expect.objectContaining({ code: "BUSINESS_DAY_CLOSED" }) });
 
     expect(await prisma.auditLog.count({ where: { storeId, entityType: "lost_customer" } })).toBe(auditsBefore);
     expect(await prisma.domainOutbox.count({ where: { storeId, aggregateType: "lost_customer" } })).toBe(outboxBefore);
-    expect(await prisma.lostCustomer.findUnique({ where: { id: created.id } })).toMatchObject({ occurredTime: "11:00", deletedAt: null, version: 1 });
+    expect(await prisma.lostCustomer.findUnique({ where: { id: created.id } })).toMatchObject({ occurredTime: "11:00", isWalkIn: false, deletedAt: null, version: 1 });
   });
 });

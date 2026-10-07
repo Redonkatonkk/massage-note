@@ -693,6 +693,7 @@ model LostCustomer {
   businessDate DateTime @map("business_date") @db.Date
   occurredTime String  @map("occurred_time") @db.VarChar(5)
   customerCount Int @default(1) @map("customer_count")
+  isWalkIn     Boolean @default(false) @map("is_walk_in")
   note         String  @default("") @db.VarChar(500)
   version     Int       @default(1)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)

@@ -41,3 +41,20 @@ describe("跑客人数", () => {
     }
   });
 });
+
+describe("跑客 Walk-in 标记", () => {
+  it("允许省略或明确设置布尔标记，拒绝字符串、数字和空值", () => {
+    const create = { businessDate: "2026-10-06", occurredTime: "13:00" };
+    const update = { version: 1, occurredTime: "13:00" };
+    expect(createLostCustomerSchema.parse(create).isWalkIn).toBeUndefined();
+    expect(updateLostCustomerSchema.parse(update).isWalkIn).toBeUndefined();
+    for (const isWalkIn of [true, false]) {
+      expect(createLostCustomerSchema.parse({ ...create, isWalkIn }).isWalkIn).toBe(isWalkIn);
+      expect(updateLostCustomerSchema.parse({ ...update, isWalkIn }).isWalkIn).toBe(isWalkIn);
+    }
+    for (const isWalkIn of ["true", "false", 1, null]) {
+      expect(createLostCustomerSchema.safeParse({ ...create, isWalkIn }).success).toBe(false);
+      expect(updateLostCustomerSchema.safeParse({ ...update, isWalkIn }).success).toBe(false);
+    }
+  });
+});

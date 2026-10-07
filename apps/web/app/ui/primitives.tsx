@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type IconName = "log" | "chart" | "store" | "user" | "arrow" | "gift" | "discount" | "wallet" | "trend" | "clock" | "check" | "sparkles" | "help" | "plus";
+export type IconName = "log" | "chart" | "store" | "user" | "arrow" | "gift" | "discount" | "wallet" | "trend" | "clock" | "check" | "sparkles" | "help" | "plus" | "walk-in";
 
 const iconPaths: Record<IconName, ReactNode> = {
   log: <><rect x="5" y="4" width="14" height="17" rx="3" /><path d="M9 4V2m6 2V2M9 10h6m-6 4h4" /></>,
@@ -17,6 +17,7 @@ const iconPaths: Record<IconName, ReactNode> = {
   sparkles: <><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z" /><path d="M20 2v4m-2-2h4" /></>,
   help: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 4.5 1.5c-1 .6-2 1-2 2.5m0 3h.01" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
+  "walk-in": <><circle cx="13" cy="4" r="2" /><path d="m7 21 3-6m6 6-2-5-3-3 1-5m-5 6V9l5-1 4 4h4" /></>,
 };
 
 export function UiIcon({ name, className = "" }: { name: IconName; className?: string }) {

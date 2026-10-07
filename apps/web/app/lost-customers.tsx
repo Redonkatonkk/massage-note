@@ -3,22 +3,14 @@
 import { useAutoDismissState } from "./use-auto-dismiss-state";
 
 import { useEffect, useRef, useState } from "react";
+import type { LostCustomer } from "@massage-note/contracts";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { createRefreshQueue } from "../lib/refresh-queue";
 import { useStoreRealtime } from "../lib/realtime";
 import { currentStoreTime, formatWorkTime } from "../lib/time";
 import { useLanguage } from "./language-provider";
 import { WorkTimeInput } from "./work-time-input";
-
-interface LostCustomer {
-  id: string;
-  storeId: string;
-  businessDate: string;
-  occurredTime: string;
-  note: string;
-  customerCount: number;
-  version: number;
-}
+import { UiIcon } from "./ui/primitives";
 
 // The board keys this component by store/date so an old request cannot change a new day's state.
 export function LostCustomers({ storeId, businessDate, canEdit }: {
@@ -38,6 +30,7 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
   const countValid = /^\d+$/.test(customerCount) && Number(customerCount) >= 1 && Number(customerCount) <= 999;
   const totalCustomers = records.reduce((sum, record) => sum + record.customerCount, 0);
   const [note, setNote] = useState("");
+  const [isWalkIn, setIsWalkIn] = useState(false);
   const [valid, setValid] = useState(false);
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
@@ -65,6 +58,7 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
     setEditing(record);
     setCustomerCount(String(record?.customerCount ?? 1));
     setNote(record?.note ?? "");
+    setIsWalkIn(record?.isWalkIn ?? false);
     setTime(record?.occurredTime ?? currentStoreTime(Intl.DateTimeFormat().resolvedOptions().timeZone));
     setValid(true); setError(""); setNotice("");
   }
@@ -78,8 +72,8 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
         method: remove ? "DELETE" : editing ? "PATCH" : "POST",
         idempotent: true,
         body: remove ? { version: editing!.version } : editing
-          ? { version: editing.version, occurredTime: time, note, customerCount: Number(customerCount) }
-          : { businessDate, occurredTime: time, note, customerCount: Number(customerCount) },
+          ? { version: editing.version, occurredTime: time, note, customerCount: Number(customerCount), isWalkIn }
+          : { businessDate, occurredTime: time, note, customerCount: Number(customerCount), isWalkIn },
       });
       if (!alive.current) return;
       setEditing(undefined);
@@ -105,13 +99,15 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
     </header>
     {loadError && <p className={loadNotice ? "form-error" : undefined} role={loadNotice ? "alert" : undefined}>{loadNotice} <button className="table-action" type="button" onClick={() => void queue.current?.request()}>{t("重试", "Retry")}</button></p>}
     {records.length > 0 && <ul className="lost-customers__list">{records.map(record => <li key={record.id}>
-      <button type="button" disabled={!canEdit || busy} onClick={() => open(record)} aria-label={t(`修改 ${formatWorkTime(record.occurredTime)} 的跑客记录`, `Edit lost customer at ${formatWorkTime(record.occurredTime)}`)}>
+      <button className={record.isWalkIn ? "lost-customer-card--walk-in" : undefined} type="button" disabled={!canEdit || busy} onClick={() => open(record)} aria-label={t(`${canEdit ? "修改" : "查看"} ${formatWorkTime(record.occurredTime)} 的跑客记录`, `${canEdit ? "Edit" : "View"} lost customer at ${formatWorkTime(record.occurredTime)}`) + (record.isWalkIn ? " · Walk-in" : "")}>
+        {record.isWalkIn && <span className="lost-customers__walk-in-icon" title={t("Walk-in（直接到店）", "Walk-in")} aria-hidden="true"><UiIcon name="walk-in" /></span>}
         <time dateTime={`${businessDate}T${record.occurredTime}`}>{formatWorkTime(record.occurredTime)}</time><span>{t(`${record.customerCount} 位`, `${record.customerCount} ${record.customerCount === 1 ? "customer" : "customers"}`)}</span>{record.note && <span className="lost-customers__note">{record.note}</span>}
       </button>
     </li>)}</ul>}
     {editing !== undefined && canEdit && <form className="lost-customers__form" onSubmit={event => { event.preventDefault(); void save(); }}>
       <label htmlFor="lost-customer-time">{t("跑客时间", "Time customer left")}<WorkTimeInput id="lost-customer-time" value={time} onChange={setTime} onValidityChange={setValid} /></label>
       <label htmlFor="lost-customer-count">{t("客人数", "Number of customers")}<input id="lost-customer-count" type="number" inputMode="numeric" min={1} max={999} step={1} required value={customerCount} disabled={busy} onChange={event => setCustomerCount(event.target.value)} /></label>
+      <button className="secondary-action compact lost-customers__walk-in-toggle" type="button" aria-pressed={isWalkIn} disabled={busy} onClick={() => setIsWalkIn(current => !current)}><UiIcon name="walk-in" />Walk-in</button>
       <label htmlFor="lost-customer-note">{t("备注（可选）", "Note (optional)")}<textarea id="lost-customer-note" rows={2} maxLength={500} value={note} disabled={busy} onChange={event => setNote(event.target.value)} placeholder={t("例如：等待时间太长", "For example: wait was too long")} /></label>
       <div className="lost-customers__actions">
         <button className="primary-action compact" type="submit" disabled={busy || !valid || !countValid}>{busy ? t("保存中…", "Saving…") : t("保存", "Save")}</button>

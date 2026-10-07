@@ -399,6 +399,11 @@ button, summary { overflow-wrap: anywhere; }
 .lost-customers__list button:disabled { opacity: 1; cursor: default; }
 .lost-customers__list time { font-weight: 700; }
 .lost-customers__list span { color: var(--muted); font-size: .8rem; }
+.lost-customers__list .lost-customer-card--walk-in { position: relative; padding-right: 40px; }
+.lost-customers__list .lost-customers__walk-in-icon { position: absolute; top: 10px; right: 10px; color: var(--brand); }
+.lost-customers__walk-in-icon .ui-icon { width: 16px; height: 16px; }
+.lost-customers__walk-in-toggle { display: inline-flex; align-items: center; justify-self: start; gap: 6px; }
+.lost-customers__walk-in-toggle[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
 .lost-customers__form { display: grid; gap: 12px; margin: 0 16px 16px; padding-top: 16px; border-top: 1px solid var(--line); }
 .lost-customers__note { max-width: 320px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .lost-customers__form textarea { box-sizing: border-box; width: 100%; min-height: 78px; resize: vertical; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); }

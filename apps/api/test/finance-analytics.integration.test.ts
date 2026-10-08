@@ -17,7 +17,7 @@ describe.skipIf(!enabled).sequential("经营分析数据库与权限", () => {
     await prisma.user.createMany({ data: [owner, employee, outsider].map(id => ({ id, firebaseUid: `analytics-${id}`, phoneE164: `+1646${randomInt(1000000, 9999999)}` })) });
     await prisma.store.create({ data: { id: storeId, storeCode: randomInt(0, 1000000).toString().padStart(6, "0"), name: "经营分析测试", timezone: "America/New_York", businessCutoffLocal: "00:00", globalCommissionBps: 5000, status: "ACTIVE" } });
     await prisma.storeMembership.createMany({ data: [{ id: memberId, storeId, userId: owner, role: "OWNER", displayName: "老板", displayNameNormalized: "老板" }, { id: employeeMember, storeId, userId: employee, role: "EMPLOYEE", displayName: "员工", displayNameNormalized: "员工" }] });
-    await prisma.workRecord.createMany({ data: [false, false, true].map((deleted, index) => ({ storeId, employeeMembershipId: memberId, businessDate: date, startAt: new Date("2026-01-05T15:30:00Z"), storeTimezoneSnapshot: "America/New_York", businessCutoffSnapshot: "00:00", status: index === 0 ? "CONFIRMED" : "PENDING_PAYMENT", mainServiceAmountCents: 10000n, grossFeeBaseCents: 10000n, discountedFeePerformanceCents: 10000n, mainServiceWageCents: 5000n, totalLargeFeeWageCents: 5000n, cashServiceCents: 10000n, cardServiceCents: 0n, giftCardServiceCents: 0n, cashTipCents: 0n, cardTipCents: 0n, giftCardTipCents: 0n, totalTipCents: 0n, actualServiceCollectedCents: 10000n, customerTotalPaidCents: 10000n, employeeTotalIncomeCents: 5000n, cashAllocatedServiceWageCents: 5000n, cashAcquiredServiceWageCents: 5000n, cashWageShortfallCents: 0n, createdBy: owner, updatedBy: owner, deletedAt: deleted ? new Date() : null })) });
+    await prisma.workRecord.createMany({ data: [false, false, true].map((deleted, index) => ({ storeId, employeeMembershipId: memberId, businessDate: date, startAt: new Date("2026-01-05T15:30:00Z"), storeTimezoneSnapshot: "America/New_York", businessCutoffSnapshot: "00:00", status: index === 0 ? "CONFIRMED" : "PENDING_PAYMENT", isHighlighted: index > 0, mainServiceAmountCents: 10000n, grossFeeBaseCents: 10000n, discountedFeePerformanceCents: 10000n, mainServiceWageCents: 5000n, totalLargeFeeWageCents: 5000n, cashServiceCents: 10000n, cardServiceCents: 0n, giftCardServiceCents: 0n, cashTipCents: 0n, cardTipCents: 0n, giftCardTipCents: 0n, totalTipCents: 0n, actualServiceCollectedCents: 10000n, customerTotalPaidCents: 10000n, employeeTotalIncomeCents: 5000n, cashAllocatedServiceWageCents: 5000n, cashAcquiredServiceWageCents: 5000n, cashWageShortfallCents: 0n, createdBy: owner, updatedBy: owner, deletedAt: deleted ? new Date() : null })) });
     await prisma.giftCardSale.createMany({ data: [false, true].map((deleted, index) => ({ storeId, businessDate: date, serialNumber: `analytics-${index}`, serialNumberNormalized: `analytics-${index}`, faceValueCents: 5000n, amountCents: 4500n, discountCents: 500n, cashCents: 4500n, cardCents: 0n, operatorMembershipId: memberId, createdBy: owner, updatedBy: owner, deletedAt: deleted ? new Date() : null })) });
     await prisma.lostCustomer.createMany({ data: [
       { businessDate: new Date("2026-01-04T00:00:00Z"), occurredTime: "09:30", deletedAt: null },
@@ -54,11 +54,18 @@ describe.skipIf(!enabled).sequential("经营分析数据库与权限", () => {
     expect(onlyLost.hasData).toBe(true);
     expect(onlyLost.days[0]).toMatchObject({ count: 0, lostCustomerCount: 1, revenueCents: null });
   });
-  it("已日结金额包含有效卖卡且去重，取消后恢复缺口", async () => {
+  it("三种高亮筛选统一作用于数量、热力、营业额及平均，仅高亮排除卖卡，跑客不变", async () => {
     const closing = await prisma.businessDayClosing.create({ data: { storeId, businessDate: date, status: "CLOSED", closedBy: owner, cycleNo: 1, totalsSnapshotJson: {}, warningSnapshotJson: [] } });
-    const result = await service.analytics(actor(owner), storeId, { dateFrom: "2026-01-05", dateTo: "2026-01-05" });
-    expect(result.days[0]!.revenueCents).toBe("24500");
-    expect(result.weekdays[0]!.closedDayCount).toBe(1);
+    for (const [highlightFilter, count, revenueCents] of [["ALL", 2, "24500"], ["ONLY_HIGHLIGHTED", 1, "10000"], ["EXCLUDE_HIGHLIGHTED", 1, "14500"]] as const) {
+      const result = await service.analytics(actor(owner), storeId, { dateFrom: "2026-01-05", dateTo: "2026-01-05", highlightFilter });
+      expect(result.hours[10]!.count).toBe(count);
+      expect(result.days[0]).toMatchObject({ count, lostCustomerCount: 4, revenueCents, averageCents: revenueCents, averageDayCount: 1 });
+      expect(result.days[0]!.hours[10]).toBe(count);
+      expect(result.weekdays[0]).toMatchObject({ closedDayCount: 1, calendarDayCount: 1, averageCents: revenueCents });
+      expect(result.weekdays[0]!.hours[10]).toBe(count);
+      await expect(service.analytics(actor(employee), storeId, { highlightFilter })).rejects.toThrow();
+      await expect(service.analytics(actor(outsider), storeId, { highlightFilter })).rejects.toThrow();
+    }
     await prisma.businessDayClosing.update({ where: { id: closing.id }, data: { status: "CANCELLED" } });
     expect((await service.analytics(actor(owner), storeId, { dateFrom: "2026-01-05", dateTo: "2026-01-05" })).days[0]!.revenueCents).toBeNull();
   });

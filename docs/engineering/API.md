@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.20.1`
+> 适用版本：`1.21.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -348,7 +348,7 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 
 `GET /stores/:storeId/finance/analytics`：仅具有 `FINANCE_READ_STORE` 能力的当前店铺活跃成员可读取。
 
-查询为独立的 `FinanceAnalyticsQuery`：可选 `dateFrom`、`dateTo`（ISO营业日期，包含两端）。省略起日取最早有效业务/日结日，省略止日取当前营业日；没有历史时起日等于止日。拒绝反向、未来结束日期和其他筛选参数。保留原因：聚合来自历史业务日期，展示裁剪不能改变完整统计和权限。
+查询为独立的 `FinanceAnalyticsQuery`：可选 `dateFrom`、`dateTo`（ISO营业日期，包含两端）及 `highlightFilter`（`ALL`、`ONLY_HIGHLIGHTED`、`EXCLUDE_HIGHLIGHTED`，省略按 `ALL`）。省略起日取当前条件下最早有效业务/日结日，省略止日取当前营业日；没有历史时起日等于止日。高亮条件统一筛选当前范围及均线窗口的记工；`ONLY_HIGHLIGHTED` 不含店铺级礼物卡销售，其他模式包含有效卖卡；跑客人数和已日结样本日期不受高亮条件影响。拒绝反向、未来结束日期、无效高亮值和其他筛选参数。保留原因：聚合来自历史业务日期，所有图表及窗口须采用同一筛选，独立的跑客和日结事实不随记工标记变化。
 
 响应 `FinanceAnalyticsResponse`：`dateFrom`、`dateTo`、`hasData`，以及 `hours`（24项hour/count）、`days`（businessDate/count/lostCustomerCount/hours/revenueCents/averageCents/averageDayCount）、`weekdays`（7项weekday/closedDayCount/calendarDayCount/averageCents/hours）。weekday以0代表星期一；金额为整美分十进制字符串，无日结金额/无平均样本为null；weekdays.hours为24项累计笔数；days.hours为该营业日的24项小时笔数，记工和跑客均无数据的日期补零，只有跑客的日期仍返回，小时沿用记工时区快照。每日跑客数量按有效记录的 `customerCount` 求和；每日数量图把跑客数量显示在记工数量上方，0笔跑客不绘制额外区段。
 

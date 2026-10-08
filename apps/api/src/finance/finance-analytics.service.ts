@@ -21,11 +21,14 @@ export class FinanceAnalyticsService {
       const today = businessDateFor({ startAt: deviceNow(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
       const dateTo = query.dateTo ?? today;
       const base = { storeId, deletedAt: null };
-      const workBase = { ...base, status: { not: "PLACEHOLDER" as const } };
+      const highlightedOnly = query.highlightFilter === "ONLY_HIGHLIGHTED";
+      const workBase = { ...base, status: { not: "PLACEHOLDER" as const },
+        ...(highlightedOnly ? { isHighlighted: true } : query.highlightFilter === "EXCLUDE_HIGHLIGHTED" ? { isHighlighted: false } : {}),
+      };
       const closingBase = { storeId, status: "CLOSED" as const };
       const [recordStart, saleStart, closingStart, lostCustomerStart] = await Promise.all([
         client.workRecord.aggregate({ where: { ...workBase, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
-        client.giftCardSale.aggregate({ where: { ...base, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
+        highlightedOnly ? Promise.resolve({ _min: { businessDate: null } }) : client.giftCardSale.aggregate({ where: { ...base, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
         client.businessDayClosing.aggregate({ where: { ...closingBase, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
         client.lostCustomer.aggregate({ where: { ...base, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
       ]);
@@ -35,7 +38,7 @@ export class FinanceAnalyticsService {
       const businessDate = { gte: asDate(shiftAnalyticsDate(dateFrom, -6)), lte: asDate(dateTo) };
       const [records, sales, closings, lostCustomers] = await Promise.all([
         client.workRecord.findMany({ where: { ...workBase, businessDate }, select: { businessDate: true, startAt: true, storeTimezoneSnapshot: true, discountedFeePerformanceCents: true } }),
-        client.giftCardSale.findMany({ where: { ...base, businessDate }, select: { businessDate: true, amountCents: true } }),
+        highlightedOnly ? Promise.resolve([]) : client.giftCardSale.findMany({ where: { ...base, businessDate }, select: { businessDate: true, amountCents: true } }),
         client.businessDayClosing.findMany({ where: { ...closingBase, businessDate }, select: { businessDate: true }, distinct: ["businessDate"] }),
         client.lostCustomer.findMany({ where: { ...base, businessDate }, select: { businessDate: true, customerCount: true } }),
       ]);

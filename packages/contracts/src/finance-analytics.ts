@@ -4,6 +4,7 @@ import { businessDateSchema } from "./common.js";
 export const financeAnalyticsQuerySchema = z.object({
   dateFrom: businessDateSchema.optional(),
   dateTo: businessDateSchema.optional(),
+  highlightFilter: z.enum(["ALL", "ONLY_HIGHLIGHTED", "EXCLUDE_HIGHLIGHTED"]).optional(),
 }).strict().refine(value => !value.dateFrom || !value.dateTo || value.dateFrom <= value.dateTo, {
   path: ["dateTo"], message: "结束日期不能早于开始日期",
 });

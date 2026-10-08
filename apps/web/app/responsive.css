@@ -343,11 +343,14 @@ button, summary { overflow-wrap: anywhere; }
 
 .analytics-panel .quick-ranges { display: flex; flex-wrap: wrap; }
 .analytics-panel .quick-ranges button { flex: 1 0 110px; white-space: nowrap; }
-.analytics-panel .filter-panel { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+.analytics-panel .filter-panel { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; }
 .analytics-panel .filter-panel > .quick-ranges { grid-column: 1 / -1; }
 .analytics-panel .filter-panel > .filter-panel__heading { grid-column: 1 / -1; grid-row: 1; }
 .analytics-panel .filter-panel > .quick-ranges { grid-row: 2; }
-.analytics-panel .filter-panel > label, .analytics-panel .filter-panel > .primary-action { grid-row: 3; }
+.analytics-panel .filter-panel > label, .analytics-panel .filter-panel > .primary-action { grid-row: auto; }
+@media (min-width: 601px) and (max-width: 900px) {
+  .analytics-panel .filter-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 /* Hourly breakdown: compact dates, explicit totals, and no zero-count date rows. */
 .analytics-grid { align-items: start; }

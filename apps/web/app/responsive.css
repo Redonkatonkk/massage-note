@@ -496,13 +496,17 @@ button, summary { overflow-wrap: anywhere; }
   .app-nav-caption { display: block; margin: 32px 12px 12px; font-size: .75rem; letter-spacing: .04em; color: var(--muted); white-space: nowrap; visibility: hidden; }
   .app-nav-links, .app-nav-links--with-ai { grid-template-columns: minmax(0, 1fr); gap: 4px; flex-shrink: 0; }
   .bottom-nav__item { display: flex; justify-content: flex-start; gap: 12px; min-height: 44px; padding: 10px 13px; font-size: .875rem; border-radius: var(--radius-control); }
+  .app-nav-parent-link { display: none; }
   .bottom-nav__item .ui-icon, .app-nav-footer > a > .ui-icon { flex-shrink: 0; width: 20px; height: 20px; }
   .bottom-nav__item > .app-nav-label, .app-nav-brand > span, .app-nav-footer .app-nav-label, .app-nav-footer__arrow, .app-nav-version { display: none; }
   .bottom-nav:is(:hover, :has(:focus-visible)) :is(.app-nav-brand > span, .app-nav-label, .app-nav-footer__arrow, .app-nav-version) { display: inline; white-space: nowrap; }
   .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-caption { visibility: visible; }
   .bottom-nav__item--active { font-weight: 600; }
+  .app-nav-toggle > .app-nav-toggle__arrow { display: none; width: 16px; height: 16px; margin-left: auto; }
+  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-toggle__arrow { display: block; }
+  .app-nav-toggle[aria-expanded="true"] > .app-nav-toggle__arrow { transform: rotate(90deg); }
   .app-nav-submenu { display: none; gap: 2px; margin: 4px 0 12px 22px; padding-left: 12px; border-left: 1px solid var(--line); }
-  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-submenu { display: grid; }
+  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-submenu:not([hidden]) { display: grid; }
   .app-nav-submenu a { display: flex; align-items: center; min-height: 40px; padding: 8px 12px; border-radius: var(--radius-control); color: var(--muted); font-size: .8rem; line-height: 1.4; text-decoration: none; overflow-wrap: anywhere; }
   .app-nav-submenu a:hover { color: var(--ink); background: var(--surface-soft); }
   .app-nav-submenu a[aria-current="page"] { color: var(--brand); background: var(--brand-soft); font-weight: 550; }

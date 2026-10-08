@@ -203,6 +203,7 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .app-nav-links { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
 .app-nav-links--with-ai { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .app-nav-ai { width: 100%; border: 0; background: transparent; font-family: inherit; cursor: pointer; }
+.app-nav-toggle { display: none; width: 100%; border: 0; background: transparent; font-family: inherit; cursor: pointer; text-align: left; }
 .ai-dialog-root { position: relative; z-index: 40; }
 .app-nav-group { min-width: 0; }
 .app-nav-submenu, .app-nav-brand, .app-nav-caption, .app-nav-footer { display: none; }

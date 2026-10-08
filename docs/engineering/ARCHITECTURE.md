@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.22.0` 代码结构核对。
+> 状态：与 `1.22.1` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -69,7 +69,7 @@ packages/contracts  只依赖 Zod
 
 财务页面内部复用的日期截取与 UTC 日期加减放在 `apps/web/app/finance/date-utils.ts`。
 
-Web 视觉按 `globals.css`（基础规则与颜色变量）、`design-system.css`（共享视觉与轻动效）、`responsive.css`（断点布局）顺序加载。`app/ui/primitives.tsx` 复用 SVG 图标、品牌与指标；`app-nav.tsx` 用同一组链接呈现桌面自动收缩侧栏和小屏底栏，保留店铺参数与导航高度测量。桌面主区域只预留 64px，侧栏通过 CSS 悬停或 `:focus-visible` 展开至 216px 并覆盖内容，鼠标点击焦点不会使其常驻。`lib/app-navigation.ts` 统一角色菜单，`use-navigation-tab.ts` 同步 URL 与页面分区；桌面侧栏展开后展示当前页面的子导航，小屏使用页面标签。成员页由 `manage/members-panel.tsx` 组织员工目录、选中档案与确认表单，`lib/member-management.ts` 验证完整草稿后依次提交资料和提成版本接口；DOM 流程测试使用 React/jsdom，不启动浏览器。记工辅助模块的外观由 `.board-panel` 维护，成员 fieldset 的标题与内容分别布局；`scripts/check-ui-styles.mjs` 检查颜色/圆角变量与断点覆盖边界。设计依据见 [UI 设计](UI_DESIGN.md)。保留原因：实际入口、样式层叠和生命周期已有公共实现，重复实现会失去一致性。
+Web 视觉按 `globals.css`（基础规则与颜色变量）、`design-system.css`（共享视觉与轻动效）、`responsive.css`（断点布局）顺序加载。`app/ui/primitives.tsx` 复用 SVG 图标、品牌与指标；`app-nav.tsx` 用同一组菜单呈现桌面自动收缩侧栏和小屏底栏，保留店铺参数与导航高度测量。桌面主区域只预留 64px，侧栏通过 CSS 悬停或 `:focus-visible` 展开至 216px 并覆盖内容，鼠标点击焦点不会使其常驻。`lib/app-navigation.ts` 统一角色菜单，`use-navigation-tab.ts` 同步 URL 与页面分区；桌面财务与店铺设置父项使用按钮独立切换子目录，默认收起；子项保留原生深链接，仅当前页面的普通点击使用分区回调。小屏父项仍为页面链接，并使用页面标签。成员页由 `manage/members-panel.tsx` 组织员工目录、选中档案与确认表单，`lib/member-management.ts` 验证完整草稿后依次提交资料和提成版本接口；DOM 流程测试使用 React/jsdom，不启动浏览器。记工辅助模块的外观由 `.board-panel` 维护，成员 fieldset 的标题与内容分别布局；`scripts/check-ui-styles.mjs` 检查颜色/圆角变量与断点覆盖边界。设计依据见 [UI 设计](UI_DESIGN.md)。保留原因：实际入口、样式层叠和生命周期已有公共实现，重复实现会失去一致性。
 
 `apps/web/lib` 放共享客户端能力：
 

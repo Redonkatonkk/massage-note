@@ -1,6 +1,6 @@
 # 产品与业务规则
 
-> 状态：当前产品规则 · 适用版本：`1.22.0`
+> 状态：当前产品规则 · 适用版本：`1.22.1`
 > 核对依据：领域函数、共享契约、API 服务及其测试。HTTP 字段见 [API](../engineering/API.md)，布局见 [UI 设计](../engineering/UI_DESIGN.md)，维护流程见 [开发指南](../engineering/DEVELOPMENT.md)。
 
 ## 产品范围与数据原则

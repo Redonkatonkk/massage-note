@@ -23,7 +23,7 @@ function stats(count = 2): FinanceAnalyticsResponse {
   };
 }
 async function render() { await act(async () => root.render(<AnalyticsPanel storeId="store" today="2026-10-07" />)); }
-function query() { return new URL(String(request.mock.calls.at(-1)![0]), "http://localhost").searchParams; }
+function query() { return new URL(String(request.mock.calls.filter(([path]) => String(path).includes("/analytics?")).at(-1)![0]), "http://localhost").searchParams; }
 async function changeHighlight(value: string) {
   await act(async () => {
     const select = container.querySelector("select")!;
@@ -36,7 +36,7 @@ function hourlyCount() { return container.querySelector(".analytics-card .analyt
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
-  language.locale = "zh-CN"; request.mockReset(); request.mockResolvedValue(stats());
+  language.locale = "zh-CN"; request.mockReset(); request.mockImplementation(async path => String(path).includes("/summary?") ? { days: [] } : stats());
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 
@@ -85,7 +85,8 @@ it("筛选失败可重试当前条件，空结果沿用空状态", async () => {
   request.mockResolvedValueOnce(stats(0));
   await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "重试")!.click());
   expect(query().get("highlightFilter")).toBe("ONLY_HIGHLIGHTED");
-  expect(container.querySelector(".empty-state")!.textContent).toBe("当前范围没有经营数据。");
+  expect(container.textContent).toContain("当前范围没有经营数据。");
+  expect(container.querySelector(".analytics-revenue-calendar")).not.toBeNull();
 });
 
 it("英文提供相同的三种筛选", async () => {
@@ -93,4 +94,23 @@ it("英文提供相同的三种筛选", async () => {
   expect([...container.querySelector("select")!.options].map(option => option.textContent)).toEqual(["Highlighted only", "Exclude highlighted", "All"]);
   await changeHighlight("ONLY_HIGHLIGHTED");
   expect(container.textContent).toContain("excludes card sales and tips");
+});
+
+it("营业额日历直接使用切换后的分析响应，历史范围与每日小计采用同一高光条件", async () => {
+  request.mockImplementation(async path => {
+    const url = new URL(String(path), "http://localhost");
+    if (url.pathname.endsWith("/summary")) return { days: [] };
+    const revenueCents = url.searchParams.get("highlightFilter") === "EXCLUDE_HIGHLIGHTED" ? "6000" : url.searchParams.get("highlightFilter") === "ONLY_HIGHLIGHTED" ? "4000" : "10000";
+    const response = stats();
+    return { ...response, dateFrom: "2026-09-30", days: response.days.map(day => ({ ...day, revenueCents })) };
+  });
+  await render();
+  for (const [filter, revenue] of [["ALL", "100"], ["EXCLUDE_HIGHLIGHTED", "60"], ["ONLY_HIGHLIGHTED", "40"]]) {
+    if (filter !== "ALL") await changeHighlight(filter!);
+    expect(container.querySelector('.analytics-revenue-calendar time[datetime="2026-10-07"]')!.nextElementSibling!.textContent).toBe(revenue);
+    const params = new URL(String(request.mock.calls.filter(([path]) => String(path).includes("/summary?")).at(-1)![0]), "http://localhost").searchParams;
+    expect(params.get("dateFrom")).toBe("2026-09-30");
+    expect(params.get("highlightFilter")).toBe(filter);
+  }
+  expect(request.mock.calls.some(([path]) => String(path).includes("open-work-dates"))).toBe(false);
 });

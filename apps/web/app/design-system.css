@@ -518,3 +518,10 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .ai-preview header { background: var(--surface-soft); }
 .ai-preview header em { background: var(--pending); color: var(--pending-ink); border-radius: 4px; }
 .login-intro h1 > span { display: block; }
+
+/* Finance analysis reuses the work-board month grid and revenue typography. */
+.analytics-revenue-calendar .business-date-picker { max-width: 420px; margin-inline: auto; }
+.analytics-revenue-calendar .business-date-picker__popover header { grid-template-columns: 44px 1fr 44px; }
+.analytics-revenue-calendar .business-date-picker__popover header button { width: 44px; height: 44px; min-height: 44px; }
+.analytics-revenue-calendar .business-date-picker__days button { min-height: 52px; }
+.analytics-revenue-calendar .business-date-picker__days button:disabled .business-date-picker__revenue { color: inherit; }

@@ -2,6 +2,7 @@
 
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
+import { AnalyticsDailyReport } from "./analytics-daily-report";
 import { visibleAnalyticsHours } from "./analytics-hours";
 import { useEffect, useRef, useState } from "react";
 import type { FinanceAnalyticsQuery, FinanceAnalyticsResponse } from "@massage-note/contracts";
@@ -136,6 +137,7 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
     {loading && <p role="status">{t("正在更新图表…", "Updating charts…")}</p>}
     {loadFailed && <p className={error ? "form-error" : undefined} role={error ? "alert" : undefined}>{error} <button type="button" onClick={() => void queue.current?.request()}>{t("重试", "Retry")}</button></p>}
     {data && <><p>{data.dateFrom} — {data.dateTo} · {highlightFilter === "ONLY_HIGHLIGHTED" ? t("仅高光；数量含待结账记工，营业额只计已日结日期，不含卖卡实收与小费。", "Highlighted only; counts include pending payments. Revenue includes only closed days and excludes card sales and tips.") : t("数量含待结账记工；营业额只计已日结日期，含卖卡实收、不含小费。", "Counts include pending payments. Revenue includes only closed days, including card sales and excluding tips.")} {t("跑客人数不受高光筛选影响。", "Lost customer counts are unaffected by the highlight filter.")}</p>
+      <AnalyticsDailyReport key={scope} storeId={storeId} data={data} highlightFilter={highlightFilter} />
       {!data.hasData ? <p className="empty-state">{t("当前范围没有经营数据。", "No business data in this range.")}</p> : <div className="analytics-grid" key={`${scope}:${locale}`}>
         <Chart title={t("按小时上工数量", "Service starts by hour")} description={t("仅显示所选日期内最早至最晚上工小时，中间空小时保留；选择图中时段后，展开记工明细查看该时段每天的笔数，隐藏 0 笔日期。", "Hours span the earliest to latest service starts in the selected dates, including empty hours between. Select an hour, then expand its record details to see dates with service starts.")} points={visibleHours.map(h => ({ label: `${h.hour}:00`, value: h.count, detail: `${h.hour}:00–${h.hour}:59 · ${count(h.count)}`, dailyDetails: data.days.map(day => ({ date: day.businessDate, count: day.hours[h.hour] ?? 0 })) }))} />
         <Chart title={t("每日记工数量", "Daily service count")} description={t("按营业日统计；跑客数量叠加在记工上方，无跑客时不显示。", "Counts by business day. Lost customers stack above service records and are hidden when zero.")} legend={data.days.some(d => d.lostCustomerCount > 0) ? t("深绿：记工 · 红色：跑客（上方数字）", "Green: service records · Red: lost customers (number above)") : undefined} bars points={data.days.map(d => ({ label: d.businessDate, value: d.count, lostCount: d.lostCustomerCount, detail: `${d.businessDate} · ${t("记工", "Service records")} ${count(d.count)}${d.lostCustomerCount > 0 ? t(` · 跑客 ${d.lostCustomerCount} 位`, ` · ${d.lostCustomerCount} lost ${d.lostCustomerCount === 1 ? "customer" : "customers"}`) : ""}` }))} />

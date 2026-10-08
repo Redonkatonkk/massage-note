@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.21.0` 代码结构核对。
+> 状态：与 `1.22.0` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -196,7 +196,7 @@ Web 表单
 
 ### 经营分析
 
-`FinanceAnalyticsService` 在 RepeatableRead 只读事务中验证店铺财务权限并读取当前店铺有效记工、跑客、卖卡及去重后的已日结日期。独立 `highlightFilter` 在数据库读取时统一筛选记工及均线窗口，仅高亮排除店铺级卖卡，跑客与日结样本不受影响。每日记工数量响应同时包含按有效跑客记录 `customerCount` 求和的 `lostCustomerCount`；仅有跑客而没有记工的日期也纳入日期序列。领域函数 `calculateFinanceAnalytics` 负责历史时区小时分组、自然日补零及整数美分平均；共享契约 `FinanceAnalyticsResponse` 仅传输聚合结果。Web独立分析标签按需加载，通过既有实时通道与刷新队列合并事件，并使切店、日期/高亮条件变化和卸载后的旧请求失效。跑客数据由独立数据库表和向前迁移维护；可选备注保存于 `LostCustomer.note`，直接到店来源保存于 `LostCustomer.isWalkIn`（旧记录及新增默认 `false`）；两者随列表和审计快照返回，不进入数量或金额计算。保留原因：聚合按历史日期和快照读取，展示不能重算当时归属，过期筛选结果不能覆盖当前图表。
+`FinanceAnalyticsService` 在 RepeatableRead 只读事务中验证店铺财务权限并读取当前店铺有效记工、跑客、卖卡及去重后的已日结日期。独立 `highlightFilter` 在数据库读取时统一筛选记工及均线窗口，仅高亮排除店铺级卖卡，跑客与日结样本不受影响。每日记工数量响应同时包含按有效跑客记录 `customerCount` 求和的 `lostCustomerCount`；仅有跑客而没有记工的日期也纳入日期序列。领域函数 `calculateFinanceAnalytics` 负责历史时区小时分组、自然日补零及整数美分平均；共享契约 `FinanceAnalyticsResponse` 仅传输聚合结果。Web独立分析标签按需加载，通过既有实时通道与刷新队列合并事件，并使切店、日期/高亮条件变化和卸载后的旧请求失效。 `AnalyticsDailyReport` 复用该响应的日期边界与高光条件读取既有财务汇总和每日明细；`AnalyticsRevenueCalendar` 直接展示过滤后的 `days[].revenueCents` 并沿用今日记工样式，月份切换不另取未筛选数据。每日小计与明细采用独立刷新队列和过期响应隔离，明细弹层与财务汇总共用 `FinanceDetailsDialog`。跑客数据由独立数据库表和向前迁移维护；可选备注保存于 `LostCustomer.note`，直接到店来源保存于 `LostCustomer.isWalkIn`（旧记录及新增默认 `false`）；两者随列表和审计快照返回，不进入数量或金额计算。保留原因：聚合按历史日期和快照读取，展示不能重算当时归属，过期筛选结果不能覆盖当前图表。
 
 每日开门排位由领域层 `explainRotationCandidates` 复用排序函数生成结构化比较依据，API 与最终顺序一起事务保存至 `daily_boards.ranking_explanation`。读取使用共享契约校验并限制管理权限，Web 以中英文固定文案展示快照及当前名单差异，不依赖 AI 或当前历史重新推算。新增字段使用向前迁移，已有排序快照为空。
 

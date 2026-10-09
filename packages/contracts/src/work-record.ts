@@ -68,6 +68,7 @@ export const createWorkRecordSchema = z.object({
     })
     .optional(),
   isHighlighted: z.boolean().optional(),
+  isDispatchExcluded: z.boolean().optional(),
 }).strict().superRefine((value, context) => {
   if (!value.isPlaceholder) return;
   for (const field of Object.keys(value)) {
@@ -103,6 +104,7 @@ export const updateWorkRecordSchema = z.object({
   discounts: z.array(discountInputSchema).max(30).optional(),
   automaticDiscountSuppressed: z.boolean().optional(),
   isHighlighted: z.boolean().optional(),
+  isDispatchExcluded: z.boolean().optional(),
   tipSettledManualFlag: z.boolean().optional(),
   largeFeeSettledManualFlag: z.boolean().optional(),
   note: z.string().max(2_000).optional(),

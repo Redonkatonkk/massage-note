@@ -6,7 +6,7 @@ const labels: Record<string, string> = {
   name: "名称", displayName: "店内显示名", requestedDisplayName: "申请姓名", fullName: "完整名称", shortName: "简称", role: "角色", status: "状态",
   isServiceProvider: "参与记工", employmentType: "全职或兼职", dailySettlementEnabled: "每日结清", closingDeliveryEnabled: "接收日结短信",
   closingDeliveryPhoneE164: "短信接收号码", closingImageLocale: "图片语言", closingDefaultLocale: "默认图片语言", timezone: "时区", businessCutoffLocal: "营业日截止时间",
-  automaticDispatchEnabled: "每日开门排位", isEnabled: "启用", isHighlighted: "高亮记工", isWalkIn: "Walk-in", businessDate: "营业日", serviceName: "项目", startAt: "开始时间", endAt: "结束时间", deletedAt: "删除时间", deleteReason: "删除原因", note: "备注",
+  automaticDispatchEnabled: "每日开门排位", isEnabled: "启用", isHighlighted: "高亮记工", isDispatchExcluded: "不算排工", isWalkIn: "Walk-in", businessDate: "营业日", serviceName: "项目", startAt: "开始时间", endAt: "结束时间", deletedAt: "删除时间", deleteReason: "删除原因", note: "备注",
   amountCents: "金额", grossFeeBaseCents: "大费基数", faceValueCents: "礼物卡面值", totalPaidCents: "实付工资", cashServiceCents: "现金大费", cardServiceCents: "刷卡大费", giftCardServiceCents: "礼物卡大费", cashTipCents: "现金小费", cardTipCents: "刷卡小费", giftCardTipCents: "礼物卡小费",
   commissionBps: "提成比例", defaultCommissionBps: "员工默认提成", globalCommissionBps: "店铺默认提成", periodStart: "开始日期", periodEnd: "结束日期", paymentScope: "工资来源", serialNumber: "序列号", durationMinutes: "时间（分钟）",
   mondayThursdayAutoDiscountEnabled: "周一至周四自动折扣", mondayThursdayAutoDiscountThresholdCents: "自动折扣门槛", mondayThursdayAutoDiscountAmountCents: "自动折扣金额", giftCardAutoDiscountEnabled: "礼物卡自动折扣", giftCardAutoDiscountThresholdCents: "礼物卡折扣门槛", giftCardAutoDiscountBps: "礼物卡折扣比例",
@@ -19,7 +19,7 @@ export function auditFacts(snapshot: unknown) {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return [];
   const isPlaceholder = (snapshot as { status?: unknown }).status === "PLACEHOLDER";
   return Object.entries(snapshot).flatMap(([key, value]) => {
-    if (isPlaceholder && (key.endsWith("Cents") || key.endsWith("Bps") || ["serviceName", "endAt", "durationMinutes", "isHighlighted", "note"].includes(key))) return [];
+    if (isPlaceholder && (key.endsWith("Cents") || key.endsWith("Bps") || ["serviceName", "endAt", "durationMinutes", "isHighlighted", "isDispatchExcluded", "note"].includes(key))) return [];
     if (!labels[key] || (value !== null && typeof value === "object")) return [];
     let display = value === null ? "未设置" : typeof value === "boolean" ? value ? "是" : "否" : enumFields.has(key) ? values[String(value)] ?? String(value) : String(value);
     const numeric = typeof value === "number" || typeof value === "string" && /^-?\d+$/.test(value) ? Number(value) : NaN;

@@ -644,6 +644,34 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
         totalLargeFeeWageCents: 5_500n,
       });
 
+      const excluded = await workRecords.create(
+        actor(ownerId), storeId,
+        { employeeMembershipId, startAt: "2026-08-13T14:00:00.000Z", serviceItemId, serviceDurationMinutes: 60, isDispatchExcluded: true },
+        "dispatch-excluded-create-key-0001", "dispatch-excluded-create",
+      );
+      expect(excluded).toMatchObject({ isDispatchExcluded: true, isHighlighted: false, discountTotalCents: 1_000n, totalLargeFeeWageCents: 5_500n });
+      expect(excluded.discountSnapshots.filter(item => item.isAutomatic)).toHaveLength(1);
+      const editedExcluded = await workRecords.update(
+        actor(ownerId), storeId, excluded.id, { version: excluded.version, note: "保留排工标记" },
+        "dispatch-excluded-note-key-0001", "dispatch-excluded-note",
+      );
+      expect(editedExcluded.isDispatchExcluded).toBe(true);
+      const included = await workRecords.update(
+        actor(ownerId), storeId, excluded.id, { version: editedExcluded.version, isDispatchExcluded: false },
+        "dispatch-included-update-key-0001", "dispatch-included-update",
+      );
+      expect(included).toMatchObject({ isDispatchExcluded: false, isHighlighted: false, discountTotalCents: 1_000n, totalLargeFeeWageCents: 5_500n });
+      await expect(workRecords.update(
+        actor(ownerId), storeId, excluded.id, { version: editedExcluded.version, isDispatchExcluded: true },
+        "dispatch-excluded-stale-key-0001", "dispatch-excluded-stale",
+      )).rejects.toBeInstanceOf(ConflictException);
+      const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityId: excluded.id, requestId: "dispatch-included-update" } });
+      expect(audit.beforeJson).toMatchObject({ isDispatchExcluded: true });
+      expect(audit.afterJson).toMatchObject({ isDispatchExcluded: false });
+      expect((await workRecords.get(actor(ownerId), storeId, excluded.id)).isDispatchExcluded).toBe(false);
+      const excludedBoard = await boards.getBoard(actor(ownerId), storeId, "2026-08-13");
+      expect(excludedBoard.rows.flatMap(row => row.workRecords).find(item => item.id === excluded.id)?.isDispatchExcluded).toBe(false);
+
       const highlightedCreate = await workRecords.create(
         actor(ownerId), storeId,
         { employeeMembershipId, startAt: "2026-08-13T16:00:00.000Z", serviceItemId, serviceDurationMinutes: 60, isHighlighted: true },
@@ -1285,6 +1313,7 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
         { version: placeholder.version, note: "备注" },
         { version: placeholder.version, startAt: new Date(startAt.getTime() + 60_000).toISOString() },
         { version: placeholder.version, isHighlighted: true },
+        { version: placeholder.version, isDispatchExcluded: true },
         { version: placeholder.version, serviceItemId, serviceDurationMinutes: 60 },
       ].entries()) {
         await expect(workRecords.update(actor(ownerId), storeId, placeholder.id, details, `placeholder-update-key-${index}`, "placeholder-update"))

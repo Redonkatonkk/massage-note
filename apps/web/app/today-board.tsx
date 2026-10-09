@@ -144,6 +144,7 @@ export function TodayBoard({
   );
   const [quickMode, setQuickMode] = useState<"PRESET" | "CUSTOM">("PRESET");
   const [quickHighlighted, setQuickHighlighted] = useState(false);
+  const [quickDispatchExcluded, setQuickDispatchExcluded] = useState(false);
   const [quickPlaceholder, setQuickPlaceholder] = useState(false);
   const [customServiceName, setCustomServiceName] = useState("");
   const [customServiceShortName, setCustomServiceShortName] = useState("");
@@ -425,12 +426,14 @@ export function TodayBoard({
         employeeMembershipId: quickEmployeeId,
         startAt,
         isHighlighted: quickHighlighted,
+        isDispatchExcluded: quickDispatchExcluded,
         ...serviceSelection,
       },
     });
     setQuickEmployeeId(null);
     setQuickMode("PRESET");
     setQuickHighlighted(false);
+    setQuickDispatchExcluded(false);
     setCustomServiceName("");
     setCustomServiceShortName("");
     setCustomServiceAmount("");
@@ -608,7 +611,7 @@ export function TodayBoard({
                   <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
                       if (record === null) return (
-                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickPlaceholder(false); setQuickEmployeeId(row.membershipId); }}>
+                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickDispatchExcluded(false); setQuickPlaceholder(false); setQuickEmployeeId(row.membershipId); }}>
                           <span aria-hidden="true"><UiIcon name="plus" /></span>新增记工
                         </button>
                       );
@@ -630,7 +633,7 @@ export function TodayBoard({
                       );
                       return (
                       <button
-                        className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}${record.isHighlighted ? " record-card--highlighted" : ""}${hasNote ? " record-card--has-note" : ""}${hasPaymentMismatch ? " record-card--payment-mismatch" : ""}`}
+                        className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}${record.isHighlighted || record.isDispatchExcluded ? " record-card--right-group" : ""}${record.isHighlighted ? " record-card--highlighted" : ""}${hasNote ? " record-card--has-note" : ""}${hasPaymentMismatch ? " record-card--payment-mismatch" : ""}`}
                         key={record.id}
                         type="button"
                         disabled={!isCurrentBusinessDay && !canManage}
@@ -729,6 +732,7 @@ export function TodayBoard({
               <div><p className="eyebrow">快速记工</p><h2 id="quick-modal-title">{members.find((item) => item.id === quickEmployeeId)?.displayName}</h2></div>
               <div className="modal-heading__actions">
                 <button className={`highlight-toggle placeholder-toggle${quickPlaceholder ? " active" : ""}`} type="button" aria-pressed={quickPlaceholder} disabled={busy} onClick={() => setQuickPlaceholder((current) => !current)}>占位</button>
+                <button className={`highlight-toggle dispatch-excluded-toggle${quickDispatchExcluded && !quickPlaceholder ? " active" : ""}`} type="button" aria-pressed={quickDispatchExcluded && !quickPlaceholder} disabled={busy || quickPlaceholder} onClick={() => setQuickDispatchExcluded((current) => !current)}>不算排工</button>
                 <button className={`highlight-toggle${quickHighlighted && !quickPlaceholder ? " active" : ""}`} type="button" aria-pressed={quickHighlighted && !quickPlaceholder} disabled={busy || quickPlaceholder} onClick={() => setQuickHighlighted((current) => !current)}><span aria-hidden="true">★</span>{quickHighlighted && !quickPlaceholder ? "已高亮" : "高亮标记"}</button>
                 <button className="close-button" type="button" disabled={busy} onClick={() => setQuickEmployeeId(null)}>关闭</button>
               </div>

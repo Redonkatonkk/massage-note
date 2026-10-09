@@ -341,6 +341,7 @@ export interface WorkRecord {
   largeFeeSettledManualFlag: boolean;
   automaticDiscountSuppressed: boolean;
   isHighlighted: boolean;
+  isDispatchExcluded: boolean;
   note: string;
   version: number;
   deletedAt: string | null;

@@ -32,6 +32,16 @@ async function changeHighlight(value: string) {
   });
 }
 function hourlyCount() { return container.querySelector(".analytics-card .analytics-hit")?.getAttribute("aria-label"); }
+function weekdayChart() { return [...container.querySelectorAll<HTMLElement>(".analytics-card")].find(card => card.querySelector(".weekday-revenue-details"))!; }
+function weekdayPoint(index: number) { return weekdayChart().querySelectorAll<SVGElement>(".analytics-hit")[index]!; }
+async function clickPoint(point: SVGElement) { await act(async () => point.dispatchEvent(new MouseEvent("click", { bubbles: true }))); }
+
+function weekdayStats(): FinanceAnalyticsResponse {
+  const response = stats();
+  return { ...response, dateFrom: "2026-09-28", dateTo: "2026-10-14", days: [
+    ["2026-09-28", "12345"], ["2026-10-05", "0"], ["2026-10-06", "99000"], ["2026-10-12", null],
+  ].map(([businessDate, revenueCents]) => ({ ...response.days[0]!, businessDate: businessDate!, revenueCents: revenueCents ?? null })) };
+}
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -113,4 +123,65 @@ it("营业额日历直接使用切换后的分析响应，历史范围与每日�
     expect(params.get("highlightFilter")).toBe(filter);
   }
   expect(request.mock.calls.some(([path]) => String(path).includes("open-work-dates"))).toBe(false);
+});
+
+it("点击星期自动展开各日期营业额，保留美分、零值与未日结，并能切换及重新展开", async () => {
+  request.mockImplementation(async path => String(path).includes("/summary?") ? { days: [] } : weekdayStats());
+  await render();
+  const chart = weekdayChart();
+  const table = chart.querySelector<HTMLDetailsElement>("details")!;
+  expect(table.open).toBe(false);
+  expect(table.textContent).toContain("点击图中的星期");
+  await clickPoint(weekdayPoint(0));
+  expect(table.open).toBe(true);
+  expect(table.querySelector("summary")!.textContent).toContain("星期一");
+  expect([...table.querySelectorAll("tbody tr")].map(row => [...row.querySelectorAll("td")].map(cell => cell.textContent))).toEqual([
+    ["2026-09-28", "US$123.45"], ["2026-10-05", "US$0.00"], ["2026-10-12", "—"],
+  ]);
+  expect(weekdayPoint(0).getAttribute("aria-pressed")).toBe("true");
+  await act(async () => weekdayPoint(1).dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
+  expect(table.querySelector("summary")!.textContent).toContain("星期一");
+  table.open = false;
+  await clickPoint(weekdayPoint(1));
+  expect(table.open).toBe(true);
+  expect(table.querySelector("summary")!.textContent).toContain("星期二");
+  expect(table.querySelector("tbody")!.textContent).toBe("2026-10-06US$990.00");
+  expect(weekdayPoint(0).getAttribute("aria-pressed")).toBe("false");
+  table.open = false;
+  await clickPoint(weekdayPoint(1));
+  expect(table.open).toBe(true);
+  expect(request).toHaveBeenCalledTimes(2);
+});
+
+it("星期表支持键盘、无日期和英文，筛选切换后清除旧选择", async () => {
+  language.locale = "en-US";
+  request.mockImplementation(async path => {
+    if (String(path).includes("/summary?")) return { days: [] };
+    const response = weekdayStats();
+    return String(path).includes("ONLY_HIGHLIGHTED") ? { ...response, days: response.days.map(day => ({ ...day, revenueCents: "4200" })) } : response;
+  });
+  await render();
+  await act(async () => weekdayPoint(0).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  expect(weekdayChart().querySelector("details")!.open).toBe(true);
+  expect(weekdayChart().querySelector("summary")!.textContent).toContain("Mon");
+  expect(weekdayChart().querySelector("th:nth-child(2)")!.textContent).toBe("Revenue");
+  expect(weekdayChart().querySelector("tbody")!.textContent).toContain("$123.45");
+  await act(async () => weekdayPoint(6).dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
+  expect(weekdayChart().textContent).toContain("No dates for this weekday");
+  await changeHighlight("ONLY_HIGHLIGHTED");
+  expect(weekdayChart().querySelector("details")!.open).toBe(false);
+  expect(weekdayChart().querySelector("tbody")).toBeNull();
+  await clickPoint(weekdayPoint(0));
+  expect(weekdayChart().querySelector("tbody")!.textContent).toContain("$42.00");
+});
+
+it("每日小计紧随热力图，日历使用与图表相同的响应式网格", async () => {
+  await render();
+  const chartGrid = container.querySelector(".analytics-heatmap")!.parentElement!;
+  const report = container.querySelector(".finance-report-section")!;
+  expect(chartGrid.nextElementSibling).toBe(report);
+  const calendarGrid = report.nextElementSibling!;
+  expect(calendarGrid.className).toBe("analytics-grid");
+  expect(calendarGrid.children.length).toBe(1);
+  expect(calendarGrid.firstElementChild!.classList.contains("analytics-revenue-calendar")).toBe(true);
 });

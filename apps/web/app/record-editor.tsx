@@ -203,6 +203,7 @@ export function RecordEditor({
     record.automaticDiscountSuppressed,
   );
   const [isHighlighted, setIsHighlighted] = useState(record.isHighlighted);
+  const [isDispatchExcluded, setIsDispatchExcluded] = useState(record.isDispatchExcluded);
   const [cashService, setCashService] = useState(dollars(record.cashServiceCents));
   const [cardService, setCardService] = useState(dollars(record.cardServiceCents));
   const [usesGiftCard, setUsesGiftCard] = useState(
@@ -264,6 +265,7 @@ export function RecordEditor({
           if (typeof draft.automaticDiscountSuppressed === "boolean") {
             setAutomaticDiscountSuppressed(draft.automaticDiscountSuppressed);
           }
+          if (typeof draft.isDispatchExcluded === "boolean") setIsDispatchExcluded(draft.isDispatchExcluded);
           if (typeof draft.isHighlighted === "boolean") {
             setIsHighlighted(draft.isHighlighted);
           }
@@ -292,8 +294,8 @@ export function RecordEditor({
 
   useEffect(() => {
     if (!draftLoaded || !draftDirty) return;
-    browserStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note }));
-  }, [draftLoaded, draftDirty, draftKey, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note]);
+    browserStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note }));
+  }, [draftLoaded, draftDirty, draftKey, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note]);
 
   const initialAddonSignature = JSON.stringify(
     initialAddons.map(({ key: _key, ...item }) => item),
@@ -576,6 +578,9 @@ export function RecordEditor({
     if (automaticDiscountSuppressed !== record.automaticDiscountSuppressed) {
       payload.automaticDiscountSuppressed = automaticDiscountSuppressed;
     }
+    if (isDispatchExcluded !== record.isDispatchExcluded) {
+      payload.isDispatchExcluded = isDispatchExcluded;
+    }
     if (isHighlighted !== record.isHighlighted) {
       payload.isHighlighted = isHighlighted;
     }
@@ -743,6 +748,7 @@ export function RecordEditor({
             <h2 id="record-title">{service?.name ?? "记工记录"}</h2>
           </div>
           <div className="modal-heading__actions">
+            <button className={`highlight-toggle dispatch-excluded-toggle${isDispatchExcluded ? " active" : ""}`} type="button" aria-pressed={isDispatchExcluded} disabled={busy} onClick={() => { setDraftDirty(true); setIsDispatchExcluded((current) => !current); }}>不算排工</button>
             <button className={`highlight-toggle${isHighlighted ? " active" : ""}`} type="button" aria-pressed={isHighlighted} disabled={busy} onClick={() => { setDraftDirty(true); setIsHighlighted((current) => !current); }}><span aria-hidden="true">★</span>{isHighlighted ? "已高亮" : "高亮标记"}</button>
             <button className="close-button" type="button" onClick={onClose} disabled={busy}>关闭</button>
           </div>

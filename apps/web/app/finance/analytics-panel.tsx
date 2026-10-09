@@ -13,7 +13,7 @@ import { useStoreRealtime } from "../../lib/realtime";
 import { useLanguage } from "../language-provider";
 import { shiftDate } from "./date-utils";
 
-type Point = { label: string; value: number | null; secondary?: number | null; lostCount?: number; detail: string; dailyDetails?: { date: string; count: number }[] };
+type Point = { label: string; value: number | null; secondary?: number | null; lostCount?: number; detail: string; dailyDetails?: { date: string; count: number }[]; dailyRevenueDetails?: { date: string; revenue: string }[] };
 
 function Chart({ title, description, points, bars = false, currency = false, legend }: {
   title: string; description: string; points: Point[]; bars?: boolean; currency?: boolean; legend?: string | undefined;
@@ -22,6 +22,16 @@ function Chart({ title, description, points, bars = false, currency = false, leg
   const en = locale === "en-US";
   const [selected, setSelected] = useState<string | null>(null);
   const selectedPoint = points.find(point => point.label === selected);
+  const [revenueSelection, setRevenueSelection] = useState<string | null>(null);
+  const revenuePoint = points.find(point => point.label === revenueSelection);
+  const revenueTable = useRef<HTMLDetailsElement>(null);
+  const activate = (point: Point) => {
+    setSelected(point.label);
+    if (point.dailyRevenueDetails !== undefined) {
+      setRevenueSelection(point.label);
+      if (revenueTable.current) revenueTable.current.open = true;
+    }
+  };
   const width = Math.max(600, points.length * 26 + 80);
   const height = 270, left = 65, right = width - 20, bottom = 225, top = 20;
   const max = Math.max(1, ...points.flatMap(p => [(p.value ?? 0) + (bars ? p.lostCount ?? 0 : 0), p.secondary ?? 0]));
@@ -57,8 +67,8 @@ function Chart({ title, description, points, bars = false, currency = false, leg
           {bars && point.value === null && <text x={x(i)} y={bottom - 8} textAnchor="middle">—</text>}
           {point.secondary != null && <circle cx={x(i)} cy={y(point.secondary)} r="2.5" fill="var(--chart-secondary)" />}
           {(i % Math.max(1, Math.ceil(points.length / (width / 75))) === 0 || i === points.length - 1) && <text x={x(i)} y={bottom + 23} textAnchor="middle">{point.label.length === 10 ? point.label.slice(5) : point.label}</text>}
-          <rect className="analytics-hit" x={x(i) - (right - left) / points.length / 2} y={top} width={(right - left) / points.length} height={bottom - top} fill="transparent" tabIndex={0} role="button" aria-label={point.detail}
-            onMouseEnter={() => setSelected(point.label)} onFocus={() => setSelected(point.label)} onClick={() => setSelected(point.label)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelected(point.label); } }}><title>{point.detail}</title></rect>
+          <rect className="analytics-hit" x={x(i) - (right - left) / points.length / 2} y={top} width={(right - left) / points.length} height={bottom - top + (point.dailyRevenueDetails !== undefined ? 35 : 0)} fill="transparent" tabIndex={0} role="button" aria-label={point.detail} aria-pressed={point.dailyRevenueDetails !== undefined ? revenueSelection === point.label : undefined}
+            onMouseEnter={() => setSelected(point.label)} onFocus={() => setSelected(point.label)} onClick={() => activate(point)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(point); } }}><title>{point.detail}</title></rect>
         </g>)}
       </svg>
     </div>
@@ -77,6 +87,12 @@ function Chart({ title, description, points, bars = false, currency = false, leg
           </section>;
         })}
       </div>
+    </details> : points.some(point => point.dailyRevenueDetails !== undefined) ? <details className="weekday-revenue-details" ref={revenueTable}>
+      <summary>{en ? "View data table" : "查看数据表"}{revenuePoint && ` · ${revenuePoint.label}`}</summary>
+      {!revenuePoint ? <p className="empty-state">{en ? "Select a weekday in the chart to see its daily revenue." : "点击图中的星期，查看该星期各日期的营业额。"}</p> : revenuePoint.dailyRevenueDetails?.length === 0 ? <p className="empty-state">{en ? "No dates for this weekday in the selected range." : "当前范围没有该星期的日期。"}</p> : <div className="table-scroll" aria-live="polite"><table className="data-table">
+        <thead><tr><th>{en ? "Date" : "日期"}</th><th>{en ? "Revenue" : "营业额"}</th></tr></thead>
+        <tbody>{revenuePoint.dailyRevenueDetails?.map(day => <tr key={day.date}><td><time dateTime={day.date}>{day.date}</time></td><td>{day.revenue}</td></tr>)}</tbody>
+      </table></div>}
     </details> : <details><summary>{en ? "View data table" : "查看数据表"}</summary><div className="table-scroll"><table className="data-table"><thead><tr><th>{en ? "Period" : "时间"}</th><th>{en ? "Details" : "统计明细"}</th></tr></thead><tbody>{points.map(p => <tr key={p.label}><td>{p.label}</td><td>{p.detail}</td></tr>)}</tbody></table></div></details>}
   </section>;
 }
@@ -137,11 +153,10 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
     {loading && <p role="status">{t("正在更新图表…", "Updating charts…")}</p>}
     {loadFailed && <p className={error ? "form-error" : undefined} role={error ? "alert" : undefined}>{error} <button type="button" onClick={() => void queue.current?.request()}>{t("重试", "Retry")}</button></p>}
     {data && <><p>{data.dateFrom} — {data.dateTo} · {highlightFilter === "ONLY_HIGHLIGHTED" ? t("仅高光；数量含待结账记工，营业额只计已日结日期，不含卖卡实收与小费。", "Highlighted only; counts include pending payments. Revenue includes only closed days and excludes card sales and tips.") : t("数量含待结账记工；营业额只计已日结日期，含卖卡实收、不含小费。", "Counts include pending payments. Revenue includes only closed days, including card sales and excluding tips.")} {t("跑客人数不受高光筛选影响。", "Lost customer counts are unaffected by the highlight filter.")}</p>
-      <AnalyticsDailyReport key={scope} storeId={storeId} data={data} highlightFilter={highlightFilter} />
       {!data.hasData ? <p className="empty-state">{t("当前范围没有经营数据。", "No business data in this range.")}</p> : <div className="analytics-grid" key={`${scope}:${locale}`}>
         <Chart title={t("按小时上工数量", "Service starts by hour")} description={t("仅显示所选日期内最早至最晚上工小时，中间空小时保留；选择图中时段后，展开记工明细查看该时段每天的笔数，隐藏 0 笔日期。", "Hours span the earliest to latest service starts in the selected dates, including empty hours between. Select an hour, then expand its record details to see dates with service starts.")} points={visibleHours.map(h => ({ label: `${h.hour}:00`, value: h.count, detail: `${h.hour}:00–${h.hour}:59 · ${count(h.count)}`, dailyDetails: data.days.map(day => ({ date: day.businessDate, count: day.hours[h.hour] ?? 0 })) }))} />
         <Chart title={t("每日记工数量", "Daily service count")} description={t("按营业日统计；跑客数量叠加在记工上方，无跑客时不显示。", "Counts by business day. Lost customers stack above service records and are hidden when zero.")} legend={data.days.some(d => d.lostCustomerCount > 0) ? t("深绿：记工 · 红色：跑客（上方数字）", "Green: service records · Red: lost customers (number above)") : undefined} bars points={data.days.map(d => ({ label: d.businessDate, value: d.count, lostCount: d.lostCustomerCount, detail: `${d.businessDate} · ${t("记工", "Service records")} ${count(d.count)}${d.lostCustomerCount > 0 ? t(` · 跑客 ${d.lostCustomerCount} 位`, ` · ${d.lostCustomerCount} lost ${d.lostCustomerCount === 1 ? "customer" : "customers"}`) : ""}` }))} />
-        <Chart title={t("星期平均营业额", "Average revenue by weekday")} description={t("只统计已日结日期；空日结计零，没有样本显示破折号。", "Closed days only; empty closed days count as zero. No sample is shown as a dash.")} bars currency points={data.weekdays.map(w => ({ label: names[w.weekday]!, value: dollars(w.averageCents), detail: `${names[w.weekday]} · ${money(w.averageCents)} · ${samples(w.closedDayCount)}` }))} />
+        <Chart title={t("星期平均营业额", "Average revenue by weekday")} description={t("只统计已日结日期；空日结计零，没有样本显示破折号。点击星期，下方数据表自动列出该星期各日期的营业额。", "Closed days only; empty closed days count as zero. No sample is shown as a dash. Select a weekday to open its daily revenue table below.")} bars currency points={data.weekdays.map(w => ({ label: names[w.weekday]!, value: dollars(w.averageCents), detail: `${names[w.weekday]} · ${money(w.averageCents)} · ${samples(w.closedDayCount)}`, dailyRevenueDetails: data.days.filter(day => (new Date(`${day.businessDate}T00:00:00.000Z`).getUTCDay() + 6) % 7 === w.weekday).map(day => ({ date: day.businessDate, revenue: money(day.revenueCents) })) }))} />
         <Chart title={t("每日营业额趋势", "Daily revenue trend")} description={t("未日结留空；均线统计当日及此前6天内已日结日期。", "Open days are gaps. The average uses closed days within each trailing 7-day window.")} currency legend={t("深绿实线：营业额 · 蓝灰虚线：7日移动平均", "Green solid: revenue · Blue dashed: 7-day moving average")} points={data.days.map(d => ({ label: d.businessDate, value: dollars(d.revenueCents), secondary: dollars(d.averageCents), detail: `${d.businessDate} · ${t("营业额", "Revenue")} ${money(d.revenueCents)} · ${t("7日均线", "7-day average")} ${money(d.averageCents)} · ${samples(d.averageDayCount)}` }))} />
         <section className="analytics-card analytics-heatmap"><h2>{t("星期 × 小时热力图", "Weekday × hour heatmap")}</h2><p className="analytics-description">{t("显示实际最早至最晚上工小时；颜色越深，累计笔数越多；括号内为自然日数。", "Actual earliest-to-latest start hours. Darker cells mean more starts; parentheses show calendar days.")}</p>
           {visibleHours.length === 0 && <p className="empty-state">{t("当前范围没有记工。", "No service records in this range.")}</p>}
@@ -150,6 +165,7 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
           <p>{t("浅色 → 深色", "Light → Dark")} · 0–{maxHeat} {t("笔", "starts")}</p>
         </section>
       </div>}
+      <AnalyticsDailyReport key={scope} storeId={storeId} data={data} highlightFilter={highlightFilter} />
     </>}
   </section>;
 }

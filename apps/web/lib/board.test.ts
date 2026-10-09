@@ -11,6 +11,19 @@ import {
 } from "./board";
 
 describe("今日表格行整理", () => {
+  it("不算排工与高亮共用右侧时间顺序，双标记只出现一次且仍计入服务工数", () => {
+    const records = [
+      { id: "early-excluded", status: "CONFIRMED", isHighlighted: false, isDispatchExcluded: true },
+      { id: "highlight", status: "PENDING_PAYMENT", isHighlighted: true, isDispatchExcluded: false },
+      { id: "ordinary", status: "CONFIRMED", isHighlighted: false, isDispatchExcluded: false },
+      { id: "both", status: "CONFIRMED", isHighlighted: true, isDispatchExcluded: true },
+    ];
+    expect(recordTrackItems(records, true).map(record => record?.id ?? "add")).toEqual(["ordinary", "add", "both", "highlight", "early-excluded"]);
+    expect(recordTrackItems(records, false).map(record => record?.id)).toEqual(["ordinary", "both", "highlight", "early-excluded"]);
+    expect(serviceRecordCount(records)).toBe(4);
+    expect(recordTrackItems([{ ...records[0]!, isDispatchExcluded: false }, ...records.slice(1)], true).map(record => record?.id ?? "add")).toEqual(["early-excluded", "ordinary", "add", "both", "highlight"]);
+    expect(records[0]!.isHighlighted).toBe(false);
+  });
   it("占位按普通时间顺序混排但不计入工数", () => {
     const records = [
       { id: "first", status: "CONFIRMED", isHighlighted: false },

@@ -462,6 +462,7 @@ model WorkRecord {
   largeFeeSettledManualFlag       Boolean          @default(false) @map("large_fee_settled_manual_flag")
   automaticDiscountSuppressed     Boolean          @default(false) @map("automatic_discount_suppressed")
   isHighlighted                   Boolean          @default(false) @map("is_highlighted")
+  isDispatchExcluded              Boolean          @default(false) @map("is_dispatch_excluded")
   manualPriceFlag                 Boolean          @default(false) @map("manual_price_flag")
   note                            String           @default("")
   version                         Int              @default(1)

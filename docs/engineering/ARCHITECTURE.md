@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.22.1` 代码结构核对。
+> 状态：与 `1.24.0` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -218,3 +218,5 @@ Web 表单
 `FinanceModule` 的 ExpensesController/Service 通过共享支出契约接受操作，以 `EXPENSE_MANAGE` 检查店主/经理权限与店铺归属。数据库新增 ExpenseItem、ExpenseRuleRevision、ExpensePeriodOverride；项目版本为规则和单期覆盖操作的统一乐观锁，并在同一幂等事务中更新版本、业务数据及审计，现有审计触发器创建 outbox。支出不锁营业日、不重写日结快照。
 
 领域 `calculateExpenseMonth` 使用 BigInt，按查询月份直接定位相交周期，不从首次费用逐日扫描。月周期以整月为分摊单位，天周期以自然日为单位，余数归较早单位。实际单期覆盖优先于规则默认值；软删除项目不参与汇总。前端只格式化金额和编辑输入，不重新计算月成本。
+
+记工的 `isDispatchExcluded` 由共享创建／更新契约、WorkRecordsService 和数据库独立保存，Web 草稿与看板读取同一字段；`recordTrackItems` 将它与高亮记录共同按时间从右向左排序，`record-card--right-group` 只控制右对齐，`isHighlighted` 继续独立控制颜色和金额规则。保留原因：把展示位置与高亮语义分开，避免排工标记改变财务计算。

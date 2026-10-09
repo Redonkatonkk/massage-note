@@ -21,7 +21,7 @@ const request = vi.mocked(apiRequest);
 const stats: BoardStatistics = { recordCount: 0, grossFeeBaseCents: 0, discountTotalCents: 0, discountedFeePerformanceCents: 0, totalTipCents: 0, totalLargeFeeWageCents: 0, employeeIncomeCents: 0, giftCardSaleCount: 0, giftCardCashCents: 0, giftCardCardCents: 0, giftCardSalesAmountCents: 0, giftCardRedemptionCents: 0, storeIncomeCents: 0 };
 const employee: StoreMember = { id: "employee", displayName: "Alexandria · 姓名很长的员工", role: "EMPLOYEE", isServiceProvider: true, employmentType: "PART_TIME", status: "ACTIVE", version: 1, defaultCommissionBps: 6000, closingDeliveryEnabled: false, closingDeliveryPhoneE164: null, closingImageLocale: null, deletedAt: null };
 const store: StoreDetails = { id: "store", storeCode: "123456", name: "门店", timezone: "America/New_York", businessCutoffLocal: "04:00", status: "ACTIVE", globalCommissionBps: 6000, mondayThursdayAutoDiscountEnabled: false, mondayThursdayAutoDiscountThresholdCents: 6000, mondayThursdayAutoDiscountAmountCents: 1000, giftCardAutoDiscountEnabled: false, giftCardAutoDiscountThresholdCents: 10000, giftCardAutoDiscountBps: 1000, closingDefaultLocale: "zh_CN", version: 1, ownerMembershipId: "owner", ownerMembership: null, automaticDispatchEnabled: false };
-const placeholder: WorkRecord = { id: "placeholder", employeeMembershipId: employee.id, businessDate: "2026-10-06", storeTimezoneSnapshot: store.timezone, businessCutoffSnapshot: "04:00", startAt: "2026-10-06T15:00:00.000Z", endAt: null, actualDurationMinutes: null, status: "PLACEHOLDER", mainServiceAmountCents: 0, addonTotalCents: 0, grossFeeBaseCents: 0, discountTotalCents: 0, discountedFeePerformanceCents: 0, cashServiceCents: null, cardServiceCents: null, giftCardSerialNumber: null, giftCardServiceCents: null, cashTipCents: null, cardTipCents: null, giftCardTipCents: null, totalTipCents: null, actualServiceCollectedCents: null, customerTotalPaidCents: null, paymentDifferenceCents: null, mainServiceWageCents: 0, addonWageCents: 0, totalLargeFeeWageCents: 0, employeeTotalIncomeCents: null, tipSettledManualFlag: false, largeFeeSettledManualFlag: false, automaticDiscountSuppressed: false, isHighlighted: false, note: "", version: 7, deletedAt: null, serviceSnapshot: null, addonSnapshots: [], discountSnapshots: [], payment: null };
+const placeholder: WorkRecord = { id: "placeholder", employeeMembershipId: employee.id, businessDate: "2026-10-06", storeTimezoneSnapshot: store.timezone, businessCutoffSnapshot: "04:00", startAt: "2026-10-06T15:00:00.000Z", endAt: null, actualDurationMinutes: null, status: "PLACEHOLDER", mainServiceAmountCents: 0, addonTotalCents: 0, grossFeeBaseCents: 0, discountTotalCents: 0, discountedFeePerformanceCents: 0, cashServiceCents: null, cardServiceCents: null, giftCardSerialNumber: null, giftCardServiceCents: null, cashTipCents: null, cardTipCents: null, giftCardTipCents: null, totalTipCents: null, actualServiceCollectedCents: null, customerTotalPaidCents: null, paymentDifferenceCents: null, mainServiceWageCents: 0, addonWageCents: 0, totalLargeFeeWageCents: 0, employeeTotalIncomeCents: null, tipSettledManualFlag: false, largeFeeSettledManualFlag: false, automaticDiscountSuppressed: false, isHighlighted: false, isDispatchExcluded: false, note: "", version: 7, deletedAt: null, serviceSnapshot: null, addonSnapshots: [], discountSnapshots: [], payment: null };
 const ordinary: WorkRecord = { ...placeholder, id: "ordinary", startAt: "2026-10-06T14:00:00.000Z", endAt: "2026-10-06T15:00:00.000Z", status: "CONFIRMED", serviceSnapshot: { sourceServiceItemId: "service", isCustom: false, name: "足疗", shortName: "足疗", amountCents: 6000, durationMinutes: 60, commissionBps: 6000, commissionSource: "STORE", wageCents: 3600 } };
 let root: Root;
 let container: HTMLDivElement;
@@ -51,7 +51,7 @@ describe("快速记工占位", () => {
   it("在高亮左侧切换占位，隐藏项目并保留时间，退出恢复普通草稿和高亮", async () => {
     await render(); await click("新增记工");
     const modal = document.querySelector(".quick-work-modal")!;
-    expect([...modal.querySelectorAll(".modal-heading__actions button")].map((node) => node.textContent)).toEqual(["占位", "★高亮标记", "关闭"]);
+    expect([...modal.querySelectorAll(".modal-heading__actions button")].map((node) => node.textContent)).toEqual(["占位", "不算排工", "★高亮标记", "关闭"]);
     await click("★高亮标记"); await click("＋ 自定义项目");
     const name = modal.querySelector<HTMLInputElement>(".quick-custom-grid input")!;
     await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(name, "保留草稿"); name.dispatchEvent(new Event("input", { bubbles: true })); });
@@ -77,7 +77,7 @@ describe("快速记工占位", () => {
     expect(time.id).toBe("placeholder-time-placeholder"); expect(card.getAttribute("aria-describedby")).toBe(time.id);
     const svg = card.querySelector("svg")!; expect(svg.getAttribute("viewBox")).toBe("0 0 100 100"); expect(svg.getAttribute("preserveAspectRatio")).toBe("none"); expect(svg.getAttribute("aria-hidden")).toBe("true");
     expect([...svg.querySelectorAll("line")].map((line) => [line.getAttribute("x1"), line.getAttribute("y1"), line.getAttribute("x2"), line.getAttribute("y2"), line.getAttribute("stroke-width"), line.getAttribute("vector-effect")])).toEqual([["0", "0", "100", "100", "2", "non-scaling-stroke"], ["100", "0", "0", "100", "2", "non-scaling-stroke"]]);
-    expect([...container.querySelector(".record-track")!.children].map((node) => node.className)).toEqual(["record-card", "record-card record-card--placeholder", "add-record", "record-card record-card--highlighted"]);
+    expect([...container.querySelector(".record-track")!.children].map((node) => node.className)).toEqual(["record-card", "record-card record-card--placeholder", "add-record", "record-card record-card--right-group record-card--highlighted"]);
     expect(container.querySelector(".row-work-count strong")!.textContent).toBe("2");
     props.board.rows = [{ ...props.board.rows[0]!, isHidden: true }]; await render(); expect(container.querySelector(".hidden-rows-panel small")!.textContent).toBe("2 条记工");
   });
@@ -98,5 +98,60 @@ describe("快速记工占位", () => {
     request.mockRejectedValue(new ApiError(409, { code: "WORK_RECORD_VERSION_CONFLICT", messageZh: "版本冲突" })); await click("删除占位");
     expect(document.querySelector(".placeholder-delete-dialog [role=alert]")!.textContent).toBe("版本冲突"); await click("删除占位");
     expect(writes().map(([, options]) => options!.body)).toEqual([{ version: 7 }, { version: 7 }]); expect(reload).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("不算排工", () => {
+  it("快速记工独立切换、占位暂停选择，保存只提交新标记并在再次打开时重置", async () => {
+    await render(); await click("新增记工"); await click("不算排工");
+    expect(button("不算排工").getAttribute("aria-pressed")).toBe("true");
+    expect(button("★高亮标记").getAttribute("aria-pressed")).toBe("false");
+    await click("占位");
+    expect(button("不算排工").disabled).toBe(true);
+    expect(button("不算排工").getAttribute("aria-pressed")).toBe("false");
+    await click("占位");
+    expect(button("不算排工").getAttribute("aria-pressed")).toBe("true");
+    await click("保存记工");
+    expect(writes()[0]![1]!.body).toMatchObject({ isDispatchExcluded: true, isHighlighted: false, serviceItemId: "service", serviceDurationMinutes: 60 });
+    await click("新增记工");
+    expect(button("不算排工").getAttribute("aria-pressed")).toBe("false");
+  });
+  it("普通样式的小卡与高亮混排，取消标记回左侧，历史只读保持分组", async () => {
+    props.board.rows[0]!.workRecords = [ordinary, { ...ordinary, id: "excluded", isDispatchExcluded: true }, { ...ordinary, id: "highlight", isHighlighted: true }];
+    await render();
+    const cards = () => [...container.querySelectorAll<HTMLButtonElement>(".record-track > button")];
+    expect(cards().map(card => card.className)).toEqual(["record-card", "add-record", "record-card record-card--right-group record-card--highlighted", "record-card record-card--right-group"]);
+    expect(container.querySelector(".row-work-count strong")!.textContent).toBe("3");
+    props.isCurrentBusinessDay = false; props.membership.role = "EMPLOYEE"; await render();
+    expect(cards().at(-1)!.disabled).toBe(true);
+    expect(cards().at(-1)!.classList.contains("record-card--highlighted")).toBe(false);
+    props.board.rows[0]!.workRecords[1]!.isDispatchExcluded = false; await render();
+    expect(cards().map(card => card.className)).toEqual(["record-card", "record-card", "record-card record-card--right-group record-card--highlighted"]);
+  });
+  it("详情入口在高亮左侧，草稿恢复后保存，冲突不覆盖旧版本", async () => {
+    const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
+    const record = { ...ordinary, status: "PENDING_PAYMENT" as const };
+    const renderEditor = async () => { await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={record} catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={vi.fn()} onSaved={vi.fn()} onChanged={reload} />)); };
+    await renderEditor();
+    expect([...document.querySelectorAll(".record-editor .modal-heading__actions button")].map(node => node.textContent)).toEqual(["不算排工", "★高亮标记", "关闭"]);
+    await click("不算排工");
+    const draftKey = `massage_note_record_draft_${record.id}`;
+    expect(JSON.parse(localStorage.getItem(draftKey)!).isDispatchExcluded).toBe(true);
+    await act(async () => root.render(null)); await renderEditor();
+    expect(button("不算排工").getAttribute("aria-pressed")).toBe("true");
+    expect(button("★高亮标记").getAttribute("aria-pressed")).toBe("false");
+    request.mockRejectedValueOnce(new ApiError(409, { code: "WORK_RECORD_VERSION_CONFLICT", messageZh: "版本冲突" }));
+    await click("保存");
+    expect(document.querySelector(".record-error-toast[role=alert]")!.textContent).toContain("版本冲突");
+    request.mockResolvedValue({ ...record, isDispatchExcluded: true, version: record.version + 1 });
+    await click("保存");
+    const changes = request.mock.calls.filter(([, options]) => options?.method === "PATCH");
+    expect(changes).toHaveLength(2);
+    for (const [, options] of changes) {
+      expect(options!.body).toMatchObject({ version: record.version, isDispatchExcluded: true });
+      expect(options!.body).not.toHaveProperty("isHighlighted");
+    }
+    expect(localStorage.getItem(draftKey)).toBeNull();
   });
 });

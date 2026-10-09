@@ -113,6 +113,15 @@ describe("记工项目来源契约", () => {
   const membershipId = "56d4a93a-5a73-49df-93c2-704ae844faa4";
   const itemId = "115e9be0-c76e-4d8d-bcec-55618c74450e";
 
+  it("不算排工作为独立可选布尔字段创建、更新和取消", () => {
+    const input = { employeeMembershipId: membershipId, startAt: "2026-10-09T14:00:00-04:00", serviceItemId: itemId, isDispatchExcluded: true };
+    expect(createWorkRecordSchema.parse(input)).toEqual(input);
+    expect(createWorkRecordSchema.parse({ ...input, isHighlighted: false }).isHighlighted).toBe(false);
+    expect(updateWorkRecordSchema.parse({ version: 2, isDispatchExcluded: false })).toEqual({ version: 2, isDispatchExcluded: false });
+    expect(updateWorkRecordSchema.parse({ version: 2 })).not.toHaveProperty("isDispatchExcluded");
+    expect(createWorkRecordSchema.safeParse({ ...input, isDispatchExcluded: "true" }).success).toBe(false);
+    expect(updateWorkRecordSchema.safeParse({ version: 2, isDispatchExcluded: 1 }).success).toBe(false);
+  });
   it("占位只接收员工和占位时间，普通记工仍要求项目", () => {
     const input = { employeeMembershipId: membershipId, startAt: "2026-10-06T14:00:00-04:00", isPlaceholder: true };
     expect(createWorkRecordSchema.parse(input)).toEqual(input);
@@ -127,6 +136,9 @@ describe("记工项目来源契约", () => {
     { isHighlighted: true },
     { isHighlighted: false },
     { isHighlighted: undefined },
+    { isDispatchExcluded: true },
+    { isDispatchExcluded: false },
+    { isDispatchExcluded: undefined },
     { note: "跳过" },
     { amountCents: 0 },
   ])("占位拒绝附带业务字段 %j", (extra) => {

@@ -5,7 +5,7 @@ class Track extends EventTarget {
   private fixedScrollWidth = 1200;
   clientWidth = 400;
   scrollLeft = 0;
-  children: Array<{ width?: number; highlighted?: boolean; getBoundingClientRect?: () => { right: number; width: number } }> = [];
+  children: Array<{ width?: number; highlighted?: boolean; excluded?: boolean; getBoundingClientRect?: () => { right: number; width: number } }> = [];
   dataset: Record<string, string | undefined> = {};
   anchor: { getBoundingClientRect: () => { right: number; width?: number } } | null = null;
   tail: { style: { width: number; setProperty: (name: string, value: string) => void }; getBoundingClientRect: () => { right: number; width: number } } | null = null;
@@ -24,21 +24,23 @@ class Track extends EventTarget {
     return null;
   }
   querySelectorAll(selector: string) {
-    return selector === ".record-card--highlighted" ? this.children.filter((child) => child.highlighted) : [];
+    return selector === ".record-card--right-group" ? this.children.filter((child) => child.highlighted || child.excluded) : [];
   }
   removeAttribute(name: string) { if (name === "data-return-tail") delete this.dataset.returnTail; }
   scrollTo = vi.fn(({ left }: ScrollToOptions) => {
     this.scrollLeft = Math.min(left ?? 0, this.scrollWidth - this.clientWidth);
   });
 
-  useLayout(highlightedCount: number, ordinaryCount = 5) {
-    const card = (highlighted: boolean) => ({
+  useLayout(highlightedCount: number, ordinaryCount = 5, excludedCount = 0) {
+    const card = (highlighted: boolean, excluded = false) => ({
       width: 177,
       highlighted,
+      excluded,
       getBoundingClientRect: () => ({ right: 0, width: 177 }),
     });
     const ordinary = Array.from({ length: ordinaryCount }, () => card(false));
     const highlights = Array.from({ length: highlightedCount }, () => card(true));
+    const excluded = Array.from({ length: excludedCount }, () => card(false, true));
     const add = {
       width: 177,
       getBoundingClientRect: () => ({ right: 16 + (ordinary.length) * 189 + 177 - this.scrollLeft, width: 177 }),
@@ -47,7 +49,7 @@ class Track extends EventTarget {
       style: { width: 0, setProperty: (_name: string, value: string) => { this.tail!.style.width = Number.parseFloat(value); } },
       getBoundingClientRect: () => ({ right: 0, width: this.tail!.style.width }),
     };
-    this.children = [...ordinary, add, ...highlights, this.tail];
+    this.children = [...ordinary, add, ...highlights, ...excluded, this.tail];
     this.anchor = add;
   }
 }
@@ -217,6 +219,15 @@ describe("open-day record track", () => {
     const withoutTail = 16 + track.children.filter((child) => child !== track.tail).length * 177
       + (track.children.filter((child) => child !== track.tail).length - 1) * 12 + 16;
     expect(track.scrollWidth).toBe(withoutTail + (highlightedCount < 2 ? 100.5 : 0));
+  });
+
+  it.each([[0, 1, 305.5], [0, 2, 289.5], [1, 1, 289.5]])("includes excluded records in the right preview (%i highlights, %i excluded)", (highlightedCount, excludedCount, reserve) => {
+    track.useLayout(highlightedCount, 5, excludedCount);
+    track.clientWidth = 700;
+    cleanup();
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+    expect(track.dataset.returnTail).toBe(highlightedCount + excludedCount < 2 ? "true" : "false");
+    expect(track.anchor!.getBoundingClientRect().right).toBeCloseTo(track.clientWidth - reserve, 1);
   });
 
   it("does not reserve a tail when cards fit, and keeps the add card fully visible on a narrow track", () => {

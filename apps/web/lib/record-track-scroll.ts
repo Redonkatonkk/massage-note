@@ -21,13 +21,13 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
     const contentWidth = cards.reduce((sum, child) => sum + child.getBoundingClientRect().width, 0)
       + Math.max(0, cards.length - 1) * gap + paddingLeft + paddingRight;
     const overflowing = contentWidth > track.clientWidth + 1;
-    const highlightedCount = track.querySelectorAll(".record-card--highlighted").length;
-    const showTail = overflowing && highlightedCount < 2;
+    const rightGroupCount = track.querySelectorAll(".record-card--right-group").length;
+    const showTail = overflowing && rightGroupCount < 2;
     track.dataset.returnTail = String(showTail);
     tail.style.setProperty("--record-track-tail-width", `${cardWidth / 2}px`);
-    const desiredReserve = highlightedCount >= 2
+    const desiredReserve = rightGroupCount >= 2
       ? cardWidth * 1.5 + gap * 2
-      : highlightedCount * (cardWidth + gap) + gap + cardWidth / 2 + paddingRight;
+      : rightGroupCount * (cardWidth + gap) + gap + cardWidth / 2 + paddingRight;
     // On a narrow phone, showing the whole add card takes priority over the preview.
     rightReserve = overflowing
       ? Math.min(desiredReserve, Math.max(paddingRight, track.clientWidth - cardWidth - paddingLeft))

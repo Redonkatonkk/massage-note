@@ -399,9 +399,9 @@ h2 {
   cursor: pointer;
 }
 
-/* Keep highlights at the right; the add card stays next to ordinary records. */
-.record-track > .record-card--highlighted:first-child,
-.record-track > :not(.record-card--highlighted) + .record-card--highlighted {
+/* Share right alignment without sharing highlight colors. */
+.record-track > .record-card--right-group:first-child,
+.record-track > :not(.record-card--right-group) + .record-card--right-group {
   margin-left: auto;
 }
 
@@ -1697,6 +1697,9 @@ h2 {
   gap: 9px;
 }
 
+.record-editor .modal-heading { flex-wrap: wrap; }
+.record-editor .modal-heading__actions { max-width: 100%; flex-wrap: wrap; }
+
 .highlight-toggle {
   display: inline-flex;
   min-height: 48px;
@@ -1739,7 +1742,8 @@ h2 {
   opacity: 0.65;
 }
 
-.placeholder-toggle:hover, .placeholder-toggle.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+.placeholder-toggle:hover, .placeholder-toggle.active,
+.dispatch-excluded-toggle:hover, .dispatch-excluded-toggle.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
 .board-delivery-dialog.placeholder-delete-dialog { width: min(480px, calc(100vw - 32px)); }
 
 .field-label,

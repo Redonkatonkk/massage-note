@@ -167,6 +167,7 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
         'service_item_price_options_valid_values',
         'work_records_non_negative_money',
         'work_records_placeholder_empty',
+        'work_records_placeholder_dispatch_excluded_check',
         'work_records_confirmed_finance_complete'
       )
       ORDER BY conname
@@ -179,6 +180,7 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
       "stores_gift_card_auto_discount_valid",
       "work_records_confirmed_finance_complete",
       "work_records_non_negative_money",
+      "work_records_placeholder_dispatch_excluded_check",
       "work_records_placeholder_empty",
     ]);
   });
@@ -201,13 +203,14 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
         { endAt: record.startAt },
         { cashServiceCents: 0n },
         { isHighlighted: true },
+        { isDispatchExcluded: true },
         { note: "不能给占位写备注" },
       ]) {
         await expect(prisma.workRecord.update({ where: { id: record.id }, data })).rejects.toThrow();
       }
       await expect(prisma.workRecord.findUniqueOrThrow({ where: { id: record.id } })).resolves.toMatchObject({
         status: "PLACEHOLDER", mainServiceAmountCents: 0n, cashServiceCents: null,
-        endAt: null, actualDurationMinutes: null, isHighlighted: false, note: "",
+        endAt: null, actualDurationMinutes: null, isHighlighted: false, isDispatchExcluded: false, note: "",
       });
     } finally {
       await prisma.workRecord.delete({ where: { id: record.id } });

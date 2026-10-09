@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.22.1`
+> 适用版本：`1.24.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -61,7 +61,7 @@
 | POST | `/stores/:storeId/boards/:businessDate/rank` | 店长或经理按最近一次可见出勤名次生成今天或未来日期员工顺序（过去日期返回 DAILY_RANKING_PAST_DAY_NOT_ALLOWED）；使用营业日锁、表格版本和幂等键 |
 | POST | `/stores/:storeId/boards/:businessDate/rows/:rowId/remove` | 移除尚无当天活动的误加员工 |
 | POST | `/stores/:storeId/work-records` | 快速创建预设、自定义记工或占位；每日排位不会增加记工字段或限制记工入口 |
-| GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改高亮及其他字段与软删除 |
+| GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改高亮／不算排工及其他字段与软删除 |
 | POST | `/stores/:storeId/work-records/:recordId/save` | 详情与付款原子保存；body 为 `{ details, payment }`，两者必须带相同基准 `version`，需幂等键 |
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡/礼物卡大费和小费拆分；使用礼物卡时同时提交序列号 |
 | GET | `/stores/:storeId/work-records/deleted` | 记工回收站 |
@@ -179,6 +179,8 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 设为 `true` 后，服务端删除该笔自动折扣快照并持久保留停用状态，之后再次编辑也不会自动加回；设为 `false` 时按当前营业日、折前大费和店铺设置重新判断。该字段走既有记工权限、营业日锁、版本冲突、幂等、审计与现金结算回退规则。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
+快速创建、PATCH 和 save.details 支持可选布尔字段 `isDispatchExcluded`（默认 `false`），响应和看板记录返回该字段；独立于 `isHighlighted`，只控制看板右侧混排，不改变记工数、自动折扣、财务高亮筛选、手续费或工资。省略更新字段保留原值，显式 `false` 可取消。占位创建禁止提交该字段，占位编辑继续只读；数据库前向迁移使旧记录默认 `false`，审计记录修改前后值。保留原因：排工展示不能借用具有金额含义的高亮标记，调用方需保留独立状态。
+
 快速记工和详情修改都可提交布尔字段 `isHighlighted`，用于灰绿色高亮卡片、财务筛选及信用卡手续费计算，同时排除周一至周四自动折扣。新建高亮记工不生成该自动折扣，编辑为高亮时删除既有自动折扣快照、保留手动折扣和实际付款；取消高亮后重新按当前规则判断，但不会解除 `automaticDiscountSuppressed`。该规则同样适用于机器人复用记工编辑服务的操作，不批量改写历史数据。手续费规则：未高亮刷卡金额按 2.5%，含刷卡付款的高亮记工每笔 $3。财务汇总、明细和 CSV 使用同一 `highlightFilter`。保留原因：领域层已有高亮手续费分支，旧说法“不进入任何金额公式”会误导财务查询和改动。
 
 确认付款可在原有现金与刷卡字段之外提交礼物卡拆分：
@@ -218,7 +220,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 ### 记工占位
 
-`POST /stores/:storeId/work-records` 可提交 `{ employeeMembershipId, startAt, isPlaceholder: true }` 创建占位；禁止同时提交 `serviceItemId`、`serviceDurationMinutes`、`customService` 或 `isHighlighted`，包括显式 `false` 高亮。省略 `isPlaceholder` 或提交 `false` 时仍使用原普通记工校验。保留原因：占位不选择项目，高亮会影响业务规则，两个创建分支须明确区分。
+`POST /stores/:storeId/work-records` 可提交 `{ employeeMembershipId, startAt, isPlaceholder: true }` 创建占位；禁止同时提交 `serviceItemId`、`serviceDurationMinutes`、`customService` 、`isHighlighted` 或 `isDispatchExcluded`，包括显式 `false` 标记。省略 `isPlaceholder` 或提交 `false` 时仍使用原普通记工校验。保留原因：占位不选择项目，高亮会影响业务规则，两个创建分支须明确区分。
 
 占位响应 `status: "PLACEHOLDER"`，`startAt` 仅用于日期归属与看板卡片顺序，必填金额为零，结束时间、时长及付款字段为空，项目快照为空、加项和折扣数组为空。看板 `workRecords` 保留占位，但工数及所有财务、日结、经营分析、工资、机器人查询和工作占用排除占位；仅有占位不产生财务日历标记。保留原因：占位要持久同步并能查看历史，不能形成服务或收款事实。
 

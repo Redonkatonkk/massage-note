@@ -1,11 +1,11 @@
 import { formatWholeDollarAmount } from "./money";
 
-/** API records are chronological; highlighted records read from right to left. */
-export function recordTrackItems<T extends { isHighlighted: boolean }>(records: readonly T[], canAdd: boolean): Array<T | null> {
+/** API records are chronological; the shared right group reads from right to left. */
+export function recordTrackItems<T extends { isHighlighted: boolean; isDispatchExcluded?: boolean }>(records: readonly T[], canAdd: boolean): Array<T | null> {
   return [
-    ...records.filter((record) => !record.isHighlighted),
+    ...records.filter((record) => !record.isHighlighted && !record.isDispatchExcluded),
     ...(canAdd ? [null] : []),
-    ...records.filter((record) => record.isHighlighted).reverse(),
+    ...records.filter((record) => record.isHighlighted || record.isDispatchExcluded).reverse(),
   ];
 }
 

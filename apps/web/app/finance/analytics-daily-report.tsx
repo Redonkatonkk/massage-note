@@ -93,7 +93,6 @@ export function AnalyticsDailyReport({ storeId, data, highlightFilter }: {
   const viewDetails = (date: string, label: string) => setTarget({ scope, date, label });
   const amount = (date: string, cents: number, label: string) => <button className="amount-link" type="button" disabled={detailLoading} aria-label={`${date} ${label} · ${t("查看组成明细", "View breakdown")}`} onClick={() => viewDetails(date, `${date} ${label}`)}>{formatUsd(cents, locale)}</button>;
   return <>
-    <AnalyticsRevenueCalendar key={scope} data={data} disabled={detailLoading} onDate={date => viewDetails(date, `${date} ${t("营业额", "Revenue")}`)} />
     {detailLoading && <p role="status">{t("正在读取当天明细…", "Loading daily details…")}</p>}
     {detailFailed && <p role={detailError ? "alert" : "status"} className={detailError ? "form-error" : undefined}>{detailError} <button type="button" className="secondary-action" onClick={() => void detailQueue.current?.request()}>{t("重试", "Retry")}</button></p>}
     <section className="finance-report-section" aria-busy={loading}>
@@ -115,6 +114,9 @@ export function AnalyticsDailyReport({ storeId, data, highlightFilter }: {
         </table>
       </div>}
     </section>
+    <div className="analytics-grid">
+      <AnalyticsRevenueCalendar key={scope} data={data} disabled={detailLoading} onDate={date => viewDetails(date, `${date} ${t("营业额", "Revenue")}`)} />
+    </div>
     {details?.scope === detailScope && target && <FinanceDetailsDialog details={details.data} title={target.label} onClose={() => setTarget(null)} />}
   </>;
 }

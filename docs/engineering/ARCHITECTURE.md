@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.24.1` 代码结构核对。
+> 状态：与 `1.25.0` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -220,3 +220,5 @@ Web 表单
 领域 `calculateExpenseMonth` 使用 BigInt，按查询月份直接定位相交周期，不从首次费用逐日扫描。月周期以整月为分摊单位，天周期以自然日为单位，余数归较早单位。实际单期覆盖优先于规则默认值；软删除项目不参与汇总。前端只格式化金额和编辑输入，不重新计算月成本。
 
 记工的 `isDispatchExcluded` 由共享创建／更新契约、WorkRecordsService 和数据库独立保存，Web 草稿与看板读取同一字段；`recordTrackItems` 将它与高亮记录共同按时间从右向左排序，`record-card--right-group` 只控制右对齐，`isHighlighted` 继续独立控制颜色和金额规则。保留原因：把展示位置与高亮语义分开，避免排工标记改变财务计算。
+
+个人日结由 domain 的 `employee-closing-template.ts` 统一中英文展示内容和稳定时间排序，Web 的 `employee-closing-statement.tsx` 展示两列记工卡，`employee-closing-image.ts` 输出同款 SVG 并分别由 Web canvas 与 Mac `sips` 转为 PNG。所有收入仍取后端快照，页面现金交接／发送操作在模板之外。保留原因：共享展示内容防止页面、导出和短信附件分别演变，展示层不得重算工资或暗示已发放。

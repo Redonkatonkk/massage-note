@@ -681,6 +681,8 @@ export class ClosingsService {
             shortName: addon.shortName,
           })),
           grossFeeBaseCents: this.safeNumber(record.grossFeeBaseCents),
+          isHighlighted: record.isHighlighted,
+          discountTotalCents: this.safeNumber(record.discountTotalCents),
           cashServiceCents:
             record.cashServiceCents === null
               ? null

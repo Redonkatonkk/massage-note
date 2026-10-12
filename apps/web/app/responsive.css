@@ -462,10 +462,12 @@ button, summary { overflow-wrap: anywhere; }
   .weekly-dispatch-table td input { width: 20px; height: 20px; }
 }
 
-@media (max-width: 480px) {
-  .employee-closing-record { grid-template-columns: minmax(0, 1fr) 116px; gap: 6px; padding: 10px 8px; }
-  .employee-closing-record-amounts { gap: 4px; }
-  .employee-closing-record-amount > strong { font-size: 1.1rem; padding: 2px 5px; }
+@media (max-width: 360px) {
+  .closing-template { padding: 16px 12px; }
+  .closing-template-summary { padding: 13px; }
+  .closing-template-record { padding: 11px 9px; }
+  .closing-template-gross strong { font-size: 1.0625rem; }
+  .closing-template-heading h2 { font-size: 1.125rem; }
 }
 
 .gift-card-ledger__legacy-row td:first-child small {

@@ -71,12 +71,12 @@ describe.skipIf(process.platform !== "darwin")("个人日结 PNG", () => {
       expect(bytes.readUInt32BE(20)).toBe(expected.height);
       expect(markup).toBe(expected.svg);
       expectOpaquePng(bytes);
-      expect(markup).toContain("今日已确认总收入");
-      expect(markup).toContain("US$90.01");
-      expect(markup).toContain("非现金（刷卡＋礼物卡）");
-      expect(markup).toContain("折前项目金额");
-      expect(markup).toContain("礼物卡 US$20.00");
-      expect(markup).not.toMatch(/应提交现金|linearGradient|card-amount-box/);
+      expect(markup).toContain("今日已确认收入");
+      expect(markup).toContain("$90.01");
+      expect(markup).toContain("刷卡＋礼卡");
+      expect(markup).toContain("本笔收入");
+      expect(markup).toContain("礼卡 $20.00");
+      expect(markup).not.toMatch(/应提交现金|linearGradient/);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -100,7 +100,7 @@ describe.skipIf(process.platform !== "darwin")("个人日结 PNG", () => {
       expectOpaquePng(bytes);
       expect(markup.match(/data-card-kind="record"/g)).toHaveLength(12);
       expect(markup.match(/class="amount record-income"/g)).toHaveLength(12);
-      expect(markup).toContain(".payment-detail{font-size:42px");
+      expect(markup).toContain('font-size="36"');
       expect(markup).not.toMatch(/应提交现金|Cash to submit|linearGradient|…/);
     } finally {
       await rm(directory, { recursive: true, force: true });

@@ -50,7 +50,7 @@ describe("个人日结图片导出", () => {
     const svg = await (create.mock.calls[0]![0] as Blob).text();
     expect(svg).toContain("Store &amp; Spa");
     expect(svg).toContain("Massage &lt;test&gt;");
-    expect(svg).toContain(locale === "en-US" ? "$70.01" : "US$70.01");
+    expect(svg).toContain("$70.01");
     expect(create.mock.calls[1]?.[0]).toMatchObject({ type: "image/png" });
     expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, canvas.width, canvas.height);
     expect(revoke).toHaveBeenCalledExactlyOnceWith("blob:svg");

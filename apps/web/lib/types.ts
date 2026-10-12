@@ -692,6 +692,8 @@ export interface EmployeeClosingPreview {
 }
 
 export interface EmployeeClosingRecord {
+  isHighlighted?: boolean;
+  discountTotalCents?: number;
   id: string;
   status: "PENDING_PAYMENT" | "CONFIRMED";
   startAt: string;

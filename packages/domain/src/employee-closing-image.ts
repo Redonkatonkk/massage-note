@@ -1,182 +1,151 @@
-import { imageTheme as theme, imageTextUnits as textUnits, imageTextLines as textLines, imageLineHeight as lineHeightOf, imagePanel as panel, imageDivider as divider } from "./image-layout.js";
-import { imageLocaleName as localeName, formatImageMoney as money, formatImageTime as time, type ImageLocale as Locale } from "./image-format.js";
+import { imageTheme as theme, imageTextUnits as units, imageTextLines as textLines, imageLineHeight as textHeight, imageDivider as divider } from "./image-layout.js";
+import { escapeImageXml, type ImageLocale } from "./image-format.js";
+import { createEmployeeClosingTemplate, type ClosingSnapshot, type ClosingPaymentPart, type EmployeeClosingTemplate } from "./employee-closing-template.js";
+export type { ClosingSnapshot } from "./employee-closing-template.js";
 
-interface ClosingRecord {
-  startAt: string | null;
-  endAt: string | null;
-  status: string;
-  serviceShortName: string;
-  serviceName: string;
-  addons: Array<{ shortName: string; name: string }>;
-  grossFeeBaseCents: number;
-  cashServiceCents: number | null;
-  cardServiceCents: number | null;
-  giftCardServiceCents: number | null;
-  cashTipCents: number | null;
-  cardTipCents: number | null;
-  giftCardTipCents: number | null;
-  employeeIncomeCents: number | null;
+// Three source pixels per CSS pixel at the shared 390px phone template width.
+const WIDTH = 1170, MARGIN = 48, GAP = 30, PADDING = 36;
+const INNER = WIDTH - MARGIN * 2, CARD_WIDTH = (INNER - GAP) / 2;
+type Section = { height: number; svg: string };
+const text = (...args: Parameters<typeof textLines>) => textLines(...args).replace("<text ", `<text font-size="${args[2]}" `);
+
+function surface(x: number, y: number, width: number, height: number, kind: string, fill = theme.surface, stroke = theme.line, radius = 30) {
+  return `<rect data-card-kind="${kind}" x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${fill}" stroke="${stroke}"/>`;
 }
 
-export interface ClosingSnapshot {
-  storeName: string;
-  storeTimezone: string;
-  businessDate: string;
-  isClosed: boolean;
-  activeClosing: null | { cycleNo: number };
-  employee: {
-    displayName: string;
-    grossFeeBaseCents: number;
-    cashToSubmitToStoreCents: number;
-    cashLargeFeeDividendCents: number;
-    cardLargeFeeDividendCents: number;
-    cashTipDividendCents: number;
-    cardTipDividendCents: number;
-    confirmedLargeFeeWageCents: number;
-    confirmedTipWageCents: number;
-    confirmedIncomeCents: number;
-  };
-  records: ClosingRecord[];
-}
-
-// At 390 CSS pixels, body text is 14–16px and auxiliary text is at least 12px.
-// Keep Messages' original width and grow the height instead of shrinking text.
-const WIDTH = 1170;
-const MARGIN = 48;
-const PADDING = 36;
-const PANEL_WIDTH = WIDTH - MARGIN * 2;
-const CONTENT_WIDTH = PANEL_WIDTH - PADDING * 2;
-const CONTENT_X = MARGIN + PADDING;
-const RIGHT_X = CONTENT_X + CONTENT_WIDTH;
-const PANEL_GAP = 24;
-
-type Flow = {
-  text: (value: string, size: number, className: string, lineHeight: number, gap?: number) => void;
-  amount: (label: string, value: string, className?: string) => void;
-  rule: () => void;
-};
-
-function contentPanel(top: number, kind: string, draw: (flow: Flow) => void) {
-  let cursor = top + PADDING;
-  const content: string[] = [];
-  const flow: Flow = {
-    text(value, size, className, lineHeight, gap = 12) {
-      content.push(textLines(value, CONTENT_WIDTH, size, CONTENT_X, cursor + size, className, lineHeight));
-      cursor += lineHeightOf(value, CONTENT_WIDTH, size, lineHeight) + gap;
+function flow(x: number, top: number, width: number) {
+  let cursor = top;
+  const parts: string[] = [];
+  return {
+    parts, get cursor() { return cursor; },
+    line(value: string, size: number, className: string, height = size + 12, gap = 12) {
+      parts.push(text(value, width, size, x, cursor + size, className, height));
+      cursor += textHeight(value, width, size, height) + gap;
     },
-    amount(label, value, className = "amount") {
-      const labelSize = 44;
-      const valueSize = 48;
-      const amountWidth = textUnits(value) * valueSize + 4;
-      const inline = textUnits(label) * labelSize + amountWidth + 24 <= CONTENT_WIDTH;
-      if (inline) {
-        content.push(textLines(label, CONTENT_WIDTH - amountWidth - 24, labelSize, CONTENT_X, cursor + valueSize, "amount-label", 56));
-        content.push(textLines(value, amountWidth, valueSize, RIGHT_X, cursor + valueSize, className, 60, "end"));
-        cursor += 60;
+    rule() { cursor += 12; parts.push(divider(x, cursor, width)); cursor += 24; },
+    amount(label: string, value: string, className: string, size = 42) {
+      const valueWidth = units(value) * size;
+      if (units(label) * 36 + valueWidth + 24 <= width) {
+        parts.push(text(label, width - valueWidth - 24, 36, x, cursor + size, "note", 48));
+        parts.push(text(value, valueWidth + 1, size, x + width, cursor + size, className, size + 12, "end"));
+        cursor += size + 24;
       } else {
-        content.push(textLines(label, CONTENT_WIDTH, labelSize, CONTENT_X, cursor + labelSize, "amount-label", 56));
-        cursor += lineHeightOf(label, CONTENT_WIDTH, labelSize, 56) + 10;
-        content.push(textLines(value, CONTENT_WIDTH, valueSize, RIGHT_X, cursor + valueSize, className, 60, "end"));
-        cursor += lineHeightOf(value, CONTENT_WIDTH, valueSize, 60);
+        this.line(label, 36, "note", 48, 6);
+        parts.push(text(value, width, size, x + width, cursor + size, className, size + 12, "end"));
+        cursor += textHeight(value, width, size, size + 12) + 12;
       }
-      cursor += 12;
     },
-    rule() {
-      cursor += 12;
-      content.push(divider(CONTENT_X, cursor, CONTENT_WIDTH));
-      cursor += 24;
+    payments(label: string, paymentParts: ClosingPaymentPart[]) {
+      const labelWidth = Math.min(width * .25, units(label) * 36);
+      const paymentWidth = width - labelWidth - 15;
+      parts.push(text(label, labelWidth, 36, x, cursor + 39, "payment-label", 48));
+      let offset = 0, rowHeight = textHeight(label, labelWidth, 36, 48) + 12;
+      for (const [index, part] of paymentParts.entries()) {
+        const padding = part.method === "card" || part.method === "gift" ? 12 : 0;
+        const partWidth = Math.min(paymentWidth, units(part.text) * 36 + padding * 2 + 2);
+        const partHeight = textHeight(part.text, partWidth - padding * 2, 36, 48) + 12;
+        const separatorWidth = index > 0 ? 42 : 0;
+        if (offset && offset + separatorWidth + partWidth > paymentWidth) { cursor += rowHeight + 9; offset = 0; rowHeight = 0; }
+        if (index > 0 && offset) { parts.push(text("＋", 36, 36, x + labelWidth + 15 + offset, cursor + 39, "note", 48)); offset += separatorWidth; }
+        const boxX = x + labelWidth + 15 + offset;
+        if (part.method === "card" || part.method === "gift") parts.push(`<rect data-payment-method="${part.method}" x="${boxX}" y="${cursor}" width="${partWidth}" height="${partHeight}" rx="9" fill="${part.method === "gift" ? theme.brandSoft : theme.surface}"${part.method === "card" ? ` stroke="${theme.ink}" stroke-width="3"` : ""}/>`);
+        parts.push(text(part.text, partWidth - padding * 2, 36, boxX + padding, cursor + 39, `payment-detail payment-${part.method}`, 48));
+        offset += partWidth + 12; rowHeight = Math.max(rowHeight, partHeight);
+      }
+      cursor += rowHeight + 12;
     },
   };
-  draw(flow);
-  const height = cursor - top + PADDING;
-  return { height, svg: panel(MARGIN, top, PANEL_WIDTH, height, kind) + content.join("") };
 }
 
-function paymentBreakdown(values: readonly [number | null, number | null, number | null], locale: Locale) {
-  const en = locale === "en_US";
-  if (values.every(value => value === null)) return en ? "Unconfirmed" : "未确认";
-  const labels = en ? ["Cash", "Card", "Gift card"] : ["现金", "刷卡", "礼物卡"];
-  const parts = values.flatMap((value, index) => value === 0 ? [] : [`${labels[index]} ${value === null ? (en ? "Unconfirmed" : "未确认") : money(value, locale)}`]);
-  return parts.join(" · ") || money(0, locale);
+function summary(top: number, model: EmployeeClosingTemplate): Section {
+  const x = MARGIN + PADDING, width = INNER - PADDING * 2;
+  const block = flow(x, top + PADDING, width);
+  block.line(`${model.labels.income} · ${model.labels.currency}`, 42, "income-label", 54, 9);
+  block.line(model.income, 108, "primary-amount", 126, 18);
+  block.line(`${model.labels.serviceWages} ${model.serviceWages} ＋ ${model.labels.tips} ${model.tips}`, 39, "note", 51, 9);
+  block.rule();
+  let cursor = block.cursor;
+  const widths = [width * .36, width * .32, width * .32];
+  const xs = [x, x + widths[0]! + widths[1]!, x + width];
+  const row = (values: string[], heading: boolean) => {
+    const heights = values.map((value, i) => textHeight(value, widths[i]! - 18, 39, 51));
+    values.forEach((value, i) => block.parts.push(text(value, widths[i]! - 18, 39, xs[i]!, cursor + 39, heading ? "source-heading" : i === 0 ? "source-label" : "amount source-amount", 51, i === 0 ? "start" : "end")));
+    cursor += Math.max(...heights) + 15;
+  };
+  row([model.labels.source, model.labels.serviceWages, model.labels.tips], true);
+  model.sources.forEach(source => row([source.label, source.wages, source.tips], false));
+  const height = cursor - top + PADDING - 12;
+  return { height, svg: surface(MARGIN, top, INNER, height, "income") + block.parts.join("") };
 }
 
-function orderedRecords(records: readonly ClosingRecord[]) {
-  const startTime = (record: ClosingRecord) => record.startAt === null ? Number.POSITIVE_INFINITY : new Date(record.startAt).getTime();
-  return records.map((record, index) => ({ record, index })).sort((first, second) => {
-    const difference = startTime(first.record) - startTime(second.record);
-    return Number.isNaN(difference) || difference === 0 ? first.index - second.index : difference;
-  }).map(({ record }) => record);
+function recordCard(x: number, top: number, model: EmployeeClosingTemplate, record: EmployeeClosingTemplate["records"][number]): Section {
+  const width = CARD_WIDTH - PADDING * 2;
+  const block = flow(x + PADDING, top + PADDING, width);
+  const badges = [
+    ...(record.addon ? [{ value: "＋", className: "addon", fill: theme.brandSoft, width: 60 }] : []),
+    ...(record.discount ? [{ value: record.discount, className: "discount", fill: theme.danger, width: units(record.discount) * 36 + 24 }] : []),
+  ];
+  const badgeWidth = Math.min(width * .5, badges.reduce((sum, badge) => sum + badge.width + 12, -12));
+  const titleWidth = width - (badges.length ? badgeWidth + 18 : 0);
+  const titleHeight = textHeight(record.title, titleWidth, 45, 57);
+  block.parts.push(text(record.title, titleWidth, 45, x + PADDING, block.cursor + 45, "record-title", 57));
+  let badgeHeight = 0, badgeOffset = 0, badgeRowHeight = 0;
+  for (const badge of badges) {
+    const badgeSize = Math.min(badgeWidth, badge.width);
+    const badgeItemHeight = textHeight(badge.value, badgeSize - 12, 36, 48) + 12;
+    if (badgeOffset && badgeOffset + badgeSize > badgeWidth) { badgeHeight += badgeRowHeight + 12; badgeOffset = 0; badgeRowHeight = 0; }
+    const badgeX = x + PADDING + width - badgeWidth + badgeOffset;
+    const badgeY = block.cursor + badgeHeight;
+    block.parts.push(`<rect x="${badgeX}" y="${badgeY}" width="${badgeSize}" height="${badgeItemHeight}" rx="${badge.className === "discount" ? 12 : 30}" fill="${badge.fill}"/>`);
+    block.parts.push(text(badge.value, badgeSize - 12, 36, badgeX + 6, badgeY + 39, badge.className, 48));
+    badgeOffset += badgeSize + 12; badgeRowHeight = Math.max(badgeRowHeight, badgeItemHeight);
+  }
+  badgeHeight += badgeRowHeight;
+  const body = flow(x + PADDING, top + PADDING + Math.max(titleHeight, badgeHeight) + 12, width);
+  body.line(record.time, 36, "record-meta", 48, 6);
+  if (record.addon) body.line(record.addon, 36, "note", 48, 6);
+  if (record.pending) body.line(record.pendingText, 36, "pending-note", 48, 6);
+  body.amount(model.labels.gross, record.gross, "amount record-gross", 57);
+  body.payments(model.labels.received, record.service);
+  body.payments(model.labels.tips, record.tips);
+  body.rule();
+  body.amount(model.labels.recordIncome, record.income, "amount record-income");
+  const height = body.cursor - top + PADDING - 12;
+  const fill = record.pending ? theme.pending : record.highlighted ? theme.highlight : theme.surface;
+  const stroke = record.pending ? theme.pendingLine : record.highlighted ? theme.highlightLine : theme.line;
+  return { height, svg: surface(x, top, CARD_WIDTH, height, "record", fill, stroke, 18) + block.parts.join("") + body.parts.join("") };
 }
 
-function recordPanel(record: ClosingRecord, index: number, top: number, snapshot: ClosingSnapshot, locale: Locale) {
-  const en = locale === "en_US";
-  const confirmed = record.status === "CONFIRMED";
-  const incomeConfirmed = confirmed && record.employeeIncomeCents !== null;
-  const name = [record.serviceShortName || record.serviceName, ...record.addons.map(addon => addon.shortName || addon.name)].join(" + ");
-  return contentPanel(top, "record", flow => {
-    flow.text(`${time(record.startAt, snapshot.storeTimezone, locale)}–${time(record.endAt, snapshot.storeTimezone, locale)} · ${en ? `Record ${index}` : `第 ${index} 笔`}`, 38, "record-meta", 48);
-    flow.text(name, 48, "record-title", 60);
-    flow.text(confirmed ? (en ? "Confirmed" : "已确认") : (en ? "Pending checkout · excluded from today's totals" : "待结账 · 未计入今日汇总"), 38, "record-meta", 48, 0);
-    flow.rule();
-    flow.amount(en ? (incomeConfirmed ? "Confirmed earnings for this record" : "Earnings awaiting confirmation") : (incomeConfirmed ? "本笔已确认收入" : "本笔收入（待确认）"), incomeConfirmed ? money(record.employeeIncomeCents, locale) : (en ? "Unconfirmed" : "未确认"), "amount record-income");
-    flow.amount(en ? "Service price before discount" : "折前项目金额", money(record.grossFeeBaseCents, locale));
-    flow.rule();
-    flow.text(en ? "Customer service payment" : "客人支付的大费", 42, "payment-label", 54, 8);
-    flow.text(paymentBreakdown([record.cashServiceCents, record.cardServiceCents, record.giftCardServiceCents], locale), 42, "payment-detail", 56, 20);
-    flow.text(en ? "Customer tip payment" : "客人支付的小费", 42, "payment-label", 54, 8);
-    flow.text(paymentBreakdown([record.cashTipCents, record.cardTipCents, record.giftCardTipCents], locale), 42, "payment-detail", 56, 0);
-  });
-}
-
-/** A saved income snapshot, with no inference about whether wages were paid. */
-export function createEmployeeClosingSvg(snapshot: ClosingSnapshot, locale: Locale) {
-  const en = locale === "en_US";
+/** The same content and two-column record cards as the employee closing page. */
+export function createEmployeeClosingSvg(snapshot: ClosingSnapshot, locale: ImageLocale) {
+  const model = createEmployeeClosingTemplate(snapshot, locale);
   const content: string[] = [];
-  let cursor = MARGIN;
-  const addHeader = (value: string, size: number, className: string, lineHeight: number) => {
-    content.push(textLines(value, PANEL_WIDTH, size, MARGIN, cursor + size, className, lineHeight));
-    cursor += lineHeightOf(value, PANEL_WIDTH, size, lineHeight) + 12;
-  };
-  addHeader(snapshot.storeName, 42, "store", 54);
-  addHeader(en ? "Employee closing · earnings statement" : "个人日结 · 收入明细", 42, "document-title", 54);
-  const date = new Intl.DateTimeFormat(localeName(locale), { year: "numeric", month: "long", day: "numeric", weekday: "long", timeZone: "UTC" }).format(new Date(`${snapshot.businessDate}T12:00:00Z`));
-  addHeader(date, 42, "date", 54);
-  addHeader(snapshot.employee.displayName, 60, "employee-name", 74);
-  const closingState = snapshot.isClosed ? (en ? "Business day closed" : "已日结") : (en ? "Business day still open" : "尚未日结");
-  addHeader(closingState + (snapshot.activeClosing ? (en ? ` · Closing #${snapshot.activeClosing.cycleNo}` : ` · 第 ${snapshot.activeClosing.cycleNo} 次日结`) : ""), 36, "closing-state", 46);
-  cursor += 12;
-  const appendPanel = (section: { height: number; svg: string }) => {
-    content.push(section.svg);
-    cursor += section.height + PANEL_GAP;
-  };
-
-  appendPanel(contentPanel(cursor, "income", flow => {
-    flow.text(en ? "Today's confirmed earnings" : "今日已确认总收入", 44, "income-label", 56, 8);
-    flow.text(money(snapshot.employee.confirmedIncomeCents, locale), 90, "primary-amount", 108, 16);
-    flow.text(en ? "Confirmed service wages + tips. Check settlement records for payments." : "已确认大费工资＋小费；实际发放请核对结算记录。", 36, "note", 46, 0);
-  }));
-  appendPanel(contentPanel(cursor, "service-summary", flow => {
-    flow.text(en ? "Service wages" : "大费工资", 48, "section-title", 60, 16);
-    flow.amount(en ? "Cash" : "现金", money(snapshot.employee.cashLargeFeeDividendCents, locale));
-    flow.amount(en ? "Non-cash (card + gift card)" : "非现金（刷卡＋礼物卡）", money(snapshot.employee.cardLargeFeeDividendCents, locale));
-    flow.rule();
-    flow.amount(en ? "Total service wages" : "大费工资合计", money(snapshot.employee.confirmedLargeFeeWageCents, locale), "amount subtotal");
-    flow.text(en ? "Non-cash also includes service wages not allocated to cash." : "非现金还包含未按现金分配的项目工资。", 36, "note", 46, 0);
-  }));
-  appendPanel(contentPanel(cursor, "tip-summary", flow => {
-    flow.text(en ? "Tips" : "小费", 48, "section-title", 60, 16);
-    flow.amount(en ? "Cash" : "现金", money(snapshot.employee.cashTipDividendCents, locale));
-    flow.amount(en ? "Non-cash (card + gift card)" : "非现金（刷卡＋礼物卡）", money(snapshot.employee.cardTipDividendCents, locale));
-    flow.rule();
-    flow.amount(en ? "Total tips" : "小费合计", money(snapshot.employee.confirmedTipWageCents, locale), "amount subtotal");
-  }));
-
-  addHeader(`${en ? "Work records" : "逐笔记工"} · ${snapshot.records.length} ${en ? "records" : "笔"}`, 48, "section-title", 60);
-  const records = orderedRecords(snapshot.records);
-  if (records.length === 0) appendPanel(contentPanel(cursor, "empty", flow => flow.text(en ? "No work records for this business day" : "本营业日暂无记工", 42, "empty-note", 56, 0)));
-  else records.forEach((record, index) => appendPanel(recordPanel(record, index + 1, cursor, snapshot, locale)));
-  addHeader(en ? "Massage Note · Saved business-day snapshot" : "Massage Note · 数据以系统保存的营业日快照为准", 36, "footer", 46);
-  const height = Math.ceil(cursor + MARGIN);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${height}" viewBox="0 0 ${WIDTH} ${height}"><defs><style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:${theme.ink};font-weight:400}.store,.document-title,.date{font-size:42px}.store,.date{fill:${theme.muted}}.employee-name{font-size:60px;font-weight:600}.closing-state,.note,.footer{font-size:36px;fill:${theme.muted}}.empty-note{font-size:42px;fill:${theme.muted}}.income-label,.amount-label{font-size:44px}.primary-amount{font-size:90px;font-weight:600;fill:${theme.brand};font-variant-numeric:tabular-nums lining-nums}.section-title,.record-title{font-size:48px;font-weight:600}.amount{font-size:48px;font-weight:500;font-variant-numeric:tabular-nums lining-nums}.subtotal,.record-income{font-weight:600}.record-meta{font-size:38px;fill:${theme.muted}}.payment-label{font-size:42px;font-weight:500}.payment-detail{font-size:42px;font-variant-numeric:tabular-nums lining-nums}</style></defs><rect x="0" y="0" width="${WIDTH}" height="${height}" fill="${theme.page}"/>${content.join("")}</svg>`;
+  const header = flow(MARGIN, MARGIN, INNER);
+  header.line(model.store, 39, "store", 51, 12);
+  header.line(model.title, 60, "employee-name", 75, 12);
+  header.line(`${model.date} · ${model.state}`, 39, "date closing-state", 51, 0);
+  content.push(header.parts.join(""));
+  let cursor = header.cursor + 48;
+  const income = summary(cursor, model);
+  content.push(income.svg); cursor += income.height + 48;
+  const heading = flow(MARGIN, cursor, INNER);
+  heading.line(`${model.labels.records} · ${model.labels.count}`, 42, "section-title", 54, 0);
+  content.push(heading.parts.join("")); cursor = heading.cursor + 24;
+  for (let index = 0; index < model.records.length; index += 2) {
+    const row = model.records.slice(index, index + 2).map((record, col) => recordCard(MARGIN + col * (CARD_WIDTH + GAP), cursor, model, record));
+    content.push(...row.map(card => card.svg)); cursor += Math.max(...row.map(card => card.height)) + GAP;
+  }
+  if (!model.records.length) {
+    const empty = flow(MARGIN + PADDING, cursor + PADDING, INNER - PADDING * 2);
+    empty.line(model.labels.empty, 42, "note", 54, 0);
+    const height = empty.cursor - cursor + PADDING;
+    content.push(surface(MARGIN, cursor, INNER, height, "empty") + empty.parts.join("")); cursor += height + GAP;
+  }
+  const footer = flow(MARGIN, cursor + 18, INNER);
+  footer.line(model.labels.legend, 36, "footer", 48, 6);
+  footer.line(model.labels.footer, 36, "footer", 48, 0);
+  content.push(footer.parts.join(""));
+  const height = Math.ceil(footer.cursor + MARGIN);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeImageXml(model.title)}" width="${WIDTH}" height="${height}" viewBox="0 0 ${WIDTH} ${height}"><defs><style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:${theme.ink};font-weight:400}.store,.date,.note,.record-meta,.source-heading,.payment-label,.footer{fill:${theme.muted}}.primary-amount{font-weight:600;fill:${theme.brand}}.employee-name,.section-title,.record-title,.record-gross{font-weight:600}.amount,.payment-detail,.primary-amount{font-variant-numeric:tabular-nums lining-nums}.record-income{font-weight:500}.discount{fill:${theme.surface}}.addon,.payment-gift{fill:${theme.brand}}.pending-note{fill:${theme.pendingInk}}</style></defs><rect x="0" y="0" width="${WIDTH}" height="${height}" fill="${theme.page}"/><g>${content.join("")}</g></svg>`;
   return { width: WIDTH, height, svg };
 }

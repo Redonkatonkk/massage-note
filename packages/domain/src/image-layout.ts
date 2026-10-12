@@ -5,6 +5,8 @@ import { escapeImageXml as escapeXml } from "./image-format.js";
 export const imageTheme = {
   page: "#f4f5f3", surface: "#ffffff", ink: "#242c28",
   muted: "#626c65", line: "#dfe4df", brand: "#315b49", radius: 10,
+  brandSoft: "#eaf0eb", highlight: "#edf2e9", highlightLine: "#b4c2a8",
+  pending: "#faf3e9", pendingLine: "#dcc6a7", pendingInk: "#805a1c", danger: "#a33d35",
 };
 
 export function imageTextUnits(value: string) {

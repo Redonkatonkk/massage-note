@@ -2,12 +2,13 @@
 
 import { useAutoDismissState } from "./use-auto-dismiss-state";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
 import type { AppLocale } from "../lib/i18n";
+import { EmployeeClosingStatement } from "./employee-closing-statement";
 import { generateEmployeeClosingImage, type GeneratedClosingImage } from "../lib/employee-closing-image";
-import { formatUsd, formatWholeDollarAmount } from "../lib/money";
-import type { EmployeeClosingPreview, EmployeeClosingRecord } from "../lib/types";
+import { formatUsd } from "../lib/money";
+import type { EmployeeClosingPreview } from "../lib/types";
 import { useStoreRealtime } from "../lib/realtime";
 import { useLanguage } from "./language-provider";
 
@@ -29,53 +30,6 @@ function money(cents: number, locale: AppLocale = "zh-CN"): string {
   return formatUsd(cents, locale);
 }
 
-function compactMoney(cents: number, locale: AppLocale = "zh-CN"): string {
-  return new Intl.NumberFormat(locale, {
-    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
-
-function localizedDate(value: string, locale: AppLocale = "zh-CN"): string {
-  return new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-    timeZone: "UTC",
-  }).format(new Date(`${value}T12:00:00.000Z`));
-}
-
-function recordTime(
-  instant: string | null,
-  timezone: string,
-  locale: AppLocale = "zh-CN",
-): string {
-  if (!instant) return "—";
-  return new Intl.DateTimeFormat(locale, {
-    timeZone: timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).format(new Date(instant));
-}
-
-function recordLabel(record: EmployeeClosingRecord): string {
-  const addons = record.addons.map((addon) => addon.shortName || addon.name);
-  return [record.serviceShortName || record.serviceName, ...addons].join(" ＋ ");
-}
-
-function recordAmounts(record: EmployeeClosingRecord) {
-  return [
-    { label: "大费", value: record.grossFeeBaseCents, card: (record.cardServiceCents ?? 0) > 0, gift: (record.giftCardServiceCents ?? 0) > 0 },
-    { label: "小费", value: record.totalTipCents, card: (record.cardTipCents ?? 0) > 0, gift: (record.giftCardTipCents ?? 0) > 0 },
-  ];
-}
-
-function recordAmount(value: number | null) {
-  return value === null ? "—" : formatWholeDollarAmount(value);
-}
-
 function downloadImage(image: GeneratedClosingImage) {
   const link = document.createElement("a");
   link.href = image.url;
@@ -89,6 +43,8 @@ export function EmployeeClosingSummary({ preview: initialPreview, canSend = fals
   const [preview, setPreview] = useState(initialPreview);
   useEffect(() => { setPreview(initialPreview); }, [initialPreview]);
   const { locale, t } = useLanguage();
+  const generationContext = useRef({ preview, locale });
+  generationContext.current = { preview, locale };
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<GeneratedClosingImage | null>(null);
   const [imageMessage, setImageMessage] = useAutoDismissState("");
@@ -127,7 +83,7 @@ export function EmployeeClosingSummary({ preview: initialPreview, canSend = fals
     setGenerated(null);
     setImageMessage("");
     setImageError("");
-  }, [locale]);
+  }, [locale, preview]);
 
   async function createImage() {
     setGenerating(true);
@@ -135,6 +91,10 @@ export function EmployeeClosingSummary({ preview: initialPreview, canSend = fals
     setImageMessage("");
     try {
       const next = await generateEmployeeClosingImage(preview, locale);
+      if (generationContext.current.preview !== preview || generationContext.current.locale !== locale) {
+        URL.revokeObjectURL(next.url);
+        return;
+      }
       setGenerated(next);
       setImageMessage(`已按当前设备宽度生成 ${next.width} × ${next.height} PNG`);
     } catch (caught) {
@@ -186,50 +146,16 @@ export function EmployeeClosingSummary({ preview: initialPreview, canSend = fals
   const employee = preview.employee;
   return (
     <section className="employee-closing-card" aria-label={`${employee.displayName}个人日结`}>
-      <header className="employee-closing-hero">
-        <div className="employee-closing-heading">
-          <div>
-            <p className="eyebrow">{preview.storeName} · 个人日结</p>
-            <h2>{employee.displayName}</h2>
-            <p className="employee-closing-date">{localizedDate(preview.businessDate, locale)}{preview.activeClosing ? ` · #${preview.activeClosing.cycleNo}` : ""}</p>
-          </div>
-          <div className="employee-closing-heading-actions">
-            <div className="employee-closing-image-actions">
-              <button className="primary-action" type="button" disabled={generating} onClick={() => void createImage()}>{generating ? "正在生成…" : generated ? "重新生成图片" : "生成日结图片"}</button>
-              {generated && <button className="secondary-action" type="button" onClick={() => void saveImage()}>保存到相册 / 分享</button>}
-              {canSend && <button className="secondary-action" type="button" disabled={sending} onClick={() => void sendToEmployee()}>{sending ? "正在排队…" : "短信发送给员工"}</button>}
-            </div>
-            {imageMessage && <p className="employee-closing-image-message" role="status">{imageMessage}</p>}
-            {imageError && <p className="form-error" role="alert">{imageError}</p>}
-          </div>
+      <div className="employee-closing-toolbar">
+        <div className="employee-closing-image-actions">
+          <button className="primary-action" type="button" disabled={generating} onClick={() => void createImage()}>{generating ? "正在生成…" : generated ? "重新生成图片" : "生成日结图片"}</button>
+          {generated && <button className="secondary-action" type="button" onClick={() => void saveImage()}>保存到相册 / 分享</button>}
+          {canSend && <button className="secondary-action" type="button" disabled={sending} onClick={() => void sendToEmployee()}>{sending ? "正在排队…" : "短信发送给员工"}</button>}
         </div>
-        <div className="employee-closing-income-summary" aria-label="已确认收入">
-          <div className="employee-closing-income-table" role="table" aria-label="现金刷卡工资汇总">
-            <div className="employee-closing-income-row heading" role="row">
-              <span role="columnheader" />
-              <span role="columnheader">现金</span>
-              <span role="columnheader">刷卡</span>
-              <span role="columnheader">合计</span>
-            </div>
-            <div className="employee-closing-income-row" role="row">
-              <strong role="rowheader">大费工资</strong>
-              <span>{compactMoney(employee.cashLargeFeeDividendCents, locale)}</span>
-              <span>{compactMoney(employee.cardLargeFeeDividendCents, locale)}</span>
-              <span>{compactMoney(employee.confirmedLargeFeeWageCents, locale)}</span>
-            </div>
-            <div className="employee-closing-income-row" role="row">
-              <strong role="rowheader">小费工资</strong>
-              <span>{compactMoney(employee.cashTipDividendCents, locale)}</span>
-              <span>{compactMoney(employee.cardTipDividendCents, locale)}</span>
-              <span>{compactMoney(employee.confirmedTipWageCents, locale)}</span>
-            </div>
-          </div>
-          <article className="employee-closing-income-total">
-            <span>今日总收入</span>
-            <strong>{money(employee.confirmedIncomeCents, locale)}</strong>
-          </article>
-        </div>
-      </header>
+        {imageMessage && <p className="employee-closing-image-message" role="status">{imageMessage}</p>}
+        {imageError && <p className="form-error" role="alert">{imageError}</p>}
+      </div>
+      <EmployeeClosingStatement snapshot={preview} locale={locale} />
 
       <section className="employee-closing-handoff" aria-labelledby="employee-closing-settlement-title">
         <div><h3 id="employee-closing-settlement-title">现金交接</h3><p>{preview.dailySettlementEnabled ? (locale === "en-US" ? "All service wages and card/gift card tips; cash tips are received directly from guests." : "当天全部大费工资＋刷卡/礼物卡小费；现金小费已由客人直接给员工，不计入交接。") : "店里应发给员工的现金大费工资；现金小费由员工自行收取。"}</p></div>
@@ -240,38 +166,6 @@ export function EmployeeClosingSummary({ preview: initialPreview, canSend = fals
         <span role="status">{preview.dailySettlementEnabled ? (cashSettlement.status === "SETTLED" ? (locale === "en-US" ? "Daily wages fully settled" : "已结：当天工资已全部结清") : (locale === "en-US" ? "Daily wages pending" : "当天工资尚未结清")) : (cashSettlement.status === "SETTLED" ? "已结现金：当天现金大费工资已发放" : "现金尚未结清")}</span>
         {canSend && preview.records.length > 0 && <button className="secondary-action" type="button" disabled={settlingCash} onClick={() => void toggleCashSettlement()}>{settlingCash ? "正在保存…" : cashSettlement.status === "SETTLED" ? (preview.dailySettlementEnabled ? (locale === "en-US" ? "Undo settlement" : "取消已结") : "取消已结现金") : (preview.dailySettlementEnabled ? (locale === "en-US" ? "Settled" : "已结") : "已结现金")}</button>}
       </div>
-
-      <section className="employee-closing-records" aria-labelledby="employee-closing-records-title">
-        <div className="employee-closing-section-heading">
-          <div><h3 id="employee-closing-records-title">逐笔记工</h3><p>大费为折前金额 · 方框表示含刷卡</p></div>
-          <strong>{preview.records.length} 条</strong>
-        </div>
-        <div className="employee-closing-record-list">
-          {preview.records.map((record, index) => (
-            <article className={`employee-closing-record ${record.status === "CONFIRMED" ? "confirmed" : "pending"}`} key={record.id}>
-              <header>
-                <div>
-                  <span>#{index + 1} · {recordTime(record.startAt, preview.storeTimezone, locale)}–{recordTime(record.endAt, preview.storeTimezone, locale)}</span>
-                  <strong>{recordLabel(record)}</strong>
-                </div>
-                {record.status !== "CONFIRMED" && <em>待结账</em>}
-              </header>
-              <div className="employee-closing-record-amounts">
-                {recordAmounts(record).map((amount) => (
-                  <div className="employee-closing-record-amount" key={amount.label}>
-                    <span>{amount.label}</span>
-                    <strong className={amount.card ? "is-card" : undefined} title={amount.card ? t("含刷卡付款") : undefined} aria-label={amount.card ? `${recordAmount(amount.value)} · ${t("含刷卡付款")}` : undefined}>
-                      {recordAmount(amount.value)}
-                    </strong>
-                    {amount.gift && <small>礼卡</small>}
-                  </div>
-                ))}
-              </div>
-            </article>
-          ))}
-          {preview.records.length === 0 && <p className="employee-closing-empty">这个营业日还没有记工。</p>}
-        </div>
-      </section>
 
       {generated && <figure className="employee-closing-image-preview"><img src={generated.url} alt={`${employee.displayName}的个人日结图片预览`} /><figcaption>图片包含全部逐笔记工；手机可通过系统分享菜单保存到相册。</figcaption></figure>}
     </section>

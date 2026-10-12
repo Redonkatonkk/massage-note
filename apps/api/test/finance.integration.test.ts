@@ -275,6 +275,8 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
           serviceShortName: "100元",
           addons: [],
           grossFeeBaseCents: 10_000,
+          isHighlighted: true,
+          discountTotalCents: 0,
           cashServiceCents: 4_000,
           cardServiceCents: 6_000,
           giftCardServiceCents: 0,

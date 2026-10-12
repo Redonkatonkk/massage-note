@@ -13,6 +13,7 @@ import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
 import { closedRecordBusinessDate, reopenRecordBusinessDay } from "../lib/record-closing";
 import { shouldConfirmPaymentOnSave } from "../lib/record-payment";
+import { defaultServicePriceOption } from "../lib/service-price-option";
 import {
   localDateTimeValue,
   zonedLocalToIso,
@@ -332,7 +333,7 @@ export function RecordEditor({
     if (value === "__custom__") return;
     const item = catalog.serviceItems.find((candidate) => candidate.id === value);
     if (!item) return;
-    const option = item.priceOptions[0];
+    const option = defaultServicePriceOption(item.priceOptions);
     if (!option) return;
     setServiceName(item.fullName);
     setServiceShortName(item.shortName);

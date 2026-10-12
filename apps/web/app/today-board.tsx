@@ -22,6 +22,7 @@ import {
 import { financeClosingHref } from "../lib/navigation";
 import { formatUsd } from "../lib/money";
 import { hasConfirmedPaymentMismatch } from "../lib/record-payment";
+import { defaultServicePriceOption } from "../lib/service-price-option";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
 import { activeWorkRecord } from "../lib/work-status";
 import type {
@@ -140,7 +141,7 @@ export function TodayBoard({
   );
   const [selectedService, setSelectedService] = useState(initialService?.id ?? "");
   const [selectedServiceDuration, setSelectedServiceDuration] = useState(
-    initialService?.priceOptions[0]?.durationMinutes.toString() ?? "",
+    defaultServicePriceOption(initialService?.priceOptions ?? [])?.durationMinutes.toString() ?? "",
   );
   const [quickMode, setQuickMode] = useState<"PRESET" | "CUSTOM">("PRESET");
   const [quickHighlighted, setQuickHighlighted] = useState(false);
@@ -222,12 +223,11 @@ export function TodayBoard({
   );
 
   useEffect(() => {
-    setSelectedService((current) =>
-      activeServices.some((item) => item.id === current)
-        ? current
-        : (activeServices[0]?.id ?? ""),
-    );
-  }, [activeServices]);
+    if (activeServices.some((item) => item.id === selectedService)) return;
+    const service = activeServices[0];
+    setSelectedService(service?.id ?? "");
+    setSelectedServiceDuration(defaultServicePriceOption(service?.priceOptions ?? [])?.durationMinutes.toString() ?? "");
+  }, [activeServices, selectedService]);
 
   const selectedServiceItem = activeServices.find(
     (item) => item.id === selectedService,
@@ -239,7 +239,7 @@ export function TodayBoard({
         (option) => option.durationMinutes.toString() === current,
       )
         ? current
-        : (selectedServiceItem?.priceOptions[0]?.durationMinutes.toString() ?? ""),
+        : (defaultServicePriceOption(selectedServiceItem?.priceOptions ?? [])?.durationMinutes.toString() ?? ""),
     );
   }, [selectedServiceItem]);
 
@@ -611,7 +611,7 @@ export function TodayBoard({
                   <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
                       if (record === null) return (
-                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickMode("PRESET"); setQuickHighlighted(false); setQuickDispatchExcluded(false); setQuickPlaceholder(false); setQuickEmployeeId(row.membershipId); }}>
+                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickMode("PRESET"); setSelectedServiceDuration(defaultServicePriceOption(selectedServiceItem?.priceOptions ?? [])?.durationMinutes.toString() ?? ""); setQuickHighlighted(false); setQuickDispatchExcluded(false); setQuickPlaceholder(false); setQuickEmployeeId(row.membershipId); }}>
                           <span aria-hidden="true"><UiIcon name="plus" /></span>新增记工
                         </button>
                       );
@@ -749,12 +749,12 @@ export function TodayBoard({
                   <fieldset className="service-picker">
                     <legend>选择项目</legend>
                     {activeServices.map((service) => (
-                      <label key={service.id}><input type="radio" name="service" checked={selectedService === service.id} onChange={() => setSelectedService(service.id)} /><span><strong>{service.shortName}</strong><small>{service.fullName}</small></span></label>
+                      <label key={service.id}><input type="radio" name="service" checked={selectedService === service.id} onChange={() => { setSelectedService(service.id); setSelectedServiceDuration(defaultServicePriceOption(service.priceOptions)?.durationMinutes.toString() ?? ""); }} /><span><strong>{service.shortName}</strong><small>{service.fullName}</small></span></label>
                     ))}
                     {activeServices.length === 0 && <p className="empty-note">没有启用中的预设项目，可切换到自定义项目。</p>}
                   </fieldset>
                   {selectedServiceItem && (
-                    <fieldset className="service-picker duration-picker">
+                    <fieldset className={`service-picker duration-picker${selectedServiceItem.priceOptions.length === 3 ? " duration-picker--three-options" : ""}`}>
                       <legend>选择时长与价格</legend>
                       {selectedServiceItem.priceOptions.map((option) => (
                         <label key={option.id}><input type="radio" name="service-duration" checked={selectedServiceDuration === option.durationMinutes.toString()} onChange={() => setSelectedServiceDuration(option.durationMinutes.toString())} /><span><strong>{option.durationMinutes} 分钟</strong><small>{money(option.priceCents)}</small></span></label>

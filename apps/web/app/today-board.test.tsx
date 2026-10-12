@@ -47,6 +47,68 @@ function button(text: string, scope: ParentNode = document): HTMLButtonElement {
 async function click(text: string, scope: ParentNode = document) { await act(async () => button(text, scope).click()); }
 function writes() { return request.mock.calls.filter(([, options]) => options?.method === "POST" || options?.method === "DELETE"); }
 
+describe("项目时长默认值", () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
+
+  function priceOptions(durations: number[]) {
+    return durations.map((durationMinutes, position) => ({ id: `option-${position}`, durationMinutes, priceCents: durationMinutes * 100 + 1000, position }));
+  }
+  function quickDuration() {
+    return document.querySelector<HTMLInputElement>('input[name="service-duration"]:checked')?.nextElementSibling?.querySelector("strong")?.textContent;
+  }
+  async function chooseQuick(label: string) {
+    const option = [...document.querySelectorAll(".quick-work-modal .service-picker label")].find(item => item.querySelector("strong")?.textContent === label)!;
+    await act(async () => option.querySelector<HTMLInputElement>("input")!.click());
+  }
+
+  it.each([
+    [[30, 60, 90], 60], [[90, 30, 60], 60], [[90, 30], 90], [[30, 60, 90, 120], 60],
+  ] as const)("快速记工按 %j 档位选择默认 %i 分钟，只有三档采用三列", async (durations, expected) => {
+    props.catalog.serviceItems[0]!.priceOptions = priceOptions([...durations]);
+    await render(); await click("新增记工");
+    expect(quickDuration()).toBe(`${expected} 分钟`);
+    expect(document.querySelector(".duration-picker")!.classList.contains("duration-picker--three-options")).toBe(durations.length === 3);
+    expect(document.querySelectorAll(".duration-picker label")).toHaveLength(durations.length);
+    await click("保存记工");
+    expect(writes()[0]![1]!.body).toMatchObject({ serviceDurationMinutes: expected });
+  });
+
+  it("切换项目与重新打开优先 60 分钟，手动改选可保存，刷新目录保留有效选择", async () => {
+    const service = props.catalog.serviceItems[0]!;
+    service.priceOptions = priceOptions([30, 60, 90]);
+    props.catalog.serviceItems.push({ ...service, id: "body", fullName: "全身按摩", shortName: "全身", priceOptions: priceOptions([90, 30, 60]) }, { ...service, id: "no-hour", fullName: "短项目", shortName: "短项", priceOptions: priceOptions([90, 30]) });
+    await render(); await click("新增记工"); await chooseQuick("30 分钟"); await chooseQuick("全身");
+    expect(quickDuration()).toBe("60 分钟");
+    await chooseQuick("90 分钟");
+    props.catalog = structuredClone(props.catalog); await render();
+    expect(quickDuration()).toBe("90 分钟");
+    await click("保存记工");
+    expect(writes()[0]![1]!.body).toMatchObject({ serviceItemId: "body", serviceDurationMinutes: 90 });
+    await click("新增记工"); expect(quickDuration()).toBe("60 分钟");
+    await chooseQuick("短项"); expect(quickDuration()).toBe("90 分钟");
+    await chooseQuick("全身"); expect(quickDuration()).toBe("60 分钟");
+  });
+
+  it.each([[[30, 60, 90], 60], [[90, 30], 90]] as const)("详情切换到 %j 档位默认 %i 分钟，同步价格和结束时间", async (durations, expected) => {
+    const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
+    props.catalog.serviceItems[0]!.priceOptions = priceOptions([30, 60, 90]);
+    props.catalog.serviceItems.push({ ...props.catalog.serviceItems[0]!, id: "body", fullName: "全身按摩", priceOptions: priceOptions([...durations]) });
+    const record = { ...ordinary, status: "PENDING_PAYMENT" as const, endAt: "2026-10-06T14:30:00.000Z", serviceSnapshot: { ...ordinary.serviceSnapshot!, durationMinutes: 30, amountCents: 4000 } };
+    await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={record} catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={vi.fn()} onSaved={vi.fn()} onChanged={reload} />));
+    const fields = document.querySelector(".record-service-section")!;
+    const [service, duration] = fields.querySelectorAll<HTMLSelectElement>("select");
+    expect(duration!.value).toBe("30");
+    await act(async () => { service!.value = "body"; service!.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(duration!.value).toBe(String(expected));
+    expect(fields.querySelector<HTMLInputElement>("input[inputmode=decimal]")!.value).toBe(String(expected + 10));
+    const endFields = document.querySelector('[aria-label="结束时间"]')!;
+    expect([...endFields.querySelectorAll<HTMLInputElement>("input")].map(item => item.value)).toEqual(["11", expected === 60 ? "00" : "30"]);
+    request.mockResolvedValue(record); await click("保存");
+    expect(request.mock.calls.find(([, options]) => options?.method === "PATCH")![1]!.body).toMatchObject({ serviceItemId: "body", serviceDurationMinutes: expected, mainServiceAmountCents: (expected + 10) * 100, endAt: expected === 60 ? "2026-10-06T15:00:00.000Z" : "2026-10-06T15:30:00.000Z" });
+  });
+});
+
 describe("快速记工占位", () => {
   it("在高亮左侧切换占位，隐藏项目并保留时间，退出恢复普通草稿和高亮", async () => {
     await render(); await click("新增记工");

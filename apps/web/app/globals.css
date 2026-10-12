@@ -1819,6 +1819,22 @@ h2 {
   border-top: 1px solid var(--line);
 }
 
+.service-picker.duration-picker--three-options {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.service-picker.duration-picker--three-options label span {
+  grid-template-columns: 1fr;
+  align-content: center;
+  gap: 4px;
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.service-picker.duration-picker--three-options label span small {
+  text-align: center;
+}
+
 .quick-mode-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;

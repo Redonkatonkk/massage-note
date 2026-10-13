@@ -11,3 +11,15 @@ it("scopes known board events by date but never drops unknown or resync notifica
   expect(isWorkRecordChange(change)).toBe(true);
   expect(isWorkRecordChange({ ...change, full: true })).toBe(false);
 });
+
+it("refreshes later boards after historical attendance changes without refreshing earlier dates or unrelated finances", () => {
+  for (const entityType of ["daily_employee_row", "daily_board"]) {
+    const change = { full: false, changes: [{ entityType, businessDate: "2026-10-12T00:00:00Z" }] };
+    expect(boardRefreshScope(change, "2026-10-13")).toBe("board");
+    expect(boardRefreshScope(change, "2026-10-14")).toBe("board");
+    expect(boardRefreshScope(change, "2026-10-11")).toBe("none");
+  }
+  for (const entityType of ["work_record", "daily_cash_settlement", "business_day_closing"]) {
+    expect(boardRefreshScope({ full: false, changes: [{ entityType, businessDate: "2026-10-12" }] }, "2026-10-13")).toBe("none");
+  }
+});

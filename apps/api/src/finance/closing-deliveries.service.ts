@@ -1,7 +1,8 @@
 import { lockBusinessDay } from "../common/business-day-lock.js";
-import { claimedDeliveryWhere, requireDeliveryLease } from "./delivery-lease.js";
+import { claimedDeliveryWhere, deliveryFailureState, requireDeliveryLease } from "./delivery-lease.js";
 import { randomBytes, randomUUID } from "node:crypto";
 import { authenticateDeliveryAgent, hashDeliveryAgentToken } from "./delivery-agent.js";
+import { isE164Phone } from "./delivery-recipient.js";
 import {
   ConflictException,
   ForbiddenException,
@@ -18,8 +19,6 @@ import { StoreAccessService } from "../stores/store-access.service.js";
 import { ClosingsService } from "./closings.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
-const isE164Phone = (phone: string | null | undefined): phone is string =>
-  typeof phone === "string" && /^\+[1-9]\d{7,14}$/.test(phone);
 
 @Injectable()
 export class ClosingDeliveriesService {
@@ -370,17 +369,12 @@ export class ClosingDeliveriesService {
   async fail(authorization: string | undefined, deliveryId: string, input: ClosingDeliveryFailureInput) {
     const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, input.leaseToken);
-    // attemptCount includes the initial attempt: allow three additional retries.
-    const retry = input.retryable && job.attemptCount < 4;
+    const { data, retryScheduled } = deliveryFailureState(job.attemptCount, input);
     requireDeliveryLease(await this.prisma.employeeClosingDelivery.updateMany({
       where: claimedDeliveryWhere(agent.storeId, job.id, input.leaseToken),
-      data: {
-        status: retry ? "QUEUED" : "FAILED", leaseToken: null, leaseExpiresAt: null,
-        nextAttemptAt: retry ? new Date(Date.now() + 60_000) : new Date(),
-        lastErrorCode: input.code, lastError: input.message,
-      },
+      data,
     }));
-    return { retryScheduled: retry };
+    return { retryScheduled };
   }
 
   async heartbeat(authorization: string | undefined, input: ClosingAgentHeartbeatInput) {

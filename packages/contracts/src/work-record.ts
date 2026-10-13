@@ -181,7 +181,6 @@ export const confirmPaymentSchema = z
 
 export type CreateWorkRecordInput = z.input<typeof createWorkRecordSchema>;
 export type UpdateWorkRecordInput = z.input<typeof updateWorkRecordSchema>;
-export type ConfirmPaymentInput = z.input<typeof confirmPaymentSchema>;
 export type ConfirmedPayment = z.output<typeof confirmPaymentSchema>;
 export type DeleteWorkRecordInput = z.input<typeof deleteWorkRecordSchema>;
 export type RestoreWorkRecordInput = z.input<typeof restoreWorkRecordSchema>;

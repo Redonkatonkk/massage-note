@@ -9,7 +9,7 @@ import { TodayBoard } from "./today-board";
 vi.mock("../lib/api", async (original) => ({ ...await original<typeof import("../lib/api")>(), apiRequest: vi.fn() }));
 vi.mock("../lib/time", async (original) => ({ ...await original<typeof import("../lib/time")>(), currentStoreTime: () => "10:00" }));
 vi.mock("./record-track", () => ({ RecordTrack: ({ children }: { children: ReactNode }) => <div className="record-track">{children}</div> }));
-vi.mock("./record-editor", () => ({ RecordEditor: () => <div className="normal-record-editor" /> }));
+vi.mock("./record-editor", () => ({ RecordEditor: ({ isClosed }: { isClosed: boolean }) => <div className="normal-record-editor" data-readonly={isClosed} /> }));
 vi.mock("./board-employee-picker", () => ({ BoardEmployeePicker: () => null }));
 vi.mock("./board-weekly-dispatch", () => ({ BoardWeeklyDispatch: () => null }));
 vi.mock("./gift-card-sales", () => ({ GiftCardSales: () => null }));
@@ -46,6 +46,64 @@ function button(text: string, scope: ParentNode = document): HTMLButtonElement {
 }
 async function click(text: string, scope: ParentNode = document) { await act(async () => button(text, scope).click()); }
 function writes() { return request.mock.calls.filter(([, options]) => options?.method === "POST" || options?.method === "DELETE"); }
+
+describe("历史员工出勤隐藏", () => {
+  it.each(["OWNER", "MANAGER"] as const)("%s 可在已日结历史隐藏、恢复员工，记工仍只读", async (role) => {
+    props.membership.role = role;
+    props.isCurrentBusinessDay = false;
+    props.board.isClosed = true;
+    props.board.rows[0]!.workRecords = [ordinary];
+    await render();
+    expect(document.querySelector(".closed-banner")!.textContent).toContain("影响后续生成顺序");
+    expect(document.querySelector(".row-management")!.textContent).toContain("隐藏");
+    expect(document.querySelector(".row-management")!.textContent).not.toMatch(/上移|下移|移除/);
+    expect(document.querySelector(".add-record")).toBeNull();
+    await act(async () => document.querySelector<HTMLButtonElement>(".record-card")!.click());
+    expect(document.querySelector(".normal-record-editor")!.getAttribute("data-readonly")).toBe("true");
+    request.mockResolvedValueOnce({ removed: false });
+    await click("隐藏");
+    expect(request).toHaveBeenCalledWith("/stores/store/boards/2026-10-06/rows/row", {
+      method: "PATCH", idempotent: true, body: { version: 1, isHidden: true },
+    });
+    expect(reload).toHaveBeenCalledTimes(1);
+    props.board = { ...props.board, rows: props.board.rows.map(row => ({ ...row, isHidden: true, version: 2 })) };
+    await render();
+    const panel = document.querySelector(".hidden-rows-panel")!;
+    expect(panel.textContent).toContain("排工视为该日未上班");
+    expect(button("恢复显示", panel).disabled).toBe(false);
+    request.mockResolvedValueOnce({ removed: false });
+    await click("恢复显示", panel);
+    expect(request).toHaveBeenLastCalledWith("/stores/store/boards/2026-10-06/rows/row", {
+      method: "PATCH", idempotent: true, body: { version: 2, isHidden: false },
+    });
+    expect(reload).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["current", "future", "employee"])("%s 的已日结表格保留权限边界", async (kind) => {
+    props.board.isClosed = true;
+    props.isCurrentBusinessDay = kind === "current";
+    props.isFutureBusinessDay = kind === "future";
+    if (kind === "employee") props.membership.role = "EMPLOYEE";
+    await render();
+    expect(document.querySelector(".row-management")).toBeNull();
+    props.board = { ...props.board, rows: props.board.rows.map(row => ({ ...row, isHidden: true })) };
+    await render();
+    if (kind === "employee") expect(document.querySelector(".hidden-rows-panel")).toBeNull();
+    else expect(button("恢复显示").disabled).toBe(true);
+    expect(request.mock.calls.filter(([, options]) => options?.method === "PATCH")).toHaveLength(0);
+  });
+
+  it("历史隐藏遇到版本冲突时保留员工行并显示错误", async () => {
+    props.isCurrentBusinessDay = false;
+    props.board.isClosed = true;
+    await render();
+    request.mockRejectedValueOnce(new ApiError(409, { code: "BOARD_ROW_VERSION_CONFLICT", messageZh: "员工行已被其他设备修改，请刷新后重试" }));
+    await click("隐藏");
+    expect(document.querySelector(".form-error[role=alert]")!.textContent).toContain("请刷新后重试");
+    expect(document.querySelector(".employee-row")).not.toBeNull();
+    expect(reload).not.toHaveBeenCalled();
+  });
+});
 
 describe("项目时长默认值", () => {
   beforeEach(() => localStorage.clear());

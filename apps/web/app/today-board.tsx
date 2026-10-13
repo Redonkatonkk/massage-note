@@ -133,6 +133,7 @@ export function TodayBoard({
   onReload,
 }: TodayBoardProps) {
   const canManage = membership.role !== "EMPLOYEE";
+  const canChangeRowVisibility = canManage && (!board.isClosed || (!isCurrentBusinessDay && !isFutureBusinessDay));
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [quickEmployeeId, setQuickEmployeeId] = useState<string | null>(null);
@@ -552,7 +553,7 @@ export function TodayBoard({
       </section>}
 
 
-      {board.isClosed && <p className="closed-banner" role="status">这个营业日已经日结。记工、员工顺序和显示状态均为只读；如需修改请先取消日结。</p>}
+      {board.isClosed && <p className="closed-banner" role="status">{canChangeRowVisibility ? "这个营业日已经日结。可隐藏或恢复员工出勤，影响后续生成顺序；修改记工或员工顺序仍须先取消日结。" : "这个营业日已经日结。记工、员工顺序和显示状态均为只读；如需修改请先取消日结。"}</p>}
       {notice && <p className="success-banner" role="status">✓ {notice}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
 
@@ -593,10 +594,10 @@ export function TodayBoard({
                   <span className="chevron" aria-hidden="true">{isCollapsed ? "展开" : "收起"}</span>
                 </button>
                 <div className="row-tools">
-                  {canManage && !board.isClosed && <AutoCloseDetails className="row-management"><summary>员工操作</summary><div>
+                  {canChangeRowVisibility && <AutoCloseDetails className="row-management"><summary>员工操作</summary><div>
                     {!board.isClosed && <><button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button><button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button></>}
                     {board.ranking.enabled && !board.isClosed && <button type="button" disabled={busy} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}/remove`, { method: "POST", idempotent: true, body: { version: row.version } }); setNotice(`已移除 ${row.membership.displayName}`); await onReload(); })}>移除</button>}
-                    {!board.isClosed && <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>}
+                    <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>
                   </div></AutoCloseDetails>}
                   <span className="row-work-count" title="记工数" aria-label={`${serviceRecordCount(row.workRecords)} 条记工`}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="16" rx="2" /><path d="M9 5V3h6v2M9 11h6M9 16h6" /></svg>
@@ -721,8 +722,8 @@ export function TodayBoard({
       /></div>}
 
       {hiddenRows.length > 0 && <section className="hidden-rows-panel" aria-label="已隐藏员工管理">
-        <header><div><strong>已隐藏员工 · {hiddenRows.length}</strong><p>隐藏只影响表格显示，不会删除记工。可在这里直接恢复。</p></div><button className="secondary-action compact" type="button" onClick={() => setShowHidden((value) => !value)}>{showHidden ? "收起隐藏内容" : "查看隐藏内容"}</button></header>
-        <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{serviceRecordCount(row.workRecords)} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy || board.isClosed} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
+        <header><div><strong>已隐藏员工 · {hiddenRows.length}</strong><p>隐藏后排工视为该日未上班，后续生成顺序会跳过该日；记工和财务保留。恢复后重新计入出勤，今日已有顺序需重新生成。</p></div><button className="secondary-action compact" type="button" onClick={() => setShowHidden((value) => !value)}>{showHidden ? "收起隐藏内容" : "查看隐藏内容"}</button></header>
+        <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{serviceRecordCount(row.workRecords)} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy || !canChangeRowVisibility} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
       </section>}
 
       {quickEmployeeId && createPortal(

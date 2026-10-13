@@ -17,9 +17,3 @@ export function canGenerateDailyRanking(input: {
     !input.isClosed &&
     input.activeRowCount > 0;
 }
-
-export function employmentTypeLabel(type: "FULL_TIME" | "PART_TIME" | null) {
-  if (type === "FULL_TIME") return "全职";
-  if (type === "PART_TIME") return "兼职";
-  return "未设置排工类型";
-}

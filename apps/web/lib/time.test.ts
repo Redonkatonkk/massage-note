@@ -5,56 +5,10 @@ import {
   formatWorkTime,
   displayTime,
   businessTimeToIso,
-  adjustedEndLocalDateTime,
   zonedLocalToIso,
-  endLocalDateTimeForDuration,
 } from "./time";
 
-describe("记工时间计算", () => {
-  it("项目从 60 分钟改为 90 分钟时按开始时间重算下工时间", () => {
-    expect(
-      endLocalDateTimeForDuration(
-        "2026-08-13T10:00",
-        90,
-        "America/New_York",
-      ),
-    ).toBe("2026-08-13T11:30");
-  });
-
-  it("调整开始时间时保留当前工作时长", () => {
-    expect(
-      adjustedEndLocalDateTime(
-        "2026-08-13T10:00",
-        "2026-08-13T11:30",
-        "2026-08-13T10:45",
-        0,
-        "America/New_York",
-      ),
-    ).toBe("2026-08-13T12:15");
-  });
-
-  it("增减额外项目时按配置分钟调整结束时间", () => {
-    const withAddon = adjustedEndLocalDateTime(
-      "2026-08-13T10:00",
-      "2026-08-13T11:00",
-      "2026-08-13T10:00",
-      15,
-      "America/New_York",
-    );
-    expect(withAddon).toBe("2026-08-13T11:15");
-    expect(
-      adjustedEndLocalDateTime(
-        "2026-08-13T10:00",
-        withAddon,
-        "2026-08-13T10:00",
-        -15,
-        "America/New_York",
-      ),
-    ).toBe("2026-08-13T11:00");
-  });
-});
-
- it.each(["2026-03-08T02:30", "2026-02-30T12:00", "2026-09-08T25:00"])("拒绝不存在的当地时间 %s", (value) => {
+it.each(["2026-03-08T02:30", "2026-02-30T12:00", "2026-09-08T25:00"])("拒绝不存在的当地时间 %s", (value) => {
   expect(() => zonedLocalToIso(value, "America/New_York")).toThrow();
 });
 
@@ -82,10 +36,9 @@ describe("12 小时记工", () => {
     expect(displayTime("2026-09-09T04:00:00Z", "America/New_York")).toBe("12:00 AM");
     expect(displayTime(null, "America/New_York")).toBe("未填写");
   });
-  it("推断后的下午时间仍按店铺营业日转换和计算下工", () => {
+  it("推断后的下午时间仍按店铺营业日转换", () => {
     const time = parseWorkTime("8:30")!;
     expect(businessTimeToIso("2026-09-09", time, "America/New_York")).toBe("2026-09-10T00:30:00.000Z");
-    expect(endLocalDateTimeForDuration("2026-09-09T20:30", 60, "America/New_York")).toBe("2026-09-09T21:30");
   });
 });
 

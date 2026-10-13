@@ -241,13 +241,11 @@ export const restoreMembershipSchema = z.object({
   employmentType: employmentTypeSchema.nullable().optional(),
 });
 
-export type CreateStoreInput = z.input<typeof createStoreSchema>;
 export type CreateStore = z.output<typeof createStoreSchema>;
 export type CreateJoinRequestInput = z.input<typeof createJoinRequestSchema>;
 export type UpdateStoreInput = z.input<typeof updateStoreSchema>;
 export type DeleteStoreInput = z.input<typeof deleteStoreSchema>;
 export type TransferOwnerInput = z.input<typeof transferOwnerSchema>;
-export type ApproveJoinRequestInput = z.input<typeof approveJoinRequestSchema>;
 export type ApproveJoinRequest = z.output<typeof approveJoinRequestSchema>;
 export type CreateEmployeeInput = z.input<typeof createEmployeeSchema>;
 export type RejectJoinRequestInput = z.input<typeof rejectJoinRequestSchema>;

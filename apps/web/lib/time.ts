@@ -60,57 +60,6 @@ export function zonedLocalToIso(value: string, timezone: string): string {
   return result;
 }
 
-export function endLocalDateTimeForDuration(
-  startLocalDateTime: string,
-  durationMinutes: number,
-  timezone: string,
-): string {
-  if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 720) {
-    throw new Error("项目时长必须是 1 至 720 分钟的整数");
-  }
-  const startAt = new Date(zonedLocalToIso(startLocalDateTime, timezone));
-  return localDateTimeValue(
-    new Date(startAt.getTime() + durationMinutes * 60_000).toISOString(),
-    timezone,
-  );
-}
-
-export function adjustedEndLocalDateTime(
-  currentStartLocalDateTime: string,
-  currentEndLocalDateTime: string,
-  nextStartLocalDateTime: string,
-  durationDeltaMinutes: number,
-  timezone: string,
-): string {
-  if (
-    !currentStartLocalDateTime ||
-    !currentEndLocalDateTime ||
-    !nextStartLocalDateTime
-  ) {
-    return currentEndLocalDateTime;
-  }
-  if (!Number.isInteger(durationDeltaMinutes)) {
-    throw new Error("时长变化必须是整数分钟");
-  }
-  const currentStart = new Date(
-    zonedLocalToIso(currentStartLocalDateTime, timezone),
-  );
-  const currentEnd = new Date(
-    zonedLocalToIso(currentEndLocalDateTime, timezone),
-  );
-  const nextStart = new Date(zonedLocalToIso(nextStartLocalDateTime, timezone));
-  const nextDurationMs = Math.max(
-    0,
-    currentEnd.getTime() -
-      currentStart.getTime() +
-      durationDeltaMinutes * 60_000,
-  );
-  return localDateTimeValue(
-    new Date(nextStart.getTime() + nextDurationMs).toISOString(),
-    timezone,
-  );
-}
-
 export function businessTimeToIso(
   businessDate: string,
   time: string,

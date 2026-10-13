@@ -15,18 +15,15 @@ try {
   }
 }
 
-const staticExportEnabled = process.env.WEB_STATIC_EXPORT === "true";
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  output: staticExportEnabled ? "export" : "standalone",
-  trailingSlash: staticExportEnabled,
+  output: "standalone",
   outputFileTracingRoot: resolve(dirname(fileURLToPath(import.meta.url)), "../.."),
   transpilePackages: ["@massage-note/contracts"],
   async rewrites() {
     const apiProxyTarget = process.env.API_PROXY_TARGET;
-    if (!apiProxyTarget || staticExportEnabled) {
+    if (!apiProxyTarget) {
       return [];
     }
 
@@ -38,10 +35,6 @@ const nextConfig: NextConfig = {
     ];
   },
   async headers() {
-    if (staticExportEnabled) {
-      return [];
-    }
-
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1";
     const apiOrigin = /^https?:\/\//.test(apiBaseUrl) ? new URL(apiBaseUrl).origin : "";
     const securityHeaders = [

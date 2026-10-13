@@ -872,7 +872,13 @@ export class BoardsService {
         responseCode: 200,
       },
       async (transaction) => {
-        await this.assertDayOpen(transaction, storeId, businessDate);
+        const store = await this.findStore(transaction, storeId);
+        const isPast = businessDate < businessDateFor({
+          startAt: deviceNow(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal,
+        });
+        // Historical attendance corrections leave records and closing snapshots intact.
+        if (isPast) await lockBusinessDay(transaction, storeId, businessDate);
+        else await this.assertDayOpen(transaction, storeId, businessDate);
         const row = await transaction.dailyEmployeeRow.findFirst({
           where: {
             id: rowId,
@@ -884,8 +890,9 @@ export class BoardsService {
         if (row.version !== input.version) {
           await this.throwRowConflict(transaction, rowId, storeId);
         }
+        // Historical rows remain restorable, including empty rows and shifts.
         // Include deleted records: their recoverable history must remain intact.
-        const removed = input.isHidden && await transaction.workRecord.count({
+        const removed = !isPast && input.isHidden && await transaction.workRecord.count({
           where: {
             storeId,
             employeeMembershipId: row.membershipId,

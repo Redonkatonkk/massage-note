@@ -11,9 +11,7 @@ export const closingDeliveryCompleteSchema = z.object({
   leaseToken: z.uuid(),
 });
 
-export const closingDeliveryAuthorizeSchema = z.object({
-  leaseToken: z.uuid(),
-});
+export const closingDeliveryAuthorizeSchema = closingDeliveryCompleteSchema;
 
 export const closingAgentHeartbeatSchema = z.object({
   messagesAvailable: z.boolean(),
@@ -23,6 +21,4 @@ export const closingAgentHeartbeatSchema = z.object({
 });
 
 export type ClosingDeliveryFailureInput = z.input<typeof closingDeliveryFailureSchema>;
-export type ClosingDeliveryCompleteInput = z.input<typeof closingDeliveryCompleteSchema>;
-export type ClosingDeliveryAuthorizeInput = z.input<typeof closingDeliveryAuthorizeSchema>;
 export type ClosingAgentHeartbeatInput = z.input<typeof closingAgentHeartbeatSchema>;

@@ -52,6 +52,7 @@ docs/
 - [`CODE_REVIEW_2026-09-08.md`](archive/CODE_REVIEW_2026-09-08.md)：1.0.7 审查与修复记录。
 - [`CODE_CLEANUP_2026-09-29.md`](archive/CODE_CLEANUP_2026-09-29.md)：1.13.7 全仓整理清单、实施范围与保留项。
 - [`CODE_CLEANUP_2026-10-04.md`](archive/CODE_CLEANUP_2026-10-04.md)：1.18.4 全仓清理证据、过时规则及保留原因。
+- [`CODE_CLEANUP_2026-10-12.md`](archive/CODE_CLEANUP_2026-10-12.md)：1.25.1 全仓代码审查、死代码与重复实现清理及验证证据。
 - [`LANGBOT_MASSAGE_NOTE_WORK_BOT_IMPLEMENTATION.md`](archive/LANGBOT_MASSAGE_NOTE_WORK_BOT_IMPLEMENTATION.md)：早期 1.0.2 跨项目对接记录。
 
 归档中的全部规矩、路由、目录和“待实现”仅属历史引用，不是现行要求。保留原因：保留这些文件用于决策及版本追溯，不能让一次性提示重新控制当前维护。

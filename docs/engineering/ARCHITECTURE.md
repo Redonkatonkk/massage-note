@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.25.0` 代码结构核对。
+> 状态：与 `1.26.0` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -53,6 +53,8 @@ packages/domain     不依赖应用或数据库
 packages/contracts  只依赖 Zod
 ```
 
+历史出勤隐藏复用 `DailyEmployeeRow.isHidden`：`BoardsService.updateRow` 按设备当前日期识别历史，在营业日锁与版本事务内切换，允许已日结历史且保留空行、班次、记工与结算快照。今日/未来仍遵循日结锁及空行移除规则。`DailyRankingService.rank` 和每周模板自动轮转只查询可见历史，按可见行位置生成解释；今日已初始化顺序需主动重新生成，未来自动刷新继续保留人工调序。保留原因：出勤依据与已结财务属于不同状态，历史纠正不能重写账目或人工顺序。
+
 ## Web 结构
 
 当前公开路由只有以下页面，店铺和营业日大多通过查询参数与页面状态表达，不使用旧设计中的 `/s/[storeId]/...` 路由：
@@ -69,6 +71,8 @@ packages/contracts  只依赖 Zod
 
 财务页面内部复用的日期截取与 UTC 日期加减放在 `apps/web/app/finance/date-utils.ts`。
 
+Web 只构建 Next standalone 产物，`prepare-standalone-web.mjs` 补齐静态资源，Docker 与本地生产入口运行同一 `server.js`。保留原因：当前构建、启动及部署链路均依赖 standalone，旧 `WEB_STATIC_EXPORT` 分支没有对应交付入口。
+
 Web 视觉按 `globals.css`（基础规则与颜色变量）、`design-system.css`（共享视觉与轻动效）、`responsive.css`（断点布局）顺序加载。`app/ui/primitives.tsx` 复用 SVG 图标、品牌与指标；`app-nav.tsx` 用同一组菜单呈现桌面自动收缩侧栏和小屏底栏，保留店铺参数与导航高度测量。桌面主区域只预留 64px，侧栏通过 CSS 悬停或 `:focus-visible` 展开至 216px 并覆盖内容，鼠标点击焦点不会使其常驻。`lib/app-navigation.ts` 统一角色菜单，`use-navigation-tab.ts` 同步 URL 与页面分区；桌面财务与店铺设置父项使用按钮独立切换子目录，默认收起；子项保留原生深链接，仅当前页面的普通点击使用分区回调。小屏父项仍为页面链接，并使用页面标签。成员页由 `manage/members-panel.tsx` 组织员工目录、选中档案与确认表单，`lib/member-management.ts` 验证完整草稿后依次提交资料和提成版本接口；DOM 流程测试使用 React/jsdom，不启动浏览器。记工辅助模块的外观由 `.board-panel` 维护，成员 fieldset 的标题与内容分别布局；`scripts/check-ui-styles.mjs` 检查颜色/圆角变量与断点覆盖边界。设计依据见 [UI 设计](UI_DESIGN.md)。保留原因：实际入口、样式层叠和生命周期已有公共实现，重复实现会失去一致性。
 
 `apps/web/lib` 放共享客户端能力：
@@ -77,7 +81,8 @@ Web 视觉按 `globals.css`（基础规则与颜色变量）、`design-system.cs
 - `i18n.ts`：界面词条、稳定错误码翻译和自定义项目名称映射。
 - `types.ts`：部分手写响应类型；角色、每周排工和结算范围复用领域/契约类型，其余响应变化时必须同步。保留原因：实际入口、样式层叠和生命周期已有公共实现，重复实现会失去一致性。
 - `money.ts`、`time.ts`、`closing.ts` 等：无 UI 的显示与状态辅助函数及测试。
-- `realtime.ts` / `realtime-client.ts`：同页面同店共享 SSE 连接，串行合并 REST 重载；心跳停顿 10 秒重建连接，异常期间每 30 秒补读，隐藏或离线时暂停，恢复可见/联网时完整补读。`realtime-scope.ts` 按实体与营业日选择刷新范围。
+- `svg-png.ts`：个人日结与区间结算共用 SVG 加载、画布容量限制、PNG 转换和临时 URL 回收；各入口保留设备缩放、文件名和返回类型。保留原因：相同转换和失败处理只维护一处，导出内容及财务金额仍由共享 SVG 模板与服务端提供。
+- `realtime.ts` / `realtime-client.ts`：同页面同店共享 SSE 连接，串行合并 REST 重载；心跳停顿 10 秒重建连接，异常期间每 30 秒补读，隐藏或离线时暂停，恢复可见/联网时完整补读。`realtime-scope.ts` 按实体与营业日选择刷新范围；更早日期的员工行/表格变化也刷新所查看的后续日期，未来自动排工据此采用最新出勤，今日已初始化顺序保留。
 - `business-date-calendar-cache.ts`：主页持有按店铺/月分组的内存缓存，最多十二个月，合并同月在途请求，跨表格重挂载保留；切日期复用日历、目录与成员资料，重新读取目标表格。本机业务操作、手动刷新与跨日清空缓存；自动同步和重新联网的完整补读只刷新业务资料，不重新获取已读日历，其他设备造成的标记变化在手动刷新后更新；旧请求不能回填失效缓存。新面板订阅 SSE 只初始化自身，不触发已订阅主页完整补读。缓存不写入浏览器存储，切店重新初始化，财务日历沿用打开时读取。保留原因：实际入口、样式层叠和生命周期已有公共实现，重复实现会失去一致性。
 
 浏览器本地存储只保存语言、当前店铺偏好和最多七天的未提交详情草稿；不注册 Service Worker，也不提供浏览器安装入口。
@@ -101,7 +106,7 @@ Web 视觉按 `globals.css`（基础规则与颜色变量）、`design-system.cs
 | `realtime` | PostgreSQL outbox 的 SSE 事件流 |
 | `ai` | 记工预览、确定性财务解释和短录音转写 |
 
-`work-bot` 的金额解析与回复格式化放在 `work-bot-format.ts`，Service 保留权限和事务编排。生成图片的 XML 转义、金额和时间显示由 `packages/domain/src/image-format.ts` 共用，工资结算与个人日结的主题、换行及表面绘制由 `image-layout.ts` 共用。区间结算纯 SVG 排版位于 `employee-settlement-image.ts`，Web 在本机转换 PNG 并预览／保存，Mac 代理转换受大小限制的 JPEG 发送。个人日结纯 SVG 排版位于 `employee-closing-image.ts`，固定 1170 像素源宽；Web `lib/employee-closing-image.ts` 保留设备像素适配及分享／下载，Mac `src/render.ts` 通过 `sips` 转换 PNG。两端按对象与日期、已确认收入、来源分组和时间顺序明细读取同一快照，员工小计仍有自己的渲染布局。日结与区间结算发送共用 `finance/delivery-agent.ts` 的凭证哈希与鉴权，租约状态仍由 `delivery-lease.ts` 和各 Service 检查。保留原因：共用纯排版避免 Web 与短信内容或审美分叉，图片转换与发送环境各自保留边界，最终权限和金额仍由服务端控制。
+`work-bot` 的金额解析与回复格式化放在 `work-bot-format.ts`，Service 保留权限和事务编排。生成图片的 XML 转义、金额和时间显示由 `packages/domain/src/image-format.ts` 共用，工资结算与个人日结的主题、换行及表面绘制由 `image-layout.ts` 共用。区间结算纯 SVG 排版位于 `employee-settlement-image.ts`，Web 在本机转换 PNG 并预览／保存，Mac 代理转换受大小限制的 JPEG 发送。个人日结纯 SVG 排版位于 `employee-closing-image.ts`，固定 1170 像素源宽；Web `lib/employee-closing-image.ts` 保留设备像素适配及分享／下载，Mac `src/render.ts` 通过 `sips` 转换 PNG。两端按对象与日期、已确认收入、来源分组和时间顺序明细读取同一快照，员工小计仍有自己的渲染布局。日结与区间结算发送共用 `finance/delivery-agent.ts` 的凭证哈希与鉴权、`delivery-recipient.ts` 的接收号码校验，以及 `delivery-lease.ts` 的租约条件与失败重试状态；各 Service 保留对象查询、租约复核及业务事务。保留原因：共用纯排版避免 Web 与短信内容或审美分叉，图片转换与发送环境各自保留边界，最终权限和金额仍由服务端控制。
 
 Controller 只负责 HTTP 适配和共享契约解析。权限、对象归属、状态与事务放在 Service 或领域函数中；金额最终值不信任前端合计。保留原因：权限和金额最终判断须在服务端，不能靠界面或客户端参数实现。
 

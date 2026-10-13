@@ -2,6 +2,7 @@ import { deviceTimeContext } from "../src/common/device-time.js";
 import { randomInt, randomUUID } from "node:crypto";
 import { ConflictException, ForbiddenException } from "@nestjs/common";
 import type { User } from "@massage-note/database";
+import { rankingExplanationSchema } from "@massage-note/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BoardsService } from "../src/boards/boards.service.js";
 import { DailyRankingService } from "../src/boards/daily-ranking.service.js";
@@ -382,6 +383,81 @@ describe.skipIf(!enabled).sequential("每周排工", () => {
     expect(await refresh()).toMatchObject({ applied: true, addedCount: 0, ranked: false });
     expect((await read()).rows.map(row => row.membershipId)).toEqual([ownerMembershipId, employeeMembershipId]);
     expect(await refresh()).toEqual({ applied: false });
+  });
+
+  it("隐藏已日结历史出勤后，未来自动排工与今日生成跳过该日，恢复后重新采用", async () => {
+    const current = "2026-09-28";
+    const future = "2026-09-29";
+    const historical = "2026-09-27";
+    const older = "2026-09-26";
+    for (const [date, ids] of [
+      [older, [employeeMembershipId, ownerMembershipId]],
+      [historical, [ownerMembershipId, employeeMembershipId]],
+    ] as const) {
+      await prisma.dailyBoard.create({ data: {
+        storeId, businessDate: new Date(`${date}T00:00:00Z`),
+        rows: { create: ids.map((membershipId, index) => ({ storeId, membershipId, position: index + 1, addedBy: ownerId })) },
+      } });
+    }
+    const historicalBoard = await prisma.dailyBoard.findUniqueOrThrow({
+      where: { storeId_businessDate: { storeId, businessDate: new Date(`${historical}T00:00:00Z`) } }, include: { rows: true },
+    });
+    const historicalRow = historicalBoard.rows.find(row => row.membershipId === ownerMembershipId)!;
+    const closing = await prisma.businessDayClosing.create({ data: {
+      storeId, businessDate: new Date(`${historical}T00:00:00Z`), cycleNo: 1,
+      warningSnapshotJson: {}, totalsSnapshotJson: {}, closedBy: ownerId,
+    } });
+    const shift = await prisma.shift.create({ data: {
+      storeId, membershipId: ownerMembershipId, businessDate: new Date(`${historical}T00:00:00Z`),
+      clockInAt: new Date(`${historical}T10:00:00Z`), clockOutAt: new Date(`${historical}T18:00:00Z`),
+      createdBy: ownerId, updatedBy: ownerId,
+    } });
+    const config = await boards.getWeeklyDispatch(actor(ownerId), storeId);
+    await at(current, () => boards.saveWeeklyDispatch(actor(ownerId), storeId, {
+      version: config.version, schedule: { ...empty(), monday: [ownerMembershipId, employeeMembershipId], tuesday: [ownerMembershipId, employeeMembershipId] },
+    }, "history-template-save-01", "history-template-save"));
+    const read = (date: string) => prisma.dailyBoard.findUniqueOrThrow({
+      where: { storeId_businessDate: { storeId, businessDate: new Date(`${date}T00:00:00Z`) } },
+      include: { rows: { orderBy: { position: "asc" } } },
+    });
+    await at(current, () => boards.applyWeeklyDispatch(actor(ownerId), storeId, future, "history-future-before"));
+    expect((await read(future)).rows.map(row => row.membershipId)).toEqual([employeeMembershipId, ownerMembershipId]);
+    const hidden = await at(current, () => boards.updateRow(actor(ownerId), storeId, historical, historicalRow.id,
+      { version: historicalRow.version, isHidden: true }, "history-hide-0001", "history-hide"));
+    expect(hidden).toMatchObject({ removed: false, row: { isHidden: true, version: historicalRow.version + 1 } });
+    await at(current, () => boards.updateRow(actor(ownerId), storeId, historical, historicalRow.id,
+      { version: historicalRow.version, isHidden: true }, "history-hide-0001", "history-hide-replay"));
+    expect((await read(historical)).version).toBe(hidden.board.version);
+    await expect(prisma.shift.findUniqueOrThrow({ where: { id: shift.id } })).resolves.toEqual(shift);
+    await expect(prisma.businessDayClosing.findUniqueOrThrow({ where: { id: closing.id } })).resolves.toEqual(closing);
+
+    expect(await at(current, () => boards.applyWeeklyDispatch(actor(ownerId), storeId, future, "history-future-after"))).toMatchObject({ applied: true, ranked: true });
+    const updatedFuture = await read(future);
+    expect(updatedFuture.rows.map(row => row.membershipId)).toEqual([ownerMembershipId, employeeMembershipId]);
+    const expectedHistory = [
+      expect.objectContaining({ membershipId: ownerMembershipId, lastBusinessDate: older, lastPosition: 2 }),
+      expect.objectContaining({ membershipId: employeeMembershipId, lastBusinessDate: historical, lastPosition: 1 }),
+    ];
+    expect(rankingExplanationSchema.parse(updatedFuture.rankingExplanation).entries).toEqual(expectedHistory);
+    expect(await at(current, () => boards.applyWeeklyDispatch(actor(ownerId), storeId, future, "history-future-repeat"))).toEqual({ applied: false });
+
+    await at(current, () => boards.applyWeeklyDispatch(actor(ownerId), storeId, current, "history-today-init"));
+    const todayBoard = await read(current);
+    expect(todayBoard.rows.map(row => row.membershipId)).toEqual([ownerMembershipId, employeeMembershipId]);
+    expect(rankingExplanationSchema.parse(todayBoard.rankingExplanation).entries).toEqual(expectedHistory);
+    const regenerated = await at(current, () => ranking.rank(actor(ownerId), storeId, current,
+      { version: todayBoard.version }, "history-today-rank-01", "history-today-rank"));
+    expect(regenerated.rows.map(row => row.membershipId)).toEqual([ownerMembershipId, employeeMembershipId]);
+    const restored = await at(current, () => boards.updateRow(actor(ownerId), storeId, historical, historicalRow.id,
+      { version: hidden.row.version, isHidden: false }, "history-restore-0001", "history-restore"));
+    expect(restored).toMatchObject({ removed: false, row: { id: historicalRow.id, isHidden: false } });
+    const afterRestore = await at(current, () => ranking.rank(actor(ownerId), storeId, current,
+      { version: regenerated.version }, "history-today-rank-02", "history-today-rank-restored"));
+    expect(afterRestore.rows.map(row => row.membershipId)).toEqual([employeeMembershipId, ownerMembershipId]);
+    expect(rankingExplanationSchema.parse(afterRestore.rankingExplanation).entries).toEqual([
+      expect.objectContaining({ membershipId: employeeMembershipId, lastBusinessDate: historical, lastPosition: 2 }),
+      expect.objectContaining({ membershipId: ownerMembershipId, lastBusinessDate: historical, lastPosition: 1 }),
+    ]);
   });
 
 });

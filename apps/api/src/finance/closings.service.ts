@@ -1,4 +1,5 @@
 import { businessDateFor, deviceNow } from "../common/device-time.js";
+import { isE164Phone } from "./delivery-recipient.js";
 import {
   BadRequestException,
   ConflictException,
@@ -267,7 +268,7 @@ export class ClosingsService {
           });
           for (const member of members) {
             const phone = member.closingDeliveryPhoneE164 ?? member.user?.phoneE164;
-            if (!phone || !/^\+[1-9]\d{7,14}$/.test(phone)) continue;
+            if (!isE164Phone(phone)) continue;
             const existing = await transaction.employeeClosingDelivery.findFirst({
               where: { storeId, businessDate: closing.businessDate, membershipId: member.id,
                 status: { in: ["SENT", "QUEUED", "CLAIMED"] } },

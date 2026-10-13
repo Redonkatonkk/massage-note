@@ -7,8 +7,6 @@ export const updateProfileSchema = z.object({
   lastName: personNameSchema,
 });
 
-export type UpdateProfileInput = z.input<typeof updateProfileSchema>;
-
 const passwordSchema = z.string().min(8, "密码至少需要 8 个字符").max(72, "密码最多 72 个字符");
 
 export const updatePasswordSchema = z.object({

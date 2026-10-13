@@ -1,7 +1,8 @@
 import { idempotencyRequestHash } from "../common/idempotency.service.js";
-import { claimedDeliveryWhere, requireDeliveryLease } from "./delivery-lease.js";
+import { claimedDeliveryWhere, deliveryFailureState, requireDeliveryLease } from "./delivery-lease.js";
 import { randomUUID } from "node:crypto";
 import { authenticateDeliveryAgent } from "./delivery-agent.js";
+import { isE164Phone } from "./delivery-recipient.js";
 import {
   BadRequestException,
   ConflictException,
@@ -23,8 +24,6 @@ import { FinanceQueriesService } from "./finance-queries.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
-const isE164Phone = (phone: string | null | undefined): phone is string =>
-  typeof phone === "string" && /^\+[1-9]\d{7,14}$/.test(phone);
 
 @Injectable()
 export class EmployeeSettlementsService {
@@ -377,13 +376,12 @@ export class EmployeeSettlementsService {
   async fail(authorization: string | undefined, deliveryId: string, input: ClosingDeliveryFailureInput) {
     const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, input.leaseToken);
-    // attemptCount includes the initial attempt: allow three additional retries.
-    const retry = input.retryable && job.attemptCount < 4;
+    const { data, retryScheduled } = deliveryFailureState(job.attemptCount, input);
     requireDeliveryLease(await this.prisma.employeeSettlementDelivery.updateMany({
       where: claimedDeliveryWhere(agent.storeId, job.id, input.leaseToken),
-      data: { status: retry ? "QUEUED" : "FAILED", leaseToken: null, leaseExpiresAt: null, nextAttemptAt: retry ? new Date(Date.now() + 60_000) : new Date(), lastErrorCode: input.code, lastError: input.message },
+      data,
     }));
-    return { retryScheduled: retry };
+    return { retryScheduled };
   }
 
   async buildPreview(storeId: string, query: EmployeeSettlementQuery, client: Prisma.TransactionClient = this.prisma) {

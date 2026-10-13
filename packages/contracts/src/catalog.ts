@@ -156,7 +156,6 @@ export const reorderCatalogItemsSchema = z.object({
     }),
 });
 
-export type InitializeCatalogInput = z.input<typeof initializeCatalogSchema>;
 export type InitializeCatalog = z.output<typeof initializeCatalogSchema>;
 export type CreateCatalogItemInput = z.input<typeof createCatalogItemSchema>;
 export type UpdateCatalogItemInput = z.input<typeof updateCatalogItemSchema>;

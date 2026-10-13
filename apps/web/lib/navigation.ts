@@ -1,7 +1,3 @@
-export function financeCashHref(storeId: string, businessDate: string): string {
-  return financeClosingHref(storeId, businessDate);
-}
-
 export function financeClosingHref(storeId: string, businessDate: string): string {
   const params = new URLSearchParams({
     store: storeId,
@@ -9,17 +5,4 @@ export function financeClosingHref(storeId: string, businessDate: string): strin
     date: businessDate,
   });
   return `/finance?${params.toString()}`;
-}
-
-export function workRecordHref(
-  storeId: string,
-  businessDate: string,
-  recordId: string,
-): string {
-  const params = new URLSearchParams({
-    store: storeId,
-    date: businessDate,
-    record: recordId,
-  });
-  return `/?${params.toString()}`;
 }

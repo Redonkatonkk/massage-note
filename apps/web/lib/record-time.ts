@@ -1,10 +1,4 @@
-import { adjustedEndLocalDateTime, localDateTimeValue, zonedLocalToIso } from "./time";
-
-/** Keep both clock values on the selected service date; validate overflow visibly. */
-export function adjustedSameDayEnd(start: string, end: string, nextStart: string, delta: number, timezone: string): string {
-  const adjusted = adjustedEndLocalDateTime(start, end, nextStart, delta, timezone);
-  return adjusted && nextStart ? `${nextStart.slice(0, 10)}T${adjusted.slice(11)}` : adjusted;
-}
+import { localDateTimeValue, zonedLocalToIso } from "./time";
 
 export function recordTimeError(start: string, end: string): string | null {
   if (!start) return "请选择服务日期和开始时间";

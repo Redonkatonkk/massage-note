@@ -261,8 +261,9 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
     await expect(boards.updateRow(actor(ownerId), storeId, date, added.row.id,
       { version: added.row.version + 1, isHidden: true }, "empty-stale-0001", "empty-stale"))
       .rejects.toBeInstanceOf(ConflictException);
-    const hide = () => boards.updateRow(actor(ownerId), storeId, date, added.row.id,
-      { version: added.row.version, isHidden: true }, "empty-hide-0001", "empty-hide");
+    const onDate = <T>(task: () => T) => deviceTimeContext.run({ timezone: "America/New_York", now: new Date(`${date}T18:00:00Z`) }, task);
+    const hide = () => onDate(() => boards.updateRow(actor(ownerId), storeId, date, added.row.id,
+      { version: added.row.version, isHidden: true }, "empty-hide-0001", "empty-hide"));
     const removed = await hide();
     expect(removed.removed).toBe(true);
     expect(removed.board.version).toBe(added.board.version + 1);
@@ -276,6 +277,14 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
       { membershipId: employeeMembershipId }, "empty-row-readd-0001", "empty-readd");
     expect(again.row.id).not.toBe(added.row.id);
     expect(again.row.isHidden).toBe(false);
+    await prisma.businessDayClosing.create({ data: {
+      storeId, businessDate: new Date(`${date}T00:00:00Z`), cycleNo: 1,
+      warningSnapshotJson: {}, totalsSnapshotJson: {}, closedBy: ownerId,
+    } });
+    await expect(onDate(() => boards.updateRow(actor(ownerId), storeId, date, again.row.id,
+      { version: again.row.version, isHidden: true }, "empty-hide-closed-today", "empty-hide-closed-today")))
+      .rejects.toMatchObject({ response: { code: "BUSINESS_DAY_CLOSED" } });
+    expect(await prisma.dailyEmployeeRow.findUniqueOrThrow({ where: { id: again.row.id } })).toMatchObject({ isHidden: false, version: again.row.version });
   });
 
   it("员工只能结束自己的未结束班次，旧版本不能重复下班", async () => {
@@ -491,21 +500,37 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
       (row) => row.membershipId === employeeMembershipId,
     );
     if (!hiddenEmployeeRow) throw new Error("缺少已隐藏员工行");
-    await expect(
-      boards.updateRow(
-        actor(ownerId),
-        storeId,
-        historicalBusinessDate,
-        hiddenEmployeeRow.id,
-        { version: hiddenEmployeeRow.version, isHidden: false },
-        "restore-hidden-closed-row-0001",
-        "restore-hidden-closed-row",
-      ),
-    ).rejects.toBeInstanceOf(ConflictException);
+    const closingBefore = await prisma.businessDayClosing.findFirstOrThrow({
+      where: { storeId, businessDate: date, status: "CLOSED" },
+    });
+    const restored = await boards.updateRow(
+      actor(ownerId),
+      storeId,
+      historicalBusinessDate,
+      hiddenEmployeeRow.id,
+      { version: hiddenEmployeeRow.version, isHidden: false },
+      "restore-hidden-closed-row-0001",
+      "restore-hidden-closed-row",
+    );
+    expect(restored).toMatchObject({ removed: false, row: { isHidden: false } });
+    await expect(boards.updateRow(
+      actor(employeeId), storeId, historicalBusinessDate, hiddenEmployeeRow.id,
+      { version: restored.row.version, isHidden: true }, "employee-hide-history-01", "employee-hide-history",
+    )).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(boards.updateRow(
+      actor(ownerId), storeId, historicalBusinessDate, hiddenEmployeeRow.id,
+      { version: hiddenEmployeeRow.version, isHidden: true }, "stale-hide-history-01", "stale-hide-history",
+    )).rejects.toBeInstanceOf(ConflictException);
+    await boards.updateRow(
+      actor(ownerId), storeId, historicalBusinessDate, hiddenEmployeeRow.id,
+      { version: restored.row.version, isHidden: true }, "hide-closed-history-01", "hide-closed-history",
+    );
+    expect((await boards.getBoard(actor(ownerId), storeId, historicalBusinessDate)).statistics).toEqual(ownerView.statistics);
+    await expect(prisma.workRecord.findUniqueOrThrow({ where: { id: employeeRecord.id } })).resolves.toEqual(employeeRecord);
     await expect(
       prisma.businessDayClosing.findFirstOrThrow({
         where: { storeId, businessDate: date, status: "CLOSED" },
       }),
-    ).resolves.toBeTruthy();
+    ).resolves.toEqual(closingBefore);
   });
 });

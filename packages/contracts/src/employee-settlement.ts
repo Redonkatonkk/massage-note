@@ -63,4 +63,3 @@ export type EmployeeSettlementPaymentScope = z.output<typeof employeeSettlementP
 export type EmployeeSettlementQuery = z.output<typeof employeeSettlementQuerySchema>;
 export type CreateEmployeeSettlementDeliveryInput = z.output<typeof createEmployeeSettlementDeliverySchema>;
 export type CreateEmployeeSummaryDeliveryInput = z.output<typeof createEmployeeSummaryDeliverySchema>;
-export type EmployeeSettlementAttachmentInput = z.output<typeof employeeSettlementAttachmentSchema>;

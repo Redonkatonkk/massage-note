@@ -8,6 +8,13 @@ import {
 const membershipId = "56d4a93a-5a73-49df-93c2-704ae844faa4";
 
 describe("礼物卡销售契约", () => {
+  it("网上卖卡要求文本用户名，保留数字前导零且不要求系统用户编号", () => {
+    const input = { businessDate: "2026-10-15", isOnline: true, serialNumber: " 001001 ", cashCents: 1000, operatorMembershipId: membershipId };
+    expect(createGiftCardSaleSchema.parse(input)).toMatchObject({ isOnline: true, serialNumber: "001001" });
+    expect(createGiftCardSaleSchema.safeParse({ ...input, serialNumber: undefined }).success).toBe(false);
+    expect(createGiftCardSaleSchema.safeParse({ ...input, serialNumber: 1001 }).success).toBe(false);
+    expect(updateGiftCardSaleSchema.safeParse({ version: 1, isOnline: true }).success).toBe(false);
+  });
   it("新界面可提交面值，序列号可由后端自动生成，缺省付款方式按 0 处理", () => {
     expect(createGiftCardSaleSchema.parse({
       businessDate: "2026-08-20",

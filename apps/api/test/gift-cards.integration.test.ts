@@ -10,6 +10,7 @@ import { ClosingsService } from "../src/finance/closings.service.js";
 import { FinanceQueriesService } from "../src/finance/finance-queries.service.js";
 import { GiftCardsService } from "../src/gift-cards/gift-cards.service.js";
 import { StoreAccessService } from "../src/stores/store-access.service.js";
+import { WorkRecordsService } from "../src/work-records/work-records.service.js";
 
 const enabled = process.env.DATABASE_INTEGRATION_TESTS === "1";
 const prisma = new PrismaService();
@@ -19,6 +20,7 @@ const giftCards = new GiftCardsService(prisma, access, idempotency);
 const boards = new BoardsService(prisma, access, idempotency);
 const closings = new ClosingsService(prisma, access, idempotency);
 const finance = new FinanceQueriesService(prisma, access);
+const workRecords = new WorkRecordsService(prisma, access, idempotency);
 const storeId = randomUUID();
 const otherStoreId = randomUUID();
 const otherStoreUserId = randomUUID();
@@ -601,5 +603,54 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     ).rejects.toMatchObject({
       response: expect.objectContaining({ code: "GIFT_CARD_SERIAL_DUPLICATE" }),
     });
+  });
+
+  it("网上卖卡允许同用户名重复购买和同号实体卡，未知用户名可付款且台账不会重复核销", async () => {
+    const before = await giftCards.list(actor(ownerId), storeId);
+    const query = financeQuerySchema.parse({ dateFrom: businessDate, dateTo: businessDate });
+    const beforeSummary = await finance.summary(actor(ownerId), storeId, query);
+    const input = { businessDate, serialNumber: "1001", isOnline: true, faceValueCents: 5000, cashCents: 5000, cardCents: 0, operatorMembershipId: ownerMembershipId };
+    const first = await giftCards.create(actor(ownerId), storeId, input, randomUUID(), "online-sale-first");
+    const repeated = await giftCards.create(actor(ownerId), storeId, input, randomUUID(), "online-sale-repeat");
+    expect(first).toMatchObject({ serialNumber: "1001", isOnline: true });
+    expect(repeated.id).not.toBe(first.id);
+    const updated = await giftCards.update(actor(ownerId), storeId, first.id, { version: first.version, cashCents: 4000 }, randomUUID(), "online-sale-update");
+    expect(updated.isOnline).toBe(true);
+
+    const paymentRecords = [];
+    for (const username of ["1001", "0001999"]) {
+      const record = await workRecords.create(actor(ownerId), storeId, { employeeMembershipId, startAt: new Date().toISOString(), customService: { name: "用户名用卡", shortName: "用户名", amountCents: 1000, durationMinutes: 60 } }, randomUUID(), "online-use-create");
+      const key = randomUUID();
+      const payment = { version: record.version, cashServiceCents: 0, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0, giftCardSerialNumber: username, giftCardIsOnline: true, giftCardServiceCents: 1000, giftCardTipCents: 100 };
+      const confirmed = await workRecords.confirmPayment(actor(ownerId), storeId, record.id, payment, key, "online-use-confirm");
+      const replayed = await workRecords.confirmPayment(actor(ownerId), storeId, record.id, payment, key, "online-use-replay");
+      expect(replayed.id).toBe(confirmed.id);
+      expect(confirmed).toMatchObject({ giftCardSerialNumber: username, giftCardIsOnline: true, payment: { giftCardSerialNumber: username, giftCardIsOnline: true } });
+      const edited = await workRecords.update(actor(ownerId), storeId, record.id, { version: confirmed.version, note: "保留用户名付款" }, randomUUID(), "online-use-edit");
+      expect(edited.giftCardIsOnline).toBe(true);
+      paymentRecords.push(edited);
+    }
+    const ledger = await giftCards.list(actor(ownerId), storeId);
+    expect(ledger.nextSerialNumber).toBe(before.nextSerialNumber);
+    expect(ledger.sales.find((sale) => sale.id === saleId)?.usageRecords).toHaveLength(2);
+    expect(ledger.onlineAccounts).toEqual([
+      expect.objectContaining({ username: "1001", sales: expect.arrayContaining([expect.objectContaining({ id: first.id }), expect.objectContaining({ id: repeated.id })]), usageRecords: [expect.objectContaining({ amountCents: 1100n })] }),
+      expect.objectContaining({ username: "0001999", sales: [], usageRecords: [expect.objectContaining({ amountCents: 1100n })] }),
+    ]);
+    expect(ledger.legacyUsages.some((card) => card.serialNumber === "0001999")).toBe(false);
+    const afterSummary = await finance.summary(actor(ownerId), storeId, query);
+    expect(afterSummary.totals.giftCardSalesAmountCents - beforeSummary.totals.giftCardSalesAmountCents).toBe(9000n);
+    expect(afterSummary.totals.giftCardRedemptionCents - beforeSummary.totals.giftCardRedemptionCents).toBe(2200n);
+    expect(await finance.exportCsv(actor(ownerId), storeId, query)).toContain("用户名 0001999");
+
+    const unknown = paymentRecords[1]!;
+    const cleared = await workRecords.confirmPayment(actor(ownerId), storeId, unknown.id, { version: unknown.version, cashServiceCents: 1000, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0 }, randomUUID(), "online-use-clear");
+    expect(cleared).toMatchObject({ giftCardIsOnline: false, giftCardSerialNumber: null, payment: { giftCardIsOnline: false, giftCardSerialNumber: null } });
+    expect((await giftCards.list(actor(ownerId), storeId)).onlineAccounts.some((account) => account.username === "0001999")).toBe(false);
+
+    const deleted = await giftCards.remove(actor(ownerId), storeId, first.id, { version: updated.version }, randomUUID(), "online-sale-delete");
+    expect((await giftCards.list(actor(ownerId), storeId)).onlineAccounts.find((account) => account.username === "1001")?.sales).toHaveLength(1);
+    const restored = await giftCards.restore(actor(ownerId), storeId, first.id, { version: deleted.version }, randomUUID(), "online-sale-restore");
+    expect(restored.isOnline).toBe(true);
   });
 });

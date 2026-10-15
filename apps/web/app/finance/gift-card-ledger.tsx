@@ -17,7 +17,7 @@ function paymentMethod(cashCents: number, cardCents: number): string {
 
 export function GiftCardLedger({ ledger }: { ledger: GiftCardLedgerResponse }) {
   const ledgerRows = [
-    ...ledger.sales.map((sale) => ({ kind: "sale" as const, serialNumber: sale.serialNumber, sale })),
+    ...ledger.sales.filter((sale) => !sale.isOnline).map((sale) => ({ kind: "sale" as const, serialNumber: sale.serialNumber, sale })),
     ...ledger.legacyUsages.map((card) => ({ kind: "legacy" as const, serialNumber: card.serialNumber, card })),
   ].sort((left, right) => left.serialNumber.localeCompare(right.serialNumber, undefined, { numeric: true, sensitivity: "base" }));
   const totalSoldCents = ledger.sales.reduce((sum, sale) => sum + sale.amountCents, 0);
@@ -25,7 +25,8 @@ export function GiftCardLedger({ ledger }: { ledger: GiftCardLedgerResponse }) {
     (sum, sale) =>
       sum + sale.usageRecords.reduce((usageSum, record) => usageSum + record.amountCents, 0),
     0,
-  ) + ledger.legacyUsages.reduce((sum, card) => sum + card.usageRecords.reduce((usageSum, record) => usageSum + record.amountCents, 0), 0);
+  ) + ledger.legacyUsages.reduce((sum, card) => sum + card.usageRecords.reduce((usageSum, record) => usageSum + record.amountCents, 0), 0)
+    + (ledger.onlineAccounts ?? []).reduce((sum, account) => sum + account.usageRecords.reduce((usageSum, record) => usageSum + record.amountCents, 0), 0);
 
   function usageDetails(records: GiftCardLedgerResponse["legacyUsages"][number]["usageRecords"]) {
     const usedCents = records.reduce((sum, record) => sum + record.amountCents, 0);
@@ -48,10 +49,10 @@ export function GiftCardLedger({ ledger }: { ledger: GiftCardLedgerResponse }) {
       </div>
       <div>
         <p className="eyebrow">礼物卡台账</p>
-        <h2 className="table-title">按序列号自动排序</h2>
-        <p className="field-help">使用记录来自普通记账中的礼物卡付款，可在同一张卡下保留多条记录。</p>
+        <h2 className="table-title">按序列号或用户名自动排序</h2>
+        <p className="field-help">使用记录来自普通记账中的礼物卡付款；网上卖卡按用户名归组，与实体卡分开记录。</p>
       </div>
-      {ledger.sales.length > 0 || ledger.legacyUsages.length > 0 ? (
+      {ledgerRows.length > 0 ? (
         <ResponsiveDataView desktop={<div className="table-scroll">
           <table className="data-table gift-card-ledger__table">
             <thead>
@@ -86,9 +87,24 @@ export function GiftCardLedger({ ledger }: { ledger: GiftCardLedgerResponse }) {
             <div className="mobile-card-usages"><h4>使用记录</h4>{(row.kind === "sale" ? row.sale.usageRecords : row.card.usageRecords).length ? usageDetails(row.kind === "sale" ? row.sale.usageRecords : row.card.usageRecords) : <p className="field-help">暂无使用记录</p>}</div>
           </MobileDataCard></li>)}</ul>
         </ResponsiveDataView>
-      ) : (
+      ) : !(ledger.onlineAccounts?.length) && (
         <p className="empty-state">还没有售出或使用过的礼物卡。第一张销售卡会从序列号 1001 开始。</p>
       )}
+      {(ledger.onlineAccounts?.length ?? 0) > 0 && <div>
+        <h3 className="table-title">网上卖卡 · 按用户名记录</h3>
+        <ul className="mobile-data-list">{ledger.onlineAccounts!.map((account) => <li key={account.username}>
+          <MobileDataCard title={`用户名 ${account.username}`} subtitle={account.sales.length ? `${account.sales.length} 次购买` : "未登记销售"}>
+            <RecordFacts items={[{ label: "售出总额", value: account.sales.length ? money(account.sales.reduce((sum, sale) => sum + sale.amountCents, 0)) : "—" }]} />
+            {account.sales.length > 0 && <details className="mobile-data-card__details"><summary>购买记录</summary>
+              <div className="gift-card-ledger__usage-list">{account.sales.map((sale) => <article key={sale.id}>
+                <div><strong>{dateOnly(sale.businessDate)} · {sale.operator.displayName}</strong><span>面值 {money(sale.faceValueCents)}</span></div>
+                <div><span>{paymentMethod(sale.cashCents, sale.cardCents)}</span><strong>实际收款 {money(sale.amountCents)}</strong></div>
+              </article>)}</div>
+            </details>}
+            <div className="mobile-card-usages"><h4>使用记录</h4>{account.usageRecords.length ? usageDetails(account.usageRecords) : <p className="field-help">暂无使用记录</p>}</div>
+          </MobileDataCard>
+        </li>)}</ul>
+      </div>}
     </section>
   );
 }

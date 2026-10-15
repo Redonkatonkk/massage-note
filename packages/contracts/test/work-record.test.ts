@@ -8,6 +8,12 @@ import {
 } from "../src/index.js";
 
 describe("付款确认契约", () => {
+  it("礼物卡可以按任意用户名记录，数字用户名保持文本，仍须填写金额", () => {
+    const input = { version: 1, giftCardIsOnline: true, giftCardSerialNumber: " 001001 ", giftCardServiceCents: 1000 };
+    expect(confirmPaymentSchema.parse(input)).toMatchObject({ giftCardIsOnline: true, giftCardSerialNumber: "001001" });
+    expect(confirmPaymentSchema.safeParse({ ...input, giftCardSerialNumber: null }).success).toBe(false);
+    expect(confirmPaymentSchema.safeParse({ ...input, giftCardServiceCents: 0 }).success).toBe(false);
+  });
   it("每组填写一项后把另一项补为 0", () => {
     expect(
       confirmPaymentSchema.parse({

@@ -443,6 +443,7 @@ model WorkRecord {
   cashServiceCents                BigInt?          @map("cash_service_cents")
   cardServiceCents                BigInt?          @map("card_service_cents")
   giftCardSerialNumber            String?          @map("gift_card_serial_number")
+  giftCardIsOnline                Boolean          @default(false) @map("gift_card_is_online")
   giftCardServiceCents            BigInt?          @map("gift_card_service_cents")
   cashTipCents                    BigInt?          @map("cash_tip_cents")
   cardTipCents                    BigInt?          @map("card_tip_cents")
@@ -641,6 +642,7 @@ model PaymentBreakdown {
   cashServiceCents   BigInt?   @map("cash_service_cents")
   cardServiceCents   BigInt?   @map("card_service_cents")
   giftCardSerialNumber String? @map("gift_card_serial_number")
+  giftCardIsOnline Boolean @default(false) @map("gift_card_is_online")
   giftCardServiceCents BigInt? @map("gift_card_service_cents")
   cashTipCents       BigInt?   @map("cash_tip_cents")
   cardTipCents       BigInt?   @map("card_tip_cents")
@@ -661,6 +663,7 @@ model GiftCardSale {
   storeId                String    @map("store_id") @db.Uuid
   businessDate           DateTime  @map("business_date") @db.Date
   serialNumber           String    @map("serial_number")
+  isOnline               Boolean   @default(false) @map("is_online")
   serialNumberNormalized String    @map("serial_number_normalized")
   faceValueCents         BigInt    @map("face_value_cents")
   discountThresholdCents BigInt    @default(0) @map("discount_threshold_cents")

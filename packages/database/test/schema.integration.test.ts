@@ -164,6 +164,8 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
         'stores_commission_range',
         'stores_gift_card_auto_discount_valid',
         'gift_card_sales_valid_amounts',
+        'work_records_online_gift_card_identifier',
+        'payment_breakdowns_online_gift_card_identifier',
         'service_item_price_options_valid_values',
         'work_records_non_negative_money',
         'work_records_placeholder_empty',
@@ -175,11 +177,13 @@ describe.skipIf(!enabled)("PostgreSQL 初始迁移", () => {
 
     expect(rows.map((row) => row.conname)).toEqual([
       "gift_card_sales_valid_amounts",
+      "payment_breakdowns_online_gift_card_identifier",
       "service_item_price_options_valid_values",
       "stores_commission_range",
       "stores_gift_card_auto_discount_valid",
       "work_records_confirmed_finance_complete",
       "work_records_non_negative_money",
+      "work_records_online_gift_card_identifier",
       "work_records_placeholder_dispatch_excluded_check",
       "work_records_placeholder_empty",
     ]);

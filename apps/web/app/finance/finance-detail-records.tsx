@@ -12,14 +12,14 @@ export function FinanceRecordCards({ details }: { details: FinanceDetailsRespons
     <RecordFacts items={[{ label: "客人总付款", value: money(record.customerTotalPaidCents) }, { label: "所选员工收入", value: money(record.selectedEmployeeIncomeCents) }]} />
     <details className="mobile-data-card__details"><summary>金额组成明细</summary><RecordFacts items={[
       { label: "主要项目", value: money(record.mainServiceAmountCents) }, { label: "加项", value: money(record.addonTotalCents) }, { label: "大费基数", value: money(record.grossFeeBaseCents) }, { label: "折扣", value: money(record.discountTotalCents) }, { label: "折后大费", value: money(record.discountedFeePerformanceCents) },
-      { label: "现金大费", value: money(record.cashServiceCents) }, { label: "刷卡大费", value: money(record.cardServiceCents) }, { label: "礼物卡大费", value: money(record.giftCardServiceCents) }, { label: "礼物卡序列号", value: record.giftCardSerialNumber ?? "—" },
+      { label: "现金大费", value: money(record.cashServiceCents) }, { label: "刷卡大费", value: money(record.cardServiceCents) }, { label: "礼物卡大费", value: money(record.giftCardServiceCents) }, { label: record.giftCardIsOnline ? "用户名" : "礼物卡序列号", value: record.giftCardSerialNumber ?? "—" },
       { label: "现金小费", value: money(record.cashTipCents) }, { label: "刷卡小费", value: money(record.cardTipCents) }, { label: "礼物卡小费", value: money(record.giftCardTipCents) }, { label: "所选大费工资", value: money(record.selectedLargeFeeWageCents) }, { label: "所选小费", value: money(record.selectedTipCents) },
     ]} /></details>
   </MobileDataCard></li>)}</ul>;
 }
 
 export function FinanceGiftSaleCards({ sales }: { sales: FinanceDetailsResponse["giftCardSales"] }) {
-  return <ul className="mobile-data-list">{sales.map(sale => <li key={sale.id}><MobileDataCard title={`礼物卡 ${sale.serialNumber}`} subtitle={dateOnly(sale.businessDate)}>
+  return <ul className="mobile-data-list">{sales.map(sale => <li key={sale.id}><MobileDataCard title={`${sale.isOnline ? "网上卖卡 · 用户名" : "礼物卡"} ${sale.serialNumber}`} subtitle={dateOnly(sale.businessDate)}>
     <RecordFacts items={[{ label: "面值", value: money(sale.faceValueCents) }, { label: "实际收款", value: money(sale.amountCents) }, { label: "折扣", value: money(sale.discountCents) }, { label: "现金收款", value: money(sale.cashCents) }, { label: "刷卡收款", value: money(sale.cardCents) }, { label: "操作人", value: sale.operator.displayName }]} />
   </MobileDataCard></li>)}</ul>;
 }

@@ -12,12 +12,16 @@ export const createGiftCardSaleSchema = z
   .object({
     businessDate: businessDateSchema,
     serialNumber: giftCardSerialNumberSchema.optional(),
+    isOnline: z.boolean().optional(),
     faceValueCents: moneyCentsSchema.optional(),
     cashCents: moneyCentsSchema.default(0),
     cardCents: moneyCentsSchema.default(0),
     operatorMembershipId: uuidSchema,
   })
   .superRefine((value, context) => {
+    if (value.isOnline && !value.serialNumber) {
+      context.addIssue({ code: "custom", message: "请填写用户名", path: ["serialNumber"] });
+    }
     if (value.faceValueCents !== undefined && value.faceValueCents <= 0) {
       context.addIssue({
         code: "custom",
@@ -38,10 +42,14 @@ export const updateGiftCardSaleSchema = z
   .object({
     version: versionSchema,
     serialNumber: giftCardSerialNumberSchema.optional(),
+    isOnline: z.boolean().optional(),
     faceValueCents: moneyCentsSchema.optional(),
     cashCents: moneyCentsSchema.optional(),
     cardCents: moneyCentsSchema.optional(),
     operatorMembershipId: uuidSchema.optional(),
+  })
+  .refine((value) => !value.isOnline || Boolean(value.serialNumber), {
+    message: "请填写用户名", path: ["serialNumber"],
   })
   .refine(
     (value) => Object.keys(value).some((key) => key !== "version"),

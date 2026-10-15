@@ -325,6 +325,7 @@ export interface WorkRecord {
   cashServiceCents: number | null;
   cardServiceCents: number | null;
   giftCardSerialNumber: string | null;
+  giftCardIsOnline?: boolean;
   giftCardServiceCents: number | null;
   cashTipCents: number | null;
   cardTipCents: number | null;
@@ -352,6 +353,7 @@ export interface WorkRecord {
     cashServiceCents: number;
     cardServiceCents: number;
     giftCardSerialNumber: string | null;
+    giftCardIsOnline?: boolean;
     giftCardServiceCents: number;
     cashTipCents: number;
     cardTipCents: number;
@@ -360,6 +362,7 @@ export interface WorkRecord {
 }
 
 export interface GiftCardSale {
+  isOnline?: boolean;
   id: string;
   businessDate: string;
   serialNumber: string;
@@ -395,7 +398,14 @@ export interface GiftCardLedgerSale extends GiftCardSale {
   usageRecords: GiftCardUsageRecord[];
 }
 
+export interface OnlineGiftCardAccount {
+  username: string;
+  sales: GiftCardSale[];
+  usageRecords: GiftCardUsageRecord[];
+}
+
 export interface GiftCardLedgerResponse {
+  onlineAccounts?: OnlineGiftCardAccount[];
   nextSerialNumber: string;
   sales: GiftCardLedgerSale[];
   legacyUsages: Array<{ serialNumber: string; usageRecords: GiftCardUsageRecord[] }>;
@@ -560,6 +570,7 @@ export interface FinanceDetailsResponse {
     hasCashAndNonCashPayment: boolean;
   }>;
   giftCardSales: Array<{
+    isOnline?: boolean;
     id: string;
     businessDate: string;
     serialNumber: string;

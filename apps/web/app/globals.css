@@ -1428,7 +1428,7 @@ h2 {
   gap: 14px;
 }
 
-.gift-card-sale-form > label:first-child,
+.gift-card-sale-form > .gift-card-identity-field,
 .gift-card-sale-form__serial-help,
 .gift-card-sale-form__face-value,
 .gift-card-sale-discount,
@@ -1438,6 +1438,12 @@ h2 {
 }
 
 .gift-card-sale-form__serial-help { margin: -7px 0 0; }
+
+.gift-card-identity-field { min-width: 0; }
+.gift-card-identity-field__controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.gift-card-identity-field__controls input { flex: 1 1 100px; min-width: 0; }
+.gift-card-identity-field__controls button { min-height: 44px; flex: 0 0 auto; }
+.gift-card-identity-field__controls button[aria-pressed="true"] { background: var(--brand); color: var(--surface); border-color: var(--brand); }
 
 .gift-card-sale-discount,
 .gift-card-sale-payment-check {
@@ -2067,7 +2073,7 @@ h2 {
     grid-template-columns: 1fr;
   }
 
-  .gift-card-sale-form > label:first-child,
+  .gift-card-sale-form > .gift-card-identity-field,
   .gift-card-sale-total {
     grid-column: auto;
   }

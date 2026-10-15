@@ -262,15 +262,15 @@ describe.skipIf(!enabled).sequential("AI 预览、确认和确定性财务工具
     await expect(ai.confirmPreview(actor, storeId, previewId, "rollback-retry")).resolves.toMatchObject({ status: "CONSUMED" });
   });
 
-  it("AI 只改小费时保留其他金额及礼物卡信息", async () => {
+  it("AI 只改小费时保留其他金额及礼物卡用户名信息", async () => {
     const record = await workRecords.create(actor, storeId, { employeeMembershipId: membershipId, serviceItemId, serviceDurationMinutes: 60, startAt: new Date().toISOString() }, randomUUID(), "partial-create");
-    await workRecords.confirmPayment(actor, storeId, record.id, { version: record.version, cashServiceCents: 2000, cardServiceCents: 3000, giftCardServiceCents: 5000, giftCardSerialNumber: "123456", cashTipCents: 100, cardTipCents: 200, giftCardTipCents: 300 }, randomUUID(), "partial-payment");
+    await workRecords.confirmPayment(actor, storeId, record.id, { version: record.version, cashServiceCents: 2000, cardServiceCents: 3000, giftCardServiceCents: 5000, giftCardSerialNumber: "123456", giftCardIsOnline: true, cashTipCents: 100, cardTipCents: 200, giftCardTipCents: 300 }, randomUUID(), "partial-payment");
     const configured = vi.spyOn(provider, "isConfigured").mockReturnValue(true);
     const complete = vi.spyOn(provider, "complete").mockResolvedValue({ content: "", provider: "test", model: "test", toolCall: { name: "prepare_work_change", arguments: { operation: "UPDATE", recordId: record.id, cashTipCents: 2000 } } });
     try {
       const message = await ai.workMessage(actor, storeId, { text: "把现金小费改成20" });
       await ai.confirmPreview(actor, storeId, message.preview!.previewId, "partial-confirm");
-      expect(await prisma.workRecord.findUniqueOrThrow({ where: { id: record.id } })).toMatchObject({ cashServiceCents: 2000n, cardServiceCents: 3000n, giftCardServiceCents: 5000n, giftCardSerialNumber: "123456", cashTipCents: 2000n, cardTipCents: 200n, giftCardTipCents: 300n });
+      expect(await prisma.workRecord.findUniqueOrThrow({ where: { id: record.id } })).toMatchObject({ cashServiceCents: 2000n, cardServiceCents: 3000n, giftCardServiceCents: 5000n, giftCardSerialNumber: "123456", giftCardIsOnline: true, cashTipCents: 2000n, cardTipCents: 200n, giftCardTipCents: 300n });
     } finally { complete.mockRestore(); configured.mockRestore(); }
   });
 

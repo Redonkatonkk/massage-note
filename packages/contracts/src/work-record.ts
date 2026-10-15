@@ -134,6 +134,7 @@ export const confirmPaymentSchema = z
     cashServiceCents: moneyCentsSchema.optional(),
     cardServiceCents: moneyCentsSchema.optional(),
     giftCardSerialNumber: giftCardSerialNumberSchema.nullable().optional(),
+    giftCardIsOnline: z.boolean().optional(),
     giftCardServiceCents: moneyCentsSchema.optional(),
     cashTipCents: moneyCentsSchema.optional(),
     cardTipCents: moneyCentsSchema.optional(),
@@ -153,11 +154,11 @@ export const confirmPaymentSchema = z
     }
     const giftCardTotal =
       (value.giftCardServiceCents ?? 0) + (value.giftCardTipCents ?? 0);
-    if (giftCardTotal > 0 && !value.giftCardSerialNumber) {
+    if ((giftCardTotal > 0 || value.giftCardIsOnline) && !value.giftCardSerialNumber) {
       context.addIssue({
         code: "custom",
         path: ["giftCardSerialNumber"],
-        message: "使用礼物卡时必须填写序列号",
+        message: value.giftCardIsOnline ? "请填写用户名" : "使用礼物卡时必须填写序列号",
       });
     }
     if (value.giftCardSerialNumber && giftCardTotal === 0) {
@@ -173,6 +174,7 @@ export const confirmPaymentSchema = z
     cashServiceCents: value.cashServiceCents ?? 0,
     cardServiceCents: value.cardServiceCents ?? 0,
     giftCardSerialNumber: value.giftCardSerialNumber ?? null,
+    ...(value.giftCardIsOnline !== undefined ? { giftCardIsOnline: value.giftCardIsOnline } : {}),
     giftCardServiceCents: value.giftCardServiceCents ?? 0,
     cashTipCents: value.cashTipCents ?? 0,
     cardTipCents: value.cardTipCents ?? 0,

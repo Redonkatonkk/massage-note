@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { giftCardActualDiscount, giftCardSerialNumberForCreate } from "./gift-card";
 
 describe("礼物卡销售序列号", () => {
+  it("用户名始终作为文本提交，纯数字前导零不参与自动分配", () => {
+    expect(giftCardSerialNumberForCreate(" 001001 ", false, true)).toBe("001001");
+    expect(() => giftCardSerialNumberForCreate(" ", false, true)).toThrow("请填写用户名");
+  });
   it("未修改系统建议号码时交由服务端并发安全地自动分配", () => {
     expect(giftCardSerialNumberForCreate("1001", false)).toBeUndefined();
   });

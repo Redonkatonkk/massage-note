@@ -56,6 +56,7 @@ export class GiftCardsService {
       this.prisma.giftCardSale.findMany({
         where: { storeId, deletedAt: null },
         include: saleInclude,
+        orderBy: [{ businessDate: "asc" }, { createdAt: "asc" }],
       }),
       this.prisma.workRecord.findMany({
         where: {
@@ -69,6 +70,7 @@ export class GiftCardsService {
           businessDate: true,
           startAt: true,
           giftCardSerialNumber: true,
+          giftCardIsOnline: true,
           giftCardServiceCents: true,
           giftCardTipCents: true,
           employee: { select: { id: true, displayName: true } },
@@ -95,16 +97,37 @@ export class GiftCardsService {
         (record.giftCardServiceCents ?? 0n) + (record.giftCardTipCents ?? 0n),
     });
     const usageBySerial = new Map<string, typeof records>();
+    const onlineAccounts = new Map<string, {
+      username: string;
+      sales: typeof sales;
+      usageRecords: ReturnType<typeof serializeUsageRecord>[];
+    }>();
+    const onlineAccount = (username: string) => {
+      const key = username.trim();
+      let account = onlineAccounts.get(key);
+      if (!account) {
+        account = { username: key, sales: [], usageRecords: [] };
+        onlineAccounts.set(key, account);
+      }
+      return account;
+    };
     for (const record of records) {
       const serial = record.giftCardSerialNumber;
       if (!serial) continue;
+      if (record.giftCardIsOnline) {
+        onlineAccount(serial).usageRecords.push(serializeUsageRecord(record));
+        continue;
+      }
       const key = this.normalizeSerial(serial);
       const matches = usageBySerial.get(key) ?? [];
       matches.push(record);
       usageBySerial.set(key, matches);
     }
     sales.sort((left, right) => this.compareSerialNumbers(left.serialNumber, right.serialNumber));
-    const registeredSerials = new Set(sales.map((sale) => this.normalizeSerial(sale.serialNumber)));
+    for (const sale of sales) {
+      if (sale.isOnline) onlineAccount(sale.serialNumber).sales.push(sale);
+    }
+    const registeredSerials = new Set(sales.filter((sale) => !sale.isOnline).map((sale) => this.normalizeSerial(sale.serialNumber)));
     const legacyUsages = [...usageBySerial.entries()]
       .filter(([serial]) => !registeredSerials.has(serial))
       .map(([, matchingRecords]) => ({
@@ -115,9 +138,10 @@ export class GiftCardsService {
     return {
       nextSerialNumber: String(store.nextGiftCardSerialNumber),
       legacyUsages,
+      onlineAccounts: [...onlineAccounts.values()].sort((left, right) => this.compareSerialNumbers(left.username, right.username)),
       sales: sales.map((sale) => ({
         ...sale,
-        usageRecords: (usageBySerial.get(this.normalizeSerial(sale.serialNumber)) ?? []).map(serializeUsageRecord),
+        usageRecords: sale.isOnline ? [] : (usageBySerial.get(this.normalizeSerial(sale.serialNumber)) ?? []).map(serializeUsageRecord),
       })),
     };
   }
@@ -158,6 +182,7 @@ export class GiftCardsService {
             transaction,
             storeId,
             input.serialNumber,
+            input.isOnline,
           );
           const serialNumber = allocation.serialNumber;
           const serialNumberNormalized = this.normalizeSerial(serialNumber);
@@ -183,6 +208,7 @@ export class GiftCardsService {
               storeId,
               businessDate: dateAtUtc(input.businessDate),
               serialNumber,
+              isOnline: input.isOnline ?? false,
               serialNumberNormalized,
               faceValueCents,
               discountThresholdCents,
@@ -250,6 +276,10 @@ export class GiftCardsService {
             input.operatorMembershipId ?? current.operatorMembershipId;
           await this.requireOperator(transaction, storeId, operatorMembershipId);
           const serialNumber = input.serialNumber?.trim() ?? current.serialNumber;
+          const isOnline = input.isOnline ?? current.isOnline;
+          if (!isOnline && (current.isOnline || this.normalizeSerial(serialNumber) !== this.normalizeSerial(current.serialNumber))) {
+            await this.allocateSerialNumber(transaction, storeId, serialNumber);
+          }
           const faceValueCents = BigInt(input.faceValueCents ?? current.faceValueCents);
           const cashCents = BigInt(input.cashCents ?? current.cashCents);
           const cardCents = BigInt(input.cardCents ?? current.cardCents);
@@ -264,6 +294,7 @@ export class GiftCardsService {
             where: { id: saleId, storeId, deletedAt: null, version: input.version },
             data: {
               serialNumber,
+              isOnline,
               serialNumberNormalized: this.normalizeSerial(serialNumber),
               faceValueCents,
               discountCents: pricing.discountCents,
@@ -530,11 +561,15 @@ export class GiftCardsService {
     transaction: Prisma.TransactionClient,
     storeId: string,
     requestedSerialNumber?: string,
+    isOnline = false,
   ): Promise<{
     serialNumber: string;
     discountThresholdCents: bigint;
     discountRateBps: number;
   }> {
+    if (isOnline && !requestedSerialNumber?.trim()) {
+      throw new BadRequestException({ code: "GIFT_CARD_USERNAME_REQUIRED", messageZh: "请填写用户名" });
+    }
     await transaction.$queryRaw`
       WITH acquired_lock AS (
         SELECT pg_advisory_xact_lock(
@@ -561,9 +596,16 @@ export class GiftCardsService {
 
     if (requestedSerialNumber !== undefined) {
       const serialNumber = requestedSerialNumber.trim();
+      if (isOnline) {
+        return {
+          serialNumber,
+          discountThresholdCents: store.giftCardAutoDiscountEnabled ? store.giftCardAutoDiscountThresholdCents : 0n,
+          discountRateBps: store.giftCardAutoDiscountEnabled ? store.giftCardAutoDiscountBps : 0,
+        };
+      }
       const serialNumberNormalized = this.normalizeSerial(serialNumber);
       const existingSale = await transaction.giftCardSale.findFirst({
-        where: { storeId, serialNumberNormalized },
+        where: { storeId, serialNumberNormalized, isOnline: false },
         select: { id: true },
       });
       if (existingSale) {
@@ -602,6 +644,7 @@ export class GiftCardsService {
         where: {
           storeId,
           serialNumberNormalized: String(nextSerialNumber),
+          isOnline: false,
         },
         select: { id: true },
       })
@@ -664,6 +707,7 @@ export class GiftCardsService {
 
   private auditSnapshot(sale: {
     serialNumber: string;
+    isOnline: boolean;
     faceValueCents: bigint;
     discountThresholdCents: bigint;
     discountRateBps: number;
@@ -676,6 +720,7 @@ export class GiftCardsService {
   }) {
     return {
       serialNumber: sale.serialNumber,
+      isOnline: sale.isOnline,
       faceValueCents: sale.faceValueCents.toString(),
       discountThresholdCents: sale.discountThresholdCents.toString(),
       discountRateBps: sale.discountRateBps,

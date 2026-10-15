@@ -1,6 +1,7 @@
 "use client";
 
 import { useAutoDismissState } from "./use-auto-dismiss-state";
+import { GiftCardIdentityField } from "./gift-card-identity-field";
 
 import { useMemo, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
@@ -59,6 +60,8 @@ export function GiftCardSales({
   );
   const [editing, setEditing] = useState<GiftCardSale | null | undefined>(undefined);
   const [serialNumber, setSerialNumber] = useState("");
+  const [isOnline, setIsOnline] = useState(false);
+  const [username, setUsername] = useState("");
   const [serialNumberWasEdited, setSerialNumberWasEdited] = useState(false);
   const [faceValueAmount, setFaceValueAmount] = useState("");
   const [cashAmount, setCashAmount] = useState("");
@@ -112,6 +115,8 @@ export function GiftCardSales({
     setNotice("");
     setEditing(null);
     setSerialNumber(nextSerialNumber);
+    setIsOnline(false);
+    setUsername("");
     setSerialNumberWasEdited(false);
     setFaceValueAmount("");
     setCashAmount("");
@@ -127,7 +132,9 @@ export function GiftCardSales({
   function openEdit(sale: GiftCardSale) {
     setNotice("");
     setEditing(sale);
-    setSerialNumber(sale.serialNumber);
+    setIsOnline(Boolean(sale.isOnline));
+    setUsername(sale.isOnline ? sale.serialNumber : "");
+    setSerialNumber(sale.isOnline ? nextSerialNumber : sale.serialNumber);
     setFaceValueAmount(dollars(sale.faceValueCents));
     setCashAmount(dollars(sale.cashCents));
     setCardAmount(dollars(sale.cardCents));
@@ -140,6 +147,7 @@ export function GiftCardSales({
     setError("");
     try {
       const input = {
+        isOnline,
         faceValueCents: cents(faceValueAmount, "礼物卡总金额"),
         cashCents: cashAmount.trim() === "" ? 0 : cents(cashAmount, "现金金额"),
         cardCents: cardAmount.trim() === "" ? 0 : cents(cardAmount, "刷卡金额"),
@@ -151,8 +159,8 @@ export function GiftCardSales({
       if (input.cashCents + input.cardCents !== payableCents &&
         !window.confirm("实际收款与折后应付金额不一致，是否按实际收款保存？")) return;
       if (editing) {
-        const editedSerialNumber = serialNumber.trim();
-        if (!editedSerialNumber) throw new Error("请填写礼物卡序列号");
+        const editedSerialNumber = (isOnline ? username : serialNumber).trim();
+        if (!editedSerialNumber) throw new Error(isOnline ? "请填写用户名" : "请填写礼物卡序列号");
         await apiRequest(`/stores/${storeId}/gift-card-sales/${editing.id}`, {
           method: "PATCH",
           idempotent: true,
@@ -161,8 +169,9 @@ export function GiftCardSales({
         setNotice("礼物卡销售记录已更新");
       } else {
         const customSerialNumber = giftCardSerialNumberForCreate(
-          serialNumber,
-          serialNumberWasEdited,
+          isOnline ? username : serialNumber,
+          isOnline || serialNumberWasEdited,
+          isOnline,
         );
         const created = await apiRequest<GiftCardSale>(`/stores/${storeId}/gift-card-sales`, {
           method: "POST",
@@ -173,7 +182,7 @@ export function GiftCardSales({
             ...input,
           },
         });
-        setNotice(`礼物卡 ${created.serialNumber} 已记录，金额全部计入店铺收入`);
+        setNotice(`${created.isOnline ? "网上卖卡 · 用户名" : "礼物卡"} ${created.serialNumber} 已记录，金额全部计入店铺收入`);
       }
       setEditing(undefined);
       await onReload();
@@ -233,7 +242,7 @@ export function GiftCardSales({
                 disabled={!canEdit}
                 onClick={() => openEdit(sale)}
               >
-                <span className="gift-card-sale-card__serial"><small>序列号</small><strong title={sale.serialNumber}>{sale.serialNumber}</strong></span>
+                <span className="gift-card-sale-card__serial"><small>{sale.isOnline ? "网上卖卡 · 用户名" : "序列号"}</small><strong title={sale.serialNumber}>{sale.serialNumber}</strong></span>
                 <b>面值 {money(sale.faceValueCents)}</b>
                 {sale.discountRateBps > 0 && (
                   <span className="gift-card-sale-card__payments">{giftCardActualDiscount(sale.faceValueCents, sale.amountCents)}</span>
@@ -265,8 +274,8 @@ export function GiftCardSales({
               <button className="close-button" type="button" disabled={busy} onClick={() => setEditing(undefined)}>关闭</button>
             </div>
             <div className="gift-card-sale-form">
-              <label className="field-label">礼物卡序列号<input autoFocus={Boolean(editing)} autoComplete="off" maxLength={120} value={serialNumber} onChange={(event) => { setSerialNumber(event.target.value); if (!editing) setSerialNumberWasEdited(true); }} /></label>
-              {!editing && <p className="field-help gift-card-sale-form__serial-help">默认使用系统建议号码；也可以直接修改为自定义号码，保存时会检查同店重复。多人同时使用默认号码时，以保存后的号码为准。</p>}
+              <GiftCardIdentityField isOnline={isOnline} onModeChange={setIsOnline} value={isOnline ? username : serialNumber} onChange={(value) => { if (isOnline) setUsername(value); else { setSerialNumber(value); if (!editing) setSerialNumberWasEdited(true); } }} actionLabel="网上卖卡" autoFocus={Boolean(editing)} disabled={busy} />
+              {isOnline ? <p className="field-help gift-card-sale-form__serial-help">用户名可以是数字，直接记录，无需在系统中注册；同一用户名可多次购买。</p> : !editing && <p className="field-help gift-card-sale-form__serial-help">默认使用系统建议号码；也可以直接修改为自定义号码，保存时会检查同店重复。多人同时使用默认号码时，以保存后的号码为准。</p>}
               <label className="field-label gift-card-sale-form__face-value">礼物卡总金额（美元）<input autoFocus={!editing} inputMode="decimal" placeholder="例如 100" value={faceValueAmount} onChange={(event) => setFaceValueAmount(event.target.value)} /></label>
               <div className="gift-card-sale-discount">
                 <span>规则折扣</span>

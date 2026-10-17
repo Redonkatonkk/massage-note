@@ -437,6 +437,13 @@ describe("今日看板总收入", () => {
       { role: "EMPLOYEE", incomeCents: 10_000n },
     ] })).toBe(41_000n);
   });
+  it("看板只扣一次月日均支出，保留美分、零值和亏损", () => {
+    const input = { storeIncomeCents: 10000n, workers: [{ role: "OWNER", incomeCents: 2000n }, { role: "MANAGER", incomeCents: 3000n }] };
+    expect(calculateBoardTotalIncome({ ...input, dailyExpenseCents: 1234n })).toBe(13766n);
+    expect(calculateBoardTotalIncome({ ...input, dailyExpenseCents: 0n })).toBe(15000n);
+    expect(calculateBoardTotalIncome({ ...input, dailyExpenseCents: 16001n })).toBe(-1001n);
+    expect(calculateBoardTotalIncome({ storeIncomeCents: 9007199254740993n, workers: [], dailyExpenseCents: 1n })).toBe(9007199254740992n);
+  });
   it("没有参与记工的店长或经理时保留负数店铺收入", () => {
     expect(calculateBoardTotalIncome({ storeIncomeCents: -1_000n, workers: [] })).toBe(-1_000n);
   });

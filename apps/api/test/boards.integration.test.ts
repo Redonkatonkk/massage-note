@@ -3,6 +3,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { ConflictException, ForbiddenException } from "@nestjs/common";
 import type { User } from "@massage-note/database";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { ExpensesService } from "../src/finance/expenses.service.js";
 import { BoardsService } from "../src/boards/boards.service.js";
 import { IdempotencyService } from "../src/common/idempotency.service.js";
 import { PrismaService } from "../src/database/prisma.service.js";
@@ -74,6 +75,9 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
 
   afterAll(async () => {
     if (enabled) {
+      await prisma.expensePeriodOverride.deleteMany({ where: { rule: { item: { storeId } } } });
+      await prisma.expenseRuleRevision.deleteMany({ where: { item: { storeId } } });
+      await prisma.expenseItem.deleteMany({ where: { storeId } });
       await prisma.auditLog.deleteMany({ where: { storeId } });
       await prisma.domainOutbox.deleteMany({ where: { storeId } });
       await prisma.idempotencyRequest.deleteMany({ where: { storeId } });
@@ -533,4 +537,28 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
       }),
     ).resolves.toEqual(closingBefore);
   });
+  it("看板按所选日期月份扣支出页的整月日均，含跨月、季度、一次性、零和缺失历史", async () => {
+    const expenses = new ExpensesService(prisma, access, idempotency);
+    const create = (input: Parameters<ExpensesService["create"]>[2]) => expenses.create(actor(ownerId), storeId, input, randomUUID(), randomUUID());
+    let quarter = await create({ kind: "RECURRING", name: "季度", note: "", rule: { startDate: "2024-01-01", unit: "MONTH", interval: 3, amountCents: 90001 } });
+    await create({ kind: "RECURRING", name: "跨月天周期", note: "", rule: { startDate: "2024-02-28", unit: "DAY", interval: 5, amountCents: 11 } });
+    let once = await create({ kind: "ONCE", name: "一次性", note: "", occurredOn: "2024-02-11", amountCents: 2801 });
+    const legacy = await create({ kind: "RECURRING", name: "历史未录入", note: "", rule: { startDate: "2024-02-01", unit: "MONTH", interval: 1, amountCents: 1000 } });
+    await prisma.expenseRuleRevision.update({ where: { id: legacy.rules[0]!.id }, data: { amountMode: "BUDGET", defaultAmountFrom: new Date("2024-03-01T00:00:00Z") } });
+    const month = await expenses.month(actor(ownerId), storeId, "2024-02");
+    expect(month).toMatchObject({ daysInMonth: 29, totalCents: "32806", dailyAverageCents: "1131", missingPeriodCount: 1 });
+    expect((await boards.getBoard(actor(ownerId), storeId, "2024-02-11")).statistics).toMatchObject({ dailyExpenseCents: 1131n, totalIncomeCents: -1131n, storeIncomeCents: 0n, revenueCents: 0n });
+    const march = await expenses.month(actor(ownerId), storeId, "2024-03");
+    expect((await boards.getBoard(actor(ownerId), storeId, "2024-03-01")).statistics.dailyExpenseCents).toBe(BigInt(march.dailyAverageCents));
+    expect((await boards.getBoard(actor(employeeId), storeId, "2024-02-11")).statistics).toMatchObject({ dailyExpenseCents: null, totalIncomeCents: 0n });
+    quarter = await expenses.period(actor(ownerId), storeId, quarter.id, { version: quarter.version, ruleId: quarter.rules[0]!.id, periodStart: "2024-01-01", amountCents: 0 }, randomUUID(), randomUUID());
+    expect((await boards.getBoard(actor(ownerId), storeId, "2024-02-11")).statistics.dailyExpenseCents).toBe(97n);
+    once = await expenses.remove(actor(ownerId), storeId, once.id, { version: once.version }, randomUUID(), randomUUID());
+    expect((await boards.getBoard(actor(ownerId), storeId, "2024-02-11")).statistics.dailyExpenseCents).toBe(0n);
+    once = await expenses.restore(actor(ownerId), storeId, once.id, { version: once.version }, randomUUID(), randomUUID());
+    expect((await boards.getBoard(actor(ownerId), storeId, "2024-02-11")).statistics.dailyExpenseCents).toBe(97n);
+    await expenses.period(actor(ownerId), storeId, quarter.id, { version: quarter.version, ruleId: quarter.rules[0]!.id, periodStart: "2024-01-01" }, randomUUID(), randomUUID());
+    expect((await boards.getBoard(actor(ownerId), storeId, "2024-02-11")).statistics.dailyExpenseCents).toBe(1131n);
+  });
+
 });

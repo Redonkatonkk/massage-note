@@ -1,3 +1,4 @@
+import { readExpenseMonth } from "../finance/expense-month.js";
 import { isDeepStrictEqual } from "node:util";
 import { businessDateFor, deviceNow, deviceTimezone } from "../common/device-time.js";
 import {
@@ -399,7 +400,7 @@ export class BoardsService {
         },
       },
     });
-    const [records, shifts, giftCardSales, closing] = await Promise.all([
+    const [records, shifts, giftCardSales, closing, expenses] = await Promise.all([
       this.prisma.workRecord.findMany({
         where: {
           storeId,
@@ -451,6 +452,9 @@ export class BoardsService {
         },
         orderBy: { cycleNo: "desc" },
       }),
+      hasStoreCapability(actorMembership.role, "EXPENSE_MANAGE")
+        ? readExpenseMonth(this.prisma, storeId, businessDate.slice(0, 7))
+        : Promise.resolve(null),
     ]);
 
     let recentClosedRevenue = null;
@@ -519,9 +523,11 @@ export class BoardsService {
       statistics: {
         ...statistics,
         recentClosedRevenue,
+        dailyExpenseCents: expenses ? BigInt(expenses.dailyAverageCents) : null,
         revenueCents: calculateRevenue(statistics),
         totalIncomeCents: calculateBoardTotalIncome({
           storeIncomeCents: statistics.storeIncomeCents,
+          dailyExpenseCents: expenses ? BigInt(expenses.dailyAverageCents) : 0n,
           workers: records.filter((record) => record.status !== "PLACEHOLDER").map((record) => ({
             role: record.employee.role,
             incomeCents: record.totalLargeFeeWageCents + (record.totalTipCents ?? 0n),

@@ -69,16 +69,37 @@ describe.skipIf(!enabled).sequential("支出持久化、权限与事务", () => 
     expect(await prisma.domainOutbox.count({ where: { aggregateId: first.id } })).toBe(1);
     await expect(create({ ...payload, amountCents: 10002 }, owner, requestKey)).rejects.toBeInstanceOf(ConflictException);
   });
-  it("单期实际账单包括零，撤销恢复预算，关联不能跨项目", async () => {
-    const item = await create({ kind: "RECURRING", name: "电费", note: "", rule: { ...rule, interval: 1, amountMode: "BUDGET", amountCents: 10000 } });
+  it("单期修改包括零，撤销恢复常用金额，关联不能跨项目", async () => {
+    const item = await create({ kind: "RECURRING", name: "电费", note: "", rule: { ...rule, interval: 1, amountCents: 10000 } });
     const period = { version: item.version, ruleId: item.rules[0]!.id, periodStart: "2026-01-01", amountCents: 0 };
     const saved = await service.period(actor(manager), storeId, item.id, period, key(), key());
-    expect((await lines(saved, "2026-01"))[0]).toMatchObject({ allocatedCents: "0", source: "ACTUAL", hasOverride: true });
-    expect((await lines(saved, "2026-02"))[0]).toMatchObject({ allocatedCents: "10000", source: "BUDGET" });
+    expect((await lines(saved, "2026-01"))[0]).toMatchObject({ allocatedCents: "0", hasOverride: true });
+    expect((await lines(saved, "2026-02"))[0]).toMatchObject({ allocatedCents: "10000" });
     const other = await create();
     await expect(service.period(actor(), storeId, other.id, { ...period, version: other.version }, key(), key())).rejects.toBeInstanceOf(BadRequestException);
     const cleared = await service.period(actor(), storeId, item.id, { version: saved.version, ruleId: period.ruleId, periodStart: period.periodStart }, key(), key());
-    expect((await lines(cleared, "2026-01"))[0]).toMatchObject({ allocatedCents: "10000", source: "BUDGET", hasOverride: false });
+    expect((await lines(cleared, "2026-01"))[0]).toMatchObject({ allocatedCents: "10000", hasOverride: false });
+  });
+  it("历史常用金额边界排除未录入周期，账单与零值保留，旧模式不参与计算", async () => {
+    let item = await create({ kind: "RECURRING", name: "历史电费", note: "", rule: { ...rule, interval: 1, amountCents: 10000 } });
+    const ruleId = item.rules[0]!.id;
+    expect(item.rules[0]).toMatchObject({ defaultAmountFrom: "2026-01-01" });
+    expect(item.rules[0]).not.toHaveProperty("amountMode");
+    await prisma.expenseRuleRevision.update({ where: { id: ruleId }, data: { amountMode: "BUDGET", defaultAmountFrom: new Date("2026-03-01T00:00:00Z") } });
+    expect((await lines(item, "2026-01"))[0]).toMatchObject({ periodAmountCents: null, allocatedCents: null, hasOverride: false });
+    item = await service.period(actor(), storeId, item.id, { version: item.version, ruleId, periodStart: "2026-01-01", amountCents: 0 }, key(), key());
+    expect((await lines(item, "2026-01"))[0]).toMatchObject({ periodAmountCents: "0", allocatedCents: "0", hasOverride: true });
+    const response = await service.month(actor(), storeId, "2026-02");
+    expect(response.itemSummaries.find(value => value.itemId === item.id)).toEqual({ itemId: item.id, allocatedCents: null, missingPeriodCount: 1 });
+    expect(response).not.toHaveProperty("budgetCents");
+    expect(response.lines[0]).not.toHaveProperty("source");
+    expect(BigInt(response.totalCents)).toBe(BigInt(response.recurringCents) + BigInt(response.oneTimeCents));
+    item = await service.period(actor(), storeId, item.id, { version: item.version, ruleId, periodStart: "2026-01-01" }, key(), key());
+    expect((await lines(item, "2026-01"))[0]?.allocatedCents).toBeNull();
+    expect((await lines(item, "2026-03"))[0]?.allocatedCents).toBe("10000");
+    item = await service.period(actor(), storeId, item.id, { version: item.version, ruleId, periodStart: "2026-03-01", amountCents: 0 }, key(), key());
+    item = await service.period(actor(), storeId, item.id, { version: item.version, ruleId, periodStart: "2026-03-01" }, key(), key());
+    expect((await lines(item, "2026-03"))[0]?.allocatedCents).toBe("10000");
   });
   it("规则变更保留历史，错误边界回滚，停止保留覆盖期，可重新开始", async () => {
     let item = await create();

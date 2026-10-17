@@ -18,7 +18,7 @@ function stats(count = 2): FinanceAnalyticsResponse {
   const hours = Array.from({ length: 24 }, (_, hour) => hour === 10 ? count : 0);
   return { dateFrom: "2026-10-07", dateTo: "2026-10-07", hasData: count > 0,
     hours: hours.map((value, hour) => ({ hour, count: value })),
-    days: [{ businessDate: "2026-10-07", hours, count, lostCustomerCount: 0, revenueCents: "10000", averageCents: "10000", averageDayCount: 1 }],
+    days: [{ businessDate: "2026-10-07", hours, count, lostCustomerCount: 0, revenueCents: "10000", averageCents: "10000", averageDayCount: 1, average30Cents: "10000", average30DayCount: 1, cumulativeAverageCents: "10000", cumulativeAverageDayCount: 1 }],
     weekdays: Array.from({ length: 7 }, (_, weekday) => ({ weekday, closedDayCount: weekday === 2 ? 1 : 0, calendarDayCount: weekday === 2 ? 1 : 0, averageCents: weekday === 2 ? "10000" : null, hours })),
   };
 }
@@ -31,7 +31,7 @@ async function changeHighlight(value: string) {
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
 }
-function hourlyCount() { return container.querySelector(".analytics-card .analytics-hit")?.getAttribute("aria-label"); }
+function hourlyCount() { return container.querySelector(".analytics-card:has(.hourly-details) .analytics-hit")?.getAttribute("aria-label"); }
 function weekdayChart() { return [...container.querySelectorAll<HTMLElement>(".analytics-card")].find(card => card.querySelector(".weekday-revenue-details"))!; }
 function weekdayPoint(index: number) { return weekdayChart().querySelectorAll<SVGElement>(".analytics-hit")[index]!; }
 async function clickPoint(point: SVGElement) { await act(async () => point.dispatchEvent(new MouseEvent("click", { bubbles: true }))); }
@@ -48,7 +48,7 @@ beforeEach(() => {
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   language.locale = "zh-CN"; request.mockReset(); request.mockImplementation(async path => String(path).includes("/summary?") ? { days: [] } : stats());
 });
-afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
+afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 
 it("默认全部，切换三种高光筛选立即刷新，并保留独立日期范围", async () => {
   await render();
@@ -72,7 +72,7 @@ it("默认全部，切换三种高光筛选立即刷新，并保留独立日期�
 
 it("快速切换后丢弃旧筛选的延迟响应，图表选中明细同步重置", async () => {
   await render();
-  await act(async () => container.querySelector<SVGElement>(".analytics-card .analytics-hit")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  await act(async () => container.querySelector<SVGElement>(".analytics-card:has(.hourly-details) .analytics-hit")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
   expect(container.querySelector(".hourly-details__period")).not.toBeNull();
   let resolveOld!: (data: FinanceAnalyticsResponse) => void;
   request.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
@@ -175,13 +175,113 @@ it("星期表支持键盘、无日期和英文，筛选切换后清除旧选择"
   expect(weekdayChart().querySelector("tbody")!.textContent).toContain("$42.00");
 });
 
-it("每日小计紧随热力图，日历使用与图表相同的响应式网格", async () => {
+it("日历、星期平均、新曲线在前，其余图表保持原顺序，每日小计紧随热力图", async () => {
   await render();
   const chartGrid = container.querySelector(".analytics-heatmap")!.parentElement!;
   const report = container.querySelector(".finance-report-section")!;
   expect(chartGrid.nextElementSibling).toBe(report);
-  const calendarGrid = report.nextElementSibling!;
-  expect(calendarGrid.className).toBe("analytics-grid");
-  expect(calendarGrid.children.length).toBe(1);
-  expect(calendarGrid.firstElementChild!.classList.contains("analytics-revenue-calendar")).toBe(true);
+  expect([...chartGrid.children].map(card => card.querySelector("h2")!.textContent)).toEqual([
+    "每日营业额日历", "星期平均营业额", "平均营业额曲线", "流水与收入柱状图", "按小时上工数量", "每日记工数量", "每日营业额趋势", "星期 × 小时热力图",
+  ]);
+});
+
+it("第四位柱图复用每日小计请求，周期切换不重取，筛选后展示同一条件的最新金额", async () => {
+  request.mockImplementation(async path => {
+    if (!String(path).includes("/summary?")) return stats();
+    const amount = String(path).includes("ONLY_HIGHLIGHTED") ? 4200 : 10000;
+    return { days: [{ businessDate: "2026-10-07", dailyTurnoverCents: amount, storeIncomeCents: amount / 2, totalIncomeCents: amount * .8, recentClosedRevenue: null,
+      mainServiceAmountCents: amount, addonTotalCents: 0, grossFeeBaseCents: amount, discountTotalCents: 0, discountedFeePerformanceCents: amount,
+      giftCardSalesAmountCents: 0, giftCardRedemptionCents: 0, employeeIncomeCents: amount / 2,
+    }] };
+  });
+  await render();
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(container.querySelector(".analytics-income-bars tbody")!.textContent).toContain("总流水 US$100.00 · 店铺收入 US$50.00 · 总收入 US$80.00");
+  await act(async () => {
+    const select = container.querySelector<HTMLSelectElement>(".analytics-income-bars select")!;
+    select.value = "DAY"; select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(request).toHaveBeenCalledTimes(2);
+  await changeHighlight("ONLY_HIGHLIGHTED");
+  expect(container.querySelector(".analytics-income-bars tbody")!.textContent).toContain("总流水 US$42.00 · 店铺收入 US$21.00 · 总收入 US$33.60");
+  expect(request).toHaveBeenCalledTimes(4);
+});
+
+it("平均曲线默认30天，可同时选择三条并保留各自数值、样本和当前筛选", async () => {
+  await render();
+  const chart = container.querySelector(".analytics-average-revenue")!;
+  const choices = [...chart.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+  expect(choices.map(input => input.checked)).toEqual([true, false, false]);
+  expect([...chart.querySelectorAll("path")].map(path => path.getAttribute("data-series"))).toEqual(["30"]);
+  const calls = request.mock.calls.length;
+  await act(async () => { choices[1]!.click(); choices[2]!.click(); });
+  expect([...chart.querySelectorAll("path")].map(path => path.getAttribute("data-series"))).toEqual(["30", "all", "7"]);
+  await clickPoint(chart.querySelector<SVGElement>(".analytics-hit")!);
+  expect(chart.querySelector(".analytics-readout")!.textContent).toContain("全日期累计平均 US$100.00 · 1 个已日结日");
+  expect(chart.querySelector("tbody")!.textContent).toContain("最近7天平均 US$100.00");
+  expect(request.mock.calls.length).toBe(calls);
+  await act(async () => choices.forEach(input => input.click()));
+  expect(chart.querySelectorAll("path")).toHaveLength(0);
+  expect(chart.textContent).toContain("请至少选择一条曲线");
+  await changeHighlight("ONLY_HIGHLIGHTED");
+  expect(container.querySelector<HTMLInputElement>('.analytics-average-revenue input[type="checkbox"]')!.checked).toBe(true);
+});
+
+it("全年日期仍使用固定宽度和平滑曲线，并保留日期两端和未日结缺口", async () => {
+  request.mockImplementation(async path => {
+    if (String(path).includes("/summary?")) return { days: [] };
+    const response = stats();
+    return { ...response, dateFrom: "2025-10-08", days: Array.from({ length: 365 }, (_, index) => ({
+      ...response.days[0]!, businessDate: new Date(Date.UTC(2025, 9, 8 + index)).toISOString().slice(0, 10),
+      average30Cents: index === 1 ? null : String(10000 + index * 50),
+    })) };
+  });
+  await render();
+  for (const plot of container.querySelectorAll(".analytics-plot")) {
+    expect(plot.closest(".analytics-scroll")).toBeNull();
+    expect(plot.querySelector("svg")!.getAttribute("width")).toBe("100%");
+    expect(plot.querySelector("svg")!.getAttribute("viewBox")).toBe("0 0 600 270");
+  }
+  const chart = container.querySelector(".analytics-average-revenue")!;
+  const path = chart.querySelector("path")!.getAttribute("d")!;
+  expect(path).toContain("C");
+  expect(path.match(/M/g)).toHaveLength(2);
+  expect(chart.querySelector(".analytics-plot > svg")!.textContent).toContain("10-08");
+  expect(chart.querySelector(".analytics-plot > svg")!.textContent).toContain("10-07");
+  expect(chart.querySelectorAll(".analytics-hit")).toHaveLength(365);
+});
+
+it("英文平均曲线选项及累计口径完整可读", async () => {
+  language.locale = "en-US";
+  await render();
+  const chart = container.querySelector(".analytics-average-revenue")!;
+  expect(chart.textContent).toContain("Average revenue curves");
+  expect([...chart.querySelectorAll("label")].map(label => label.textContent)).toEqual(["Trailing 30-day average", "Cumulative average", "Trailing 7-day average"]);
+  expect(chart.textContent).toContain("from the selected start through each date");
+});
+
+it("容器变窄时重新分配横轴，在手机宽度保留首末日期和固定图高", async () => {
+  const callbacks: ResizeObserverCallback[] = [];
+  const disconnect = vi.fn();
+  vi.stubGlobal("ResizeObserver", class {
+    constructor(callback: ResizeObserverCallback) { callbacks.push(callback); }
+    observe() {}
+    disconnect = disconnect;
+  });
+  request.mockImplementation(async path => {
+    if (String(path).includes("/summary?")) return { days: [] };
+    const response = stats();
+    return { ...response, dateFrom: "2026-10-06", days: [{ ...response.days[0]!, businessDate: "2026-10-06" }, response.days[0]!] };
+  });
+  await render();
+  await act(async () => callbacks.forEach(callback => callback([{ contentRect: { width: 280 } }] as ResizeObserverEntry[], {} as ResizeObserver)));
+  for (const svg of container.querySelectorAll(".analytics-plot > svg")) {
+    expect(svg.getAttribute("viewBox")).toBe("0 0 280 270");
+    expect(svg.getAttribute("height")).toBe("270");
+  }
+  const svg = container.querySelector(".analytics-average-revenue .analytics-plot > svg")!;
+  expect(svg.textContent).toContain("10-06");
+  expect(svg.textContent).toContain("10-07");
+  await changeHighlight("ONLY_HIGHLIGHTED");
+  expect(disconnect).toHaveBeenCalledTimes(3);
 });

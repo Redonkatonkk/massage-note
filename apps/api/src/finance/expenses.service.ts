@@ -1,39 +1,30 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@massage-note/database";
-import type { ClearExpensePeriodInput, CreateExpenseInput, ExpenseItemResponse, ExpenseMonthResponse, ExpensePeriodInput, ReviseExpenseInput, StopExpenseInput, UpdateExpenseInput } from "@massage-note/contracts";
-import { calculateExpenseMonth, hasStoreCapability, isExpenseBoundary, type ExpenseRule } from "@massage-note/domain";
+import type { ClearExpensePeriodInput, CreateExpenseInput, ExpenseMonthResponse, ExpensePeriodInput, ReviseExpenseInput, StopExpenseInput, UpdateExpenseInput } from "@massage-note/contracts";
+import { hasStoreCapability, isExpenseBoundary } from "@massage-note/domain";
+import { dto, include, readExpenseMonth, ruleValue, type Item } from "./expense-month.js";
 import type { AuthenticatedUser } from "../auth/auth.types.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { toJsonSafe } from "../common/json-safe.interceptor.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
 
-const include = { rules: { orderBy: { startDate: "asc" as const }, include: { periods: true } } };
-type Item = Prisma.ExpenseItemGetPayload<{ include: typeof include }>;
 const dateAt = (s: string) => new Date(`${s}T00:00:00.000Z`);
 const dateOnly = (d: Date) => d.toISOString().slice(0, 10);
-function ruleValue(rule: Item["rules"][number]): ExpenseRule {
-  return { id: rule.id, startDate: dateOnly(rule.startDate), endExclusive: rule.endExclusive ? dateOnly(rule.endExclusive) : null, unit: rule.unit as ExpenseRule["unit"], interval: rule.interval, amountMode: rule.amountMode as ExpenseRule["amountMode"], amountCents: rule.amountCents };
-}
-function dto(item: Item): ExpenseItemResponse {
-  return { id: item.id, version: item.version, name: item.name, note: item.note, kind: item.kind as ExpenseItemResponse["kind"], occurredOn: item.occurredOn ? dateOnly(item.occurredOn) : null, amountCents: item.amountCents?.toString() ?? null, deletedAt: item.deletedAt?.toISOString() ?? null, rules: item.rules.map(r => ({ ...ruleValue(r), amountCents: r.amountCents.toString() })) };
-}
 @Injectable()
 export class ExpensesService {
   constructor(private readonly prisma: PrismaService, private readonly access: StoreAccessService, private readonly idempotency: IdempotencyService) {}
 
   async month(actor: AuthenticatedUser, storeId: string, month: string): Promise<ExpenseMonthResponse> {
     await this.access.requireCapability(actor.id, storeId, "EXPENSE_MANAGE");
-    const items = await this.prisma.expenseItem.findMany({ where: { storeId }, include, orderBy: [{ createdAt: "desc" }, { id: "asc" }] });
-    const summary = calculateExpenseMonth(month, items.map(item => ({ id: item.id, name: item.name, kind: item.kind as "ONCE" | "RECURRING", deleted: item.deletedAt !== null, occurredOn: item.occurredOn ? dateOnly(item.occurredOn) : null, amountCents: item.amountCents, rules: item.rules.map(ruleValue), overrides: item.rules.flatMap(r => r.periods.map(p => ({ ruleId: r.id, periodStart: dateOnly(p.periodStart), amountCents: p.amountCents }))) })));
-    return { ...summary, items: items.map(dto) };
+    return readExpenseMonth(this.prisma, storeId, month);
   }
 
   async create(actor: AuthenticatedUser, storeId: string, input: CreateExpenseInput, key: string, requestId: string) {
     await this.access.requireCapability(actor.id, storeId, "EXPENSE_MANAGE");
     return this.idempotency.execute({ storeId, userId: actor.id, key, route: "POST /expenses", payload: input, responseCode: 201 }, async tx => {
       const membership = await this.authorize(tx, actor, storeId);
-      const item = await tx.expenseItem.create({ data: { storeId, name: input.name, note: input.note, kind: input.kind, createdBy: actor.id, updatedBy: actor.id, ...(input.kind === "ONCE" ? { occurredOn: dateAt(input.occurredOn), amountCents: BigInt(input.amountCents) } : { rules: { create: { ...input.rule, startDate: dateAt(input.rule.startDate), amountCents: BigInt(input.rule.amountCents) } } }) }, include });
+      const item = await tx.expenseItem.create({ data: { storeId, name: input.name, note: input.note, kind: input.kind, createdBy: actor.id, updatedBy: actor.id, ...(input.kind === "ONCE" ? { occurredOn: dateAt(input.occurredOn), amountCents: BigInt(input.amountCents) } : { rules: { create: { ...input.rule, amountMode: "FIXED", defaultAmountFrom: dateAt(input.rule.startDate), startDate: dateAt(input.rule.startDate), amountCents: BigInt(input.rule.amountCents) } } }) }, include });
       await this.audit(tx, storeId, actor.id, membership.id, requestId, "created", null, item);
       return dto(item);
     });
@@ -54,7 +45,7 @@ export class ExpensesService {
       // An appended change must not silently hide an already-entered future bill.
       if (latest.periods.some(p => dateOnly(p.periodStart) >= start)) this.invalid("生效日期之后已有单期账单，请先撤销对应覆盖金额再修改规则");
       if (!latest.endExclusive) await tx.expenseRuleRevision.update({ where: { id: latest.id }, data: { endExclusive: dateAt(start) } });
-      await tx.expenseRuleRevision.create({ data: { itemId: id, ...input.rule, startDate: dateAt(start), amountCents: BigInt(input.rule.amountCents) } });
+      await tx.expenseRuleRevision.create({ data: { itemId: id, ...input.rule, amountMode: "FIXED", defaultAmountFrom: dateAt(start), startDate: dateAt(start), amountCents: BigInt(input.rule.amountCents) } });
     });
   }
 

@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.27.0` 代码结构核对。
+> 状态：与 `1.31.0` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -201,7 +201,7 @@ Web 表单
 
 ### 经营分析
 
-`FinanceAnalyticsService` 在 RepeatableRead 只读事务中验证店铺财务权限并读取当前店铺有效记工、跑客、卖卡及去重后的已日结日期。独立 `highlightFilter` 在数据库读取时统一筛选记工及均线窗口，仅高亮排除店铺级卖卡，跑客与日结样本不受影响。每日记工数量响应同时包含按有效跑客记录 `customerCount` 求和的 `lostCustomerCount`；仅有跑客而没有记工的日期也纳入日期序列。领域函数 `calculateFinanceAnalytics` 负责历史时区小时分组、自然日补零及整数美分平均；共享契约 `FinanceAnalyticsResponse` 仅传输聚合结果。Web独立分析标签按需加载，通过既有实时通道与刷新队列合并事件，并使切店、日期/高亮条件变化和卸载后的旧请求失效。 `AnalyticsDailyReport` 复用该响应的日期边界与高光条件读取既有财务汇总和每日明细；`AnalyticsRevenueCalendar` 直接展示过滤后的 `days[].revenueCents` 并沿用今日记工样式，月份切换不另取未筛选数据。每日小计与明细采用独立刷新队列和过期响应隔离，明细弹层与财务汇总共用 `FinanceDetailsDialog`。跑客数据由独立数据库表和向前迁移维护；可选备注保存于 `LostCustomer.note`，直接到店来源保存于 `LostCustomer.isWalkIn`（旧记录及新增默认 `false`）；两者随列表和审计快照返回，不进入数量或金额计算。保留原因：聚合按历史日期和快照读取，展示不能重算当时归属，过期筛选结果不能覆盖当前图表。
+`FinanceAnalyticsService` 在 RepeatableRead 只读事务中验证店铺财务权限并读取当前店铺有效记工、跑客、卖卡及去重后的已日结日期。独立 `highlightFilter` 在数据库读取时统一筛选记工及均线窗口，仅高亮排除店铺级卖卡，跑客与日结样本不受影响。每日记工数量响应同时包含按有效跑客记录 `customerCount` 求和的 `lostCustomerCount`；仅有跑客而没有记工的日期也纳入日期序列。领域函数 `calculateFinanceAnalytics` 负责历史时区小时分组、自然日补零及整数美分平均，三十日窗口补读起日前29天，七日窗口保留6天，全日期累计平均只从所选起日开始；共享契约 `FinanceAnalyticsResponse` 仅传输聚合结果。Web独立分析标签按需加载，通过既有实时通道与刷新队列合并事件，并使切店、日期/高亮条件变化和卸载后的旧请求失效。 `AnalyticsDailyReport` 将营业额日历与其后图表放入同一网格，逐日小计保留在最后；第四位 `AnalyticsIncomeBars` 通过渲染函数复用同一汇总状态，`groupIncomePeriods` 只按日／周一至周日／自然月合计已计算的三项每日金额，区间首尾裁剪并保留负值，不新增请求或重建财务公式；`AnalyticsAverageRevenue` 消费服务端三种均值及样本数，`Chart` 通过容器宽度和有界贝塞尔曲线保持完整日期轴及未日结缺口。`AnalyticsDailyReport` 复用该响应的日期边界与高光条件读取既有财务汇总和每日明细；`AnalyticsRevenueCalendar` 直接展示过滤后的 `days[].revenueCents` 并沿用今日记工样式，月份切换不另取未筛选数据。每日小计与明细采用独立刷新队列和过期响应隔离，明细弹层与财务汇总共用 `FinanceDetailsDialog`。跑客数据由独立数据库表和向前迁移维护；可选备注保存于 `LostCustomer.note`，直接到店来源保存于 `LostCustomer.isWalkIn`（旧记录及新增默认 `false`）；两者随列表和审计快照返回，不进入数量或金额计算。保留原因：聚合按历史日期和快照读取，展示不能重算当时归属，过期筛选结果不能覆盖当前图表。
 
 每日开门排位由领域层 `explainRotationCandidates` 复用排序函数生成结构化比较依据，API 与最终顺序一起事务保存至 `daily_boards.ranking_explanation`。读取使用共享契约校验并限制管理权限，Web 以中英文固定文案展示快照及当前名单差异，不依赖 AI 或当前历史重新推算。新增字段使用向前迁移，已有排序快照为空。
 
@@ -222,7 +222,7 @@ Web 表单
 
 `FinanceModule` 的 ExpensesController/Service 通过共享支出契约接受操作，以 `EXPENSE_MANAGE` 检查店主/经理权限与店铺归属。数据库新增 ExpenseItem、ExpenseRuleRevision、ExpensePeriodOverride；项目版本为规则和单期覆盖操作的统一乐观锁，并在同一幂等事务中更新版本、业务数据及审计，现有审计触发器创建 outbox。支出不锁营业日、不重写日结快照。
 
-领域 `calculateExpenseMonth` 使用 BigInt，按查询月份直接定位相交周期，不从首次费用逐日扫描。月周期以整月为分摊单位，天周期以自然日为单位，余数归较早单位。实际单期覆盖优先于规则默认值；软删除项目不参与汇总。前端只格式化金额和编辑输入，不重新计算月成本。
+领域 `calculateExpenseMonth` 使用 BigInt，按查询月份直接定位相交周期，不从首次费用逐日扫描。月周期以整月为分摊单位，天周期以自然日为单位，余数归较早单位。单期修改优先；无修改时仅从 `defaultAmountFrom` 起沿用常用金额，之前返回空金额与缺失期数。服务端同时计算周期／一次性合计、整月日均及项目当月合计；`readExpenseMonth` 共用持久化映射及领域计算，支出页与今日看板各自在授权后读取，看板按所选日期月份将日均传给总收入函数扣一次，员工不读取成本。支出事件沿用保守全量刷新路径更新看板；软删除项目不参与汇总。前端只格式化金额和编辑输入，按项目合并展示，不重新计算月成本。前向迁移按店铺当地升级月首对齐旧预算规则的首个合法周期边界；数据库 `amount_mode` 兼容保留但不参与计算，规则 ID、实际账单、周期历史和审计不重建。保留原因：月度展示、历史缺失与真实零必须来自同一套服务端口径。
 
 记工的 `isDispatchExcluded` 由共享创建／更新契约、WorkRecordsService 和数据库独立保存，Web 草稿与看板读取同一字段；`recordTrackItems` 将它与高亮记录共同按时间从右向左排序，`record-card--right-group` 只控制右对齐，`isHighlighted` 继续独立控制颜色和金额规则。保留原因：把展示位置与高亮语义分开，避免排工标记改变财务计算。
 

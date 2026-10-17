@@ -1,4 +1,5 @@
 import { calculateAverageRevenue } from "./finance.js";
+import { roundHalfUp } from "./money.js";
 
 export function shiftAnalyticsDate(date: string, offset: number): string {
   const value = new Date(`${date}T00:00:00Z`);
@@ -45,22 +46,32 @@ export function calculateFinanceAnalytics(input: {
   }
   for (const row of input.sales) revenue.set(row.businessDate, (revenue.get(row.businessDate) ?? 0n) + row.revenueCents);
   const weekdayAmounts = Array.from({ length: 7 }, () => [] as bigint[]);
+  let cumulativeTotal = 0n, cumulativeDayCount = 0;
   const days = [];
   for (let date = dateFrom; date <= dateTo; date = shiftAnalyticsDate(date, 1)) {
     const w = weekday(date);
     weekdays[w]!.calendarDayCount++;
     const amount = closed.has(date) ? revenue.get(date) ?? 0n : null;
-    const window: bigint[] = [];
+    const window: bigint[] = [], window30: bigint[] = [];
     if (amount !== null) {
       weekdayAmounts[w]!.push(amount);
-      for (let offset = -6; offset <= 0; offset++) {
+      cumulativeTotal += amount;
+      cumulativeDayCount++;
+      for (let offset = -29; offset <= 0; offset++) {
         const previous = shiftAnalyticsDate(date, offset);
-        if (closed.has(previous)) window.push(revenue.get(previous) ?? 0n);
+        if (closed.has(previous)) {
+          const previousAmount = revenue.get(previous) ?? 0n;
+          window30.push(previousAmount);
+          if (offset >= -6) window.push(previousAmount);
+        }
       }
     }
     const lostCustomerCount = lostCustomerCounts.get(date) ?? 0;
     days.push({ businessDate: date, hours: dailyHours.get(date) ?? Array<number>(24).fill(0), count: counts.get(date) ?? 0, lostCustomerCount, revenueCents: amount?.toString() ?? null,
-      averageCents: calculateAverageRevenue(window)?.toString() ?? null, averageDayCount: window.length });
+      averageCents: calculateAverageRevenue(window)?.toString() ?? null, averageDayCount: window.length,
+      average30Cents: calculateAverageRevenue(window30)?.toString() ?? null, average30DayCount: window30.length,
+      cumulativeAverageCents: amount === null ? null : roundHalfUp(cumulativeTotal, BigInt(cumulativeDayCount)).toString(),
+      cumulativeAverageDayCount: amount === null ? 0 : cumulativeDayCount });
   }
   for (const row of weekdays) {
     row.closedDayCount = weekdayAmounts[row.weekday]!.length;

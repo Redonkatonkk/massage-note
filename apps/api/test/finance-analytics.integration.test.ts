@@ -69,4 +69,25 @@ describe.skipIf(!enabled).sequential("经营分析数据库与权限", () => {
     await prisma.businessDayClosing.update({ where: { id: closing.id }, data: { status: "CANCELLED" } });
     expect((await service.analytics(actor(owner), storeId, { dateFrom: "2026-01-05", dateTo: "2026-01-05" })).days[0]!.revenueCents).toBeNull();
   });
+  it("三种筛选的30天窗口读取起日前29天，7天窗口及累计平均保留各自边界", async () => {
+    const template = await prisma.workRecord.findFirstOrThrow({ where: { storeId, deletedAt: null, isHighlighted: false } });
+    await prisma.workRecord.createMany({ data: ([
+      ["2025-12-06", true, 900000n], ["2025-12-07", true, 60000n], ["2025-12-07", false, 20000n], ["2025-12-29", false, 10000n],
+    ] as const).map(([businessDate, isHighlighted, revenueCents]) => ({
+      ...template, id: randomUUID(), businessDate: new Date(`${businessDate}T00:00:00Z`),
+      startAt: new Date(`${businessDate}T15:00:00Z`), isHighlighted,
+      mainServiceAmountCents: revenueCents, grossFeeBaseCents: revenueCents, discountedFeePerformanceCents: revenueCents,
+      cashServiceCents: revenueCents, actualServiceCollectedCents: revenueCents, customerTotalPaidCents: revenueCents,
+      mainServiceWageCents: revenueCents / 2n, totalLargeFeeWageCents: revenueCents / 2n, employeeTotalIncomeCents: revenueCents / 2n,
+      cashAllocatedServiceWageCents: revenueCents / 2n, cashAcquiredServiceWageCents: revenueCents / 2n,
+    })) });
+    await prisma.businessDayClosing.createMany({ data: ["2025-12-06", "2025-12-07", "2025-12-29", "2025-12-30", "2026-01-05"].map(businessDate => ({ storeId, businessDate: new Date(`${businessDate}T00:00:00Z`), status: "CLOSED", closedBy: owner, cycleNo: businessDate === "2026-01-05" ? 2 : 1, totalsSnapshotJson: {}, warningSnapshotJson: [] })) });
+    for (const [highlightFilter, average30Cents, averageCents, cumulativeAverageCents] of [
+      ["ALL", "28625", "12250", "24500"], ["ONLY_HIGHLIGHTED", "17500", "5000", "10000"], ["EXCLUDE_HIGHLIGHTED", "11125", "7250", "14500"],
+    ] as const) {
+      const result = await service.analytics(actor(owner), storeId, { dateFrom: "2026-01-05", dateTo: "2026-01-05", highlightFilter });
+      expect(result.days).toHaveLength(1);
+      expect(result.days[0]).toMatchObject({ average30Cents, average30DayCount: 4, averageCents, averageDayCount: 2, cumulativeAverageCents, cumulativeAverageDayCount: 1 });
+    }
+  });
 });

@@ -533,12 +533,12 @@ export function TodayBoard({
           <OverviewMetric icon="discount" label="折扣总额" value={money(board.statistics.discountTotalCents)} />
           <OverviewMetric icon="gift" title="礼物卡销售实际收款" label="礼物卡总额" value={money(board.statistics.giftCardSalesAmountCents)} />
           <OverviewMetric icon="wallet" title="营业额（已含卖卡实收）＋小费总额－员工应得－礼物卡核销支出" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
-          <OverviewMetric icon="trend" title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
+          <OverviewMetric icon="trend" title="店铺收入＋店长收入＋经理收入－本月平均每日支出；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
         </div>
         <div className="board-mobile-metrics">
         <div className="summary-strip board-key-metrics">
           <OverviewMetric icon="chart" title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
-          <OverviewMetric icon="trend" title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
+          <OverviewMetric icon="trend" title="店铺收入＋店长收入＋经理收入－本月平均每日支出；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
         </div>
         <details className="board-summary-details">
           <summary>更多汇总</summary>

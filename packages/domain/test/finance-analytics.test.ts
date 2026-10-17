@@ -3,6 +3,20 @@ import { calculateFinanceAnalytics } from "../src/finance-analytics.js";
 const record = (businessDate: string, startAt: string, revenueCents = 10000n, timezone = "America/New_York") => ({ businessDate, startAt: new Date(startAt), revenueCents, timezone });
 
 describe("经营分析历史口径", () => {
+  it("30天窗口包含起日前29天，累计平均只含所选区间；未日结留空、空日结计零并按美分舍入", () => {
+    const result = calculateFinanceAnalytics({ dateFrom: "2026-10-01", dateTo: "2026-10-03", records: [
+      record("2026-09-01", "2026-09-01T15:00:00Z", 999999n),
+      record("2026-09-02", "2026-09-02T15:00:00Z", 10001n),
+      record("2026-09-24", "2026-09-24T15:00:00Z", 9000n),
+      record("2026-10-01", "2026-10-01T15:00:00Z", 20001n),
+      record("2026-10-02", "2026-10-02T15:00:00Z", 999999n),
+      record("2026-10-04", "2026-10-04T15:00:00Z", 999999n),
+    ], sales: [], closedDates: ["2026-09-01", "2026-09-02", "2026-09-24", "2026-09-25", "2026-10-01", "2026-10-01", "2026-10-03", "2026-10-04"] });
+    expect(result.days.map(day => day.businessDate)).toEqual(["2026-10-01", "2026-10-02", "2026-10-03"]);
+    expect(result.days[0]).toMatchObject({ averageCents: "10001", averageDayCount: 2, average30Cents: "9751", average30DayCount: 4, cumulativeAverageCents: "20001", cumulativeAverageDayCount: 1 });
+    expect(result.days[1]).toMatchObject({ averageCents: null, averageDayCount: 0, average30Cents: null, average30DayCount: 0, cumulativeAverageCents: null, cumulativeAverageDayCount: 0 });
+    expect(result.days[2]).toMatchObject({ revenueCents: "0", averageCents: "10001", averageDayCount: 2, average30Cents: "7250", average30DayCount: 4, cumulativeAverageCents: "10001", cumulativeAverageDayCount: 2 });
+  });
   it("每天补零，未日结留空，空日结计零，均线读取范围前六天且日结去重", () => {
     const result = calculateFinanceAnalytics({ dateFrom: "2026-09-14", dateTo: "2026-09-21",
       records: [record("2026-09-09", "2026-09-09T15:00:00Z", 10001n), record("2026-09-14", "2026-09-14T15:00:00Z", 20000n), record("2026-09-15", "2026-09-15T15:00:00Z")],

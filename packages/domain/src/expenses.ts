@@ -1,7 +1,7 @@
 /** Store operating expenses are independent of payroll, revenue and daily closings. */
 export interface ExpenseRule {
   id: string; startDate: string; endExclusive: string | null;
-  unit: "DAY" | "MONTH"; interval: number; amountMode: "FIXED" | "BUDGET"; amountCents: bigint;
+  unit: "DAY" | "MONTH"; interval: number; defaultAmountFrom: string; amountCents: bigint;
 }
 export interface ExpenseItem {
   id: string; name: string; kind: "ONCE" | "RECURRING"; deleted: boolean;
@@ -29,16 +29,23 @@ function share(amount: bigint, units: number, offset: number, count: number): bi
 }
 export function calculateExpenseMonth(month: string, items: ExpenseItem[]) {
   const start = `${month}-01`, end = addExpenseMonths(start, 1), daysInMonth = dayDistance(start, end);
-  const lines: { itemId: string; ruleId: string | null; name: string; periodStart: string; periodEnd: string; source: "ACTUAL" | "FIXED" | "BUDGET"; periodAmountCents: string; allocatedCents: string; hasOverride: boolean }[] = [];
-  let total = 0n, budget = 0n;
-  const append = (item: ExpenseItem, ruleId: string | null, periodStart: string, periodEnd: string, source: "ACTUAL" | "FIXED" | "BUDGET", amount: bigint, allocated: bigint, hasOverride: boolean) => {
-    total += allocated; if (source === "BUDGET") budget += allocated;
-    lines.push({ itemId: item.id, ruleId, name: item.name, periodStart, periodEnd, source, periodAmountCents: amount.toString(), allocatedCents: allocated.toString(), hasOverride });
+  const lines: { itemId: string; ruleId: string | null; name: string; periodStart: string; periodEnd: string; periodAmountCents: string | null; allocatedCents: string | null; hasOverride: boolean }[] = [];
+  let recurring = 0n, oneTime = 0n, missingPeriodCount = 0;
+  const summaries = new Map<string, { amount: bigint; recorded: number; missingPeriodCount: number }>();
+  const append = (item: ExpenseItem, ruleId: string | null, periodStart: string, periodEnd: string, amount: bigint | null, allocated: bigint | null, hasOverride: boolean) => {
+    const summary = summaries.get(item.id) ?? { amount: 0n, recorded: 0, missingPeriodCount: 0 };
+    if (allocated === null) { summary.missingPeriodCount++; missingPeriodCount++; }
+    else {
+      summary.amount += allocated; summary.recorded++;
+      if (item.kind === "ONCE") oneTime += allocated; else recurring += allocated;
+    }
+    summaries.set(item.id, summary);
+    lines.push({ itemId: item.id, ruleId, name: item.name, periodStart, periodEnd, periodAmountCents: amount?.toString() ?? null, allocatedCents: allocated?.toString() ?? null, hasOverride });
   };
   for (const item of items) {
     if (item.deleted) continue;
     if (item.kind === "ONCE") {
-      if (item.occurredOn && item.occurredOn >= start && item.occurredOn < end) append(item, null, item.occurredOn, item.occurredOn, "ACTUAL", item.amountCents ?? 0n, item.amountCents ?? 0n, false);
+      if (item.occurredOn && item.occurredOn >= start && item.occurredOn < end) append(item, null, item.occurredOn, item.occurredOn, item.amountCents, item.amountCents, false);
       continue;
     }
     for (const rule of item.rules) {
@@ -51,16 +58,23 @@ export function calculateExpenseMonth(month: string, items: ExpenseItem[]) {
         if (periodStart >= end || (rule.endExclusive && periodStart >= rule.endExclusive)) break;
         const next = rule.unit === "MONTH" ? addExpenseMonths(periodStart, rule.interval) : addExpenseDays(periodStart, rule.interval);
         if (next <= start) continue;
-        const override = overrides.get(periodStart), amount = override ?? rule.amountCents;
-        const source = override !== undefined ? "ACTUAL" : rule.amountMode;
+        const override = overrides.get(periodStart);
+        const amount = override ?? (periodStart >= rule.defaultAmountFrom ? rule.amountCents : null);
         const overlapStart = periodStart > start ? periodStart : start, overlapEnd = next < end ? next : end;
-        const allocated = rule.unit === "MONTH"
+        const allocated = amount === null ? null : rule.unit === "MONTH"
           ? share(amount, rule.interval, monthDistance(periodStart, start), 1)
           : share(amount, rule.interval, dayDistance(periodStart, overlapStart), dayDistance(overlapStart, overlapEnd));
-        append(item, rule.id, periodStart, addExpenseDays(next, -1), source, amount, allocated, override !== undefined);
+        append(item, rule.id, periodStart, addExpenseDays(next, -1), amount, allocated, override !== undefined);
       }
     }
   }
   lines.sort((a, b) => a.periodStart.localeCompare(b.periodStart) || a.name.localeCompare(b.name) || a.itemId.localeCompare(b.itemId));
-  return { month, daysInMonth, totalCents: total.toString(), dailyAverageCents: ((total + BigInt(Math.floor(daysInMonth / 2))) / BigInt(daysInMonth)).toString(), budgetCents: budget.toString(), lines };
+  const total = recurring + oneTime;
+  return {
+    month, daysInMonth, totalCents: total.toString(), recurringCents: recurring.toString(), oneTimeCents: oneTime.toString(),
+    dailyAverageCents: ((total + BigInt(Math.floor(daysInMonth / 2))) / BigInt(daysInMonth)).toString(),
+    missingPeriodCount,
+    itemSummaries: [...summaries].map(([itemId, summary]) => ({ itemId, allocatedCents: summary.recorded ? summary.amount.toString() : null, missingPeriodCount: summary.missingPeriodCount })),
+    lines,
+  };
 }

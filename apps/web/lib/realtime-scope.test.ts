@@ -23,3 +23,7 @@ it("refreshes later boards after historical attendance changes without refreshin
     expect(boardRefreshScope({ full: false, changes: [{ entityType, businessDate: "2026-10-12" }] }, "2026-10-13")).toBe("none");
   }
 });
+
+it("支出变更刷新当前看板，即使事件日期是其他月份", () => {
+  expect(boardRefreshScope({ full: false, changes: [{ entityType: "expense_item", businessDate: "2024-01-01" }] }, "2026-10-17")).toBe("full");
+});

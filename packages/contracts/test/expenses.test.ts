@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 import { createExpenseSchema, expensePeriodSchema, expenseQuerySchema, reviseExpenseSchema, stopExpenseSchema, updateExpenseSchema } from "../src/expenses.js";
 const rule = { startDate: "2026-01-01", unit: "MONTH", interval: 3, amountMode: "FIXED", amountCents: 90000 };
 describe("支出输入契约", () => {
-  it("支持固定、预算及一次性并去除名称空格", () => {
+  it("支持常用金额、兼容 FIXED 及一次性并去除名称空格", () => {
     expect(createExpenseSchema.parse({ name: " 房租 ", kind: "RECURRING", rule }).name).toBe("房租");
-    expect(createExpenseSchema.safeParse({ name: "电费", kind: "RECURRING", rule: { ...rule, amountMode: "BUDGET", interval: 1 } }).success).toBe(true);
+    expect(createExpenseSchema.safeParse({ name: "电费", kind: "RECURRING", rule: { ...rule, amountMode: "BUDGET", interval: 1 } }).success).toBe(false);
+    expect(createExpenseSchema.safeParse({ name: "电费", kind: "RECURRING", rule: { startDate: "2026-01-01", unit: "MONTH", interval: 1, amountCents: 0 } }).success).toBe(true);
+    expect(reviseExpenseSchema.safeParse({ version: 1, rule: { ...rule, amountMode: "BUDGET" } }).success).toBe(false);
+    expect(createExpenseSchema.safeParse({ name: "电费", kind: "RECURRING", rule: { ...rule, defaultAmountFrom: "2026-02-01" } }).success).toBe(false);
+    expect(updateExpenseSchema.safeParse({ version: 1, amountMode: "BUDGET" }).success).toBe(false);
     expect(createExpenseSchema.safeParse({ name: "修理", kind: "ONCE", occurredOn: "2026-02-28", amountCents: 100 }).success).toBe(true);
   });
   it.each([{ interval: 0 }, { interval: 1.5 }, { amountCents: -1 }, { amountCents: 1.1 }, { amountCents: Number.MAX_SAFE_INTEGER + 1 }, { startDate: "2026-02-30" }, { startDate: "2026-01-02" }])("拒绝非法规则 %j", change => {

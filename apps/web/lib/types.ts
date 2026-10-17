@@ -467,7 +467,7 @@ export interface BoardResponse {
   rows: BoardRow[];
   giftCardSales: GiftCardSale[];
   nextGiftCardSerialNumber: string;
-  statistics: BoardStatistics & { revenueCents: number; totalIncomeCents: number; recentClosedRevenue: { dayCount: number; averageCents: number } | null };
+  statistics: BoardStatistics & { revenueCents: number; totalIncomeCents: number; dailyExpenseCents: number | null; recentClosedRevenue: { dayCount: number; averageCents: number } | null };
   ranking: {
     enabled: boolean;
     rankedAt: string | null;

@@ -1054,7 +1054,9 @@ model ExpenseRuleRevision {
   endExclusive DateTime? @map("end_exclusive") @db.Date
   unit String @db.VarChar(8)
   interval Int
+  // Legacy mode is retained for storage compatibility only.
   amountMode String @map("amount_mode") @db.VarChar(8)
+  defaultAmountFrom DateTime @map("default_amount_from") @db.Date
   amountCents BigInt @map("amount_cents")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   periods ExpensePeriodOverride[]

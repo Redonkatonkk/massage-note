@@ -142,14 +142,17 @@ describe("mobile reading order and protected actions in actual components", () =
     await mount(element(null)); expect(button("标记全部结清", mobileCards()[0]!).disabled).toBe(true);
   });
   it("distinguishes the monthly allocation from the full expense period, and opens the same period editor", async () => {
-    const expense: ExpenseMonthResponse = { month: "2026-10", daysInMonth: 31, totalCents: "123456", dailyAverageCents: "3982", budgetCents: "123456", lines: [{ itemId: "electric", ruleId: "rule", name: "水电费", periodStart: "2026-10-01", periodEnd: "2026-11-30", source: "BUDGET", periodAmountCents: "246912", allocatedCents: "123456", hasOverride: true }], items: [{ id: "electric", version: 4, name: "水电费", note: "", kind: "RECURRING", occurredOn: null, amountCents: null, deletedAt: null, rules: [{ id: "rule", startDate: "2026-10-01", endExclusive: null, unit: "MONTH", interval: 2, amountMode: "BUDGET", amountCents: "246912" }] }] };
+    const expense: ExpenseMonthResponse = { month: "2026-10", daysInMonth: 31, totalCents: "123456", dailyAverageCents: "3982", recurringCents: "123456", oneTimeCents: "0", missingPeriodCount: 0, itemSummaries: [{ itemId: "electric", allocatedCents: "123456", missingPeriodCount: 0 }], lines: [{ itemId: "electric", ruleId: "rule", name: "水电费", periodStart: "2026-10-01", periodEnd: "2026-11-30", periodAmountCents: "246912", allocatedCents: "123456", hasOverride: true }], items: [{ id: "electric", version: 4, name: "水电费", note: "", kind: "RECURRING", occurredOn: null, amountCents: null, deletedAt: null, rules: [{ id: "rule", startDate: "2026-10-01", endExclusive: null, unit: "MONTH", interval: 2, defaultAmountFrom: "2026-10-01", amountCents: "246912" }] }] };
     request.mockResolvedValue(expense); await mount(<ExpensesPanel storeId="store" today="2026-10-04" />);
-    const card = mobileCards()[0]!; expect(card.querySelector("h3")?.textContent).toBe("水电费"); expect(card.textContent).toContain("预算估算"); expect(fact(card, "本月分摊")).toBe(formatUsdPrecise(123456)); expect(fact(card, "整期金额")).toBe(formatUsdPrecise(246912));
-    expect(fact(card, "覆盖日期")).toBe("2026-10-01 — 2026-11-30");
-    await act(async () => button("填写 / 修改金额", card).click()); expect(container.querySelector("[role=dialog] h2")?.textContent).toBe("填写当期实际金额"); expect(request).toHaveBeenCalledTimes(1);
+    const card = mobileCards()[0]!; expect(card.querySelector("h3")?.textContent).toBe("水电费"); expect(fact(card, "本月分摊合计")).toBe(formatUsdPrecise(123456));
+    await act(async () => button("查看各期", card).click());
+    const periodCard = card.querySelector(".expenses-periods .mobile-data-card")!;
+    expect(fact(periodCard, "整期金额")).toBe(formatUsdPrecise(246912));
+    expect(periodCard.textContent).toContain("2026-10-01 — 2026-11-30");
+    await act(async () => button("填写 / 修改金额", card).click()); expect(container.querySelector("[role=dialog] h2")?.textContent).toBe("填写 / 修改当期金额"); expect(request).toHaveBeenCalledTimes(1);
     await act(async () => button("关闭", container.querySelector("[role=dialog]")!).click());
-    await act(async () => button("撤销覆盖", card).click()); expect(request).toHaveBeenCalledTimes(1);
-    vi.mocked(window.confirm).mockReturnValue(true); await act(async () => button("撤销覆盖", card).click());
+    await act(async () => button("撤销当期修改", card).click()); expect(request).toHaveBeenCalledTimes(1);
+    vi.mocked(window.confirm).mockReturnValue(true); await act(async () => button("撤销当期修改", card).click());
     expect(request).toHaveBeenCalledWith("/stores/store/expenses/electric/periods", { method: "DELETE", idempotent: true, body: { version: 4, ruleId: "rule", periodStart: "2026-10-01" } });
   });
   it("starts help with everyday work and provides anchors for every listed topic", () => {

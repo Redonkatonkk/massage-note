@@ -35,7 +35,7 @@ export class FinanceAnalyticsService {
       const starts = [recordStart, saleStart, closingStart, lostCustomerStart].flatMap(r => r._min.businessDate ? [dateOnly(r._min.businessDate)] : []).sort();
       const dateFrom = query.dateFrom ?? starts[0] ?? dateTo;
       if (dateFrom > dateTo || dateTo > today) throw new BadRequestException("日期范围无效，结束日期不能晚于今天");
-      const businessDate = { gte: asDate(shiftAnalyticsDate(dateFrom, -6)), lte: asDate(dateTo) };
+      const businessDate = { gte: asDate(shiftAnalyticsDate(dateFrom, -29)), lte: asDate(dateTo) };
       const [records, sales, closings, lostCustomers] = await Promise.all([
         client.workRecord.findMany({ where: { ...workBase, businessDate }, select: { businessDate: true, startAt: true, storeTimezoneSnapshot: true, discountedFeePerformanceCents: true } }),
         highlightedOnly ? Promise.resolve([]) : client.giftCardSale.findMany({ where: { ...base, businessDate }, select: { businessDate: true, amountCents: true } }),

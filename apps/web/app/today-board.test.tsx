@@ -2,6 +2,7 @@
 import { act, type ComponentProps, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { formatUsd } from "../lib/money";
 import { ApiError, apiRequest } from "../lib/api";
 import type { BoardStatistics, StoreDetails, StoreMember, WorkRecord } from "../lib/types";
 import { TodayBoard } from "./today-board";
@@ -34,7 +35,7 @@ beforeEach(() => {
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   request.mockReset(); request.mockResolvedValue({ deliveries: [], batchAllowed: true, batchBlockedReason: null, agent: null }); reload.mockClear();
   props = { wideLayout: false, heading: "门店", accountActions: null, dateControls: null, returnToToday: null, calendar: null, loadError: "", membership: { id: "owner", role: "OWNER", displayName: "店主", isServiceProvider: true, store }, store, currentDay: { businessDate: "2026-10-06", timezone: store.timezone, businessCutoffLocal: "04:00", serverTime: "2026-10-06T16:00:00.000Z" }, isCurrentBusinessDay: true, isFutureBusinessDay: false,
-    board: { id: "board", storeId: store.id, businessDate: "2026-10-06", version: 1, isClosed: false, rows: [{ id: "row", membershipId: employee.id, position: 0, isHidden: false, version: 1, membership: employee, shifts: [], workRecords: [], statistics: stats }], giftCardSales: [], nextGiftCardSerialNumber: "1", statistics: { ...stats, revenueCents: 0, totalIncomeCents: 0, recentClosedRevenue: null }, ranking: { enabled: false, rankedAt: null, explanation: null } },
+    board: { id: "board", storeId: store.id, businessDate: "2026-10-06", version: 1, isClosed: false, rows: [{ id: "row", membershipId: employee.id, position: 0, isHidden: false, version: 1, membership: employee, shifts: [], workRecords: [], statistics: stats }], giftCardSales: [], nextGiftCardSerialNumber: "1", statistics: { ...stats, revenueCents: 0, totalIncomeCents: 0, dailyExpenseCents: 0, recentClosedRevenue: null }, ranking: { enabled: false, rankedAt: null, explanation: null } },
     catalog: { serviceItems: [{ id: "service", position: 0, fullName: "足部按摩", shortName: "足疗", priceOptions: [{ id: "option", durationMinutes: 60, priceCents: 6000, position: 0 }], defaultCommissionBps: null, isEnabled: true, deletedAt: null, version: 1 }], addonItems: [], discountItems: [] }, members: [employee], onReload: reload };
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
@@ -46,6 +47,17 @@ function button(text: string, scope: ParentNode = document): HTMLButtonElement {
 }
 async function click(text: string, scope: ParentNode = document) { await act(async () => button(text, scope).click()); }
 function writes() { return request.mock.calls.filter(([, options]) => options?.method === "POST" || options?.method === "DELETE"); }
+
+it.each([true, false])("总收入读取服务端扣支出结果并更新说明，宽屏=%s", async wideLayout => {
+  props.wideLayout = wideLayout;
+  props.board.statistics = { ...props.board.statistics, totalIncomeCents: -1234, dailyExpenseCents: 1234 };
+  await render();
+  const metric = [...container.querySelectorAll<HTMLElement>("[title]")].find(node => node.title.startsWith("店铺收入＋店长收入＋经理收入－本月平均每日支出"));
+  expect(metric).toBeDefined(); expect(metric!.textContent).toContain(formatUsd(-1234));
+  props.membership.role = "EMPLOYEE";
+  await render();
+  expect(container.textContent).not.toContain("总收入");
+});
 
 describe("历史员工出勤隐藏", () => {
   it.each(["OWNER", "MANAGER"] as const)("%s 可在已日结历史隐藏、恢复员工，记工仍只读", async (role) => {

@@ -46,6 +46,7 @@ describe("营业日日历折后营业额", () => {
 
 function averageFixture(role: "OWNER" | "MANAGER" | "EMPLOYEE" = "OWNER", closed = true) {
   const prisma = {
+    expenseItem: { findMany: vi.fn().mockResolvedValue([]) },
     store: { findFirst: vi.fn().mockResolvedValue({ timezone: "America/New_York", businessCutoffLocal: "22:00", nextGiftCardSerialNumber: 1 }) },
     dailyBoard: { findUnique: vi.fn().mockResolvedValue(null) },
     shift: { findMany: vi.fn().mockResolvedValue([]) },
@@ -127,4 +128,14 @@ it("日历包含只有卖卡的日结日，员工不查询卖卡数据", async (
   const employee = fixture("EMPLOYEE");
   await employee.read();
   expect(employee.prisma.giftCardSale.groupBy).not.toHaveBeenCalled();
+});
+
+it("支出读取失败时不把成本当零；员工看板不读取店铺支出", async () => {
+  const manager = averageFixture("MANAGER", false);
+  manager.prisma.expenseItem.findMany.mockRejectedValue(new Error("支出读取失败"));
+  await expect(manager.read()).rejects.toThrow("支出读取失败");
+  const employee = averageFixture("EMPLOYEE", false);
+  employee.prisma.expenseItem.findMany.mockRejectedValue(new Error("不应读取"));
+  expect((await employee.read()).statistics.dailyExpenseCents).toBeNull();
+  expect(employee.prisma.expenseItem.findMany).not.toHaveBeenCalled();
 });

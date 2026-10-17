@@ -3,6 +3,9 @@
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import { AnalyticsDailyReport } from "./analytics-daily-report";
+import { Chart } from "./analytics-chart";
+import { AnalyticsAverageRevenue } from "./analytics-average-revenue";
+import { AnalyticsIncomeBars } from "./analytics-income-bars";
 import { visibleAnalyticsHours } from "./analytics-hours";
 import { useEffect, useRef, useState } from "react";
 import type { FinanceAnalyticsQuery, FinanceAnalyticsResponse } from "@massage-note/contracts";
@@ -12,90 +15,6 @@ import { createRefreshQueue } from "../../lib/refresh-queue";
 import { useStoreRealtime } from "../../lib/realtime";
 import { useLanguage } from "../language-provider";
 import { shiftDate } from "./date-utils";
-
-type Point = { label: string; value: number | null; secondary?: number | null; lostCount?: number; detail: string; dailyDetails?: { date: string; count: number }[]; dailyRevenueDetails?: { date: string; revenue: string }[] };
-
-function Chart({ title, description, points, bars = false, currency = false, legend }: {
-  title: string; description: string; points: Point[]; bars?: boolean; currency?: boolean; legend?: string | undefined;
-}) {
-  const { locale } = useLanguage();
-  const en = locale === "en-US";
-  const [selected, setSelected] = useState<string | null>(null);
-  const selectedPoint = points.find(point => point.label === selected);
-  const [revenueSelection, setRevenueSelection] = useState<string | null>(null);
-  const revenuePoint = points.find(point => point.label === revenueSelection);
-  const revenueTable = useRef<HTMLDetailsElement>(null);
-  const activate = (point: Point) => {
-    setSelected(point.label);
-    if (point.dailyRevenueDetails !== undefined) {
-      setRevenueSelection(point.label);
-      if (revenueTable.current) revenueTable.current.open = true;
-    }
-  };
-  const width = Math.max(600, points.length * 26 + 80);
-  const height = 270, left = 65, right = width - 20, bottom = 225, top = 20;
-  const max = Math.max(1, ...points.flatMap(p => [(p.value ?? 0) + (bars ? p.lostCount ?? 0 : 0), p.secondary ?? 0]));
-  const ceiling = currency ? Math.ceil(max / 5) * 5 : Math.max(4, Math.ceil(max / 4) * 4);
-  const x = (i: number) => left + (i + .5) * (right - left) / Math.max(1, points.length);
-  const y = (value: number) => bottom - value / ceiling * (bottom - top);
-  const path = (secondary: boolean) => {
-    let connected = false;
-    return points.map((point, i) => {
-      const value = secondary ? point.secondary : point.value;
-      if (value == null) { connected = false; return ""; }
-      const command = connected ? "L" : "M"; connected = true;
-      return `${command}${x(i)},${y(value)}`;
-    }).join(" ");
-  };
-  return <section className="analytics-card">
-    <h2>{title}</h2><p className="analytics-description">{description}</p>
-    {legend && <p className="analytics-legend">{legend}</p>}
-    {points.length === 0 && <p className="empty-state">{en ? "No service records in this range." : "当前范围没有记工。"}</p>}
-    <div className="analytics-scroll" tabIndex={0} aria-label={title}>
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-label={title}>
-        {Array.from({ length: 5 }, (_, i) => { const value = ceiling * i / 4; return <g key={i}>
-          <line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="var(--line)" />
-          <text x={left - 8} y={y(value) + 4} textAnchor="end">{currency ? `$${Math.round(value)}` : value}</text>
-        </g>; })}
-        {!bars && <><path d={path(false)} fill="none" stroke="var(--brand)" strokeWidth="2.5" /><path d={path(true)} fill="none" stroke="var(--chart-secondary)" strokeWidth="2.5" strokeDasharray="6 4" /></>}
-        {points.map((point, i) => <g key={point.label}>
-          {point.value !== null && (bars ? <rect x={x(i) - Math.min(22, (right - left) / points.length * .32)} y={y(point.value)} width={Math.min(44, (right - left) / points.length * .64)} height={bottom - y(point.value)} fill="var(--brand)" rx="3" /> : <circle cx={x(i)} cy={y(point.value)} r="3" fill="var(--brand)" />)}
-          {bars && (point.lostCount ?? 0) > 0 && <g data-lost-count={point.lostCount}>
-            <rect x={x(i) - Math.min(22, (right - left) / points.length * .32)} y={y((point.value ?? 0) + point.lostCount!)} width={Math.min(44, (right - left) / points.length * .64)} height={y(point.value ?? 0) - y((point.value ?? 0) + point.lostCount!)} fill="var(--chart-loss)" rx="2" />
-            <text className="analytics-lost-count" x={x(i)} y={y((point.value ?? 0) + point.lostCount!) - 5} textAnchor="middle">+{point.lostCount}</text>
-          </g>}
-          {bars && point.value === null && <text x={x(i)} y={bottom - 8} textAnchor="middle">—</text>}
-          {point.secondary != null && <circle cx={x(i)} cy={y(point.secondary)} r="2.5" fill="var(--chart-secondary)" />}
-          {(i % Math.max(1, Math.ceil(points.length / (width / 75))) === 0 || i === points.length - 1) && <text x={x(i)} y={bottom + 23} textAnchor="middle">{point.label.length === 10 ? point.label.slice(5) : point.label}</text>}
-          <rect className="analytics-hit" x={x(i) - (right - left) / points.length / 2} y={top} width={(right - left) / points.length} height={bottom - top + (point.dailyRevenueDetails !== undefined ? 35 : 0)} fill="transparent" tabIndex={0} role="button" aria-label={point.detail} aria-pressed={point.dailyRevenueDetails !== undefined ? revenueSelection === point.label : undefined}
-            onMouseEnter={() => setSelected(point.label)} onFocus={() => setSelected(point.label)} onClick={() => activate(point)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(point); } }}><title>{point.detail}</title></rect>
-        </g>)}
-      </svg>
-    </div>
-    <p className="analytics-readout" aria-live="polite">{selectedPoint ? selectedPoint.detail : en ? "Tap or focus a point to see its value." : "点击或聚焦图中位置查看具体数值。"}</p>
-    {points.some(point => point.dailyDetails !== undefined) ? <details className="hourly-details">
-      <summary>{en ? "Selected hour record details" : "我选择的时段记工明细"}<span>{en ? "Dates with service starts only" : "仅显示有上工的日期"}</span></summary>
-      <div className="hourly-details__list">
-        {!selectedPoint && <p className="hourly-details__empty">{en ? "Select an hour in the chart to see its daily records." : "请先在图表中选择时段，查看该时段每天的记工笔数。"}</p>}
-        {(selectedPoint ? [selectedPoint] : []).map(point => {
-          const activeDays = point.dailyDetails?.filter(day => day.count > 0) ?? [];
-          return <section className="hourly-details__period" key={point.label} aria-label={point.detail}>
-            <header><h3>{point.label}–{point.label.replace(":00", ":59")}</h3><span>{en ? "Total" : "合计"} <strong>{point.value}</strong> {en ? "records" : "笔"}</span></header>
-            {activeDays.length > 0 ? <ul>{activeDays.map(day => <li key={day.date}>
-              <time dateTime={day.date}>{day.date}</time><strong>{day.count}<small>{en ? "records" : "笔"}</small></strong>
-            </li>)}</ul> : <p className="hourly-details__empty">{en ? "No service starts in this hour" : "此时段暂无上工"}</p>}
-          </section>;
-        })}
-      </div>
-    </details> : points.some(point => point.dailyRevenueDetails !== undefined) ? <details className="weekday-revenue-details" ref={revenueTable}>
-      <summary>{en ? "View data table" : "查看数据表"}{revenuePoint && ` · ${revenuePoint.label}`}</summary>
-      {!revenuePoint ? <p className="empty-state">{en ? "Select a weekday in the chart to see its daily revenue." : "点击图中的星期，查看该星期各日期的营业额。"}</p> : revenuePoint.dailyRevenueDetails?.length === 0 ? <p className="empty-state">{en ? "No dates for this weekday in the selected range." : "当前范围没有该星期的日期。"}</p> : <div className="table-scroll" aria-live="polite"><table className="data-table">
-        <thead><tr><th>{en ? "Date" : "日期"}</th><th>{en ? "Revenue" : "营业额"}</th></tr></thead>
-        <tbody>{revenuePoint.dailyRevenueDetails?.map(day => <tr key={day.date}><td><time dateTime={day.date}>{day.date}</time></td><td>{day.revenue}</td></tr>)}</tbody>
-      </table></div>}
-    </details> : <details><summary>{en ? "View data table" : "查看数据表"}</summary><div className="table-scroll"><table className="data-table"><thead><tr><th>{en ? "Period" : "时间"}</th><th>{en ? "Details" : "统计明细"}</th></tr></thead><tbody>{points.map(p => <tr key={p.label}><td>{p.label}</td><td>{p.detail}</td></tr>)}</tbody></table></div></details>}
-  </section>;
-}
 
 export function AnalyticsPanel({ storeId, today }: { storeId: string; today: string }) {
   const { locale } = useLanguage();
@@ -153,10 +72,14 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
     {loading && <p role="status">{t("正在更新图表…", "Updating charts…")}</p>}
     {loadFailed && <p className={error ? "form-error" : undefined} role={error ? "alert" : undefined}>{error} <button type="button" onClick={() => void queue.current?.request()}>{t("重试", "Retry")}</button></p>}
     {data && <><p>{data.dateFrom} — {data.dateTo} · {highlightFilter === "ONLY_HIGHLIGHTED" ? t("仅高光；数量含待结账记工，营业额只计已日结日期，不含卖卡实收与小费。", "Highlighted only; counts include pending payments. Revenue includes only closed days and excludes card sales and tips.") : t("数量含待结账记工；营业额只计已日结日期，含卖卡实收、不含小费。", "Counts include pending payments. Revenue includes only closed days, including card sales and excluding tips.")} {t("跑客人数不受高光筛选影响。", "Lost customer counts are unaffected by the highlight filter.")}</p>
-      {!data.hasData ? <p className="empty-state">{t("当前范围没有经营数据。", "No business data in this range.")}</p> : <div className="analytics-grid" key={`${scope}:${locale}`}>
+      {!data.hasData && <p className="empty-state">{t("当前范围没有经营数据。", "No business data in this range.")}</p>}
+      <AnalyticsDailyReport key={`${scope}:${locale}`} storeId={storeId} data={data} highlightFilter={highlightFilter}>
+      {income => data.hasData && <>
+        <Chart title={t("星期平均营业额", "Average revenue by weekday")} description={t("只统计已日结日期；空日结计零，没有样本显示破折号。点击星期，下方数据表自动列出该星期各日期的营业额。", "Closed days only; empty closed days count as zero. No sample is shown as a dash. Select a weekday to open its daily revenue table below.")} bars currency points={data.weekdays.map(w => ({ label: names[w.weekday]!, value: dollars(w.averageCents), detail: `${names[w.weekday]} · ${money(w.averageCents)} · ${samples(w.closedDayCount)}`, dailyRevenueDetails: data.days.filter(day => (new Date(`${day.businessDate}T00:00:00.000Z`).getUTCDay() + 6) % 7 === w.weekday).map(day => ({ date: day.businessDate, revenue: money(day.revenueCents) })) }))} />
+        <AnalyticsAverageRevenue data={data} />
+        <AnalyticsIncomeBars {...income} dateFrom={data.dateFrom} dateTo={data.dateTo} />
         <Chart title={t("按小时上工数量", "Service starts by hour")} description={t("仅显示所选日期内最早至最晚上工小时，中间空小时保留；选择图中时段后，展开记工明细查看该时段每天的笔数，隐藏 0 笔日期。", "Hours span the earliest to latest service starts in the selected dates, including empty hours between. Select an hour, then expand its record details to see dates with service starts.")} points={visibleHours.map(h => ({ label: `${h.hour}:00`, value: h.count, detail: `${h.hour}:00–${h.hour}:59 · ${count(h.count)}`, dailyDetails: data.days.map(day => ({ date: day.businessDate, count: day.hours[h.hour] ?? 0 })) }))} />
         <Chart title={t("每日记工数量", "Daily service count")} description={t("按营业日统计；跑客数量叠加在记工上方，无跑客时不显示。", "Counts by business day. Lost customers stack above service records and are hidden when zero.")} legend={data.days.some(d => d.lostCustomerCount > 0) ? t("深绿：记工 · 红色：跑客（上方数字）", "Green: service records · Red: lost customers (number above)") : undefined} bars points={data.days.map(d => ({ label: d.businessDate, value: d.count, lostCount: d.lostCustomerCount, detail: `${d.businessDate} · ${t("记工", "Service records")} ${count(d.count)}${d.lostCustomerCount > 0 ? t(` · 跑客 ${d.lostCustomerCount} 位`, ` · ${d.lostCustomerCount} lost ${d.lostCustomerCount === 1 ? "customer" : "customers"}`) : ""}` }))} />
-        <Chart title={t("星期平均营业额", "Average revenue by weekday")} description={t("只统计已日结日期；空日结计零，没有样本显示破折号。点击星期，下方数据表自动列出该星期各日期的营业额。", "Closed days only; empty closed days count as zero. No sample is shown as a dash. Select a weekday to open its daily revenue table below.")} bars currency points={data.weekdays.map(w => ({ label: names[w.weekday]!, value: dollars(w.averageCents), detail: `${names[w.weekday]} · ${money(w.averageCents)} · ${samples(w.closedDayCount)}`, dailyRevenueDetails: data.days.filter(day => (new Date(`${day.businessDate}T00:00:00.000Z`).getUTCDay() + 6) % 7 === w.weekday).map(day => ({ date: day.businessDate, revenue: money(day.revenueCents) })) }))} />
         <Chart title={t("每日营业额趋势", "Daily revenue trend")} description={t("未日结留空；均线统计当日及此前6天内已日结日期。", "Open days are gaps. The average uses closed days within each trailing 7-day window.")} currency legend={t("深绿实线：营业额 · 蓝灰虚线：7日移动平均", "Green solid: revenue · Blue dashed: 7-day moving average")} points={data.days.map(d => ({ label: d.businessDate, value: dollars(d.revenueCents), secondary: dollars(d.averageCents), detail: `${d.businessDate} · ${t("营业额", "Revenue")} ${money(d.revenueCents)} · ${t("7日均线", "7-day average")} ${money(d.averageCents)} · ${samples(d.averageDayCount)}` }))} />
         <section className="analytics-card analytics-heatmap"><h2>{t("星期 × 小时热力图", "Weekday × hour heatmap")}</h2><p className="analytics-description">{t("显示实际最早至最晚上工小时；颜色越深，累计笔数越多；括号内为自然日数。", "Actual earliest-to-latest start hours. Darker cells mean more starts; parentheses show calendar days.")}</p>
           {visibleHours.length === 0 && <p className="empty-state">{t("当前范围没有记工。", "No service records in this range.")}</p>}
@@ -164,8 +87,8 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
           <p className="analytics-readout" aria-live="polite">{cell || t("点击色块查看累计笔数。", "Tap a cell to see total starts.")}</p>
           <p>{t("浅色 → 深色", "Light → Dark")} · 0–{maxHeat} {t("笔", "starts")}</p>
         </section>
-      </div>}
-      <AnalyticsDailyReport key={scope} storeId={storeId} data={data} highlightFilter={highlightFilter} />
+      </>}
+      </AnalyticsDailyReport>
     </>}
   </section>;
 }

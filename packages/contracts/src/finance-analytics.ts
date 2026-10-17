@@ -14,6 +14,11 @@ export interface FinanceAnalyticsResponse {
   dateTo: string;
   hasData: boolean;
   hours: { hour: number; count: number }[];
-  days: { businessDate: string; hours: number[]; count: number; lostCustomerCount: number; revenueCents: string | null; averageCents: string | null; averageDayCount: number }[];
+  days: {
+    businessDate: string; hours: number[]; count: number; lostCustomerCount: number; revenueCents: string | null;
+    averageCents: string | null; averageDayCount: number;
+    average30Cents: string | null; average30DayCount: number;
+    cumulativeAverageCents: string | null; cumulativeAverageDayCount: number;
+  }[];
   weekdays: { weekday: number; closedDayCount: number; calendarDayCount: number; averageCents: string | null; hours: number[] }[];
 }

@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.27.0`
+> 适用版本：`1.31.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -309,9 +309,9 @@ START 的开始时间由 API 从 rawText 解析，使用店铺时区及 occurred
 
 ### 今日看板顶部总收入
 
-`GET /stores/:storeId/boards/:businessDate` 的顶层 `statistics.totalIncomeCents` 由服务端整数美分计算：`storeIncomeCents + 店长大费工资及小费 + 所有经理大费工资及小费`。成员角色按当前记录关联成员读取，不依赖行是否隐藏；使用看板相同的未删除记录范围（包含待结账已知工资和小费），员工历史仍限定本人。该字段不额外加入礼物卡净收入或扣除信用卡手续费，区别于 `finance/summary` 的总结算字段。顶部营业额读取新增的 `revenueCents = discountedFeePerformanceCents + giftCardSalesAmountCents`；原 `discountedFeePerformanceCents` 仍仅为折后服务业绩，礼物卡总额读取 `giftCardSalesAmountCents`。
+`GET /stores/:storeId/boards/:businessDate` 的顶层 `statistics.totalIncomeCents` 由服务端整数美分计算：`storeIncomeCents + 店长大费工资及小费 + 所有经理大费工资及小费 - dailyExpenseCents`。成员角色按当前记录关联成员读取，不依赖行是否隐藏；使用看板相同的未删除记录范围（包含待结账已知工资和小费），员工历史仍限定本人。管理者响应新增 `statistics.dailyExpenseCents`，等于看板 `businessDate` 所在月份支出查询的 `dailyAverageCents`（沿用本月周期分摊＋一次性支出、整月自然天数、美分舍入及缺失排除），从总收入只扣一次，允许负数；无支出为零，员工响应为 null 且不读取店铺支出。该字段不额外加入礼物卡净收入或扣除信用卡手续费，区别于 `finance/summary` 的总结算字段。顶部营业额读取新增的 `revenueCents = discountedFeePerformanceCents + giftCardSalesAmountCents`；原 `discountedFeePerformanceCents` 仍仅为折后服务业绩，礼物卡总额读取 `giftCardSalesAmountCents`。
 
-礼物卡对记工页总收入、财务每日小计及财务总结算均只影响一次：卖卡按实际收款增加，用卡按大费与小费合计减少；这些收支已包含在店铺收入中，礼物卡净收入字段只用于展示组成，不再次加减。财务总结算继续扣除信用卡手续费；记工页及每日小计保留手续费前口径。保留原因：看板采用手续费前口径，礼卡组成不能再次增加总收入。
+礼物卡对记工页总收入、财务每日小计及财务总结算均只影响一次：卖卡按实际收款增加，用卡按大费与小费合计减少；这些收支已包含在店铺收入中，礼物卡净收入字段只用于展示组成，不再次加减。财务总结算继续扣除信用卡手续费；记工页保留手续费前、扣所在月日均支出口径，每日小计保留原手续费前口径。保留原因：本次成本扣除针对今日看板，礼卡组成不能再次增加总收入。
 
 ### 营业日日历已日结金额
 
@@ -354,13 +354,13 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 
 查询为独立的 `FinanceAnalyticsQuery`：可选 `dateFrom`、`dateTo`（ISO营业日期，包含两端）及 `highlightFilter`（`ALL`、`ONLY_HIGHLIGHTED`、`EXCLUDE_HIGHLIGHTED`，省略按 `ALL`）。省略起日取当前条件下最早有效业务/日结日，省略止日取当前营业日；没有历史时起日等于止日。高亮条件统一筛选当前范围及均线窗口的记工；`ONLY_HIGHLIGHTED` 不含店铺级礼物卡销售，其他模式包含有效卖卡；跑客人数和已日结样本日期不受高亮条件影响。拒绝反向、未来结束日期、无效高亮值和其他筛选参数。保留原因：聚合来自历史业务日期，所有图表及窗口须采用同一筛选，独立的跑客和日结事实不随记工标记变化。
 
-Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，保留美分，不另请求 `business-days/open-work-dates`；月份浏览不改变筛选。每日小计另用分析响应的 `dateFrom` / `dateTo` 和同一 `highlightFilter` 请求既有 `finance/summary`，点击日期或小计金额请求该日 `finance/details`，两者采用全店、`paymentMethod=ALL`、`amountType=ALL`。无新增接口或响应字段。保留原因：分析口径与逐日组成必须沿用服务端结果，未筛选日历不能覆盖当前条件。
+Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，保留美分，不另请求 `business-days/open-work-dates`；月份浏览不改变筛选。每日小计与流水收入柱图共用分析响应的 `dateFrom` / `dateTo` 和同一 `highlightFilter` 请求既有 `finance/summary`，柱图仅按日／自然周／自然月合计 `days[].dailyTurnoverCents`、`storeIncomeCents`、`totalIncomeCents`（手续费前），切换周期不额外请求，点击日期或小计金额请求该日 `finance/details`，两者采用全店、`paymentMethod=ALL`、`amountType=ALL`。不新增接口；平均曲线使用下述服务端平均字段。保留原因：分析口径与逐日组成必须沿用服务端结果，未筛选日历不能覆盖当前条件。
 
-响应 `FinanceAnalyticsResponse`：`dateFrom`、`dateTo`、`hasData`，以及 `hours`（24项hour/count）、`days`（businessDate/count/lostCustomerCount/hours/revenueCents/averageCents/averageDayCount）、`weekdays`（7项weekday/closedDayCount/calendarDayCount/averageCents/hours）。weekday以0代表星期一；金额为整美分十进制字符串，无日结金额/无平均样本为null；weekdays.hours为24项累计笔数；days.hours为该营业日的24项小时笔数，记工和跑客均无数据的日期补零，只有跑客的日期仍返回，小时沿用记工时区快照。每日跑客数量按有效记录的 `customerCount` 求和；每日数量图把跑客数量显示在记工数量上方，0笔跑客不绘制额外区段。
+响应 `FinanceAnalyticsResponse`：`dateFrom`、`dateTo`、`hasData`，以及 `hours`（24项hour/count）、`days`（businessDate/count/lostCustomerCount/hours/revenueCents/averageCents/averageDayCount/average30Cents/average30DayCount/cumulativeAverageCents/cumulativeAverageDayCount）、`weekdays`（7项weekday/closedDayCount/calendarDayCount/averageCents/hours）。weekday以0代表星期一；金额为整美分十进制字符串，无日结金额/无平均样本为null；weekdays.hours为24项累计笔数；days.hours为该营业日的24项小时笔数，记工和跑客均无数据的日期补零，只有跑客的日期仍返回，小时沿用记工时区快照。每日跑客数量按有效记录的 `customerCount` 求和；每日数量图把跑客数量显示在记工数量上方，0笔跑客不绘制额外区段。
 
 跑客写入沿用记工营业日权限：普通员工仅可写当前营业日，拥有者和经理可写未日结历史营业日；未来日期不允许写入，日结营业日锁定。发生时间使用设备本地 `HH:mm` 墙上时间，与记工页营业日的设备时区规则一致。跑客记录人数、发生时间、可选备注和 Walk-in 来源，不形成服务、收入、工资或其他财务金额；来源不改变人数统计。
 
-统计口径见[产品规则](../product/PRODUCT.md)第15.0节。后端在一致性读取事务内排除已删除业务并读取窗口前6天；不传输记工或跑客明细、不写账。跑客记录使用独立数据库表保存，并通过向前迁移创建。
+统计口径见[产品规则](../product/PRODUCT.md)“经营分析与支出”。后端在一致性读取事务内排除已删除业务并读取所选起日前29天；`averageCents` / `averageDayCount` 为当日及此前6天的已日结平均与样本数，`average30Cents` / `average30DayCount` 为当日及此前29天的已日结平均与样本数，`cumulativeAverageCents` / `cumulativeAverageDayCount` 仅累计所选起日至当天的已日结日期。未日结日的平均值为 null、样本数为 0，空日结计零，美分四舍五入；不传输记工或跑客明细、不写账。跑客记录使用独立数据库表保存，并通过向前迁移创建。
 
 小时统计接口仍返回完整24小时；前端两张小时图共同裁掉首尾无记工小时，保留中间零值。保留原因：聚合来自历史业务日期，展示裁剪不能改变完整统计和权限。
 
@@ -411,7 +411,7 @@ Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，
 
 | 方法 | 相对路径 | 请求与行为 |
 | --- | --- | --- |
-| GET | `?month=YYYY-MM` | 返回月总额、整月天数、日均、预算部分、分摊明细及项目（含已删除项目和规则历史） |
+| GET | `?month=YYYY-MM` | 返回月总额、整月天数、日均、周期／一次性合计、缺失期数、分摊明细及项目（含已删除项目和规则历史） |
 | POST | 空路径 | 创建 `kind=ONCE`：`name,note?,occurredOn,amountCents`；或 `kind=RECURRING`：`name,note?,rule` |
 | PATCH | `/:id` | `version` 加可选 `name,note`；一次性项目可更新 `occurredOn,amountCents` |
 | POST | `/:id/rules` | `version,rule`，追加规则并关闭上一条有效规则；HTTP 200 |
@@ -421,6 +421,10 @@ Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，
 | DELETE | `/:id` | `version`，软删除项目 |
 | POST | `/:id/restore` | `version`，恢复项目；HTTP 200 |
 
-`rule` 为 `{ startDate, unit: DAY|MONTH, interval, amountMode: FIXED|BUDGET, amountCents }`，周期间隔为 1–1200；月周期开始日必须为每月第一天。规则变更必须在最新规则的后续周期起点，停止允许在最新规则的起点；已停止规则可在其停止日期或之后的后续周期重新开始。已有未来实际账单时拒绝覆盖其生效范围，须先撤销对应单期覆盖。保留原因：项目版本保护规则及账单，周期变更不能隐去已录账目。
+`rule` 为 `{ startDate, unit: DAY|MONTH, interval, amountCents }`，周期间隔为 1–1200；月周期开始日必须为每月第一天。`amountCents` 是常用整期金额，服务端将新规则的 `defaultAmountFrom` 设置为 `startDate`；请求兼容可选的 `amountMode: FIXED`，创建、追加规则和更新均拒绝 `BUDGET`，调用端不能自行指定 `defaultAmountFrom`。规则变更必须在最新规则的后续周期起点，停止允许在最新规则的起点；已停止规则可在其停止日期或之后的后续周期重新开始。已有未来实际账单时拒绝覆盖其生效范围，须先撤销对应单期覆盖。保留原因：项目版本保护规则及账单，周期变更不能隐去已录账目。
 
-月响应的 `lines` 含项目/规则 ID、完整周期起止日（均包含）、整期金额、本月分摊金额、`source=ACTUAL|FIXED|BUDGET` 和 `hasOverride`。规则的 `endExclusive` 为停止开始新周期的日期，不截断已开始周期。支出接口独立于营业日日结，不因已日结而禁止补录。保留原因：停止只约束新周期，已有周期与独立支出账目不能被关账或新规则截断。
+月响应的 `totalCents = recurringCents + oneTimeCents`，`dailyAverageCents` 为总额除 `daysInMonth` 并四舍五入至美分。新增 `recurringCents`（全部周期费用当月分摊）、`oneTimeCents`（当月一次性）和 `missingPeriodCount`（相交周期中未录入期数），移除 `budgetCents`。`itemSummaries` 为每个当月有明细的项目返回 `{ itemId, allocatedCents, missingPeriodCount }`，合计由服务端计算：全部未录时 `allocatedCents=null`，部分未录时返回已录合计，真实零为 `"0"`。
+
+`lines` 含项目/规则 ID、完整周期起止日（均包含）、`periodAmountCents`（整期金额）、`allocatedCents`（本月分摊）和 `hasOverride`，移除 `source`。生效前无单期账单时两个金额为 `null`；有账单（含零）则覆盖整期。响应规则返回 `defaultAmountFrom`，不返回旧 `amountMode`。撤销单期修改后，周期开始日不早于此日期则恢复常用金额，否则恢复未录入。规则的 `endExclusive` 为停止开始新周期的日期，不截断已开始周期。支出接口独立于营业日日结，不因已日结而禁止补录。保留原因：停止只约束新周期，已有周期与独立支出账目不能被关账或新规则截断。
+
+旧预算规则升级边界按迁移执行时店铺时区的本月月首向上对齐合法周期，固定规则沿用原开始日。前向迁移不重建规则或账单，跨月周期保留完整覆盖；旧金额模式只作存储兼容。保留原因：历史未录入不能被估算填满，UTC 月份也不能替代店铺当地月份。

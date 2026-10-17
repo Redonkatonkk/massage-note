@@ -72,9 +72,10 @@ export interface DailyTurnoverInput {
   giftCardRedemptionCents: Cents;
 }
 
-/** 今日看板与财务每日小计总收入：店铺收入已包含礼物卡收支，只加回店长和经理的服务收入。 */
+/** 店铺收入已包含礼物卡收支；加回店长/经理收入，看板额外传入所在月日均支出。 */
 export function calculateBoardTotalIncome(input: {
   storeIncomeCents: bigint;
+  dailyExpenseCents?: Cents;
   workers: readonly { role: string; incomeCents: Cents }[];
 }): bigint {
   return input.workers.reduce(
@@ -82,7 +83,7 @@ export function calculateBoardTotalIncome(input: {
       ? total + cents(worker.incomeCents)
       : total,
     input.storeIncomeCents,
-  );
+  ) - cents(input.dailyExpenseCents ?? 0n);
 }
 
 /** 营业额包含折后服务业绩和卖卡实收，不扣礼物卡核销。 */

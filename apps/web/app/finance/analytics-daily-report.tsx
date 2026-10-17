@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { FinanceAnalyticsQuery, FinanceAnalyticsResponse } from "@massage-note/contracts";
 import { apiRequest, errorMessage } from "../../lib/api";
 import { LatestRequest } from "../../lib/latest-request";
@@ -11,6 +11,7 @@ import type { FinanceDetailsResponse, FinanceSummaryResponse } from "../../lib/t
 import { useLanguage } from "../language-provider";
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 import { AnalyticsRevenueCalendar } from "./analytics-revenue-calendar";
+import type { AnalyticsIncomeData } from "./analytics-income-bars";
 import { FinanceDetailsDialog } from "./finance-details-dialog";
 
 const amountColumns = [
@@ -26,10 +27,11 @@ const amountColumns = [
   ["totalIncomeCents", "总收入", "Total income"],
 ] as const;
 
-export function AnalyticsDailyReport({ storeId, data, highlightFilter }: {
+export function AnalyticsDailyReport({ storeId, data, highlightFilter, children }: {
   storeId: string;
   data: FinanceAnalyticsResponse;
   highlightFilter: NonNullable<FinanceAnalyticsQuery["highlightFilter"]>;
+  children?: (income: AnalyticsIncomeData) => ReactNode;
 }) {
   const { locale } = useLanguage();
   const en = locale === "en-US";
@@ -93,6 +95,10 @@ export function AnalyticsDailyReport({ storeId, data, highlightFilter }: {
   const viewDetails = (date: string, label: string) => setTarget({ scope, date, label });
   const amount = (date: string, cents: number, label: string) => <button className="amount-link" type="button" disabled={detailLoading} aria-label={`${date} ${label} · ${t("查看组成明细", "View breakdown")}`} onClick={() => viewDetails(date, `${date} ${label}`)}>{formatUsd(cents, locale)}</button>;
   return <>
+    <div className="analytics-grid">
+      <AnalyticsRevenueCalendar key={scope} data={data} disabled={detailLoading} onDate={date => viewDetails(date, `${date} ${t("营业额", "Revenue")}`)} />
+      {children?.({ days, loading, failed, error, retry: () => void queue.current?.request() })}
+    </div>
     {detailLoading && <p role="status">{t("正在读取当天明细…", "Loading daily details…")}</p>}
     {detailFailed && <p role={detailError ? "alert" : "status"} className={detailError ? "form-error" : undefined}>{detailError} <button type="button" className="secondary-action" onClick={() => void detailQueue.current?.request()}>{t("重试", "Retry")}</button></p>}
     <section className="finance-report-section" aria-busy={loading}>
@@ -114,9 +120,6 @@ export function AnalyticsDailyReport({ storeId, data, highlightFilter }: {
         </table>
       </div>}
     </section>
-    <div className="analytics-grid">
-      <AnalyticsRevenueCalendar key={scope} data={data} disabled={detailLoading} onDate={date => viewDetails(date, `${date} ${t("营业额", "Revenue")}`)} />
-    </div>
     {details?.scope === detailScope && target && <FinanceDetailsDialog details={details.data} title={target.label} onClose={() => setTarget(null)} />}
   </>;
 }

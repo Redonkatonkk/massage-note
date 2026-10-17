@@ -6,7 +6,8 @@ export const expenseRuleSchema = z.object({
   startDate: businessDateSchema,
   unit: z.enum(["DAY", "MONTH"]),
   interval: z.number().int().min(1).max(1200),
-  amountMode: z.enum(["FIXED", "BUDGET"]),
+  // Accepted only for older clients; every new rule uses its usual amount.
+  amountMode: z.literal("FIXED").optional(),
   amountCents: moneyCentsSchema,
 }).strict().superRefine((value, ctx) => {
   if (value.unit === "MONTH" && !value.startDate.endsWith("-01")) ctx.addIssue({ code: "custom", path: ["startDate"], message: "月周期必须从自然月第一天开始" });
@@ -31,8 +32,8 @@ export type StopExpenseInput = z.infer<typeof stopExpenseSchema>;
 export type ExpensePeriodInput = z.infer<typeof expensePeriodSchema>;
 export type ClearExpensePeriodInput = z.infer<typeof clearExpensePeriodSchema>;
 
-export interface ExpenseRuleResponse extends Omit<ExpenseRuleInput, "amountCents"> {
-  id: string; amountCents: string; endExclusive: string | null;
+export interface ExpenseRuleResponse extends Omit<ExpenseRuleInput, "amountCents" | "amountMode"> {
+  id: string; amountCents: string; endExclusive: string | null; defaultAmountFrom: string;
 }
 export interface ExpenseItemResponse {
   id: string; version: number; name: string; note: string; kind: "ONCE" | "RECURRING";
@@ -41,10 +42,12 @@ export interface ExpenseItemResponse {
 }
 export interface ExpenseMonthLine {
   itemId: string; ruleId: string | null; name: string; periodStart: string; periodEnd: string;
-  source: "ACTUAL" | "FIXED" | "BUDGET"; periodAmountCents: string; allocatedCents: string;
+  periodAmountCents: string | null; allocatedCents: string | null;
   hasOverride: boolean;
 }
 export interface ExpenseMonthResponse {
   month: string; daysInMonth: number; totalCents: string; dailyAverageCents: string;
-  budgetCents: string; lines: ExpenseMonthLine[]; items: ExpenseItemResponse[];
+  recurringCents: string; oneTimeCents: string; missingPeriodCount: number;
+  itemSummaries: { itemId: string; allocatedCents: string | null; missingPeriodCount: number }[];
+  lines: ExpenseMonthLine[]; items: ExpenseItemResponse[];
 }

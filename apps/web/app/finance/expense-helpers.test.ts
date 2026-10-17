@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { expenseInputAmount, expenseInputCents, expenseMoney, nextExpenseStart } from "./expense-helpers";
-const rule = { id: "r", startDate: "2026-01-01", endExclusive: null, unit: "MONTH" as const, interval: 3, amountMode: "FIXED" as const, amountCents: 100n };
+const rule = { id: "r", startDate: "2026-01-01", endExclusive: null, unit: "MONTH" as const, interval: 3, defaultAmountFrom: "2026-01-01", amountCents: 100n };
 describe("支出编辑辅助函数", () => {
   it("金额字符串按美分转换，不接受浮点截断或科学计数", () => {
     expect(expenseInputCents("1.01")).toBe(101); expect(expenseInputCents("0")).toBe(0);

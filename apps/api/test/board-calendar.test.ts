@@ -30,7 +30,7 @@ describe("营业日日历折后营业额", () => {
     ] });
     expect(test.groupBy).toHaveBeenCalledWith(expect.objectContaining({
       where: { storeId: "store", deletedAt: null, status: { not: "PLACEHOLDER" }, businessDate: { gte: new Date("2026-09-01"), lte: new Date("2026-09-30") } },
-      _sum: { discountedFeePerformanceCents: true },
+      _sum: { discountedFeePerformanceCents: true, giftCardServiceCents: true },
     }));
     expect(test.prisma.businessDayClosing.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId: "store", status: "CLOSED" }) }));
   });
@@ -128,6 +128,25 @@ it("日历包含只有卖卡的日结日，员工不查询卖卡数据", async (
   const employee = fixture("EMPLOYEE");
   await employee.read();
   expect(employee.prisma.giftCardSale.groupBy).not.toHaveBeenCalled();
+});
+
+it("看板与日历扣除礼卡服务金额，平均值同步，店铺收入不重复扣款", async () => {
+  const test = averageFixture();
+  test.prisma.workRecord.findMany.mockResolvedValue([{
+    discountedFeePerformanceCents: 10000n, grossFeeBaseCents: 10000n, discountTotalCents: 0n,
+    totalLargeFeeWageCents: 6000n, employeeTotalIncomeCents: 8000n,
+    giftCardServiceCents: 10000n, giftCardTipCents: 2000n, totalTipCents: 2000n,
+    employee: { role: "OWNER" },
+  }] as never);
+  expect((await test.read()).statistics).toMatchObject({
+    discountedFeePerformanceCents: 10000n, revenueCents: 0n, storeIncomeCents: -8000n,
+    totalIncomeCents: 0n, recentClosedRevenue: { dayCount: 2, averageCents: 0n },
+  });
+  const calendar = fixture("OWNER");
+  calendar.groupBy.mockResolvedValue([{
+    businessDate: new Date("2026-09-10"), _sum: { discountedFeePerformanceCents: 10000n, giftCardServiceCents: 10000n },
+  }] as never);
+  expect((await calendar.read()).closedDates[0]).toMatchObject({ discountedFeePerformanceCents: 10000n, revenueCents: 0n });
 });
 
 it("支出读取失败时不把成本当零；员工看板不读取店铺支出", async () => {

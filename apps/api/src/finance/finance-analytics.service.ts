@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { User } from "@massage-note/database";
 import type { FinanceAnalyticsQuery, FinanceAnalyticsResponse } from "@massage-note/contracts";
-import { calculateFinanceAnalytics, hasStoreCapability, shiftAnalyticsDate } from "@massage-note/domain";
+import { calculateFinanceAnalytics, calculateRevenue, calculateWeekdayRevenueComparison, hasStoreCapability, shiftAnalyticsDate } from "@massage-note/domain";
 import { businessDateFor, deviceNow } from "../common/device-time.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
@@ -22,13 +22,11 @@ export class FinanceAnalyticsService {
       const dateTo = query.dateTo ?? today;
       const base = { storeId, deletedAt: null };
       const highlightedOnly = query.highlightFilter === "ONLY_HIGHLIGHTED";
-      const workBase = { ...base, status: { not: "PLACEHOLDER" as const },
-        ...(highlightedOnly ? { isHighlighted: true } : query.highlightFilter === "EXCLUDE_HIGHLIGHTED" ? { isHighlighted: false } : {}),
-      };
+      const workBase = { ...base, status: { not: "PLACEHOLDER" as const } };
       const closingBase = { storeId, status: "CLOSED" as const };
       const [recordStart, saleStart, closingStart, lostCustomerStart] = await Promise.all([
         client.workRecord.aggregate({ where: { ...workBase, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
-        highlightedOnly ? Promise.resolve({ _min: { businessDate: null } }) : client.giftCardSale.aggregate({ where: { ...base, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
+        client.giftCardSale.aggregate({ where: { ...base, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
         client.businessDayClosing.aggregate({ where: { ...closingBase, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
         client.lostCustomer.aggregate({ where: { ...base, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
       ]);
@@ -37,17 +35,21 @@ export class FinanceAnalyticsService {
       if (dateFrom > dateTo || dateTo > today) throw new BadRequestException("日期范围无效，结束日期不能晚于今天");
       const businessDate = { gte: asDate(shiftAnalyticsDate(dateFrom, -29)), lte: asDate(dateTo) };
       const [records, sales, closings, lostCustomers] = await Promise.all([
-        client.workRecord.findMany({ where: { ...workBase, businessDate }, select: { businessDate: true, startAt: true, storeTimezoneSnapshot: true, discountedFeePerformanceCents: true } }),
-        highlightedOnly ? Promise.resolve([]) : client.giftCardSale.findMany({ where: { ...base, businessDate }, select: { businessDate: true, amountCents: true } }),
+        client.workRecord.findMany({ where: { ...workBase, businessDate }, select: { businessDate: true, startAt: true, storeTimezoneSnapshot: true, discountedFeePerformanceCents: true, giftCardServiceCents: true, isHighlighted: true } }),
+        client.giftCardSale.findMany({ where: { ...base, businessDate }, select: { businessDate: true, amountCents: true } }),
         client.businessDayClosing.findMany({ where: { ...closingBase, businessDate }, select: { businessDate: true }, distinct: ["businessDate"] }),
         client.lostCustomer.findMany({ where: { ...base, businessDate }, select: { businessDate: true, customerCount: true } }),
       ]);
-      return calculateFinanceAnalytics({ dateFrom, dateTo,
-        records: records.map(r => ({ businessDate: dateOnly(r.businessDate), startAt: r.startAt, timezone: r.storeTimezoneSnapshot, revenueCents: r.discountedFeePerformanceCents })),
-        sales: sales.map(r => ({ businessDate: dateOnly(r.businessDate), revenueCents: r.amountCents })),
+      const allRecords = records.map(r => ({ businessDate: dateOnly(r.businessDate), startAt: r.startAt, timezone: r.storeTimezoneSnapshot, revenueCents: calculateRevenue({ ...r, giftCardServiceCents: r.giftCardServiceCents ?? 0n, giftCardSalesAmountCents: 0n }), isHighlighted: r.isHighlighted }));
+      const allSales = sales.map(r => ({ businessDate: dateOnly(r.businessDate), revenueCents: r.amountCents }));
+      const closedDates = closings.map(r => dateOnly(r.businessDate));
+      const selectedRecords = allRecords.filter(r => highlightedOnly ? r.isHighlighted : query.highlightFilter === "EXCLUDE_HIGHLIGHTED" ? !r.isHighlighted : true);
+      return { ...calculateFinanceAnalytics({ dateFrom, dateTo,
+        records: selectedRecords,
+        sales: highlightedOnly ? [] : allSales,
         lostCustomers: lostCustomers.map(r => ({ businessDate: dateOnly(r.businessDate), customerCount: r.customerCount })),
-        closedDates: closings.map(r => dateOnly(r.businessDate)),
-      });
+        closedDates,
+      }), weekdayComparison: calculateWeekdayRevenueComparison({ dateFrom, dateTo, records: allRecords, sales: allSales, closedDates }) };
     }, { isolationLevel: "RepeatableRead", timeout: 30000 });
   }
 }

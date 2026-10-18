@@ -47,6 +47,13 @@ export function roundHalfUp(numerator: bigint, denominator: bigint): Cents {
   return remainder * 2n >= denominator ? quotient + 1n : quotient;
 }
 
+/** 有符号金额四舍五入，正负半美分均向远离零的方向舍入。 */
+export function roundSignedHalfUp(numerator: bigint, denominator: bigint): bigint {
+  return numerator < 0n
+    ? -roundHalfUp(-numerator, denominator)
+    : roundHalfUp(numerator, denominator);
+}
+
 export function multiplyByBps(
   amount: Cents,
   commissionBps: BasisPoints,

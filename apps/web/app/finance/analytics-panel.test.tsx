@@ -17,6 +17,10 @@ let container: HTMLDivElement;
 function stats(count = 2): FinanceAnalyticsResponse {
   const hours = Array.from({ length: 24 }, (_, hour) => hour === 10 ? count : 0);
   return { dateFrom: "2026-10-07", dateTo: "2026-10-07", hasData: count > 0,
+    weekdayComparison: { hasData: count > 0,
+      days: [{ businessDate: "2026-10-07", highlightedRevenueCents: "4000", nonHighlightedRevenueCents: "6000", revenueCents: "10000" }],
+      weekdays: Array.from({ length: 7 }, (_, weekday) => ({ weekday, closedDayCount: weekday === 2 ? 1 : 0, highlightedAverageCents: weekday === 2 ? "4000" : null, nonHighlightedAverageCents: weekday === 2 ? "6000" : null, averageCents: weekday === 2 ? "10000" : null })),
+    },
     hours: hours.map((value, hour) => ({ hour, count: value })),
     days: [{ businessDate: "2026-10-07", hours, count, lostCustomerCount: 0, revenueCents: "10000", averageCents: "10000", averageDayCount: 1, average30Cents: "10000", average30DayCount: 1, cumulativeAverageCents: "10000", cumulativeAverageDayCount: 1 }],
     weekdays: Array.from({ length: 7 }, (_, weekday) => ({ weekday, closedDayCount: weekday === 2 ? 1 : 0, calendarDayCount: weekday === 2 ? 1 : 0, averageCents: weekday === 2 ? "10000" : null, hours })),
@@ -38,9 +42,12 @@ async function clickPoint(point: SVGElement) { await act(async () => point.dispa
 
 function weekdayStats(): FinanceAnalyticsResponse {
   const response = stats();
-  return { ...response, dateFrom: "2026-09-28", dateTo: "2026-10-14", days: [
+  const days = [
     ["2026-09-28", "12345"], ["2026-10-05", "0"], ["2026-10-06", "99000"], ["2026-10-12", null],
-  ].map(([businessDate, revenueCents]) => ({ ...response.days[0]!, businessDate: businessDate!, revenueCents: revenueCents ?? null })) };
+  ].map(([businessDate, revenueCents]) => ({ ...response.days[0]!, businessDate: businessDate!, revenueCents: revenueCents ?? null }));
+  return { ...response, dateFrom: "2026-09-28", dateTo: "2026-10-14", days,
+    weekdayComparison: { ...response.weekdayComparison, days: days.map(day => ({ businessDate: day.businessDate, highlightedRevenueCents: day.revenueCents === null ? null : "0", nonHighlightedRevenueCents: day.revenueCents, revenueCents: day.revenueCents })) },
+  };
 }
 
 beforeEach(() => {
@@ -106,6 +113,27 @@ it("英文提供相同的三种筛选", async () => {
   expect(container.textContent).toContain("excludes card sales and tips");
 });
 
+it("星期图固定同时显示高光、非高光、全部及金额，不随页面筛选隐藏或另发比较请求", async () => {
+  await render();
+  for (const filter of ["ALL", "ONLY_HIGHLIGHTED", "EXCLUDE_HIGHLIGHTED"]) {
+    if (filter !== "ALL") await changeHighlight(filter);
+    const chart = weekdayChart();
+    expect([...chart.querySelectorAll(".analytics-income-legend li")].map(item => item.textContent)).toEqual(["高光", "非高光", "全部"]);
+    expect([...chart.querySelectorAll("rect[data-series]")].map(bar => bar.getAttribute("data-series"))).toEqual(["highlighted", "non-highlighted", "all"]);
+    expect([...chart.querySelectorAll(".analytics-bar-value")].filter(label => label.textContent !== "—").map(label => label.textContent)).toEqual(["$40", "$60", "$100"]);
+  }
+  expect(request.mock.calls.filter(([path]) => String(path).includes("/analytics?")).length).toBe(3);
+});
+
+it("当前筛选无记录时仍可比较其他分组的星期营业额", async () => {
+  const response = stats(0);
+  response.weekdayComparison.hasData = true;
+  request.mockImplementation(async path => String(path).includes("/summary?") ? { days: [] } : response);
+  await render();
+  expect(weekdayChart().querySelectorAll("rect[data-series]")).toHaveLength(3);
+  expect(container.querySelector(".analytics-average-revenue")).toBeNull();
+});
+
 it("营业额日历直接使用切换后的分析响应，历史范围与每日小计采用同一高光条件", async () => {
   request.mockImplementation(async path => {
     const url = new URL(String(path), "http://localhost");
@@ -130,13 +158,16 @@ it("点击星期自动展开各日期营业额，保留美分、零值与未日�
   await render();
   const chart = weekdayChart();
   const table = chart.querySelector<HTMLDetailsElement>("details")!;
+  const target = weekdayPoint(0);
+  const axisLabel = target.parentElement!.querySelector(".analytics-axis-label")!;
+  expect(Number(target.getAttribute("y")) + Number(target.getAttribute("height"))).toBeGreaterThan(Number(axisLabel.getAttribute("y")) + 5);
   expect(table.open).toBe(false);
   expect(table.textContent).toContain("点击图中的星期");
   await clickPoint(weekdayPoint(0));
   expect(table.open).toBe(true);
   expect(table.querySelector("summary")!.textContent).toContain("星期一");
   expect([...table.querySelectorAll("tbody tr")].map(row => [...row.querySelectorAll("td")].map(cell => cell.textContent))).toEqual([
-    ["2026-09-28", "US$123.45"], ["2026-10-05", "US$0.00"], ["2026-10-12", "—"],
+    ["2026-09-28", "US$0.00", "US$123.45", "US$123.45"], ["2026-10-05", "US$0.00", "US$0.00", "US$0.00"], ["2026-10-12", "—", "—", "—"],
   ]);
   expect(weekdayPoint(0).getAttribute("aria-pressed")).toBe("true");
   await act(async () => weekdayPoint(1).dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
@@ -145,7 +176,7 @@ it("点击星期自动展开各日期营业额，保留美分、零值与未日�
   await clickPoint(weekdayPoint(1));
   expect(table.open).toBe(true);
   expect(table.querySelector("summary")!.textContent).toContain("星期二");
-  expect(table.querySelector("tbody")!.textContent).toBe("2026-10-06US$990.00");
+  expect(table.querySelector("tbody")!.textContent).toBe("2026-10-06US$0.00US$990.00US$990.00");
   expect(weekdayPoint(0).getAttribute("aria-pressed")).toBe("false");
   table.open = false;
   await clickPoint(weekdayPoint(1));
@@ -164,7 +195,7 @@ it("星期表支持键盘、无日期和英文，筛选切换后清除旧选择"
   await act(async () => weekdayPoint(0).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
   expect(weekdayChart().querySelector("details")!.open).toBe(true);
   expect(weekdayChart().querySelector("summary")!.textContent).toContain("Mon");
-  expect(weekdayChart().querySelector("th:nth-child(2)")!.textContent).toBe("Revenue");
+  expect([...weekdayChart().querySelectorAll("thead th")].map(th => th.textContent)).toEqual(["Date", "Highlighted", "Non-highlighted", "All"]);
   expect(weekdayChart().querySelector("tbody")!.textContent).toContain("$123.45");
   await act(async () => weekdayPoint(6).dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true })));
   expect(weekdayChart().textContent).toContain("No dates for this weekday");
@@ -172,7 +203,7 @@ it("星期表支持键盘、无日期和英文，筛选切换后清除旧选择"
   expect(weekdayChart().querySelector("details")!.open).toBe(false);
   expect(weekdayChart().querySelector("tbody")).toBeNull();
   await clickPoint(weekdayPoint(0));
-  expect(weekdayChart().querySelector("tbody")!.textContent).toContain("$42.00");
+  expect(weekdayChart().querySelector("tbody")!.textContent).toContain("$123.45");
 });
 
 it("日历、星期平均、新曲线在前，其余图表保持原顺序，每日小计紧随热力图", async () => {
@@ -283,5 +314,5 @@ it("容器变窄时重新分配横轴，在手机宽度保留首末日期和固�
   expect(svg.textContent).toContain("10-06");
   expect(svg.textContent).toContain("10-07");
   await changeHighlight("ONLY_HIGHLIGHTED");
-  expect(disconnect).toHaveBeenCalledTimes(3);
+  expect(disconnect).toHaveBeenCalledTimes(5);
 });

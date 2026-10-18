@@ -232,7 +232,7 @@ export class FinanceQueriesService {
         ...total,
         totalTurnoverCents: calculateDailyTurnover(total),
         averageRevenueCents: calculateAverageRevenue(closedDates.map((closing) =>
-          calculateRevenue(days.get(dateOnly(closing.businessDate)) ?? { discountedFeePerformanceCents: 0n, giftCardSalesAmountCents: 0n }),
+          calculateRevenue(days.get(dateOnly(closing.businessDate)) ?? { discountedFeePerformanceCents: 0n, giftCardSalesAmountCents: 0n, giftCardServiceCents: 0n }),
         )),
         averageRevenueDayCount: closedDates.length,
         ownerWorkerIncomeCents,
@@ -283,14 +283,14 @@ export class FinanceQueriesService {
       }),
       client.workRecord.groupBy({
         by: ["businessDate"], where: { storeId, businessDate, status: { not: "PLACEHOLDER" }, deletedAt: null },
-        _sum: { discountedFeePerformanceCents: true },
+        _sum: { discountedFeePerformanceCents: true, giftCardServiceCents: true },
       }),
       client.giftCardSale.groupBy({
         by: ["businessDate"], where: { storeId, businessDate, deletedAt: null },
         _sum: { amountCents: true },
       }),
     ]);
-    const revenue = new Map(records.map(row => [dateOnly(row.businessDate), row._sum.discountedFeePerformanceCents ?? 0n]));
+    const revenue = new Map(records.map(row => [dateOnly(row.businessDate), row._sum]));
     const saleAmounts = new Map(sales.map(row => [dateOnly(row.businessDate), row._sum.amountCents ?? 0n]));
     const closedDates = [...new Set(closings.map(row => dateOnly(row.businessDate)))].sort();
     for (const date of dates) {
@@ -299,7 +299,8 @@ export class FinanceQueriesService {
       windowStart.setUTCDate(windowStart.getUTCDate() - 29);
       const from = dateOnly(windowStart);
       const amounts = closedDates.filter(day => day >= from && day <= date).map(day => calculateRevenue({
-        discountedFeePerformanceCents: revenue.get(day) ?? 0n,
+        discountedFeePerformanceCents: revenue.get(day)?.discountedFeePerformanceCents ?? 0n,
+        giftCardServiceCents: revenue.get(day)?.giftCardServiceCents ?? 0n,
         giftCardSalesAmountCents: saleAmounts.get(day) ?? 0n,
       }));
       const averageCents = calculateAverageRevenue(amounts);

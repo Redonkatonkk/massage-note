@@ -1,5 +1,5 @@
 import { calculateAverageRevenue } from "./finance.js";
-import { roundHalfUp } from "./money.js";
+import { roundSignedHalfUp } from "./money.js";
 
 export function shiftAnalyticsDate(date: string, offset: number): string {
   const value = new Date(`${date}T00:00:00Z`);
@@ -7,6 +7,42 @@ export function shiftAnalyticsDate(date: string, offset: number): string {
   return value.toISOString().slice(0, 10);
 }
 const weekday = (date: string) => (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+
+/** Compare all three scopes over the same closed dates, independently of the page filter. */
+export function calculateWeekdayRevenueComparison(input: {
+  dateFrom: string; dateTo: string;
+  records: { businessDate: string; revenueCents: bigint; isHighlighted: boolean }[];
+  sales: { businessDate: string; revenueCents: bigint }[];
+  closedDates: string[];
+}) {
+  const closed = new Set(input.closedDates);
+  const highlighted = new Map<string, bigint>(), nonHighlighted = new Map<string, bigint>();
+  for (const record of input.records) {
+    const amounts = record.isHighlighted ? highlighted : nonHighlighted;
+    amounts.set(record.businessDate, (amounts.get(record.businessDate) ?? 0n) + record.revenueCents);
+  }
+  // Sales have no highlight flag; retain the existing non-highlighted/all revenue definition.
+  for (const sale of input.sales) nonHighlighted.set(sale.businessDate, (nonHighlighted.get(sale.businessDate) ?? 0n) + sale.revenueCents);
+  const totals = Array.from({ length: 7 }, (_, weekday) => ({ weekday, closedDayCount: 0, highlighted: 0n, nonHighlighted: 0n }));
+  const days = [];
+  for (let date = input.dateFrom; date <= input.dateTo; date = shiftAnalyticsDate(date, 1)) {
+    const h = closed.has(date) ? highlighted.get(date) ?? 0n : null;
+    const n = closed.has(date) ? nonHighlighted.get(date) ?? 0n : null;
+    if (h !== null && n !== null) {
+      const total = totals[weekday(date)]!;
+      total.closedDayCount++; total.highlighted += h; total.nonHighlighted += n;
+    }
+    days.push({ businessDate: date, highlightedRevenueCents: h?.toString() ?? null, nonHighlightedRevenueCents: n?.toString() ?? null, revenueCents: h === null || n === null ? null : (h + n).toString() });
+  }
+  const inRange = (date: string) => date >= input.dateFrom && date <= input.dateTo;
+  return { hasData: input.records.some(r => inRange(r.businessDate)) || input.sales.some(r => inRange(r.businessDate)) || input.closedDates.some(inRange), days,
+    weekdays: totals.map(row => ({ weekday: row.weekday, closedDayCount: row.closedDayCount,
+      highlightedAverageCents: row.closedDayCount ? roundSignedHalfUp(row.highlighted, BigInt(row.closedDayCount)).toString() : null,
+      nonHighlightedAverageCents: row.closedDayCount ? roundSignedHalfUp(row.nonHighlighted, BigInt(row.closedDayCount)).toString() : null,
+      averageCents: row.closedDayCount ? roundSignedHalfUp(row.highlighted + row.nonHighlighted, BigInt(row.closedDayCount)).toString() : null,
+    })),
+  };
+}
 
 /** Inputs are scoped to one store and exclude deleted records/sales. Dates are historical business dates. */
 export function calculateFinanceAnalytics(input: {
@@ -70,7 +106,7 @@ export function calculateFinanceAnalytics(input: {
     days.push({ businessDate: date, hours: dailyHours.get(date) ?? Array<number>(24).fill(0), count: counts.get(date) ?? 0, lostCustomerCount, revenueCents: amount?.toString() ?? null,
       averageCents: calculateAverageRevenue(window)?.toString() ?? null, averageDayCount: window.length,
       average30Cents: calculateAverageRevenue(window30)?.toString() ?? null, average30DayCount: window30.length,
-      cumulativeAverageCents: amount === null ? null : roundHalfUp(cumulativeTotal, BigInt(cumulativeDayCount)).toString(),
+      cumulativeAverageCents: amount === null ? null : roundSignedHalfUp(cumulativeTotal, BigInt(cumulativeDayCount)).toString(),
       cumulativeAverageDayCount: amount === null ? 0 : cumulativeDayCount });
   }
   for (const row of weekdays) {

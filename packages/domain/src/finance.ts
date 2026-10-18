@@ -5,6 +5,7 @@ import {
   minCents,
   multiplyByBps,
   roundHalfUp,
+  roundSignedHalfUp,
   sumCents,
   type BasisPoints,
   type Cents,
@@ -86,15 +87,19 @@ export function calculateBoardTotalIncome(input: {
   ) - cents(input.dailyExpenseCents ?? 0n);
 }
 
-/** 营业额包含折后服务业绩和卖卡实收，不扣礼物卡核销。 */
-export function calculateRevenue(input: { discountedFeePerformanceCents: Cents; giftCardSalesAmountCents: Cents }): bigint {
-  return cents(input.discountedFeePerformanceCents) + cents(input.giftCardSalesAmountCents);
+/** 卖卡时计入实收，用卡服务金额不重复计入；小费另算，付款差额可使结果为负。 */
+export function calculateRevenue(input: {
+  discountedFeePerformanceCents: Cents;
+  giftCardSalesAmountCents: Cents;
+  giftCardServiceCents: Cents;
+}): bigint {
+  return cents(input.discountedFeePerformanceCents) + cents(input.giftCardSalesAmountCents) - cents(input.giftCardServiceCents);
 }
 
 /** 已日结营业日的营业额平均值，空日结按零计入，四舍五入到美分。 */
-export function calculateAverageRevenue(amounts: readonly Cents[]): bigint | null {
+export function calculateAverageRevenue(amounts: readonly bigint[]): bigint | null {
   if (amounts.length === 0) return null;
-  return roundHalfUp(amounts.reduce((sum, amount) => sum + cents(amount), 0n), BigInt(amounts.length));
+  return roundSignedHalfUp(amounts.reduce((sum, amount) => sum + amount, 0n), BigInt(amounts.length));
 }
 
 export interface StoreSettlementInput {
@@ -114,7 +119,8 @@ export interface StoreSettlement {
 }
 
 /**
- * 每日流水只看折后项目业绩与礼物卡净流入，不计小费、员工收入或实际服务付款拆分。
+ * 每日流水 = 营业额 - 礼卡小费，等价于折后业绩 + 卖卡实收 - 全部礼卡核销。
+ * 不增加小费收入，也不扣员工收入；礼卡服务与小费均只扣一次。
  * 核销可能高于当天业绩与卖卡收入，因此结果允许为负数。
  */
 export function calculateDailyTurnover(input: DailyTurnoverInput): bigint {
@@ -162,16 +168,15 @@ export function calculateStoreSettlement(
 }
 
 /**
- * 店铺收入 = 营业额（已含卖卡实收）+ 小费 - 员工收入 - 礼物卡核销。
+ * 店铺收入 = 今日流水 + 全部小费 - 员工收入，等价于营业额 + 非礼卡小费 - 员工收入。
+ * 复用已经扣完全部礼卡核销的流水，避免在新营业额基础上再次扣除礼卡服务金额。
  * 结果允许为负数，因此返回 bigint 而不是只允许非负数的 Cents。
  */
 export function calculateStoreIncome(input: StoreIncomeInput): bigint {
-  const revenueCents = calculateRevenue(input);
   return (
-    revenueCents +
+    calculateDailyTurnover(input) +
     cents(input.totalTipCents) -
-    cents(input.employeeIncomeCents) -
-    cents(input.giftCardRedemptionCents)
+    cents(input.employeeIncomeCents)
   );
 }
 

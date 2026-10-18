@@ -36,6 +36,7 @@ beforeEach(() => {
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   state.locale = "zh-CN";
   data = { dateFrom: "2026-10-05", dateTo: "2026-10-07", hasData: true, hours: [], weekdays: [],
+    weekdayComparison: { hasData: false, days: [], weekdays: [] },
     days: ["2026-10-05", "2026-10-06", "2026-10-07"].map((businessDate, index) => ({ businessDate, revenueCents: ["134567", "0", null][index]!, count: 0, hours: [], lostCustomerCount: 0, averageCents: null, averageDayCount: 0, average30Cents: null, average30DayCount: 0, cumulativeAverageCents: null, cumulativeAverageDayCount: 0 })),
   };
   request.mockReset(); request.mockImplementation(async url => String(url).includes("/summary?") ? summary() : details);

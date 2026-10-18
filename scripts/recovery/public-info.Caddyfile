@@ -1,0 +1,20 @@
+{
+  admin off
+  auto_https off
+}
+:13100 {
+  bind 127.0.0.1
+  handle /backup-info {
+    redir /backup-info/ 308
+  }
+  handle_path /backup-info/* {
+    root * /srv/info
+    file_server
+  }
+  handle {
+    reverse_proxy 127.0.0.1:3100 {
+      header_up X-Forwarded-Proto https
+      header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # 当前架构
 
-> 状态：与 `1.31.0` 代码结构核对。
+> 状态：与 `1.32.3` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -201,7 +201,7 @@ Web 表单
 
 ### 经营分析
 
-`FinanceAnalyticsService` 在 RepeatableRead 只读事务中验证店铺财务权限并读取当前店铺有效记工、跑客、卖卡及去重后的已日结日期。独立 `highlightFilter` 在数据库读取时统一筛选记工及均线窗口，仅高亮排除店铺级卖卡，跑客与日结样本不受影响。每日记工数量响应同时包含按有效跑客记录 `customerCount` 求和的 `lostCustomerCount`；仅有跑客而没有记工的日期也纳入日期序列。领域函数 `calculateFinanceAnalytics` 负责历史时区小时分组、自然日补零及整数美分平均，三十日窗口补读起日前29天，七日窗口保留6天，全日期累计平均只从所选起日开始；共享契约 `FinanceAnalyticsResponse` 仅传输聚合结果。Web独立分析标签按需加载，通过既有实时通道与刷新队列合并事件，并使切店、日期/高亮条件变化和卸载后的旧请求失效。 `AnalyticsDailyReport` 将营业额日历与其后图表放入同一网格，逐日小计保留在最后；第四位 `AnalyticsIncomeBars` 通过渲染函数复用同一汇总状态，`groupIncomePeriods` 只按日／周一至周日／自然月合计已计算的三项每日金额，区间首尾裁剪并保留负值，不新增请求或重建财务公式；`AnalyticsAverageRevenue` 消费服务端三种均值及样本数，`Chart` 通过容器宽度和有界贝塞尔曲线保持完整日期轴及未日结缺口。`AnalyticsDailyReport` 复用该响应的日期边界与高光条件读取既有财务汇总和每日明细；`AnalyticsRevenueCalendar` 直接展示过滤后的 `days[].revenueCents` 并沿用今日记工样式，月份切换不另取未筛选数据。每日小计与明细采用独立刷新队列和过期响应隔离，明细弹层与财务汇总共用 `FinanceDetailsDialog`。跑客数据由独立数据库表和向前迁移维护；可选备注保存于 `LostCustomer.note`，直接到店来源保存于 `LostCustomer.isWalkIn`（旧记录及新增默认 `false`）；两者随列表和审计快照返回，不进入数量或金额计算。保留原因：聚合按历史日期和快照读取，展示不能重算当时归属，过期筛选结果不能覆盖当前图表。
+`FinanceAnalyticsService` 在 RepeatableRead 只读事务中验证店铺财务权限并读取当前店铺有效记工、跑客、卖卡及去重后的已日结日期。同一事务读取全店有效记工及卖卡，记工营业额统一通过 `calculateRevenue` 计算折后业绩减礼卡大费，卖卡另计实际收款；看板、日历和财务均值采用相同公式，流水与店铺收入保留原核销金额，防止再次扣除礼卡服务。负营业额与均值使用有符号美分舍入，历史工资和日结/发送快照不重写。服务内按独立 `highlightFilter` 筛选普通图表及均线窗口，仅高亮排除店铺级卖卡，跑客与日结样本不受影响；默认日期起点按全店最早有效业务/日结确定。`calculateWeekdayRevenueComparison` 从同一批数据返回不受高光筛选影响的三组星期平均与逐日金额，三组共用已日结分母，卖卡只进入非高光与全部，先合计再分别舍入。每日记工数量响应同时包含按有效跑客记录 `customerCount` 求和的 `lostCustomerCount`；仅有跑客而没有记工的日期也纳入日期序列。领域函数 `calculateFinanceAnalytics` 负责历史时区小时分组、自然日补零及整数美分平均，三十日窗口补读起日前29天，七日窗口保留6天，全日期累计平均只从所选起日开始；共享契约 `FinanceAnalyticsResponse` 仅传输聚合结果。Web独立分析标签按需加载，通过既有实时通道与刷新队列合并事件，并使切店、日期/高亮条件变化和卸载后的旧请求失效。 `AnalyticsDailyReport` 将营业额日历与其后图表放入同一网格，逐日小计保留在最后；第四位 `AnalyticsIncomeBars` 通过渲染函数复用同一汇总状态，`groupIncomePeriods` 只按日／周一至周日／自然月合计已计算的三项每日金额，区间首尾裁剪并保留负值，不新增请求或重建财务公式；`AnalyticsAverageRevenue` 消费服务端三种均值及样本数，`Chart` 通过容器宽度和有界贝塞尔曲线保持折线图完整日期轴及未日结缺口；所有柱图按完整数值标签预留柱间距，超出容器时仅在图内滚动，负数标签置于负柱末端、跑客与记工数量分别标记。`AnalyticsWeekdayRevenue` 始终展示高光、非高光、全部三列和同口径逐日表，不增加比较请求。`AnalyticsDailyReport` 复用该响应的日期边界与高光条件读取既有财务汇总和每日明细；`AnalyticsRevenueCalendar` 直接展示过滤后的 `days[].revenueCents` 并沿用今日记工样式，月份切换不另取未筛选数据。每日小计与明细采用独立刷新队列和过期响应隔离，明细弹层与财务汇总共用 `FinanceDetailsDialog`。跑客数据由独立数据库表和向前迁移维护；可选备注保存于 `LostCustomer.note`，直接到店来源保存于 `LostCustomer.isWalkIn`（旧记录及新增默认 `false`）；两者随列表和审计快照返回，不进入数量或金额计算。保留原因：聚合按历史日期和快照读取，展示不能重算当时归属，过期筛选结果不能覆盖当前图表。
 
 每日开门排位由领域层 `explainRotationCandidates` 复用排序函数生成结构化比较依据，API 与最终顺序一起事务保存至 `daily_boards.ranking_explanation`。读取使用共享契约校验并限制管理权限，Web 以中英文固定文案展示快照及当前名单差异，不依赖 AI 或当前历史重新推算。新增字段使用向前迁移，已有排序快照为空。
 

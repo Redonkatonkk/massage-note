@@ -1,0 +1,47 @@
+{
+  "binaries": [
+    {
+      "name": "age-v1.3.2-darwin-arm64.tar.gz",
+      "url": "https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-darwin-arm64.tar.gz",
+      "sha256": "e2020b073c44f692685a24d6abc378817eb81ffaaf49fd0531ef8565f767f2f5",
+      "platform": "mac",
+      "tools": [
+        "age",
+        "age-keygen"
+      ]
+    },
+    {
+      "name": "age-v1.3.2-linux-amd64.tar.gz",
+      "url": "https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz",
+      "sha256": "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10",
+      "platform": "linux",
+      "tools": [
+        "age",
+        "age-keygen"
+      ]
+    },
+    {
+      "name": "rclone-v1.75.2-linux-amd64.zip",
+      "url": "https://github.com/rclone/rclone/releases/download/v1.75.2/rclone-v1.75.2-linux-amd64.zip",
+      "sha256": "349ac8fba6ff65d6247043f1750cdcb518ec5d500ef91463a10d37c0ccdf3702",
+      "platform": "linux",
+      "tools": [
+        "rclone"
+      ]
+    },
+    {
+      "name": "rclone-v1.75.2-osx-arm64.zip",
+      "url": "https://github.com/rclone/rclone/releases/download/v1.75.2/rclone-v1.75.2-osx-arm64.zip",
+      "sha256": "610ab7d48615135dfc60b763858b11a426a0d3d1160c1bb76fb0ae6011b02edd",
+      "platform": "mac",
+      "tools": [
+        "rclone"
+      ]
+    }
+  ],
+  "docker": {
+    "python:3.12-alpine": "python@sha256:1b668429b3511ab407d8e00648891631b0b1a4d7e15e3ca70f38ab5b91ad4ab4",
+    "docker:28-cli": "docker@sha256:625d9431a9f54c5a2bc90f24f0e1c3d55b1349fd857dd85035f98c2c9acbdd4d",
+    "caddy:2-alpine": "caddy@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f"
+  }
+}

@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 
-it("默认每周，三项并排绘制，支持聚焦读数及负收入，图宽不随日期延长", async () => {
+it("默认每周，三项并排绘制并标注金额，支持聚焦读数及负收入", async () => {
   await render();
   expect(container.querySelector("select")!.value).toBe("WEEK");
   expect([...container.querySelectorAll(".analytics-income-legend li")].map(item => item.textContent)).toEqual(["总流水", "店铺收入", "总收入"]);
@@ -41,7 +41,9 @@ it("默认每周，三项并排绘制，支持聚焦读数及负收入，图宽�
   expect(bars).toHaveLength(6);
   expect(new Set(bars.slice(0, 3).map(bar => bar.getAttribute("x"))).size).toBe(3);
   expect(new Set(bars.slice(0, 3).map(bar => bar.getAttribute("fill"))).size).toBe(3);
-  expect(container.querySelector(".analytics-plot > svg")!.getAttribute("width")).toBe("100%");
+  expect(container.querySelectorAll(".analytics-bar-value")).toHaveLength(6);
+  expect([...container.querySelectorAll(".analytics-bar-value")].map(text => text.textContent)).toEqual(["$300.03", "$100", "$200", "$300.03", "-$15", "$25"]);
+  expect(container.querySelector(".analytics-scroll > svg")).not.toBeNull();
   const zeroY = Number(container.querySelector(".analytics-zero-line")!.getAttribute("y1"));
   const negative = bars[4]!;
   expect(Number(negative.getAttribute("y"))).toBe(zeroY);

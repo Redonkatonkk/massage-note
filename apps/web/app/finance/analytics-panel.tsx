@@ -6,6 +6,7 @@ import { AnalyticsDailyReport } from "./analytics-daily-report";
 import { Chart } from "./analytics-chart";
 import { AnalyticsAverageRevenue } from "./analytics-average-revenue";
 import { AnalyticsIncomeBars } from "./analytics-income-bars";
+import { AnalyticsWeekdayRevenue } from "./analytics-weekday-revenue";
 import { visibleAnalyticsHours } from "./analytics-hours";
 import { useEffect, useRef, useState } from "react";
 import type { FinanceAnalyticsQuery, FinanceAnalyticsResponse } from "@massage-note/contracts";
@@ -71,15 +72,16 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
     </form>
     {loading && <p role="status">{t("正在更新图表…", "Updating charts…")}</p>}
     {loadFailed && <p className={error ? "form-error" : undefined} role={error ? "alert" : undefined}>{error} <button type="button" onClick={() => void queue.current?.request()}>{t("重试", "Retry")}</button></p>}
-    {data && <><p>{data.dateFrom} — {data.dateTo} · {highlightFilter === "ONLY_HIGHLIGHTED" ? t("仅高光；数量含待结账记工，营业额只计已日结日期，不含卖卡实收与小费。", "Highlighted only; counts include pending payments. Revenue includes only closed days and excludes card sales and tips.") : t("数量含待结账记工；营业额只计已日结日期，含卖卡实收、不含小费。", "Counts include pending payments. Revenue includes only closed days, including card sales and excluding tips.")} {t("跑客人数不受高光筛选影响。", "Lost customer counts are unaffected by the highlight filter.")}</p>
+    {data && <><p>{data.dateFrom} — {data.dateTo} · {highlightFilter === "ONLY_HIGHLIGHTED" ? t("仅高光；数量含待结账记工，营业额只计已日结日期，扣除礼卡大费，不含卖卡实收与小费。", "Highlighted only; counts include pending payments. Revenue uses closed days, deducts gift-card service payments and excludes card sales and tips.") : t("数量含待结账记工；营业额只计已日结日期，含卖卡实收、扣除礼卡大费，不含小费。", "Counts include pending payments. Revenue uses closed days, includes card sales, deducts gift-card service payments and excludes tips.")} {t("跑客人数不受高光筛选影响。", "Lost customer counts are unaffected by the highlight filter.")}</p>
       {!data.hasData && <p className="empty-state">{t("当前范围没有经营数据。", "No business data in this range.")}</p>}
       <AnalyticsDailyReport key={`${scope}:${locale}`} storeId={storeId} data={data} highlightFilter={highlightFilter}>
-      {income => data.hasData && <>
-        <Chart title={t("星期平均营业额", "Average revenue by weekday")} description={t("只统计已日结日期；空日结计零，没有样本显示破折号。点击星期，下方数据表自动列出该星期各日期的营业额。", "Closed days only; empty closed days count as zero. No sample is shown as a dash. Select a weekday to open its daily revenue table below.")} bars currency points={data.weekdays.map(w => ({ label: names[w.weekday]!, value: dollars(w.averageCents), detail: `${names[w.weekday]} · ${money(w.averageCents)} · ${samples(w.closedDayCount)}`, dailyRevenueDetails: data.days.filter(day => (new Date(`${day.businessDate}T00:00:00.000Z`).getUTCDay() + 6) % 7 === w.weekday).map(day => ({ date: day.businessDate, revenue: money(day.revenueCents) })) }))} />
+      {income => <>
+        {(data.hasData || data.weekdayComparison.hasData) && <AnalyticsWeekdayRevenue data={data.weekdayComparison} />}
+        {data.hasData && <>
         <AnalyticsAverageRevenue data={data} />
         <AnalyticsIncomeBars {...income} dateFrom={data.dateFrom} dateTo={data.dateTo} />
         <Chart title={t("按小时上工数量", "Service starts by hour")} description={t("仅显示所选日期内最早至最晚上工小时，中间空小时保留；选择图中时段后，展开记工明细查看该时段每天的笔数，隐藏 0 笔日期。", "Hours span the earliest to latest service starts in the selected dates, including empty hours between. Select an hour, then expand its record details to see dates with service starts.")} points={visibleHours.map(h => ({ label: `${h.hour}:00`, value: h.count, detail: `${h.hour}:00–${h.hour}:59 · ${count(h.count)}`, dailyDetails: data.days.map(day => ({ date: day.businessDate, count: day.hours[h.hour] ?? 0 })) }))} />
-        <Chart title={t("每日记工数量", "Daily service count")} description={t("按营业日统计；跑客数量叠加在记工上方，无跑客时不显示。", "Counts by business day. Lost customers stack above service records and are hidden when zero.")} legend={data.days.some(d => d.lostCustomerCount > 0) ? t("深绿：记工 · 红色：跑客（上方数字）", "Green: service records · Red: lost customers (number above)") : undefined} bars points={data.days.map(d => ({ label: d.businessDate, value: d.count, lostCount: d.lostCustomerCount, detail: `${d.businessDate} · ${t("记工", "Service records")} ${count(d.count)}${d.lostCustomerCount > 0 ? t(` · 跑客 ${d.lostCustomerCount} 位`, ` · ${d.lostCustomerCount} lost ${d.lostCustomerCount === 1 ? "customer" : "customers"}`) : ""}` }))} />
+        <Chart title={t("每日记工数量", "Daily service count")} description={t("按营业日统计；柱顶数字为记工笔数，+数字为跑客人数；跑客叠加在记工上方，无跑客时不显示。", "Counts by business day. Bar labels show service records; + labels show lost customers stacked above them and are hidden when zero.")} legend={data.days.some(d => d.lostCustomerCount > 0) ? t("深绿：记工 · 红色：跑客（+数字）", "Green: service records · Red: lost customers (+ labels)") : undefined} bars points={data.days.map(d => ({ label: d.businessDate, value: d.count, lostCount: d.lostCustomerCount, detail: `${d.businessDate} · ${t("记工", "Service records")} ${count(d.count)}${d.lostCustomerCount > 0 ? t(` · 跑客 ${d.lostCustomerCount} 位`, ` · ${d.lostCustomerCount} lost ${d.lostCustomerCount === 1 ? "customer" : "customers"}`) : ""}` }))} />
         <Chart title={t("每日营业额趋势", "Daily revenue trend")} description={t("未日结留空；均线统计当日及此前6天内已日结日期。", "Open days are gaps. The average uses closed days within each trailing 7-day window.")} currency legend={t("深绿实线：营业额 · 蓝灰虚线：7日移动平均", "Green solid: revenue · Blue dashed: 7-day moving average")} points={data.days.map(d => ({ label: d.businessDate, value: dollars(d.revenueCents), secondary: dollars(d.averageCents), detail: `${d.businessDate} · ${t("营业额", "Revenue")} ${money(d.revenueCents)} · ${t("7日均线", "7-day average")} ${money(d.averageCents)} · ${samples(d.averageDayCount)}` }))} />
         <section className="analytics-card analytics-heatmap"><h2>{t("星期 × 小时热力图", "Weekday × hour heatmap")}</h2><p className="analytics-description">{t("显示实际最早至最晚上工小时；颜色越深，累计笔数越多；括号内为自然日数。", "Actual earliest-to-latest start hours. Darker cells mean more starts; parentheses show calendar days.")}</p>
           {visibleHours.length === 0 && <p className="empty-state">{t("当前范围没有记工。", "No service records in this range.")}</p>}
@@ -87,6 +89,7 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
           <p className="analytics-readout" aria-live="polite">{cell || t("点击色块查看累计笔数。", "Tap a cell to see total starts.")}</p>
           <p>{t("浅色 → 深色", "Light → Dark")} · 0–{maxHeat} {t("笔", "starts")}</p>
         </section>
+        </>}
       </>}
       </AnalyticsDailyReport>
     </>}

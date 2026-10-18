@@ -12,7 +12,11 @@ curl --fail https://api.massage-note.example.com/api/v1/health/ready
 
 为 `/api/v1/health/ready` 配置外部监控，并跟踪磁盘、数据库及备份失败；告警阈值由实际部署确定。错误排查使用 `X-Request-Id`，不把 Cookie、token、完整手机号或密钥贴到工单。保留原因：仓库没有旧文档宣称的固定监控阈值实现，请求编号已足够关联日志。
 
-## 逻辑备份
+## 云端完整恢复
+
+NAS 每晚纽约时间 00:00 的 Google Drive 完整恢复包、最近三次成功备份轮换、独立 age 私钥及 Mac 按需演练见 [灾难恢复手册](DISASTER_RECOVERY.md)。启用状态以该手册与实际任务/云端恢复报告为准。保留原因：下面的手动逻辑备份只有数据库，不能替代配置、密钥和离线镜像的完整恢复包；创建脚本不代表线上定时任务已启用。
+
+## 手动逻辑备份
 
 `scripts/backup-database.sh` 需要 PostgreSQL 客户端。建议由只读备份账号或受控管理账号每日执行，并将目录同步到与应用主机不同的加密存储。保留原因：脚本依赖 pg_dump，异地副本避免主机故障同时丢失数据与备份。
 

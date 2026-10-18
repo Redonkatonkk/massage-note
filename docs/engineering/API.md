@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.31.0`
+> 适用版本：`1.32.3`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -236,11 +236,11 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 - `amountType`：`SERVICE`、`TIP` 或 `ALL`。
 - `highlightFilter`：`ALL`、`ONLY_HIGHLIGHTED` 或 `EXCLUDE_HIGHLIGHTED`。
 
-店主或经理未限定员工且选择全部金额时，汇总、明细和 CSV 会纳入店铺级礼物卡销售：`itemCount = recordCount + giftCardSaleCount`，`customerTotalPaidCents = actualServiceCollectedCents + totalTipCents + giftCardSalesAmountCents`。员工小计、明确员工筛选、仅大费、仅小费或仅高亮记工不分摊卖卡记录。`giftCardRedemptionCents = giftCardServiceCents + giftCardTipCents`，`storeIncomeCents = calculateRevenue({ discountedFeePerformanceCents, giftCardSalesAmountCents }) + totalTipCents - employeeIncomeCents - giftCardRedemptionCents`（营业额已含卖卡实收，不再单独追加卖卡金额）。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
+店主或经理未限定员工且选择全部金额时，汇总、明细和 CSV 会纳入店铺级礼物卡销售：`itemCount = recordCount + giftCardSaleCount`，`customerTotalPaidCents = actualServiceCollectedCents + totalTipCents + giftCardSalesAmountCents`。员工小计、明确员工筛选、仅大费、仅小费或仅高亮记工不分摊卖卡记录。`giftCardRedemptionCents = giftCardServiceCents + giftCardTipCents`，`storeIncomeCents = calculateDailyTurnover({ discountedFeePerformanceCents, giftCardSalesAmountCents, giftCardRedemptionCents }) + totalTipCents - employeeIncomeCents`（等价于新营业额加现金/刷卡小费再减员工收入，礼卡服务与小费均只扣一次）。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
 
 `finance/summary` 的每个 `days[]` 行额外返回 `dailyTurnoverCents = discountedFeePerformanceCents + giftCardSalesAmountCents - giftCardRedemptionCents`。每日行同时返回 `totalIncomeCents = 店铺收入 + 店长收入 + 经理收入`，复用看板领域公式，不额外加减礼物卡净收入或信用卡手续费。上述字段由服务端使用整数美分计算；Web 每日小计前三列依次显示日期、星期和今日流水，最后一列显示总收入，并隐藏全部项目数、记工数、实收服务费、小费和客人总付款列。
 
-`finance/summary.days[]` 新增 `recentClosedRevenue: { averageCents, dayCount } | null`，为该营业日及此前29天的全店已日结平均营业额，含折后业绩与卖卡实际收款，不含小费，不沿用财务筛选。仅该行已日结时返回对象，否则为 null；金额为整数美分，空日结计零。Web 将此列放在今日流水之后。
+`finance/summary.days[]` 新增 `recentClosedRevenue: { averageCents, dayCount } | null`，为该营业日及此前29天的全店已日结平均营业额，折后业绩减礼卡大费再加卖卡实际收款，不含小费，不沿用财务筛选。仅该行已日结时返回对象，否则为 null；金额为整数美分，空日结计零。Web 将此列放在今日流水之后。
 
 `finance/summary.totals` 还返回：
 
@@ -309,17 +309,19 @@ START 的开始时间由 API 从 rawText 解析，使用店铺时区及 occurred
 
 ### 今日看板顶部总收入
 
-`GET /stores/:storeId/boards/:businessDate` 的顶层 `statistics.totalIncomeCents` 由服务端整数美分计算：`storeIncomeCents + 店长大费工资及小费 + 所有经理大费工资及小费 - dailyExpenseCents`。成员角色按当前记录关联成员读取，不依赖行是否隐藏；使用看板相同的未删除记录范围（包含待结账已知工资和小费），员工历史仍限定本人。管理者响应新增 `statistics.dailyExpenseCents`，等于看板 `businessDate` 所在月份支出查询的 `dailyAverageCents`（沿用本月周期分摊＋一次性支出、整月自然天数、美分舍入及缺失排除），从总收入只扣一次，允许负数；无支出为零，员工响应为 null 且不读取店铺支出。该字段不额外加入礼物卡净收入或扣除信用卡手续费，区别于 `finance/summary` 的总结算字段。顶部营业额读取新增的 `revenueCents = discountedFeePerformanceCents + giftCardSalesAmountCents`；原 `discountedFeePerformanceCents` 仍仅为折后服务业绩，礼物卡总额读取 `giftCardSalesAmountCents`。
+`GET /stores/:storeId/boards/:businessDate` 的顶层 `statistics.totalIncomeCents` 由服务端整数美分计算：`storeIncomeCents + 店长大费工资及小费 + 所有经理大费工资及小费 - dailyExpenseCents`。成员角色按当前记录关联成员读取，不依赖行是否隐藏；使用看板相同的未删除记录范围（包含待结账已知工资和小费），员工历史仍限定本人。管理者响应新增 `statistics.dailyExpenseCents`，等于看板 `businessDate` 所在月份支出查询的 `dailyAverageCents`（沿用本月周期分摊＋一次性支出、整月自然天数、美分舍入及缺失排除），从总收入只扣一次，允许负数；无支出为零，员工响应为 null 且不读取店铺支出。该字段不额外加入礼物卡净收入或扣除信用卡手续费，区别于 `finance/summary` 的总结算字段。顶部营业额读取新增的 `revenueCents = discountedFeePerformanceCents - giftCardServiceCents + giftCardSalesAmountCents`；原 `discountedFeePerformanceCents` 仍仅为折后服务业绩，礼物卡总额读取 `giftCardSalesAmountCents`。
 
 礼物卡对记工页总收入、财务每日小计及财务总结算均只影响一次：卖卡按实际收款增加，用卡按大费与小费合计减少；这些收支已包含在店铺收入中，礼物卡净收入字段只用于展示组成，不再次加减。财务总结算继续扣除信用卡手续费；记工页保留手续费前、扣所在月日均支出口径，每日小计保留原手续费前口径。保留原因：本次成本扣除针对今日看板，礼卡组成不能再次增加总收入。
 
+营业额统一在卖卡时计入实收，用卡时仅排除礼卡服务金额；礼卡小费不计营业额，服务业绩、员工工资与小费所得仍正常计算。礼卡大费按对应查询的有效记录汇总，未填写按零；营业额及其均值可为负数并按美分四舍五入。历史数据查询直接采用新公式，无数据库迁移，不重写日结/发送快照。保留原因：更改经营统计不能重复扣核销或改写已经保存的工资及交付凭证。
+
 ### 营业日日历已日结金额
 
-`GET /stores/:storeId/business-days/open-work-dates` 保留 `dates` 未日结日期数组，并返回 `closedDates: [{ date, discountedFeePerformanceCents, revenueCents }]`。仅返回当前 CLOSED 的日期，金额由数据库按营业日汇总未删除记工的折后项目金额（整数美分）。日历显示新增 `revenueCents`，为折后服务业绩加卖卡实收；店主/经理可见全店，已日结无记工且无卖卡显示零；员工仅返回本人有记工日期及本人金额。取消日结不再返回该日期金额。前端仅展示美元数值，不附币种、单位或标签；记工页复用页面内月缓存，刷新期间保留同月标记，财务页打开时读取；旧请求不能覆盖已失效上下文。缓存规则见 [产品规则](../product/PRODUCT.md)。保留原因：样本、权限和缓存生命周期共同决定可见金额，缺日结不是零样本。
+`GET /stores/:storeId/business-days/open-work-dates` 保留 `dates` 未日结日期数组，并返回 `closedDates: [{ date, discountedFeePerformanceCents, revenueCents }]`。仅返回当前 CLOSED 的日期，金额由数据库按营业日汇总未删除记工的折后项目金额（整数美分）。日历显示新增 `revenueCents`，为折后服务业绩减礼卡大费再加卖卡实收；店主/经理可见全店，已日结无记工且无卖卡显示零；员工仅返回本人有记工日期及本人金额。取消日结不再返回该日期金额。前端仅展示美元数值，不附币种、单位或标签；记工页复用页面内月缓存，刷新期间保留同月标记，财务页打开时读取；旧请求不能覆盖已失效上下文。缓存规则见 [产品规则](../product/PRODUCT.md)。保留原因：样本、权限和缓存生命周期共同决定可见金额，缺日结不是零样本。
 
-已日结的记工看板向拥有者和经理返回 `statistics.recentClosedRevenue: { dayCount, averageCents }`。窗口为所选当日及之前29个自然日，仅纳入当前 `CLOSED` 日期。`dayCount` 是实际已日结日期数（1–30），不是固定30；`averageCents` 是这些日期的全店未删除记工 折后服务业绩与未删除卖卡实收合计除以 `dayCount`，四舍五入至美分。当日取看板记工与卖卡汇总且只计一次。缺少日结或未日结日期不计入，已日结但无记工且无卖卡按零计入，不向窗口外补足。所选当日未日结、取消日结后或员工请求返回 `null`。
+已日结的记工看板向拥有者和经理返回 `statistics.recentClosedRevenue: { dayCount, averageCents }`。窗口为所选当日及之前29个自然日，仅纳入当前 `CLOSED` 日期。`dayCount` 是实际已日结日期数（1–30），不是固定30；`averageCents` 是这些日期的全店未删除记工折后服务业绩减礼卡大费再加未删除卖卡实收的合计除以 `dayCount`，四舍五入至美分。当日取看板记工与卖卡汇总且只计一次。缺少日结或未日结日期不计入，已日结但无记工且无卖卡按零计入，不向窗口外补足。所选当日未日结、取消日结后或员工请求返回 `null`。
 
-`finance/summary.totals` 增加 `averageRevenueCents: number | null` 和 `averageRevenueDayCount: number`。按所选日期范围（含两端）内去重后的 `CLOSED` 营业日计算当前筛选的折后大费业绩加卖卡实际收款的平均值，无匹配记工及卖卡的日结日按零计入，沿用领域层整数美分舍入；没有已日结日期时分别返回 `null`、`0`。不含未日结日期和小费；卖卡沿用店铺级销售的权限及筛选规则，不限制为30天。
+`finance/summary.totals` 增加 `averageRevenueCents: number | null` 和 `averageRevenueDayCount: number`。按所选日期范围（含两端）内去重后的 `CLOSED` 营业日计算当前筛选的折后大费业绩减礼卡大费再加卖卡实际收款的平均值，无匹配记工及卖卡的日结日按零计入，沿用领域层整数美分舍入；没有已日结日期时分别返回 `null`、`0`。不含未日结日期和小费；卖卡沿用店铺级销售的权限及筛选规则，不限制为30天。
 
 `PATCH /stores/:storeId/boards/:date/rows/:rowId` 由店主/经理隐藏或恢复员工行。设备日期上下文判定为过去日期时，允许已日结历史仅调整 `isHidden`，包括空行在内均保留员工行、班次、记工及日结快照，返回 `{ row, board, removed: false }`。今天/未来继续校验日结；隐藏无任何记工（含已删除历史）的员工时，同一事务内删除员工行及班次，返回 `removed: true`，`row` 为移除前更新后的快照；有记工仅隐藏。所有路径保留营业日锁、归属、幂等、行版本、表格版本与审计/outbox。隐藏日期不计入后续轮转历史，其他员工历史位置按可见行重新编号；今日初次自动生成、主动生成与未来自动排工共用此规则，今日已生成顺序需主动重新生成。保留原因：出勤纠正只改变排工依据，不能删除历史或改动已结财务。
 
@@ -352,11 +354,13 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 
 `GET /stores/:storeId/finance/analytics`：仅具有 `FINANCE_READ_STORE` 能力的当前店铺活跃成员可读取。
 
-查询为独立的 `FinanceAnalyticsQuery`：可选 `dateFrom`、`dateTo`（ISO营业日期，包含两端）及 `highlightFilter`（`ALL`、`ONLY_HIGHLIGHTED`、`EXCLUDE_HIGHLIGHTED`，省略按 `ALL`）。省略起日取当前条件下最早有效业务/日结日，省略止日取当前营业日；没有历史时起日等于止日。高亮条件统一筛选当前范围及均线窗口的记工；`ONLY_HIGHLIGHTED` 不含店铺级礼物卡销售，其他模式包含有效卖卡；跑客人数和已日结样本日期不受高亮条件影响。拒绝反向、未来结束日期、无效高亮值和其他筛选参数。保留原因：聚合来自历史业务日期，所有图表及窗口须采用同一筛选，独立的跑客和日结事实不随记工标记变化。
+查询为独立的 `FinanceAnalyticsQuery`：可选 `dateFrom`、`dateTo`（ISO营业日期，包含两端）及 `highlightFilter`（`ALL`、`ONLY_HIGHLIGHTED`、`EXCLUDE_HIGHLIGHTED`，省略按 `ALL`）。省略起日取全店最早有效业务/日结日，省略止日取当前营业日；没有历史时起日等于止日。高亮条件筛选当前范围及均线窗口的记工，独立 `weekdayComparison` 始终比较三种范围；`ONLY_HIGHLIGHTED` 不含店铺级礼物卡销售，其他模式包含有效卖卡；跑客人数和已日结样本日期不受高亮条件影响。拒绝反向、未来结束日期、无效高亮值和其他筛选参数。保留原因：聚合来自历史业务日期，除明确标注的三组星期对比外，图表及窗口采用同一筛选，独立的跑客和日结事实不随记工标记变化。
 
 Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，保留美分，不另请求 `business-days/open-work-dates`；月份浏览不改变筛选。每日小计与流水收入柱图共用分析响应的 `dateFrom` / `dateTo` 和同一 `highlightFilter` 请求既有 `finance/summary`，柱图仅按日／自然周／自然月合计 `days[].dailyTurnoverCents`、`storeIncomeCents`、`totalIncomeCents`（手续费前），切换周期不额外请求，点击日期或小计金额请求该日 `finance/details`，两者采用全店、`paymentMethod=ALL`、`amountType=ALL`。不新增接口；平均曲线使用下述服务端平均字段。保留原因：分析口径与逐日组成必须沿用服务端结果，未筛选日历不能覆盖当前条件。
 
 响应 `FinanceAnalyticsResponse`：`dateFrom`、`dateTo`、`hasData`，以及 `hours`（24项hour/count）、`days`（businessDate/count/lostCustomerCount/hours/revenueCents/averageCents/averageDayCount/average30Cents/average30DayCount/cumulativeAverageCents/cumulativeAverageDayCount）、`weekdays`（7项weekday/closedDayCount/calendarDayCount/averageCents/hours）。weekday以0代表星期一；金额为整美分十进制字符串，无日结金额/无平均样本为null；weekdays.hours为24项累计笔数；days.hours为该营业日的24项小时笔数，记工和跑客均无数据的日期补零，只有跑客的日期仍返回，小时沿用记工时区快照。每日跑客数量按有效记录的 `customerCount` 求和；每日数量图把跑客数量显示在记工数量上方，0笔跑客不绘制额外区段。
+
+响应另含必填 `weekdayComparison`：`hasData` 独立表示对比范围是否有有效记工、卖卡或日结；`days[]` 返回 `businessDate`、`highlightedRevenueCents`、`nonHighlightedRevenueCents`、`revenueCents`；`weekdays[]` 返回 `weekday`、`closedDayCount`、`highlightedAverageCents`、`nonHighlightedAverageCents`、`averageCents`。三组始终来自同一日期范围、同一读取事务和相同去重已日结样本，不受 `highlightFilter` 改变；高光不含卖卡，非高光与全部含有效卖卡。未日结逐日金额和无样本平均为 null，空日结为字符串“0”；各平均从整数美分合计独立舍入。Web 的星期图和点击后的三列逐日表只读取此聚合，其他图表与明细继续使用当前筛选；柱顶数字保留实际美分或整数计数，密集时只在图内滚动。保留原因：同时比较三组需要一致分母与读取快照，不能靠额外请求拼接或相加已舍入平均。
 
 跑客写入沿用记工营业日权限：普通员工仅可写当前营业日，拥有者和经理可写未日结历史营业日；未来日期不允许写入，日结营业日锁定。发生时间使用设备本地 `HH:mm` 墙上时间，与记工页营业日的设备时区规则一致。跑客记录人数、发生时间、可选备注和 Walk-in 来源，不形成服务、收入、工资或其他财务金额；来源不改变人数统计。
 

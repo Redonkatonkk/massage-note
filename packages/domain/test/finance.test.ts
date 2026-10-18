@@ -463,9 +463,34 @@ describe("已日结平均营业额", () => {
 });
 
 it("营业额计入卖卡实收，服务业绩独立保留", () => {
-  expect(calculateRevenue({ discountedFeePerformanceCents: 102000n, giftCardSalesAmountCents: 8000n })).toBe(110000n);
-  expect(calculateRevenue({ discountedFeePerformanceCents: 0n, giftCardSalesAmountCents: 8000n })).toBe(8000n);
-  expect(calculateRevenue({ discountedFeePerformanceCents: 102000n, giftCardSalesAmountCents: 0n })).toBe(102000n);
+  expect(calculateRevenue({ discountedFeePerformanceCents: 102000n, giftCardSalesAmountCents: 8000n, giftCardServiceCents: 0n })).toBe(110000n);
+  expect(calculateRevenue({ discountedFeePerformanceCents: 0n, giftCardSalesAmountCents: 8000n, giftCardServiceCents: 0n })).toBe(8000n);
+  expect(calculateRevenue({ discountedFeePerformanceCents: 102000n, giftCardSalesAmountCents: 0n, giftCardServiceCents: 0n })).toBe(102000n);
+});
+
+it("折价卖卡只计实收，跨日用卡不重复计入，混合付款只增加非礼卡服务金额", () => {
+  const sale = calculateRevenue({ discountedFeePerformanceCents: 0n, giftCardSalesAmountCents: 9500n, giftCardServiceCents: 0n });
+  const redemption = calculateRevenue({ discountedFeePerformanceCents: 10000n, giftCardSalesAmountCents: 0n, giftCardServiceCents: 10000n });
+  expect(sale + redemption).toBe(9500n);
+  expect(redemption).toBe(0n);
+  expect(calculateRevenue({ discountedFeePerformanceCents: 12000n, giftCardSalesAmountCents: 0n, giftCardServiceCents: 10000n })).toBe(2000n);
+});
+
+it("礼卡小费不减少营业额，流水与店铺收入各扣一次，服务业绩和工资完整保留", () => {
+  const service = calculateWorkRecordFinance(record({ cashServiceCents: 0n, giftCardServiceCents: 10000n, cashTipCents: 0n, giftCardTipCents: 2000n }));
+  const input = { ...service, giftCardSalesAmountCents: 0n, giftCardRedemptionCents: 12000n, employeeIncomeCents: service.employeeTotalIncomeCents };
+  expect(calculateRevenue(input)).toBe(0n);
+  expect(calculateDailyTurnover(input)).toBe(-2000n);
+  expect(calculateStoreIncome(input)).toBe(-8000n);
+  expect(service.discountedFeePerformanceCents).toBe(10000n);
+  expect(service.employeeTotalIncomeCents).toBe(8000n);
+});
+
+it("礼卡实付超过折后业绩时保留负营业额，平均值支持正负混合及负半美分舍入", () => {
+  const revenue = calculateRevenue({ discountedFeePerformanceCents: 1000n, giftCardSalesAmountCents: 0n, giftCardServiceCents: 2001n });
+  expect(revenue).toBe(-1001n);
+  expect(calculateAverageRevenue([revenue, 0n])).toBe(-501n);
+  expect(calculateAverageRevenue([revenue, 2000n])).toBe(500n);
 });
 
 describe("两页总收入的礼物卡收支", () => {
@@ -494,10 +519,10 @@ describe("两页总收入的礼物卡收支", () => {
   });
 });
 
-it("店铺收入复用含卖卡营业额，卖卡收入只计一次", () => {
+it("店铺收入复用扣核销流水，卖卡收入和礼卡服务金额均只计一次", () => {
   const input = { discountedFeePerformanceCents: 102000n, giftCardSalesAmountCents: 8000n,
-    totalTipCents: 5000n, employeeIncomeCents: 60000n, giftCardRedemptionCents: 3000n };
-  expect(calculateRevenue(input)).toBe(110000n);
+    totalTipCents: 5000n, employeeIncomeCents: 60000n, giftCardServiceCents: 3000n, giftCardRedemptionCents: 3000n };
+  expect(calculateRevenue(input)).toBe(107000n);
   expect(calculateStoreIncome(input)).toBe(52000n);
   expect(calculateStoreIncome({ ...input, giftCardSalesAmountCents: 0n })).toBe(44000n);
   expect(calculateStoreIncome({ ...input, giftCardRedemptionCents: 0n })).toBe(55000n);

@@ -2,8 +2,8 @@ export const financeSummaryMetrics = [
   {
     key: "averageRevenueCents",
     label: "平均营业额",
-    explanation: "所选日期范围内，已日结日期的折后营业额平均值，沿用当前员工和记工筛选。",
-    calculation: "平均营业额 = 已日结日期的折后大费业绩合计 ÷ 已日结天数。未日结日期不计入，已日结但无匹配记工的日期按零计入；不含小费或礼物卡销售。没有已日结日期时显示破折号。",
+    explanation: "所选日期范围内，已日结日期的营业额平均值，沿用当前员工和记工筛选；礼卡支付的服务金额不重复计入。",
+    calculation: "平均营业额 = 已日结日期的（折后大费业绩 − 礼物卡大费 + 卖卡实收）合计 ÷ 已日结天数。卖卡沿用当前筛选，小费不计入；空日结计零，无日结显示破折号。",
   },
   {
     key: "itemCount",
@@ -123,7 +123,7 @@ export const financeSummaryMetrics = [
     key: "storeIncomeCents",
     label: "店铺收入",
     explanation: "店铺在当前范围内的经营收入；卖卡记收入，用卡核销记支出。",
-    calculation: "店铺收入 = 营业额（所选折后服务金额＋所选卖卡实收）+ 所选小费 − 所选员工收入 − 礼物卡核销支出。按付款方式筛选时，员工收入只计算对应来源。",
+    calculation: "店铺收入 = 营业额 + 所选非礼卡小费 − 所选员工收入。营业额已扣除所选礼卡大费，不再扣除整笔礼卡核销。按付款方式筛选时，员工收入只计算对应来源。",
   },
   {
     key: "ownerWorkerIncomeCents",

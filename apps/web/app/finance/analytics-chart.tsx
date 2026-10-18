@@ -4,9 +4,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLanguage } from "../language-provider";
 import { smoothChartPath } from "./analytics-curve";
 
-export type ChartPoint = { label: string; value: number | null; secondary?: number | null; lostCount?: number; detail: string; dailyDetails?: { date: string; count: number }[]; dailyRevenueDetails?: { date: string; revenue: string }[] };
+export type ChartPoint = { label: string; value: number | null; secondary?: number | null; lostCount?: number; detail: string; dailyDetails?: { date: string; count: number }[]; dailyRevenueDetails?: { date: string; revenue: string; revenues?: string[] }[] };
 
-export type ChartSeries = { id: string; color: string; dash?: string; values: (number | null)[] };
+export type ChartSeries = { id: string; label?: string; color: string; dash?: string; values: (number | null)[] };
 
 export function Chart({ title, description, points, bars = false, currency = false, legend, series, controls, className = "" }: {
   title: string; description: string; points: ChartPoint[]; bars?: boolean; currency?: boolean; legend?: string | undefined;
@@ -29,24 +29,30 @@ export function Chart({ title, description, points, bars = false, currency = fal
   const plot = useRef<HTMLDivElement>(null);
   const [plotWidth, setPlotWidth] = useState(600);
   const groupedBars = bars && series !== undefined;
-  const fixedWidth = !bars || groupedBars;
   useEffect(() => {
-    if (!fixedWidth || !plot.current || typeof ResizeObserver === "undefined") return;
+    if (!plot.current || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(([entry]) => {
       if (entry && entry.contentRect.width > 0) setPlotWidth(Math.max(240, entry.contentRect.width));
     });
     observer.observe(plot.current);
     return () => observer.disconnect();
-  }, [fixedWidth]);
+  }, []);
   const curves: ChartSeries[] = series ?? [
     { id: "primary", color: "var(--brand)", values: points.map(point => point.value) },
     { id: "secondary", color: "var(--chart-secondary)", dash: "6 4", values: points.map(point => point.secondary ?? null) },
   ];
-  const width = fixedWidth ? plotWidth : Math.max(600, points.length * 26 + 80);
-  const height = 270, left = 65, right = width - 20, bottom = 225, top = 20;
+  const number = new Intl.NumberFormat(locale, currency ? { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol", minimumFractionDigits: 0, maximumFractionDigits: 2 } : { maximumFractionDigits: 0 });
+  const label = (value: number | null | undefined) => value == null ? "—" : number.format(value);
+  // Reserve the full label width for every bar, including at the 14px mobile font size.
+  const values = groupedBars ? curves.flatMap(curve => curve.values) : points.map(point => point.value);
+  const valueWidth = Math.max(36, ...values.map(value => label(value).length * 9 + 16));
+  const categoryWidth = Math.max(60, ...points.map(point => (point.label.length === 10 ? 5 : point.label.length) * 9 + 16));
+  const groupWidth = Math.max(categoryWidth, groupedBars ? curves.length * valueWidth + 16 : valueWidth);
+  const width = bars ? Math.max(plotWidth, points.length * groupWidth + 85) : plotWidth;
+  const height = bars ? 310 : 270, left = 65, right = width - 20, bottom = bars ? 250 : 225, top = bars ? 44 : 20;
   const max = bars && !groupedBars ? points.reduce((max, point) => Math.max(max, (point.value ?? 0) + (point.lostCount ?? 0)), 1)
     : curves.reduce((max, curve) => curve.values.reduce<number>((max, value) => Math.max(max, value ?? 0), max), 1);
-  const min = groupedBars ? curves.reduce((min, curve) => curve.values.reduce<number>((min, value) => Math.min(min, value ?? 0), min), 0) : 0;
+  const min = curves.reduce((min, curve) => curve.values.reduce<number>((min, value) => Math.min(min, value ?? 0), min), 0);
   const floor = currency ? Math.floor(min / 5) * 5 : Math.floor(min);
   const ceiling = currency ? Math.ceil(max / 5) * 5 : Math.max(4, Math.ceil(max / 4) * 4);
   const x = (i: number) => left + (i + .5) * (right - left) / Math.max(1, points.length);
@@ -58,8 +64,8 @@ export function Chart({ title, description, points, bars = false, currency = fal
     {legend && <p className="analytics-legend">{legend}</p>}
     {controls}
     {points.length === 0 && <p className="empty-state">{en ? "No service records in this range." : "当前范围没有记工。"}</p>}
-    <div className={fixedWidth ? "analytics-plot" : "analytics-scroll"} ref={plot} tabIndex={0} aria-label={title}>
-      <svg width={fixedWidth ? "100%" : width} height={height} viewBox={`0 0 ${width} ${height}`} aria-label={title}>
+    <div className={bars ? "analytics-scroll" : "analytics-plot"} ref={plot} tabIndex={0} aria-label={title}>
+      <svg width={bars ? width : "100%"} height={height} viewBox={`0 0 ${width} ${height}`} aria-label={title}>
         {Array.from({ length: 5 }, (_, i) => { const value = floor + (ceiling - floor) * i / 4; return <g key={i}>
           <line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="var(--line)" />
           <text x={left - 8} y={y(value) + 4} textAnchor="end">{currency ? `$${Math.round(value)}` : value}</text>
@@ -69,19 +75,26 @@ export function Chart({ title, description, points, bars = false, currency = fal
         {points.map((point, i) => <g key={point.label}>
           {groupedBars && curves.map((curve, seriesIndex) => {
             const value = curve.values[i];
-            if (value == null) return null;
-            const barWidth = Math.min(22, (right - left) / points.length * .72 / curves.length);
-            return <rect key={curve.id} data-series={curve.id} x={x(i) + (seriesIndex - curves.length / 2) * barWidth} y={Math.min(y(value), y(0))} width={barWidth * .88} height={Math.abs(y(value) - y(0))} fill={curve.color} rx="1" />;
+            const slot = (right - left) / points.length / curves.length;
+            const center = x(i) + (seriesIndex - (curves.length - 1) / 2) * slot;
+            const barWidth = Math.min(28, slot * .65);
+            return <g key={curve.id}>
+              {value != null && <rect data-series={curve.id} x={center - barWidth / 2} y={Math.min(y(value), y(0))} width={barWidth} height={Math.abs(y(value) - y(0))} fill={curve.color} rx="1" />}
+              <text className="analytics-bar-value" data-series={curve.id} x={center} y={value != null && value < 0 ? y(value) + 18 : y(value ?? 0) - 8} textAnchor="middle">{label(value)}</text>
+            </g>;
           })}
-          {bars && !groupedBars && point.value !== null && <rect x={x(i) - Math.min(22, (right - left) / points.length * .32)} y={y(point.value)} width={Math.min(44, (right - left) / points.length * .64)} height={bottom - y(point.value)} fill="var(--brand)" rx="3" />}
+          {bars && !groupedBars && point.value !== null && <>
+            <rect x={x(i) - Math.min(22, (right - left) / points.length * .32)} y={y(point.value)} width={Math.min(44, (right - left) / points.length * .64)} height={bottom - y(point.value)} fill="var(--brand)" rx="3" />
+            <text className="analytics-bar-value" x={x(i)} y={y(point.value + (point.lostCount ?? 0)) - ((point.lostCount ?? 0) > 0 ? 25 : 8)} textAnchor="middle">{label(point.value)}</text>
+          </>}
           {bars && (point.lostCount ?? 0) > 0 && <g data-lost-count={point.lostCount}>
             <rect x={x(i) - Math.min(22, (right - left) / points.length * .32)} y={y((point.value ?? 0) + point.lostCount!)} width={Math.min(44, (right - left) / points.length * .64)} height={y(point.value ?? 0) - y((point.value ?? 0) + point.lostCount!)} fill="var(--chart-loss)" rx="2" />
-            <text className="analytics-lost-count" x={x(i)} y={y((point.value ?? 0) + point.lostCount!) - 5} textAnchor="middle">+{point.lostCount}</text>
+            <text className="analytics-bar-value analytics-lost-count" x={x(i)} y={y((point.value ?? 0) + point.lostCount!) - 8} textAnchor="middle">+{point.lostCount}</text>
           </g>}
           {bars && !groupedBars && point.value === null && <text x={x(i)} y={bottom - 8} textAnchor="middle">—</text>}
           {!bars && curves.map(curve => curve.values[i] != null && <circle key={curve.id} cx={x(i)} cy={y(curve.values[i]!)} r={points.length > 90 ? 1.5 : 2.5} fill={curve.color} />)}
-          {labelIndices.has(i) && <text x={x(i)} y={bottom + 23} textAnchor="middle">{point.label.length === 10 ? point.label.slice(5) : point.label}</text>}
-          <rect className="analytics-hit" x={x(i) - (right - left) / points.length / 2} y={top} width={(right - left) / points.length} height={bottom - top + (point.dailyRevenueDetails !== undefined ? 35 : 0)} fill="transparent" tabIndex={0} role="button" aria-label={point.detail} aria-pressed={point.dailyRevenueDetails !== undefined ? revenueSelection === point.label : undefined}
+          {(bars || labelIndices.has(i)) && <text className="analytics-axis-label" x={x(i)} y={bottom + (bars ? 44 : 23)} textAnchor="middle">{point.label.length === 10 ? point.label.slice(5) : point.label}</text>}
+          <rect className="analytics-hit" x={x(i) - (right - left) / points.length / 2} y={top} width={(right - left) / points.length} height={bottom - top + (point.dailyRevenueDetails !== undefined ? (bars ? 55 : 35) : 0)} fill="transparent" tabIndex={0} role="button" aria-label={point.detail} aria-pressed={point.dailyRevenueDetails !== undefined ? revenueSelection === point.label : undefined}
             onMouseEnter={() => setSelected(point.label)} onFocus={() => setSelected(point.label)} onClick={() => activate(point)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(point); } }}><title>{point.detail}</title></rect>
         </g>)}
       </svg>
@@ -104,8 +117,8 @@ export function Chart({ title, description, points, bars = false, currency = fal
     </details> : points.some(point => point.dailyRevenueDetails !== undefined) ? <details className="weekday-revenue-details" ref={revenueTable}>
       <summary>{en ? "View data table" : "查看数据表"}{revenuePoint && ` · ${revenuePoint.label}`}</summary>
       {!revenuePoint ? <p className="empty-state">{en ? "Select a weekday in the chart to see its daily revenue." : "点击图中的星期，查看该星期各日期的营业额。"}</p> : revenuePoint.dailyRevenueDetails?.length === 0 ? <p className="empty-state">{en ? "No dates for this weekday in the selected range." : "当前范围没有该星期的日期。"}</p> : <div className="table-scroll" aria-live="polite"><table className="data-table">
-        <thead><tr><th>{en ? "Date" : "日期"}</th><th>{en ? "Revenue" : "营业额"}</th></tr></thead>
-        <tbody>{revenuePoint.dailyRevenueDetails?.map(day => <tr key={day.date}><td><time dateTime={day.date}>{day.date}</time></td><td>{day.revenue}</td></tr>)}</tbody>
+        <thead><tr><th>{en ? "Date" : "日期"}</th>{series ? series.map(curve => <th key={curve.id}>{curve.label ?? curve.id}</th>) : <th>{en ? "Revenue" : "营业额"}</th>}</tr></thead>
+        <tbody>{revenuePoint.dailyRevenueDetails?.map(day => <tr key={day.date}><td><time dateTime={day.date}>{day.date}</time></td>{(day.revenues ?? [day.revenue]).map((value, index) => <td key={index}>{value}</td>)}</tr>)}</tbody>
       </table></div>}
     </details> : <details><summary>{en ? "View data table" : "查看数据表"}</summary><div className="table-scroll"><table className="data-table"><thead><tr><th>{en ? "Period" : "时间"}</th><th>{en ? "Details" : "统计明细"}</th></tr></thead><tbody>{points.map(p => <tr key={p.label}><td>{p.label}</td><td>{p.detail}</td></tr>)}</tbody></table></div></details>}
   </section>;

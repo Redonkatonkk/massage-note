@@ -1,6 +1,6 @@
 {
   "name": "@massage-note/web",
-  "version": "1.31.0",
+  "version": "1.32.3",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",

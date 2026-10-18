@@ -30,18 +30,18 @@ it("所选范围平均值只包含已日结折后业绩，包含卖卡但排除�
     businessDate: new Date(day), status: "CONFIRMED", isHighlighted: false,
     mainServiceAmountCents: 10000n, addonTotalCents: 0n, grossFeeBaseCents: 10000n,
     discountTotalCents: 599n, discountedFeePerformanceCents: 9401n,
-    actualServiceCollectedCents: 9401n, cashServiceCents: 9401n, cardServiceCents: 0n, giftCardServiceCents: 0n,
-    cashTipCents: 1000n, cardTipCents: 0n, giftCardTipCents: 0n,
+    actualServiceCollectedCents: 9401n, cashServiceCents: 7400n, cardServiceCents: 0n, giftCardServiceCents: 2001n,
+    cashTipCents: 1000n, cardTipCents: 0n, giftCardTipCents: 200n,
     totalLargeFeeWageCents: 5000n, cashAllocatedServiceWageCents: 5000n, cashAcquiredServiceWageCents: 5000n,
   })) as never);
   const read = () => service.summary({} as never, "store", query);
-  expect((await read()).totals).toMatchObject({ averageRevenueCents: 49701n, averageRevenueDayCount: 2 });
+  expect((await read()).totals).toMatchObject({ averageRevenueCents: 48700n, averageRevenueDayCount: 2 });
   expect(closedDates).toHaveBeenCalledWith({
     where: { storeId: "store", businessDate: { gte: new Date("2026-09-01"), lte: new Date("2026-09-03") }, status: "CLOSED" },
     select: { businessDate: true }, distinct: ["businessDate"],
   });
   closedDates.mockResolvedValue([{ businessDate: new Date("2026-09-01") }]);
-  expect((await read()).totals).toMatchObject({ averageRevenueCents: 99401n, averageRevenueDayCount: 1 });
+  expect((await read()).totals).toMatchObject({ averageRevenueCents: 97400n, averageRevenueDayCount: 1 });
   closedDates.mockResolvedValue([]);
   expect((await read()).totals).toMatchObject({ averageRevenueCents: null, averageRevenueDayCount: 0 });
 });
@@ -56,7 +56,7 @@ it("每日30天基准跨筛选起点，排除窗口外和未日结日期，含�
     ]) },
     workRecord: { groupBy: vi.fn().mockResolvedValue([
       { businessDate: day("2026-08-15"), _sum: { discountedFeePerformanceCents: 999999n } },
-      { businessDate: day("2026-08-16"), _sum: { discountedFeePerformanceCents: 10000n } },
+      { businessDate: day("2026-08-16"), _sum: { discountedFeePerformanceCents: 10000n, giftCardServiceCents: 2000n } },
       { businessDate: day("2026-09-13"), _sum: { discountedFeePerformanceCents: 999999n } },
     ]) },
     giftCardSale: { groupBy: vi.fn().mockResolvedValue([
@@ -66,11 +66,11 @@ it("每日30天基准跨筛选起点，排除窗口外和未日结日期，含�
   const service = new FinanceQueriesService(prisma as never, {} as never);
   const internal = service as unknown as { recentDailyRevenue: (storeId: string, dates: string[], client: unknown) => Promise<Map<string, unknown>> };
   const result = await internal.recentDailyRevenue("store", ["2026-09-14", "2026-09-13"], prisma);
-  expect(result.get("2026-09-14")).toEqual({ averageCents: 5251n, dayCount: 2 });
+  expect(result.get("2026-09-14")).toEqual({ averageCents: 4251n, dayCount: 2 });
   expect(result.has("2026-09-13")).toBe(false);
   expect(prisma.workRecord.groupBy).toHaveBeenCalledWith({
     by: ["businessDate"], where: { storeId: "store", businessDate: { gte: day("2026-08-15"), lte: day("2026-09-14") }, status: { not: "PLACEHOLDER" }, deletedAt: null },
-    _sum: { discountedFeePerformanceCents: true },
+    _sum: { discountedFeePerformanceCents: true, giftCardServiceCents: true },
   });
   prisma.businessDayClosing.findMany.mockResolvedValue([]);
   expect((await internal.recentDailyRevenue("store", ["2026-09-14"], prisma)).size).toBe(0);

@@ -1,8 +1,42 @@
 import { describe, expect, it } from "vitest";
-import { calculateFinanceAnalytics } from "../src/finance-analytics.js";
+import { calculateFinanceAnalytics, calculateWeekdayRevenueComparison } from "../src/finance-analytics.js";
 const record = (businessDate: string, startAt: string, revenueCents = 10000n, timezone = "America/New_York") => ({ businessDate, startAt: new Date(startAt), revenueCents, timezone });
 
+describe("星期营业额三组对比", () => {
+  it("高光、非高光、全部使用同一日结分母，卖卡只进入非高光及全部，先合计再分别舍入", () => {
+    const result = calculateWeekdayRevenueComparison({ dateFrom: "2026-10-05", dateTo: "2026-10-12", records: [
+      { businessDate: "2026-10-05", revenueCents: 10001n, isHighlighted: true },
+      { businessDate: "2026-10-05", revenueCents: 20000n, isHighlighted: false },
+      { businessDate: "2026-10-06", revenueCents: 999999n, isHighlighted: true },
+      { businessDate: "2026-10-04", revenueCents: 999999n, isHighlighted: true },
+    ], sales: [{ businessDate: "2026-10-05", revenueCents: 5001n }], closedDates: ["2026-10-05", "2026-10-05", "2026-10-12"] });
+    expect(result.weekdays[0]).toEqual({ weekday: 0, closedDayCount: 2, highlightedAverageCents: "5001", nonHighlightedAverageCents: "12501", averageCents: "17501" });
+    expect(result.weekdays[1]).toEqual({ weekday: 1, closedDayCount: 0, highlightedAverageCents: null, nonHighlightedAverageCents: null, averageCents: null });
+    expect(result.days[0]).toEqual({ businessDate: "2026-10-05", highlightedRevenueCents: "10001", nonHighlightedRevenueCents: "25001", revenueCents: "35002" });
+    expect(result.days[1]).toEqual({ businessDate: "2026-10-06", highlightedRevenueCents: null, nonHighlightedRevenueCents: null, revenueCents: null });
+    expect(result.days[7]).toEqual({ businessDate: "2026-10-12", highlightedRevenueCents: "0", nonHighlightedRevenueCents: "0", revenueCents: "0" });
+    expect(result.hasData).toBe(true);
+  });
+  it("无高光成交仍有零值样本；范围外记录和日结不造成当前范围有数据", () => {
+    const input = { dateFrom: "2026-10-05", dateTo: "2026-10-05", records: [{ businessDate: "2026-10-05", revenueCents: 12000n, isHighlighted: false }], sales: [], closedDates: ["2026-10-05"] };
+    expect(calculateWeekdayRevenueComparison(input).weekdays[0]).toMatchObject({ closedDayCount: 1, highlightedAverageCents: "0", nonHighlightedAverageCents: "12000", averageCents: "12000" });
+    expect(calculateWeekdayRevenueComparison({ ...input, dateFrom: "2026-10-06", dateTo: "2026-10-06" }).hasData).toBe(false);
+  });
+});
+
 describe("经营分析历史口径", () => {
+  it("负营业额在星期对比、滚动和累计平均中保留并按负半美分舍入", () => {
+    const result = calculateFinanceAnalytics({ dateFrom: "2026-10-05", dateTo: "2026-10-12", records: [
+      record("2026-10-05", "2026-10-05T15:00:00Z", -1001n),
+    ], sales: [], closedDates: ["2026-10-05", "2026-10-12"] });
+    expect(result.days[0]).toMatchObject({ revenueCents: "-1001", averageCents: "-1001", average30Cents: "-1001", cumulativeAverageCents: "-1001" });
+    expect(result.days[7]).toMatchObject({ average30Cents: "-501", cumulativeAverageCents: "-501" });
+    expect(result.weekdays[0]!.averageCents).toBe("-501");
+    const comparison = calculateWeekdayRevenueComparison({ dateFrom: "2026-10-05", dateTo: "2026-10-12", records: [
+      { businessDate: "2026-10-05", revenueCents: -1001n, isHighlighted: true },
+    ], sales: [], closedDates: ["2026-10-05", "2026-10-12"] });
+    expect(comparison.weekdays[0]).toMatchObject({ highlightedAverageCents: "-501", averageCents: "-501" });
+  });
   it("30天窗口包含起日前29天，累计平均只含所选区间；未日结留空、空日结计零并按美分舍入", () => {
     const result = calculateFinanceAnalytics({ dateFrom: "2026-10-01", dateTo: "2026-10-03", records: [
       record("2026-09-01", "2026-09-01T15:00:00Z", 999999n),

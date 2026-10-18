@@ -1,6 +1,6 @@
 # GitHub → GHCR → 群晖部署
 
-> 当前版本：`1.31.0` · 镜像：`ghcr.io/redonkatonkk/massage-note`
+> 当前版本：`1.32.3` · 镜像：`ghcr.io/redonkatonkk/massage-note`
 > 历史版本变化统一查看 [`CHANGELOG.md`](../../CHANGELOG.md)，不在本手册重复累积。
 
 标准发布链路：
@@ -154,6 +154,10 @@ rmdir "$task_docker_config"
 NAS 只保存任务并提供 HTTPS API，不能从容器或浏览器直接控制远端 Mac 的“信息”App。本地 Mac 的 LaunchAgent 使用店铺代理令牌主动访问 `https://<production-domain>/api/v1`、领取任务，再通过本机 `/usr/bin/osascript` 调用“信息”；NAS 无需访问 Mac，也不需要为代理开放入站端口。保留原因：Mac 主动领取，不需要 NAS 获得本机 App 控制权限。
 
 固定 Mac 的安装、完全磁盘访问权限、附件路由和排障步骤统一见 [`MESSAGES_AGENT.md`](MESSAGES_AGENT.md)。部署 NAS 本身不需要安装任何 macOS 组件。保留原因：代理是独立交付物，具体权限规则只在代理手册维护。
+
+## 每日异地恢复包
+
+独立 Google Drive 目录、纽约午夜任务、加密密钥和 Mac 按需恢复见 [灾难恢复手册](DISASTER_RECOVERY.md)。备份运行器独立安装，不更新 `mn` 应用镜像；只有真实上传、完整读回和隔离恢复通过后才算启用。保留原因：发布前数据库备份不能替代包含配置与离线镜像的每日灾难恢复包，创建脚本也不是线上运行证据。
 
 ## 每次升级 NAS
 

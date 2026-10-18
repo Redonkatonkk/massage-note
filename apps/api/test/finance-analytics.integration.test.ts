@@ -4,6 +4,8 @@ import type { User } from "@massage-note/database";
 import { PrismaService } from "../src/database/prisma.service.js";
 import { StoreAccessService } from "../src/stores/store-access.service.js";
 import { FinanceAnalyticsService } from "../src/finance/finance-analytics.service.js";
+import { FinanceQueriesService } from "../src/finance/finance-queries.service.js";
+import { BoardsService } from "../src/boards/boards.service.js";
 const enabled = process.env.DATABASE_INTEGRATION_TESTS === "1";
 const prisma = new PrismaService();
 const service = new FinanceAnalyticsService(prisma, new StoreAccessService(prisma));
@@ -63,11 +65,14 @@ describe.skipIf(!enabled).sequential("经营分析数据库与权限", () => {
       expect(result.days[0]!.hours[10]).toBe(count);
       expect(result.weekdays[0]).toMatchObject({ closedDayCount: 1, calendarDayCount: 1, averageCents: revenueCents });
       expect(result.weekdays[0]!.hours[10]).toBe(count);
+      expect(result.weekdayComparison.weekdays[0]).toEqual({ weekday: 0, closedDayCount: 1, highlightedAverageCents: "10000", nonHighlightedAverageCents: "14500", averageCents: "24500" });
+      expect(result.weekdayComparison.days[0]).toEqual({ businessDate: "2026-01-05", highlightedRevenueCents: "10000", nonHighlightedRevenueCents: "14500", revenueCents: "24500" });
       await expect(service.analytics(actor(employee), storeId, { highlightFilter })).rejects.toThrow();
       await expect(service.analytics(actor(outsider), storeId, { highlightFilter })).rejects.toThrow();
     }
     await prisma.businessDayClosing.update({ where: { id: closing.id }, data: { status: "CANCELLED" } });
     expect((await service.analytics(actor(owner), storeId, { dateFrom: "2026-01-05", dateTo: "2026-01-05" })).days[0]!.revenueCents).toBeNull();
+    expect((await service.analytics(actor(owner), storeId, { dateFrom: "2026-01-05", dateTo: "2026-01-05" })).weekdayComparison.weekdays[0]).toMatchObject({ closedDayCount: 0, highlightedAverageCents: null, nonHighlightedAverageCents: null, averageCents: null });
   });
   it("三种筛选的30天窗口读取起日前29天，7天窗口及累计平均保留各自边界", async () => {
     const template = await prisma.workRecord.findFirstOrThrow({ where: { storeId, deletedAt: null, isHighlighted: false } });
@@ -88,6 +93,50 @@ describe.skipIf(!enabled).sequential("经营分析数据库与权限", () => {
       const result = await service.analytics(actor(owner), storeId, { dateFrom: "2026-01-05", dateTo: "2026-01-05", highlightFilter });
       expect(result.days).toHaveLength(1);
       expect(result.days[0]).toMatchObject({ average30Cents, average30DayCount: 4, averageCents, averageDayCount: 2, cumulativeAverageCents, cumulativeAverageDayCount: 1 });
+    }
+  });
+
+  it("跨日卖卡及混合用卡在看板、日历、经营分析和平均中只计一次，核销小费与工资不变", async () => {
+    const access = new StoreAccessService(prisma);
+    const boards = new BoardsService(prisma, access, {} as never);
+    const finance = new FinanceQueriesService(prisma, access);
+    const template = await prisma.workRecord.findFirstOrThrow({ where: { storeId, businessDate: date, deletedAt: null, isHighlighted: false } });
+    const redemptionDate = new Date("2026-01-20T00:00:00Z");
+    await prisma.workRecord.createMany({ data: [
+      { isHighlighted: false, giftCardServiceCents: 10000n, cashServiceCents: 0n, giftCardTipCents: 2000n, deletedAt: null },
+      { isHighlighted: true, giftCardServiceCents: 6000n, cashServiceCents: 4000n, giftCardTipCents: 500n, deletedAt: null },
+      { isHighlighted: false, giftCardServiceCents: 3000n, cashServiceCents: 7000n, giftCardTipCents: 0n, deletedAt: new Date() },
+    ].map(row => ({ ...template, ...row, id: randomUUID(), businessDate: redemptionDate, startAt: new Date("2026-01-20T15:00:00Z"),
+      giftCardSerialNumber: row.isHighlighted ? "legacy-card" : "redemption-sale",
+      cashAllocatedServiceWageCents: row.cashServiceCents / 2n, cashAcquiredServiceWageCents: row.cashServiceCents / 2n,
+      totalTipCents: row.giftCardTipCents, customerTotalPaidCents: 10000n + row.giftCardTipCents,
+      employeeTotalIncomeCents: 5000n + row.giftCardTipCents,
+    })) });
+    await prisma.giftCardSale.create({ data: { storeId, businessDate: new Date("2026-01-19T00:00:00Z"),
+      serialNumber: "redemption-sale", serialNumberNormalized: "redemption-sale", faceValueCents: 10000n,
+      amountCents: 9500n, discountCents: 500n, cashCents: 9500n, cardCents: 0n,
+      operatorMembershipId: memberId, createdBy: owner, updatedBy: owner,
+    } });
+    await prisma.businessDayClosing.createMany({ data: ["2026-01-19", "2026-01-20"].map(day => ({ storeId,
+      businessDate: new Date(`${day}T00:00:00Z`), status: "CLOSED", closedBy: owner, cycleNo: 1,
+      totalsSnapshotJson: {}, warningSnapshotJson: [],
+    })) });
+    const dates = { dateFrom: "2026-01-19", dateTo: "2026-01-20" };
+    const calendar = await boards.openWorkDates(actor(owner), storeId, dates);
+    expect(calendar.closedDates.map(row => row.revenueCents)).toEqual([9500n, 4000n]);
+    expect((await boards.getBoard(actor(owner), storeId, dates.dateTo)).statistics).toMatchObject({
+      discountedFeePerformanceCents: 20000n, revenueCents: 4000n, storeIncomeCents: -8500n,
+      employeeIncomeCents: 12500n, totalIncomeCents: 4000n,
+    });
+    const summary = await finance.summary(actor(owner), storeId, { ...dates, membershipIds: [], paymentMethod: "ALL", amountType: "ALL", highlightFilter: "ALL" });
+    expect(summary.totals).toMatchObject({ averageRevenueCents: 6750n, averageRevenueDayCount: 2,
+      totalTurnoverCents: 11000n, storeIncomeCents: 1000n, employeeIncomeCents: 12500n,
+    });
+    for (const [highlightFilter, saleRevenue, redemptionRevenue] of [["ALL", "9500", "4000"], ["ONLY_HIGHLIGHTED", "0", "4000"], ["EXCLUDE_HIGHLIGHTED", "9500", "0"]] as const) {
+      const result = await service.analytics(actor(owner), storeId, { ...dates, highlightFilter });
+      expect(result.days.map(row => row.revenueCents)).toEqual([saleRevenue, redemptionRevenue]);
+      expect(result.days[1]!.averageCents).toBe(highlightFilter === "ALL" ? "6750" : highlightFilter === "ONLY_HIGHLIGHTED" ? "2000" : "4750");
+      expect(result.weekdayComparison.days[1]).toMatchObject({ highlightedRevenueCents: "4000", nonHighlightedRevenueCents: "0", revenueCents: "4000" });
     }
   });
 });

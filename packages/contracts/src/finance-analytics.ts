@@ -9,10 +9,16 @@ export const financeAnalyticsQuerySchema = z.object({
   path: ["dateTo"], message: "结束日期不能早于开始日期",
 });
 export type FinanceAnalyticsQuery = z.infer<typeof financeAnalyticsQuerySchema>;
+export interface WeekdayRevenueComparison {
+  hasData: boolean;
+  days: { businessDate: string; highlightedRevenueCents: string | null; nonHighlightedRevenueCents: string | null; revenueCents: string | null }[];
+  weekdays: { weekday: number; closedDayCount: number; highlightedAverageCents: string | null; nonHighlightedAverageCents: string | null; averageCents: string | null }[];
+}
 export interface FinanceAnalyticsResponse {
   dateFrom: string;
   dateTo: string;
   hasData: boolean;
+  weekdayComparison: WeekdayRevenueComparison;
   hours: { hour: number; count: number }[];
   days: {
     businessDate: string; hours: number[]; count: number; lostCustomerCount: number; revenueCents: string | null;

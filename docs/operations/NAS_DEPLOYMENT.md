@@ -1,6 +1,6 @@
 # GitHub → GHCR → 群晖部署
 
-> 当前版本：`1.32.3` · 镜像：`ghcr.io/redonkatonkk/massage-note`
+> 当前版本：`1.32.8` · 镜像：`ghcr.io/redonkatonkk/massage-note`
 > 历史版本变化统一查看 [`CHANGELOG.md`](../../CHANGELOG.md)，不在本手册重复累积。
 
 标准发布链路：
@@ -8,9 +8,9 @@
 ```text
 本机提交并 push main
         ↓
-GitHub Actions 完整验证
-        ↓
-构建 linux/amd64 镜像并推送 GHCR
+GitHub Actions 完整验证 ──┐
+                         ├→ 均成功 → 为同一 digest 发布正式标签
+并行构建 linux/amd64 ─────┘
         ↓
 群晖 Container Manager 拉取版本标签并更新 mn 项目
 ```
@@ -110,7 +110,18 @@ git push origin main
 
 ### 等待对应 CI
 
-`.github/workflows/ci.yml` 先运行 `verify`，只有 `main` 的非 PR 事件验证通过后才运行 `publish-nas-image`。
+`.github/workflows/ci.yml` 在 `main` 的非 PR 事件中并行运行 `verify` 与 `build-nas-image`；只有两者都成功才运行 `publish-nas-image`，把候选镜像的同一 digest 标为语义版本、`latest` 和提交标签，不重新构建。已有语义版本若指向其他 digest 则拒绝覆盖。保留原因：缩短串行等待，同时保持完整验证、不可变版本和产物追溯。
+
+镜像构建承担这类运行的生产构建检查，`verify` 不再重复构建；普通分支 push 与 PR 继续在 `verify` 内执行生产构建。依赖先按锁文件和 workspace 安装配置 `pnpm fetch`，再离线安装；GHCR `buildcache-main` 保存中间层，手动分支实测只写 `buildcache-benchmark`。保留原因：包版本递增不应重复下载依赖，基准测试不能覆盖正式构建缓存。方案依据 [pnpm fetch](https://pnpm.io/cli/fetch) 与 [Docker registry cache](https://docs.docker.com/build/cache/backends/registry/)。
+
+需要在独立分支实测镜像耗时，可手动运行：
+
+```bash
+gh workflow run ci.yml --repo Redonkatonkk/massage-note \
+  --ref <branch> -f build_nas_image=true
+```
+
+分支实测只生成 `ci-<run_id>-<attempt>` 候选镜像，不生成正式标签，也不更新 NAS；完整验证和镜像构建都会执行。每次运行结束后，`report-timing` 在运行摘要记录阶段耗时；端到端时间以运行创建到完成计，首次新缓存与后续复用应分别记录。保留原因：计时必须包含实际检查与缓存开销，不能把热缓存或分支构建冒充完整生产部署。
 
 ```bash
 release_sha=$(git rev-parse HEAD)

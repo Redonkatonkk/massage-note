@@ -4,6 +4,14 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      build_nas_image:
+        description: 构建 NAS 候选镜像并计时（分支运行不发布正式标签）
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 jobs:
   verify:
@@ -48,19 +56,21 @@ jobs:
           pnpm --filter @massage-note/api test
         env:
           DATABASE_INTEGRATION_TESTS: "1"
-      - run: pnpm build
+      - name: 生产构建（发布运行由并行镜像构建覆盖）
+        if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && !inputs.build_nas_image)
+        run: pnpm build
 
-  publish-nas-image:
-    name: 发布 NAS 镜像到 GHCR
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: verify
+  build-nas-image:
+    name: 并行构建 NAS 候选镜像
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || inputs.build_nas_image)
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    concurrency:
-      group: publish-nas-image-main
-      cancel-in-progress: false
+    outputs:
+      name: ${{ steps.image.outputs.name }}
+      version: ${{ steps.image.outputs.version }}
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
 
@@ -70,6 +80,11 @@ jobs:
         run: |
           echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
           echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            echo "cache=main" >> "$GITHUB_OUTPUT"
+          else
+            echo "cache=benchmark" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: docker/setup-buildx-action@v3
 
@@ -80,17 +95,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 生成版本、latest 与提交标签
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ steps.image.outputs.name }}
-          tags: |
-            type=raw,value=${{ steps.image.outputs.version }}
-            type=raw,value=latest
-            type=sha,prefix=sha-,format=short
-
-      - name: 构建并推送 linux/amd64 NAS 镜像
+      - name: 构建并推送 linux/amd64 候选镜像
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -98,12 +104,16 @@ jobs:
           target: nas
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.image.outputs.name }}:ci-${{ github.run_id }}-${{ github.run_attempt }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
           provenance: false
           sbom: false
-          cache-from: type=gha,scope=nas-image
-          cache-to: type=gha,mode=max,scope=nas-image
+          cache-from: |
+            type=registry,ref=${{ steps.image.outputs.name }}:buildcache-${{ steps.image.outputs.cache }}
+            type=registry,ref=${{ steps.image.outputs.name }}:buildcache-main
+          cache-to: type=registry,ref=${{ steps.image.outputs.name }}:buildcache-${{ steps.image.outputs.cache }},mode=max
           build-args: |
             APP_VERSION=${{ steps.image.outputs.version }}
             NEXT_PUBLIC_API_BASE_URL=/api/v1
@@ -112,3 +122,69 @@ jobs:
             NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
             NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
             NEXT_PUBLIC_FIREBASE_APP_ID=${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
+
+  publish-nas-image:
+    name: 验证通过后发布正式镜像标签
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [verify, build-nas-image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: publish-nas-image-main
+      cancel-in-progress: false
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 将已验证 digest 标记为正式版本
+        shell: bash
+        env:
+          IMAGE: ${{ needs.build-nas-image.outputs.name }}
+          VERSION: ${{ needs.build-nas-image.outputs.version }}
+          DIGEST: ${{ needs.build-nas-image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          error_file=$(mktemp)
+          trap 'rm -f "$error_file"' EXIT
+          if existing=$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{.Manifest.Digest}}' 2>"$error_file"); then
+            if [[ "$existing" != "$DIGEST" ]]; then
+              echo "正式版本 $VERSION 已存在且 digest 不同；请递增版本。" >&2
+              exit 1
+            fi
+          elif ! grep -Eq 'not found|manifest unknown' "$error_file"; then
+            cat "$error_file" >&2
+            exit 1
+          fi
+          docker buildx imagetools create --prefer-index=false \
+            --tag "$IMAGE:$VERSION" --tag "$IMAGE:latest" \
+            --tag "$IMAGE:sha-${GITHUB_SHA:0:7}" "$IMAGE@$DIGEST"
+
+  report-timing:
+    name: 记录流水线各阶段耗时
+    if: always()
+    needs: [verify, build-nas-image, publish-nas-image]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: 写入运行计时摘要
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
+            --jq '.jobs[] | select(.completed_at != null) | [.name, .conclusion, (((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601)) | tostring)] | @tsv' \
+            > "$RUNNER_TEMP/job-timing.tsv"
+          {
+            echo '| 阶段 | 结果 | 耗时（秒） |'
+            echo '| --- | --- | ---: |'
+            while IFS=$'\t' read -r name result seconds; do
+              printf '| %s | %s | %s |\n' "$name" "$result" "$seconds"
+            done < "$RUNNER_TEMP/job-timing.tsv"
+          } >> "$GITHUB_STEP_SUMMARY"

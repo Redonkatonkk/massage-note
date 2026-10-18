@@ -1,6 +1,6 @@
 # 开发指南
 
-> 适用版本：`1.32.3`
+> 适用版本：`1.32.8`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
 
@@ -109,6 +109,8 @@ pnpm build
 ```
 
 文档整理也至少运行 `pnpm version:check`、`pnpm docs:check` 和 `git diff --check`。链接检查覆盖 Git 已跟踪和未忽略的新 Markdown 文件，检查行内链接、图片与引用式链接的本地文件/目录目标，跳过代码示例；外部 URL 与标题锚点不在此命令的校验范围。保留原因：版本和本地链接各有独立检查，文档中的行为声明还须有实现证据。若文档修改涉及命令、路由、契约、金额或部署事实，还要运行相应代码验证；正式发布遵循完整 [`RELEASE_CHECKLIST.md`](../operations/RELEASE_CHECKLIST.md)。
+
+CI 发布运行将完整验证与镜像构建并行，生产构建由镜像阶段覆盖，普通分支与 PR 继续单独构建；分支实测与阶段计时见 [NAS 手册](../operations/NAS_DEPLOYMENT.md)。保留原因：避免本地和 CI 再次引入相同源码的串行重复构建。
 
 ## 版本同步位置
 

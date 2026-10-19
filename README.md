@@ -1,6 +1,6 @@
 # Massage note
 
-当前版本：`1.32.3`
+当前版本：`1.32.9`
 
 面向美国按摩店的中英文记工与财务管理 Web 应用，支持手机、iPad 和电脑。系统覆盖多店成员、今日记工、礼物卡、提成、确定性财务、日结、现金与工资结算、审计、实时同步和带确认预览的 AI 助手。
 
@@ -75,6 +75,8 @@ pnpm build
 ```
 
 集成测试使用独立的 `massage_note_test`，不会清空开发主库。完整环境和修改流程见 [`docs/engineering/DEVELOPMENT.md`](docs/engineering/DEVELOPMENT.md)。
+
+以上为开发阶段的完整验证参考；普通更新部署直接按 [默认更新部署流程](docs/operations/NAS_DEPLOYMENT.md#默认更新部署流程) 使用本地预检与并行 CI，不把这些命令再串行重跑一遍。保留原因：开发验证与发布验证已有明确分工，重复执行会增加等待。
 
 ## 部署与运维
 

@@ -8,9 +8,9 @@ export type ChartPoint = { label: string; value: number | null; secondary?: numb
 
 export type ChartSeries = { id: string; label?: string; color: string; dash?: string; values: (number | null)[] };
 
-export function Chart({ title, description, points, bars = false, currency = false, legend, series, controls, className = "" }: {
+export function Chart({ title, description, points, bars = false, fitWidth = false, compactBars = false, currency = false, legend, series, controls, className = "" }: {
   title: string; description: string; points: ChartPoint[]; bars?: boolean; currency?: boolean; legend?: string | undefined;
-  series?: ChartSeries[]; controls?: ReactNode; className?: string;
+  series?: ChartSeries[]; controls?: ReactNode; className?: string; fitWidth?: boolean; compactBars?: boolean;
 }) {
   const { locale } = useLanguage();
   const en = locale === "en-US";
@@ -32,27 +32,35 @@ export function Chart({ title, description, points, bars = false, currency = fal
   useEffect(() => {
     if (!plot.current || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(([entry]) => {
-      if (entry && entry.contentRect.width > 0) setPlotWidth(Math.max(240, entry.contentRect.width));
+      if (entry && entry.contentRect.width > 0) setPlotWidth(fitWidth ? entry.contentRect.width : Math.max(240, entry.contentRect.width));
     });
     observer.observe(plot.current);
     return () => observer.disconnect();
-  }, []);
+  }, [fitWidth]);
   const curves: ChartSeries[] = series ?? [
     { id: "primary", color: "var(--brand)", values: points.map(point => point.value) },
     { id: "secondary", color: "var(--chart-secondary)", dash: "6 4", values: points.map(point => point.secondary ?? null) },
   ];
   const number = new Intl.NumberFormat(locale, currency ? { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol", minimumFractionDigits: 0, maximumFractionDigits: 2 } : { maximumFractionDigits: 0 });
   const label = (value: number | null | undefined) => value == null ? "—" : number.format(value);
-  // Reserve the full label width for every bar, including at the 14px mobile font size.
+  // Compact groups reserve space for the bars and dates; long amounts can turn vertically.
   const values = groupedBars ? curves.flatMap(curve => curve.values) : points.map(point => point.value);
   const valueWidth = Math.max(36, ...values.map(value => label(value).length * 9 + 16));
   const categoryWidth = Math.max(60, ...points.map(point => (point.label.length === 10 ? 5 : point.label.length) * 9 + 16));
-  const groupWidth = Math.max(categoryWidth, groupedBars ? curves.length * valueWidth + 16 : valueWidth);
-  const width = bars ? Math.max(plotWidth, points.length * groupWidth + 85) : plotWidth;
-  const height = bars ? 310 : 270, left = 65, right = width - 20, bottom = bars ? 250 : 225, top = bars ? 44 : 20;
+  const groupWidth = Math.max(categoryWidth, groupedBars ? curves.length * (compactBars ? 24 : valueWidth) + (compactBars ? 12 : 16) : valueWidth);
+  const width = bars && !fitWidth ? Math.max(plotWidth, points.length * groupWidth + 85) : plotWidth;
+  const left = fitWidth ? 56 : 65, right = width - (fitWidth ? 8 : 20);
+  const seriesSlot = (right - left) / Math.max(1, points.length * curves.length);
+  const verticalLabels = groupedBars && (fitWidth || compactBars) && seriesSlot < valueWidth;
+  // Very narrow plots give each series its own label lane instead of shrinking the text.
+  const labelLanes = verticalLabels && seriesSlot < 18 ? curves.length : 1;
+  const labelSpace = verticalLabels ? (valueWidth + 8) * labelLanes : 0;
   const max = bars && !groupedBars ? points.reduce((max, point) => Math.max(max, (point.value ?? 0) + (point.lostCount ?? 0)), 1)
     : curves.reduce((max, curve) => curve.values.reduce<number>((max, value) => Math.max(max, value ?? 0), max), 1);
   const min = curves.reduce((min, curve) => curve.values.reduce<number>((min, value) => Math.min(min, value ?? 0), min), 0);
+  const negativeLabelSpace = min < 0 ? labelSpace : 0;
+  const height = (bars ? 310 : 270) + labelSpace + negativeLabelSpace;
+  const bottom = (bars ? 250 : 225) + labelSpace, top = (bars ? 44 : 20) + labelSpace;
   const floor = currency ? Math.floor(min / 5) * 5 : Math.floor(min);
   const ceiling = currency ? Math.ceil(max / 5) * 5 : Math.max(4, Math.ceil(max / 4) * 4);
   const x = (i: number) => left + (i + .5) * (right - left) / Math.max(1, points.length);
@@ -64,8 +72,8 @@ export function Chart({ title, description, points, bars = false, currency = fal
     {legend && <p className="analytics-legend">{legend}</p>}
     {controls}
     {points.length === 0 && <p className="empty-state">{en ? "No service records in this range." : "当前范围没有记工。"}</p>}
-    <div className={bars ? "analytics-scroll" : "analytics-plot"} ref={plot} tabIndex={0} aria-label={title}>
-      <svg width={bars ? width : "100%"} height={height} viewBox={`0 0 ${width} ${height}`} aria-label={title}>
+    <div className={bars && !fitWidth ? "analytics-scroll" : "analytics-plot"} ref={plot} tabIndex={0} aria-label={title}>
+      <svg width={bars && !fitWidth ? width : "100%"} height={height} viewBox={`0 0 ${width} ${height}`} aria-label={title}>
         {Array.from({ length: 5 }, (_, i) => { const value = floor + (ceiling - floor) * i / 4; return <g key={i}>
           <line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="var(--line)" />
           <text x={left - 8} y={y(value) + 4} textAnchor="end">{currency ? `$${Math.round(value)}` : value}</text>
@@ -75,12 +83,17 @@ export function Chart({ title, description, points, bars = false, currency = fal
         {points.map((point, i) => <g key={point.label}>
           {groupedBars && curves.map((curve, seriesIndex) => {
             const value = curve.values[i];
-            const slot = (right - left) / points.length / curves.length;
+            const slot = compactBars && verticalLabels ? Math.min(24, seriesSlot) : seriesSlot;
             const center = x(i) + (seriesIndex - (curves.length - 1) / 2) * slot;
-            const barWidth = Math.min(28, slot * .65);
+            const barWidth = compactBars ? Math.min(20, slot * .8) : Math.min(28, slot * .65);
+            const negative = value != null && value < 0;
+            const rotateLabel = verticalLabels && value != null;
+            const labelY = labelLanes > 1
+              ? negative ? bottom + 8 + seriesIndex * (valueWidth + 8) : top - 8 - seriesIndex * (valueWidth + 8)
+              : negative ? y(value) + (verticalLabels ? 8 : 18) : y(value ?? 0) - 8;
             return <g key={curve.id}>
               {value != null && <rect data-series={curve.id} x={center - barWidth / 2} y={Math.min(y(value), y(0))} width={barWidth} height={Math.abs(y(value) - y(0))} fill={curve.color} rx="1" />}
-              <text className="analytics-bar-value" data-series={curve.id} x={center} y={value != null && value < 0 ? y(value) + 18 : y(value ?? 0) - 8} textAnchor="middle">{label(value)}</text>
+              <text className="analytics-bar-value" data-series={curve.id} x={center} y={labelY} transform={rotateLabel ? `rotate(-90 ${center} ${labelY})` : undefined} textAnchor={rotateLabel ? negative ? "end" : "start" : "middle"}>{label(value)}</text>
             </g>;
           })}
           {bars && !groupedBars && point.value !== null && <>
@@ -93,8 +106,8 @@ export function Chart({ title, description, points, bars = false, currency = fal
           </g>}
           {bars && !groupedBars && point.value === null && <text x={x(i)} y={bottom - 8} textAnchor="middle">—</text>}
           {!bars && curves.map(curve => curve.values[i] != null && <circle key={curve.id} cx={x(i)} cy={y(curve.values[i]!)} r={points.length > 90 ? 1.5 : 2.5} fill={curve.color} />)}
-          {(bars || labelIndices.has(i)) && <text className="analytics-axis-label" x={x(i)} y={bottom + (bars ? 44 : 23)} textAnchor="middle">{point.label.length === 10 ? point.label.slice(5) : point.label}</text>}
-          <rect className="analytics-hit" x={x(i) - (right - left) / points.length / 2} y={top} width={(right - left) / points.length} height={bottom - top + (point.dailyRevenueDetails !== undefined ? (bars ? 55 : 35) : 0)} fill="transparent" tabIndex={0} role="button" aria-label={point.detail} aria-pressed={point.dailyRevenueDetails !== undefined ? revenueSelection === point.label : undefined}
+          {(bars || labelIndices.has(i)) && <text className="analytics-axis-label" x={x(i)} y={bottom + negativeLabelSpace + (bars ? 44 : 23)} textAnchor="middle">{fitWidth && /^星期/.test(point.label) && (right - left) / points.length < categoryWidth ? <><tspan x={x(i)} dy="-12">星期</tspan><tspan x={x(i)} dy="14">{point.label.slice(2)}</tspan></> : point.label.length === 10 ? point.label.slice(5) : point.label}</text>}
+          <rect className="analytics-hit" x={x(i) - (right - left) / points.length / 2} y={top - labelSpace} width={(right - left) / points.length} height={bottom - top + labelSpace + negativeLabelSpace + (point.dailyRevenueDetails !== undefined ? (bars ? 55 : 35) : 0)} fill="transparent" tabIndex={0} role="button" aria-label={point.detail} aria-pressed={point.dailyRevenueDetails !== undefined ? revenueSelection === point.label : undefined}
             onMouseEnter={() => setSelected(point.label)} onFocus={() => setSelected(point.label)} onClick={() => activate(point)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(point); } }}><title>{point.detail}</title></rect>
         </g>)}
       </svg>

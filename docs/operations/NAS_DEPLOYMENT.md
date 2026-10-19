@@ -1,18 +1,18 @@
 # GitHub → GHCR → 群晖部署
 
-> 当前版本：`1.32.3` · 镜像：`ghcr.io/redonkatonkk/massage-note`
+> 当前版本：`1.32.9` · 镜像：`ghcr.io/redonkatonkk/massage-note`
 > 历史版本变化统一查看 [`CHANGELOG.md`](../../CHANGELOG.md)，不在本手册重复累积。
 
 标准发布链路：
 
 ```text
 本机提交并 push main
-        ↓
-GitHub Actions 完整验证
-        ↓
-构建 linux/amd64 镜像并推送 GHCR
-        ↓
-群晖 Container Manager 拉取版本标签并更新 mn 项目
+  ├─ verify：完整检查与测试
+  └─ build-nas-image：生产构建、候选镜像与缓存
+                ↓ 两者均成功
+publish-nas-image：为同一 digest 发布正式标签
+                ↓
+备份并校验 → NAS 拉取版本 → 迁移/加固 → 更新 mn → 健康验收
 ```
 
 正常升级使用 GHCR；`scripts/build-nas-image.sh` 只在 GHCR 或 NAS 外网不可用时生成离线 tar。保留原因：GHCR 保存对应提交产物，离线 tar 是网络故障备用路径。
@@ -20,6 +20,24 @@ GitHub Actions 完整验证
 ## 发布入口
 
 发布授权及工作区保留遵循 [维护规则](../../AGENTS.md)，本次证据逐项核对 [发布检查](RELEASE_CHECKLIST.md)，具体执行按下文顺序。保留原因：同一发布政策在多个清单复制会产生不同版本，执行步骤仍需保留以便重复发布。
+
+## 默认更新部署流程
+
+用户明确要求“更新部署”后，后续 AI 默认按下表连续执行；只要求修改文档、代码或测 CI 时，不据此更新 NAS。保留原因：发布授权与验证范围分别决定是否切换生产环境，已有发布授权不应在 CI 成功后再次停下来等待相同确认。
+
+| 顺序 | 执行与完成依据 |
+| --- | --- |
+| 1. 确认范围 | 查看 Git 状态、接管指南与 CHANGELOG，保留无关工作；确认本次提交包含当前工作流和 Dockerfile，递增并同步版本。发布分支仍是 `main`。 |
+| 2. 本地预检 | 按下文运行版本、diff、Compose 校验和暂存区秘密扫描；文档有变化时检查本地链接。开发阶段已通过且未受后续改动影响的类型、测试和构建不再全量重跑。 |
+| 3. 提交并 push | 只暂存本次获授权内容，提交并 push `main`，记录完整 SHA；不要用未经核对的 `git add -A`。 |
+| 4. 等待正式 CI | 对该完整 SHA 只保留一个监控进程；`verify` 与 `build-nas-image` 并行，随后 `publish-nas-image` 必须成功。分支实测的绿灯或候选标签不能替代正式发布。 |
+| 5. 核对镜像 | 对正式语义版本做一次匿名 manifest 检查，核对对应 digest 和 `linux/amd64`；不再本机构建或导出 tar。 |
+| 6. 更新 NAS | 运行一次现有 DSM 发布脚本，完成备份及校验、生产配置校验、迁移/加固、实际镜像与原卷核对、容器健康及三个公网 200 检查。只有全部完成才算上线。 |
+| 7. 收尾交接 | 按开发指南重启并保持本项目 Web 3000/API 就绪，默认用命令行/API 验证；报告版本、SHA、CI/NAS 结果、迁移与备份结果及下文规定的耗时。 |
+
+此顺序统一已有步骤，不新增一轮完整本地测试、镜像构建、分支测速或浏览器验收。CI 失败才针对失败项复现；新增迁移须在生产数据副本演练；Dockerfile/依赖打包变化须补充相关镜像验证；GHCR 或 NAS 外网不可用才走离线备用。保留原因：速度来自取消重复工作，备份、迁移、权限加固和健康检查始终保留。
+
+DSM 脚本成功且验收输出完整时，不重复执行 probe 或公网请求；失败、输出缺失或状态异常时才单独诊断。脚本未随仓库分发，新接手机器上若不存在，按本手册相同步骤执行并保留完整证据。保留原因：本机辅助工具不是每台电脑都有，但其缺失不能成为跳过生产检查的理由。
 
 ## 秘密边界
 
@@ -87,6 +105,7 @@ rmdir "$task_docker_config"
 
 ```bash
 pnpm version:check
+pnpm docs:check # 本次包含 Markdown 变化时运行
 git diff --check
 git status --short
 docker compose --env-file .env.nas.example -f docker-compose.nas.yml config --quiet
@@ -110,17 +129,30 @@ git push origin main
 
 ### 等待对应 CI
 
-`.github/workflows/ci.yml` 先运行 `verify`，只有 `main` 的非 PR 事件验证通过后才运行 `publish-nas-image`。
+`.github/workflows/ci.yml` 在 `main` 的非 PR 事件中并行运行 `verify` 与 `build-nas-image`；只有两者都成功才运行 `publish-nas-image`，把候选镜像的同一 digest 标为语义版本、`latest` 和提交标签，不重新构建。已有语义版本若指向其他 digest 则拒绝覆盖。保留原因：缩短串行等待，同时保持完整验证、不可变版本和产物追溯。
+
+镜像构建承担这类运行的生产构建检查，`verify` 不再重复构建；普通分支 push 与 PR 继续在 `verify` 内执行生产构建。依赖先按锁文件和 workspace 安装配置 `pnpm fetch`，再离线安装；GHCR `buildcache-main` 保存中间层，手动分支实测只写 `buildcache-benchmark`。保留原因：包版本递增不应重复下载依赖，基准测试不能覆盖正式构建缓存。方案依据 [pnpm fetch](https://pnpm.io/cli/fetch) 与 [Docker registry cache](https://docs.docker.com/build/cache/backends/registry/)。
+
+需要在独立分支实测镜像耗时，可手动运行：
+
+```bash
+gh workflow run ci.yml --repo Redonkatonkk/massage-note \
+  --ref <branch> -f build_nas_image=true
+```
+
+分支实测只生成 `ci-<run_id>-<attempt>` 候选镜像，不生成正式标签，也不更新 NAS；完整验证和镜像构建都会执行。每次运行结束后，`report-timing` 在运行摘要记录阶段耗时；端到端时间以运行创建到完成计，首次新缓存与后续复用应分别记录。保留原因：计时必须包含实际检查与缓存开销，不能把热缓存或分支构建冒充完整生产部署。
+
+以上手动分支实测仅用于验证流水线修改或排查性能，普通发布直接 push `main`，不额外再测一轮。保留原因：常规发布本身已有完整 CI 和阶段耗时，重复测速会增加等待与 CI 消耗。
 
 ```bash
 release_sha=$(git rev-parse HEAD)
 run_id=$(gh run list --repo Redonkatonkk/massage-note --workflow ci.yml \
-  --commit "$release_sha" --json databaseId --jq '.[0].databaseId')
+  --branch main --commit "$release_sha" --json databaseId --jq '.[0].databaseId')
 test -n "$run_id"
 gh run watch "$run_id" --repo Redonkatonkk/massage-note --interval 30 --exit-status
 ```
 
-运行记录尚未出现时隔 15–30 秒重试，必须使用完整 SHA，避免短 SHA 查不到记录。保持单个监控进程，避免重复建立轮询；按阶段变化汇报。保留原因：CI 异步创建运行记录，完整 SHA 才能精确关联本次提交。
+运行记录尚未出现时隔 15–30 秒重试，必须限定 `main` 并使用完整 SHA，避免选中同一提交的分支测速或因短 SHA 查不到记录。保持单个监控进程，避免重复建立轮询；按阶段变化汇报。保留原因：CI 异步创建运行记录，正式分支与完整 SHA 共同定位本次发布。
 
 成功产物包含：
 
@@ -138,6 +170,18 @@ rmdir "$task_docker_config"
 ```
 
 目标平台必须是 `linux/amd64`。保留原因：当前群晖镜像目标为 linux/amd64。
+
+### 发布计时与交接
+
+从本地发布预检开始记录时间，完成后区分以下范围，不把并行 job 的耗时相加：
+
+| 指标 | 计时范围 |
+| --- | --- |
+| CI 总耗时 | 对应完整 SHA 的运行创建至全部 job 完成，含排队、缓存保存、正式标签发布和计时摘要；各 job 时间另从运行摘要读取。 |
+| NAS 耗时 | DSM 发布脚本或等价操作开始至备份、迁移、应用更新及全部线上验收完成。 |
+| 更新部署总耗时 | 本地发布预检开始至 NAS 验收及本机服务收尾全部完成。 |
+
+交接同时给出版本、完整 SHA、CI 运行链接、正式标签发布状态、NAS 实际版本、迁移/备份与健康结果。未执行或未测量的阶段明确标记，不填估算值；分支测速必须说明未包含正式标签发布和 NAS 更新，并区分首次缓存与缓存复用。保留原因：实测范围必须可追溯，单次 CI 成绩不是整套发布耗时或未来耗时承诺。
 
 ## 第一次创建 NAS 项目
 

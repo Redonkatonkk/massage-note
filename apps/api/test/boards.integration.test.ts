@@ -537,28 +537,25 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
       }),
     ).resolves.toEqual(closingBefore);
   });
-  it("看板按所选日期月份扣支出页的整月日均，含跨月、季度、一次性、零和缺失历史", async () => {
+  it("支出新增、修改、删除和恢复均不影响看板总收入", async () => {
+    const date = new Date(`${businessDate}T00:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() - 2);
+    const selectedDate = date.toISOString().slice(0, 10), month = selectedDate.slice(0, 7);
+    const read = () => boards.getBoard(actor(ownerId), storeId, selectedDate);
+    const before = (await read()).statistics;
+    expect(before.totalIncomeCents).toBe(25000n);
+    expect(before).not.toHaveProperty("dailyExpenseCents");
     const expenses = new ExpensesService(prisma, access, idempotency);
-    const create = (input: Parameters<ExpensesService["create"]>[2]) => expenses.create(actor(ownerId), storeId, input, randomUUID(), randomUUID());
-    let quarter = await create({ kind: "RECURRING", name: "季度", note: "", rule: { startDate: "2024-01-01", unit: "MONTH", interval: 3, amountCents: 90001 } });
-    await create({ kind: "RECURRING", name: "跨月天周期", note: "", rule: { startDate: "2024-02-28", unit: "DAY", interval: 5, amountCents: 11 } });
-    let once = await create({ kind: "ONCE", name: "一次性", note: "", occurredOn: "2024-02-11", amountCents: 2801 });
-    const legacy = await create({ kind: "RECURRING", name: "历史未录入", note: "", rule: { startDate: "2024-02-01", unit: "MONTH", interval: 1, amountCents: 1000 } });
-    await prisma.expenseRuleRevision.update({ where: { id: legacy.rules[0]!.id }, data: { amountMode: "BUDGET", defaultAmountFrom: new Date("2024-03-01T00:00:00Z") } });
-    const month = await expenses.month(actor(ownerId), storeId, "2024-02");
-    expect(month).toMatchObject({ daysInMonth: 29, totalCents: "32806", dailyAverageCents: "1131", missingPeriodCount: 1 });
-    expect((await boards.getBoard(actor(ownerId), storeId, "2024-02-11")).statistics).toMatchObject({ dailyExpenseCents: 1131n, totalIncomeCents: -1131n, storeIncomeCents: 0n, revenueCents: 0n });
-    const march = await expenses.month(actor(ownerId), storeId, "2024-03");
-    expect((await boards.getBoard(actor(ownerId), storeId, "2024-03-01")).statistics.dailyExpenseCents).toBe(BigInt(march.dailyAverageCents));
-    expect((await boards.getBoard(actor(employeeId), storeId, "2024-02-11")).statistics).toMatchObject({ dailyExpenseCents: null, totalIncomeCents: 0n });
-    quarter = await expenses.period(actor(ownerId), storeId, quarter.id, { version: quarter.version, ruleId: quarter.rules[0]!.id, periodStart: "2024-01-01", amountCents: 0 }, randomUUID(), randomUUID());
-    expect((await boards.getBoard(actor(ownerId), storeId, "2024-02-11")).statistics.dailyExpenseCents).toBe(97n);
+    const recurring = await expenses.create(actor(ownerId), storeId, { kind: "RECURRING", name: "周期支出", note: "", rule: { startDate: `${month}-01`, unit: "MONTH", interval: 1, amountCents: 90000 } }, randomUUID(), randomUUID());
+    let once = await expenses.create(actor(ownerId), storeId, { kind: "ONCE", name: "一次性", note: "", occurredOn: selectedDate, amountCents: 2801 }, randomUUID(), randomUUID());
+    expect(BigInt((await expenses.month(actor(ownerId), storeId, month)).dailyAverageCents)).toBeGreaterThan(0n);
+    expect((await read()).statistics).toEqual(before);
+    await expenses.period(actor(ownerId), storeId, recurring.id, { version: recurring.version, ruleId: recurring.rules[0]!.id, periodStart: `${month}-01`, amountCents: 1000000 }, randomUUID(), randomUUID());
+    expect((await read()).statistics).toEqual(before);
     once = await expenses.remove(actor(ownerId), storeId, once.id, { version: once.version }, randomUUID(), randomUUID());
-    expect((await boards.getBoard(actor(ownerId), storeId, "2024-02-11")).statistics.dailyExpenseCents).toBe(0n);
-    once = await expenses.restore(actor(ownerId), storeId, once.id, { version: once.version }, randomUUID(), randomUUID());
-    expect((await boards.getBoard(actor(ownerId), storeId, "2024-02-11")).statistics.dailyExpenseCents).toBe(97n);
-    await expenses.period(actor(ownerId), storeId, quarter.id, { version: quarter.version, ruleId: quarter.rules[0]!.id, periodStart: "2024-01-01" }, randomUUID(), randomUUID());
-    expect((await boards.getBoard(actor(ownerId), storeId, "2024-02-11")).statistics.dailyExpenseCents).toBe(1131n);
+    expect((await read()).statistics).toEqual(before);
+    await expenses.restore(actor(ownerId), storeId, once.id, { version: once.version }, randomUUID(), randomUUID());
+    expect((await read()).statistics).toEqual(before);
   });
 
 });

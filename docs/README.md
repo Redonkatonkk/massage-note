@@ -22,7 +22,7 @@ docs/
 | 查看手机阅读复核范围 | [手机复核记录](engineering/MOBILE_REVIEW_2026-10-04.md) | [真实组件回归](../apps/web/app/ui/mobile-reading.test.tsx) |
 | 调用或修改 HTTP 接口 | [`API.md`](engineering/API.md) | 共享契约、Controller 和集成测试 |
 | 普通 Linux 生产部署 | [`DEPLOYMENT.md`](operations/DEPLOYMENT.md) | [`SECURITY.md`](operations/SECURITY.md) |
-| 群晖发布或升级 | [`NAS_DEPLOYMENT.md`](operations/NAS_DEPLOYMENT.md) | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md) |
+| 群晖发布或升级 | [默认更新部署流程](operations/NAS_DEPLOYMENT.md#默认更新部署流程) | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md) |
 | 监控、数据库备份或恢复 | [`OPERATIONS.md`](operations/OPERATIONS.md) | [`SECURITY.md`](operations/SECURITY.md) |
 | Google Drive 完整恢复包、午夜备份、Mac 按需恢复 | [`DISASTER_RECOVERY.md`](operations/DISASTER_RECOVERY.md) | [Google 首次设置](../scripts/recovery/README.md) |
 | 安装或排查 Mac“信息”代理 | [`MESSAGES_AGENT.md`](operations/MESSAGES_AGENT.md) | [`SECURITY.md`](operations/SECURITY.md) |

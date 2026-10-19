@@ -14,7 +14,7 @@ export function AnalyticsWeekdayRevenue({ data }: { data: WeekdayRevenueComparis
     { id: "non-highlighted", label: en ? "Non-highlighted" : "非高光", color: "var(--chart-secondary)", average: "nonHighlightedAverageCents", daily: "nonHighlightedRevenueCents" },
     { id: "all", label: en ? "All" : "全部", color: "var(--ink)", average: "averageCents", daily: "revenueCents" },
   ] as const;
-  return <Chart className="analytics-weekday-revenue" title={en ? "Average revenue by weekday" : "星期平均营业额"} bars currency
+  return <Chart className="analytics-weekday-revenue" title={en ? "Average revenue by weekday" : "星期平均营业额"} bars fitWidth currency
     description={en ? "All three scopes follow the selected dates and remain visible regardless of the highlight filter. They use the same closed-day samples; empty closed days count as zero and no samples show a dash. Card sales are included in non-highlighted and all revenue; each scope deducts its gift-card service payments. Select a weekday to compare its daily amounts below." : "随所选日期同时对比高光、非高光、全部，不随顶部高光筛选隐藏。三组使用相同已日结日期，空日结计零，无样本显示破折号；卖卡实收计入非高光和全部，各组均扣除对应礼卡大费。点击星期，下方列出三组逐日金额。"}
     controls={<ul className="analytics-income-legend" aria-label={en ? "Revenue comparison" : "营业额对比"}>{series.map(item => <li key={item.id}><svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill={item.color} /></svg>{item.label}</li>)}</ul>}
     series={series.map(item => ({ id: item.id, label: item.label, color: item.color, values: data.weekdays.map(day => day[item.average] === null ? null : Number(day[item.average]) / 100) }))}

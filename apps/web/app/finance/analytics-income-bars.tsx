@@ -37,7 +37,7 @@ export function AnalyticsIncomeBars({ days, dateFrom, dateTo, loading, failed, e
       : <p role={loading ? "status" : undefined} className={loading ? undefined : "empty-state"}>{loading ? (en ? "Loading turnover and income…" : "正在读取流水与收入…") : (en ? "No financial data in this range." : "当前范围没有财务数据。")}</p>}
   </section>;
   const groups = groupIncomePeriods(days, dateFrom, dateTo, period);
-  return <Chart key={period} className="analytics-income-bars" title={title} description={description} bars currency controls={controls}
+  return <Chart key={period} className="analytics-income-bars" title={title} description={description} bars compactBars currency controls={controls}
     series={series.map(item => ({ id: item.id, color: item.color, values: groups.map(group => group[item.key] / 100) }))}
     points={groups.map(group => ({ label: group.label, value: null, detail: [group.from === group.to ? group.from : `${group.from} — ${group.to}`, ...series.map(item => `${item.label} ${formatUsdPrecise(group[item.key], locale)}`)].join(" · ") }))} />;
 }

@@ -1,6 +1,6 @@
 # API 使用说明
 
-> 适用版本：`1.32.3`
+> 适用版本：`1.32.9`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -309,9 +309,9 @@ START 的开始时间由 API 从 rawText 解析，使用店铺时区及 occurred
 
 ### 今日看板顶部总收入
 
-`GET /stores/:storeId/boards/:businessDate` 的顶层 `statistics.totalIncomeCents` 由服务端整数美分计算：`storeIncomeCents + 店长大费工资及小费 + 所有经理大费工资及小费 - dailyExpenseCents`。成员角色按当前记录关联成员读取，不依赖行是否隐藏；使用看板相同的未删除记录范围（包含待结账已知工资和小费），员工历史仍限定本人。管理者响应新增 `statistics.dailyExpenseCents`，等于看板 `businessDate` 所在月份支出查询的 `dailyAverageCents`（沿用本月周期分摊＋一次性支出、整月自然天数、美分舍入及缺失排除），从总收入只扣一次，允许负数；无支出为零，员工响应为 null 且不读取店铺支出。该字段不额外加入礼物卡净收入或扣除信用卡手续费，区别于 `finance/summary` 的总结算字段。顶部营业额读取新增的 `revenueCents = discountedFeePerformanceCents - giftCardServiceCents + giftCardSalesAmountCents`；原 `discountedFeePerformanceCents` 仍仅为折后服务业绩，礼物卡总额读取 `giftCardSalesAmountCents`。
+`GET /stores/:storeId/boards/:businessDate` 的顶层 `statistics.totalIncomeCents` 由服务端整数美分计算：`storeIncomeCents + 店长大费工资及小费 + 所有经理大费工资及小费`。成员角色按当前记录关联成员读取，不依赖行是否隐藏；使用看板相同的未删除记录范围（包含待结账已知工资和小费），员工历史仍限定本人。看板不查询支出，不返回日均支出字段；支出账目变更不改变该总收入。该字段不额外加入礼物卡净收入或扣除信用卡手续费，区别于 `finance/summary` 的总结算字段。顶部营业额读取新增的 `revenueCents = discountedFeePerformanceCents - giftCardServiceCents + giftCardSalesAmountCents`；原 `discountedFeePerformanceCents` 仍仅为折后服务业绩，礼物卡总额读取 `giftCardSalesAmountCents`。
 
-礼物卡对记工页总收入、财务每日小计及财务总结算均只影响一次：卖卡按实际收款增加，用卡按大费与小费合计减少；这些收支已包含在店铺收入中，礼物卡净收入字段只用于展示组成，不再次加减。财务总结算继续扣除信用卡手续费；记工页保留手续费前、扣所在月日均支出口径，每日小计保留原手续费前口径。保留原因：本次成本扣除针对今日看板，礼卡组成不能再次增加总收入。
+礼物卡对记工页总收入、财务每日小计及财务总结算均只影响一次：卖卡按实际收款增加，用卡按大费与小费合计减少；这些收支已包含在店铺收入中，礼物卡净收入字段只用于展示组成，不再次加减。财务总结算继续扣除信用卡手续费；记工页及每日小计保留手续费前口径，支出页面独立计算。保留原因：收入和成本各自核对，礼卡组成不能再次增加总收入。
 
 营业额统一在卖卡时计入实收，用卡时仅排除礼卡服务金额；礼卡小费不计营业额，服务业绩、员工工资与小费所得仍正常计算。礼卡大费按对应查询的有效记录汇总，未填写按零；营业额及其均值可为负数并按美分四舍五入。历史数据查询直接采用新公式，无数据库迁移，不重写日结/发送快照。保留原因：更改经营统计不能重复扣核销或改写已经保存的工资及交付凭证。
 

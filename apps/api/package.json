@@ -1,6 +1,6 @@
 {
   "name": "@massage-note/api",
-  "version": "1.32.3",
+  "version": "1.32.9",
   "private": true,
   "type": "module",
   "scripts": {

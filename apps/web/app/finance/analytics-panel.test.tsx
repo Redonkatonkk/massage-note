@@ -206,17 +206,20 @@ it("星期表支持键盘、无日期和英文，筛选切换后清除旧选择"
   expect(weekdayChart().querySelector("tbody")!.textContent).toContain("$123.45");
 });
 
-it("日历、星期平均、新曲线在前，其余图表保持原顺序，每日小计紧随热力图", async () => {
+it("日历与每日趋势在前、星期平均第三，其余图表保持顺序，每日小计紧随热力图", async () => {
   await render();
   const chartGrid = container.querySelector(".analytics-heatmap")!.parentElement!;
   const report = container.querySelector(".finance-report-section")!;
   expect(chartGrid.nextElementSibling).toBe(report);
+  expect(weekdayChart().querySelector(".analytics-scroll")).toBeNull();
+  expect(weekdayChart().querySelector(".analytics-plot > svg")?.getAttribute("width")).toBe("100%");
+  expect(weekdayChart().querySelectorAll(".analytics-axis-label")).toHaveLength(7);
   expect([...chartGrid.children].map(card => card.querySelector("h2")!.textContent)).toEqual([
-    "每日营业额日历", "星期平均营业额", "平均营业额曲线", "流水与收入柱状图", "按小时上工数量", "每日记工数量", "每日营业额趋势", "星期 × 小时热力图",
+    "每日营业额日历", "每日营业额趋势", "星期平均营业额", "平均营业额曲线", "流水与收入柱状图", "按小时上工数量", "每日记工数量", "星期 × 小时热力图",
   ]);
 });
 
-it("第四位柱图复用每日小计请求，周期切换不重取，筛选后展示同一条件的最新金额", async () => {
+it("第五位柱图复用每日小计请求，周期切换不重取，筛选后展示同一条件的最新金额", async () => {
   request.mockImplementation(async path => {
     if (!String(path).includes("/summary?")) return stats();
     const amount = String(path).includes("ONLY_HIGHLIGHTED") ? 4200 : 10000;
@@ -268,7 +271,7 @@ it("全年日期仍使用固定宽度和平滑曲线，并保留日期两端和�
     })) };
   });
   await render();
-  for (const plot of container.querySelectorAll(".analytics-plot")) {
+  for (const plot of container.querySelectorAll(".analytics-card:not(.analytics-weekday-revenue) .analytics-plot")) {
     expect(plot.closest(".analytics-scroll")).toBeNull();
     expect(plot.querySelector("svg")!.getAttribute("width")).toBe("100%");
     expect(plot.querySelector("svg")!.getAttribute("viewBox")).toBe("0 0 600 270");
@@ -306,7 +309,7 @@ it("容器变窄时重新分配横轴，在手机宽度保留首末日期和固�
   });
   await render();
   await act(async () => callbacks.forEach(callback => callback([{ contentRect: { width: 280 } }] as ResizeObserverEntry[], {} as ResizeObserver)));
-  for (const svg of container.querySelectorAll(".analytics-plot > svg")) {
+  for (const svg of container.querySelectorAll(".analytics-card:not(.analytics-weekday-revenue) .analytics-plot > svg")) {
     expect(svg.getAttribute("viewBox")).toBe("0 0 280 270");
     expect(svg.getAttribute("height")).toBe("270");
   }

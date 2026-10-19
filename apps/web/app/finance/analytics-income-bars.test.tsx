@@ -59,6 +59,11 @@ it("切换每天和每月即时重分组，数据表保留全部金额及所选�
   await render();
   await select("DAY");
   expect(container.querySelectorAll("rect[data-series]")).toHaveLength(21);
+  const svg = container.querySelector(".analytics-scroll > svg")!;
+  expect(Number(svg.getAttribute("width"))).toBeLessThanOrEqual(7 * 84 + 85);
+  const bars = [...svg.querySelectorAll<SVGRectElement>("rect[data-series]")];
+  expect(Number(bars[1]!.getAttribute("x")) - Number(bars[0]!.getAttribute("x"))).toBeLessThanOrEqual(24);
+  expect([...svg.querySelectorAll(".analytics-bar-value")].filter(label => label.textContent !== "—").every(label => label.hasAttribute("transform"))).toBe(true);
   const rows = [...container.querySelectorAll("tbody tr")];
   expect(rows[0]!.textContent).toContain("2026-09-30");
   expect(rows[6]!.textContent).toContain("2026-10-06");

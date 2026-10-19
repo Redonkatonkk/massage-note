@@ -149,12 +149,11 @@ it("看板与日历扣除礼卡服务金额，平均值同步，店铺收入不�
   expect((await calendar.read()).closedDates[0]).toMatchObject({ discountedFeePerformanceCents: 10000n, revenueCents: 0n });
 });
 
-it("支出读取失败时不把成本当零；员工看板不读取店铺支出", async () => {
-  const manager = averageFixture("MANAGER", false);
-  manager.prisma.expenseItem.findMany.mockRejectedValue(new Error("支出读取失败"));
-  await expect(manager.read()).rejects.toThrow("支出读取失败");
-  const employee = averageFixture("EMPLOYEE", false);
-  employee.prisma.expenseItem.findMany.mockRejectedValue(new Error("不应读取"));
-  expect((await employee.read()).statistics.dailyExpenseCents).toBeNull();
-  expect(employee.prisma.expenseItem.findMany).not.toHaveBeenCalled();
+it.each(["OWNER", "MANAGER", "EMPLOYEE"] as const)("%s 看板不读取店铺支出，支出服务失败不影响收入", async role => {
+  const test = averageFixture(role, false);
+  test.prisma.expenseItem.findMany.mockRejectedValue(new Error("不应读取支出"));
+  const result = await test.read();
+  expect(result.statistics.totalIncomeCents).toBe(94001n);
+  expect(result.statistics).not.toHaveProperty("dailyExpenseCents");
+  expect(test.prisma.expenseItem.findMany).not.toHaveBeenCalled();
 });

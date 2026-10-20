@@ -1,0 +1,12 @@
+{
+  "region": "us-ashburn-1",
+  "tenancy": "ocid1.tenancy.REPLACE",
+  "compartment": "ocid1.compartment.REPLACE",
+  "subnet": "ocid1.subnet.REPLACE",
+  "image": "ocid1.image.REPLACE",
+  "monitor_id": "massage-note-nas-a1",
+  "oci_config": "/config/oci-config",
+  "ssh_public_key": "/config/instance-ssh.pub",
+  "smtp_password_file": "/run/secrets/smtp-password",
+  "state_dir": "/state"
+}

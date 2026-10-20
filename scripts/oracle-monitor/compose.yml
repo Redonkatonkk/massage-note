@@ -1,0 +1,24 @@
+name: massage-note-oracle-monitor
+services:
+  monitor:
+    image: mn-oracle-monitor:1.32.11
+    container_name: mn-oracle-monitor
+    restart: unless-stopped
+    read_only: true
+    user: "${MONITOR_UID:?Run install.sh first}:${MONITOR_GID:?Run install.sh first}"
+    mem_limit: 256m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: {max-size: 2m, max-file: "2"}
+    volumes:
+      - ./config:/config:ro
+      - ./state:/state
+      - /volume1/docker/massage-note-recovery/smtp-password:/run/secrets/smtp-password:ro
+    healthcheck:
+      test: [CMD, python3, /opt/monitor/monitor.py, health]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s

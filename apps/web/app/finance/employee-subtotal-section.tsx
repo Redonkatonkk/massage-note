@@ -8,6 +8,7 @@ import { apiRequest, errorMessage } from "../../lib/api";
 import { formatCommissionRate } from "../../lib/employee-subtotal";
 import { formatUsdPrecise } from "../../lib/money";
 import type { EmployeeSettlementDelivery, EmployeeSettlementDeliveryList, FinanceSummaryResponse } from "../../lib/types";
+import { messagesDeliveryNotice, messagesSubmittedLabel } from "../../lib/messages-delivery";
 
 type EmployeeSubtotal = FinanceSummaryResponse["employees"][number];
 
@@ -17,7 +18,7 @@ const paymentLabel = (value: FinanceSummaryResponse["filters"]["paymentMethod"])
 const amountLabel = (value: FinanceSummaryResponse["filters"]["amountType"]) => value === "SERVICE" ? "仅大费" : value === "TIP" ? "仅小费" : "大费＋小费";
 
 function deliveryStage(item: EmployeeSettlementDelivery) {
-  if (item.status === "SENT") return "发送完成";
+  if (item.status === "SENT") return messagesSubmittedLabel;
   if (item.status === "FAILED") return "发送失败";
   if (item.status === "CANCELLED") return "已取消";
   return item.status === "CLAIMED" ? "正在发送" : "等待发送";
@@ -42,6 +43,7 @@ function EmployeeSummaryDeliveryHistory({
             <p className="eyebrow">员工小计短信</p>
             <h2 id="employee-summary-delivery-title">发送记录</h2>
             <p>每次发送都保存当时的筛选范围、接收号码和员工小计快照。</p>
+            <p>{messagesDeliveryNotice}</p>
           </div>
           <button className="close-button" type="button" onClick={close}>关闭</button>
         </div>

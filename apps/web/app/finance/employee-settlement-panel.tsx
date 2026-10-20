@@ -15,6 +15,7 @@ import { SettlementSummary } from "./settlement-summary";
 import { useLanguage } from "../language-provider";
 import { dateOnly } from "./date-utils";
 import { MobileDataCard, RecordFacts, ResponsiveDataView } from "../ui/responsive-data-view";
+import { messagesDeliveryNotice, messagesSubmittedLabel } from "../../lib/messages-delivery";
 
 const money = (value: number) => formatUsdPrecise(value);
 const scopeLabel = (scope: EmployeeSettlementPaymentScope) => scope === "CASH" ? "现金" : scope === "NON_CASH" ? "刷卡＋礼物卡" : "全部";
@@ -37,10 +38,10 @@ function paymentNotice(record: EmployeeSettlementPreview["records"][number], sco
 
 function DeliveryHistoryModal({ value, busy, action, close }: { value: EmployeeSettlementDeliveryList | null; busy: boolean; action: (delivery: EmployeeSettlementDelivery, kind: "cancel" | "retry" | "retry-detail") => void; close: () => void }) {
   const stage = (item: EmployeeSettlementDelivery) => {
-    if (item.status === "SENT") return "全部完成";
+    if (item.status === "SENT") return messagesSubmittedLabel;
     if (item.status === "FAILED") return "长图发送失败";
     if (item.status === "CANCELLED") return "已取消";
-    if (item.detailSentAt) return "长图已发送";
+    if (item.detailSentAt) return "长图已提交";
     return item.status === "CLAIMED" ? "正在发送长图" : "长图待发送";
   };
   const deliveryAction = (item: EmployeeSettlementDelivery) => item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={() => action(item, "cancel")}>取消</button> : item.status === "FAILED" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry")}>重试长图</button> : item.status === "SENT" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry-detail")}>重发长图</button> : null;
@@ -51,7 +52,7 @@ function DeliveryHistoryModal({ value, busy, action, close }: { value: EmployeeS
           <div>
             <p className="eyebrow">短信发送</p>
             <h2 id="settlement-delivery-title">发送记录</h2>
-            <p>查看长图发送进度，并处理失败或需要重发的任务。</p>
+            <p>{messagesDeliveryNotice}</p>
           </div>
           <button className="close-button" type="button" onClick={close} aria-label="关闭短信发送记录">关闭</button>
         </div>

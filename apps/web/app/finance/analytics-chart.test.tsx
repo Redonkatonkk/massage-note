@@ -68,21 +68,20 @@ it("密集三组金额按完整标签预留横向空间，标签不相互覆盖�
   }
 });
 
-it.each([220, 320, 600, 1200, 2400])("星期三组柱图在 %ipx 内平铺七天，完整金额标注不重叠且保留负值与缺口", async width => {
+it.each([220, 320, 600, 1200, 2400])("纵向排列的三组柱图在 %ipx 内保留完整金额、负值与缺口", async width => {
   let resize!: (width: number) => void;
   vi.stubGlobal("ResizeObserver", class {
     constructor(callback: ResizeObserverCallback) { resize = width => callback([{ contentRect: { width } } as ResizeObserverEntry], this as unknown as ResizeObserver); }
     observe() {} disconnect() {}
   });
   const values = [1234.56, -15.25, 0, null, 12345.67, 12.34, 987.65];
-  await act(async () => root.render(<Chart title="星期平均营业额" description="" bars fitWidth currency
+  await act(async () => root.render(<Chart title="星期平均营业额" description="" bars horizontalBars currency
     points={values.map((_, i) => ({ label: `星期${"一二三四五六日"[i]}`, value: null, detail: "金额", dailyRevenueDetails: [] }))}
     series={Array.from({ length: 3 }, (_, i) => ({ id: String(i), color: "var(--brand)", values }))} />));
   await act(async () => resize(width));
-  const svg = container.querySelector("svg")!;
-  const height = Number(svg.getAttribute("height"));
-  expect(svg.getAttribute("width")).toBe("100%");
-  expect(svg.getAttribute("viewBox")).toBe(`0 0 ${width} ${height}`);
+  const groups = [...container.querySelectorAll(".analytics-horizontal-bars > svg")];
+  expect(groups).toHaveLength(7);
+  expect(groups.every(svg => svg.getAttribute("width") === "100%" && svg.getAttribute("viewBox") === `0 0 ${width} 116`)).toBe(true);
   expect(container.querySelector(".analytics-scroll")).toBeNull();
   expect(container.querySelectorAll(".analytics-axis-label")).toHaveLength(7);
   expect(labels()).toHaveLength(21);
@@ -90,27 +89,25 @@ it.each([220, 320, 600, 1200, 2400])("星期三组柱图在 %ipx 内平铺七天
   expect(labels().map(text => text.textContent)).toContain("-$15.25");
   expect(labels().map(text => text.textContent)).toContain("$0");
   expect(labels().map(text => text.textContent)).toContain("—");
-  expect(labels().filter(text => text.textContent === "—").every(text => !text.hasAttribute("transform"))).toBe(true);
-  const boxes = labels().map(text => {
-    const x = Number(text.getAttribute("x")), y = Number(text.getAttribute("y"));
-    const length = text.textContent!.length * 9;
-    return text.hasAttribute("transform")
-      ? { left: x - 14, right: x, top: text.getAttribute("text-anchor") === "start" ? y - length : y, bottom: text.getAttribute("text-anchor") === "end" ? y + length : y }
-      : { left: x - length / 2, right: x + length / 2, top: y - 14, bottom: y };
-  });
-  for (const [i, box] of boxes.entries()) {
-    expect(box.left).toBeGreaterThanOrEqual(0); expect(box.right).toBeLessThanOrEqual(width);
-    expect(box.top).toBeGreaterThanOrEqual(0); expect(box.bottom).toBeLessThan(height - 28);
-    for (const other of boxes.slice(i + 1)) {
-      expect(box.right <= other.left || other.right <= box.left || box.bottom <= other.top || other.bottom <= box.top).toBe(true);
+  for (const group of groups) {
+    const zero = Number(group.querySelector(".analytics-zero-line")!.getAttribute("x1"));
+    const amounts = [...group.querySelectorAll<SVGTextElement>(".analytics-bar-value")];
+    for (const [index, amount] of amounts.entries()) {
+      expect(amount.hasAttribute("transform")).toBe(false);
+      expect(Number(amount.getAttribute("x"))).toBe(width - 4);
+      const amountLeft = width - 4 - amount.textContent!.length * 9;
+      const bar = group.querySelector<SVGRectElement>(`rect[data-series="${index}"]`);
+      if (bar) {
+        const left = Number(bar.getAttribute("x")), barWidth = Number(bar.getAttribute("width"));
+        expect(left).toBeGreaterThanOrEqual(0);
+        expect(left + barWidth).toBeLessThan(amountLeft);
+        if (amount.textContent!.startsWith("-")) expect(left + barWidth).toBeCloseTo(zero);
+        else expect(left).toBeCloseTo(zero);
+      }
+      if (index > 0) expect(Number(amount.getAttribute("y")) - Number(amounts[index - 1]!.getAttribute("y"))).toBeGreaterThanOrEqual(28);
     }
-  }
-  const hits = [...container.querySelectorAll<SVGRectElement>(".analytics-hit")];
-  expect(hits).toHaveLength(7);
-  for (const [i, hit] of hits.entries()) {
-    expect(Number(hit.getAttribute("x"))).toBeGreaterThanOrEqual(0);
-    expect(Number(hit.getAttribute("x")) + Number(hit.getAttribute("width"))).toBeLessThanOrEqual(width);
-    const axisY = Number(container.querySelectorAll(".analytics-axis-label")[i]!.getAttribute("y"));
-    expect(Number(hit.getAttribute("y")) + Number(hit.getAttribute("height"))).toBeGreaterThan(axisY);
+    const hit = group.querySelector<SVGRectElement>(".analytics-hit")!;
+    expect(Number(hit.getAttribute("width"))).toBe(width);
+    expect(Number(hit.getAttribute("height"))).toBe(116);
   }
 });

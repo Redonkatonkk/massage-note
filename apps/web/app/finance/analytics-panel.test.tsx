@@ -206,7 +206,7 @@ it("星期表支持键盘、无日期和英文，筛选切换后清除旧选择"
   expect(weekdayChart().querySelector("tbody")!.textContent).toContain("$123.45");
 });
 
-it("日历与每日趋势在前、星期平均第三，其余图表保持顺序，每日小计紧随热力图", async () => {
+it("日历与每日趋势在前、星期平均与流水收入第三第四，其余图表保持顺序，每日小计紧随热力图", async () => {
   await render();
   const chartGrid = container.querySelector(".analytics-heatmap")!.parentElement!;
   const report = container.querySelector(".finance-report-section")!;
@@ -215,11 +215,11 @@ it("日历与每日趋势在前、星期平均第三，其余图表保持顺序�
   expect(weekdayChart().querySelector(".analytics-plot > svg")?.getAttribute("width")).toBe("100%");
   expect(weekdayChart().querySelectorAll(".analytics-axis-label")).toHaveLength(7);
   expect([...chartGrid.children].map(card => card.querySelector("h2")!.textContent)).toEqual([
-    "每日营业额日历", "每日营业额趋势", "星期平均营业额", "平均营业额曲线", "流水与收入柱状图", "按小时上工数量", "每日记工数量", "星期 × 小时热力图",
+    "每日营业额日历", "每日营业额趋势", "星期平均营业额", "流水与收入柱状图", "平均营业额曲线", "按小时上工数量", "每日记工数量", "星期 × 小时热力图",
   ]);
 });
 
-it("第五位柱图复用每日小计请求，周期切换不重取，筛选后展示同一条件的最新金额", async () => {
+it("第四位柱图复用每日小计请求，周期切换不重取，筛选后展示同一条件的最新金额", async () => {
   request.mockImplementation(async path => {
     if (!String(path).includes("/summary?")) return stats();
     const amount = String(path).includes("ONLY_HIGHLIGHTED") ? 4200 : 10000;

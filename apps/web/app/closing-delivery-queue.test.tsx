@@ -1,0 +1,27 @@
+// @vitest-environment jsdom
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { expect, it } from "vitest";
+import { ClosingDeliveryQueue } from "./closing-delivery-queue";
+import type { ClosingDeliveryList } from "../lib/types";
+import { messagesDeliveryNotice, messagesSubmittedLabel } from "../lib/messages-delivery";
+import { translateText } from "../lib/i18n";
+
+it("旧 SENT 记录在桌面和手机均不宣称送达，并保留失败原因", async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const container = document.createElement("div"); const root = createRoot(container);
+  const value = { deliveries: [
+    { id: "submitted", status: "SENT", membership: { displayName: "Amy" }, kind: "INITIAL", locale: "zh_CN", closing: null, attemptCount: 1, recipientPhoneE164: "+13105551234", createdAt: "2026-10-20T15:00:00Z", sentAt: "2026-10-20T15:01:00Z", lastError: null },
+    { id: "failed", status: "FAILED", membership: { displayName: "Bob" }, kind: "INITIAL", locale: "zh_CN", closing: null, attemptCount: 2, recipientPhoneE164: "+13105555678", createdAt: "2026-10-20T15:00:00Z", sentAt: null, lastError: "信息 App 确认发送失败" },
+  ] } as unknown as ClosingDeliveryList;
+  try {
+    await act(async () => root.render(<ClosingDeliveryQueue value={value} busy={false} onCancel={() => {}} expanded />));
+    expect(container.textContent).toContain(messagesDeliveryNotice);
+    expect(container.querySelector("table")!.textContent).toContain(messagesSubmittedLabel);
+    expect(container.querySelector(".mobile-data-list")!.textContent).toContain(messagesSubmittedLabel);
+    expect(container.textContent).toContain("信息 App 确认发送失败");
+    expect(container.textContent).not.toContain("发送成功");
+    expect(translateText(messagesSubmittedLabel, "en-US")).toContain("unconfirmed");
+    expect(translateText(messagesDeliveryNotice, "en-US")).toContain("actual status");
+  } finally { await act(async () => root.unmount()); }
+});

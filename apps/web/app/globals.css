@@ -2638,7 +2638,8 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 .delivery-phone { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
 .delivery-phone.invalid { color: var(--danger); font-family: inherit; font-weight: 650; }
 .delivery-row-status { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: var(--surface-soft); color: var(--muted); font-weight: 650; }
-.delivery-row-status.is-sent { background: var(--success-soft); color: var(--success); }
+.delivery-row-status.is-sent { background: var(--pending); color: var(--pending-ink); }
+.delivery-status-note { margin: 0; padding: 10px 14px; color: var(--muted); font-size: .85rem; line-height: 1.6; }
 .delivery-row-status.is-failed { background: var(--danger-soft); color: var(--danger); }
 .delivery-row-status.is-cancelled { background: var(--surface-soft); color: var(--muted); }
 .delivery-row-status.is-claimed { background: var(--pending); color: var(--pending-ink); }

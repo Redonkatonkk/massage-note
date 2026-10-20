@@ -5,11 +5,12 @@ import { createPortal } from "react-dom";
 import type { ClosingDeliveryItem, ClosingDeliveryList, ClosingDeliveryStatus } from "../lib/types";
 import { useLanguage } from "./language-provider";
 import { MobileDataCard, RecordFacts, ResponsiveDataView } from "./ui/responsive-data-view";
+import { messagesDeliveryNotice, messagesSubmittedLabel } from "../lib/messages-delivery";
 
 const statusLabels: Record<ClosingDeliveryStatus, string> = {
   QUEUED: "排队",
   CLAIMED: "发送中",
-  SENT: "已发送",
+  SENT: messagesSubmittedLabel,
   FAILED: "失败",
   CANCELLED: "已取消",
 };
@@ -43,10 +44,11 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
           </span>
           <span className="delivery-queue-summary-label">查看短信队列详情</span>
         </summary>
+        <p className="delivery-status-note">{messagesDeliveryNotice}</p>
         <ResponsiveDataView desktop={<div className="table-scroll">
           <table className="data-table delivery-queue-table">
             <thead>
-              <tr><th>员工</th><th>接收号码</th><th>日结</th><th>类型</th><th>语言</th><th>状态</th><th>尝试</th><th>排队时间</th><th>发送时间／错误</th><th>操作</th></tr>
+              <tr><th>员工</th><th>接收号码</th><th>日结</th><th>类型</th><th>语言</th><th>状态</th><th>尝试</th><th>排队时间</th><th>提交时间／错误</th><th>操作</th></tr>
             </thead>
             <tbody>
               {deliveries.map((item) => (
@@ -69,7 +71,7 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
           <ul className="mobile-data-list">{deliveries.map(item => <li key={item.id}><MobileDataCard title={item.membership.displayName} subtitle={`${item.closing ? `第 ${item.closing.cycleNo} 次日结` : "未日结"} · ${item.kind === "INITIAL" ? "首次" : "补发"}`} status={<span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{statusLabels[item.status]}</span>} actions={cancelAction(item)}>
             <RecordFacts items={[{ label: "接收号码", value: <span className={item.recipientPhoneE164 ? "delivery-phone" : "delivery-phone invalid"}>{item.recipientPhoneE164 || "号码缺失"}</span> }, { label: "语言", value: item.locale === "zh_CN" ? "中文" : "English" }]} />
             {item.status !== "SENT" && item.lastError && <p className="form-error">{item.lastError}</p>}
-            <details className="mobile-data-card__details"><summary>发送详情</summary><RecordFacts items={[{ label: "排队时间", value: formatTime(item.createdAt) }, { label: "发送时间", value: formatTime(item.sentAt) }, { label: "尝试", value: item.attemptCount }]} /></details>
+            <details className="mobile-data-card__details"><summary>发送详情</summary><RecordFacts items={[{ label: "排队时间", value: formatTime(item.createdAt) }, { label: "提交时间", value: formatTime(item.sentAt) }, { label: "尝试", value: item.attemptCount }]} /></details>
           </MobileDataCard></li>)}</ul>
         </ResponsiveDataView>
       </details>
@@ -84,13 +86,13 @@ export function ClosingDeliveryQueueButton({ compact = false, ...props }: Closin
   // Resolve the portal target only after hydration and keep the modal at body level.
   useEffect(() => setPortalTarget(document.body), []);
   const sentCount = props.value.deliveries.filter((item) => item.status === "SENT").length;
-  const sentLabel = `${t("已发送")} ${sentCount}`;
+  const sentLabel = `${t("已提交")} ${sentCount}`;
 
   return <>
     <button className="secondary-action board-closing-action" type="button" aria-label={`${t("短信队列")} · ${sentLabel}`} aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>
       <span>短信队列</span>{compact
         ? <strong className="delivery-sent-count" aria-hidden="true" title={sentLabel}>{sentCount}</strong>
-        : <> · <span>已发送</span> <strong>{sentCount}</strong></>}
+        : <> · <span>已提交</span> <strong>{sentCount}</strong></>}
     </button>
     {portalTarget && createPortal(<dialog ref={dialog} className="board-delivery-dialog" aria-label="短信发送队列详情" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
       <div className="modal-heading">

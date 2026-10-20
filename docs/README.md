@@ -24,6 +24,7 @@ docs/
 | 普通 Linux 生产部署 | [`DEPLOYMENT.md`](operations/DEPLOYMENT.md) | [`SECURITY.md`](operations/SECURITY.md) |
 | 群晖发布或升级 | [默认更新部署流程](operations/NAS_DEPLOYMENT.md#默认更新部署流程) | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md) |
 | 监控、数据库备份或恢复 | [`OPERATIONS.md`](operations/OPERATIONS.md) | [`SECURITY.md`](operations/SECURITY.md) |
+| NAS 上申请 Oracle 免费实例与邮件通知 | [`ORACLE_MONITOR.md`](operations/ORACLE_MONITOR.md) | [`OPERATIONS.md`](operations/OPERATIONS.md) |
 | Google Drive 完整恢复包、午夜备份、Mac 按需恢复 | [`DISASTER_RECOVERY.md`](operations/DISASTER_RECOVERY.md) | [Google 首次设置](../scripts/recovery/README.md) |
 | 安装或排查 Mac“信息”代理 | [`MESSAGES_AGENT.md`](operations/MESSAGES_AGENT.md) | [`SECURITY.md`](operations/SECURITY.md) |
 | 安装或排查微信记工机器人 | [`LANGBOT_WORK_BOT.md`](operations/LANGBOT_WORK_BOT.md) | [`SECURITY.md`](operations/SECURITY.md)、[`API.md`](engineering/API.md)、[插件开发指南](../integrations/langbot-plugin/DEVELOPMENT.md) |

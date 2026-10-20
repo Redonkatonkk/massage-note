@@ -1,6 +1,6 @@
 # AI 接管指南
 
-> 最后核对：2026-10-19（America/New_York） · 当前版本：`1.32.9`
+> 最后核对：2026-10-20（America/New_York） · 当前版本：`1.32.14`
 
 ## 接手
 
@@ -17,6 +17,7 @@
 | LangBot 插件 | [插件开发指南](../../integrations/langbot-plugin/DEVELOPMENT.md)、[机器人手册](../operations/LANGBOT_WORK_BOT.md) | manifest/YAML 动态注册入口，插件版本与应用独立，安装副本不是源码。 |
 | Mac“信息”代理 | [代理手册](../operations/MESSAGES_AGENT.md) | 已安装代理和权限 App 独立运行，NAS 发布不会更新其附件模板。 |
 | 安全及备份恢复 | [安全说明](../operations/SECURITY.md)、[运维手册](../operations/OPERATIONS.md) | 凭据、数据库和发送状态需要各自的验证与恢复边界。 |
+| Oracle 免费实例申请监控 | [NAS 监控手册](../operations/ORACLE_MONITOR.md) | 只允许 2 OCPU / 12GB，不得降配；独立运行器、OCI 签名身份、持久重试令牌和通知状态须单独核对，应用发布不代表监控已启用。 |
 
 ## 交接
 

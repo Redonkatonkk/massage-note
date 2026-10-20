@@ -33,21 +33,22 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 
-it("默认每周，三项并排绘制并标注金额，支持聚焦读数及负收入", async () => {
+it("默认每周，每期三项纵向排列并横向绘柱，支持聚焦读数及负收入", async () => {
   await render();
   expect(container.querySelector("select")!.value).toBe("WEEK");
   expect([...container.querySelectorAll(".analytics-income-legend li")].map(item => item.textContent)).toEqual(["总流水", "店铺收入", "总收入"]);
   const bars = [...container.querySelectorAll<SVGRectElement>("rect[data-series]")];
   expect(bars).toHaveLength(6);
-  expect(new Set(bars.slice(0, 3).map(bar => bar.getAttribute("x"))).size).toBe(3);
+  expect(new Set(bars.slice(0, 3).map(bar => bar.getAttribute("y"))).size).toBe(3);
   expect(new Set(bars.slice(0, 3).map(bar => bar.getAttribute("fill"))).size).toBe(3);
   expect(container.querySelectorAll(".analytics-bar-value")).toHaveLength(6);
   expect([...container.querySelectorAll(".analytics-bar-value")].map(text => text.textContent)).toEqual(["$300.03", "$100", "$200", "$300.03", "-$15", "$25"]);
-  expect(container.querySelector(".analytics-scroll > svg")).not.toBeNull();
-  const zeroY = Number(container.querySelector(".analytics-zero-line")!.getAttribute("y1"));
+  expect(container.querySelector(".analytics-scroll")).toBeNull();
+  expect(container.querySelectorAll(".analytics-horizontal-bars > svg")).toHaveLength(2);
+  const zeroX = Number(container.querySelectorAll(".analytics-zero-line")[1]!.getAttribute("x1"));
   const negative = bars[4]!;
-  expect(Number(negative.getAttribute("y"))).toBe(zeroY);
-  expect(Number(negative.getAttribute("height"))).toBeGreaterThan(0);
+  expect(Number(negative.getAttribute("x")) + Number(negative.getAttribute("width"))).toBeCloseTo(zeroX);
+  expect(Number(negative.getAttribute("width"))).toBeGreaterThan(0);
   await act(async () => container.querySelector(".analytics-hit")!.dispatchEvent(new FocusEvent("focusin", { bubbles: true })));
   const readout = container.querySelector(".analytics-readout")!.textContent;
   expect(readout).toContain("2026-09-30 — 2026-10-04");
@@ -59,11 +60,11 @@ it("切换每天和每月即时重分组，数据表保留全部金额及所选�
   await render();
   await select("DAY");
   expect(container.querySelectorAll("rect[data-series]")).toHaveLength(21);
-  const svg = container.querySelector(".analytics-scroll > svg")!;
-  expect(Number(svg.getAttribute("width"))).toBeLessThanOrEqual(7 * 84 + 85);
-  const bars = [...svg.querySelectorAll<SVGRectElement>("rect[data-series]")];
-  expect(Number(bars[1]!.getAttribute("x")) - Number(bars[0]!.getAttribute("x"))).toBeLessThanOrEqual(24);
-  expect([...svg.querySelectorAll(".analytics-bar-value")].filter(label => label.textContent !== "—").every(label => label.hasAttribute("transform"))).toBe(true);
+  const groups = [...container.querySelectorAll(".analytics-horizontal-bars > svg")];
+  expect(groups).toHaveLength(7);
+  expect(groups.every(svg => svg.getAttribute("width") === "100%" && svg.getAttribute("height") === "116")).toBe(true);
+  expect(groups.map(svg => svg.querySelector(".analytics-axis-label")!.textContent)).toEqual(["2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06"]);
+  expect([...container.querySelectorAll(".analytics-bar-value")].every(label => !label.hasAttribute("transform"))).toBe(true);
   const rows = [...container.querySelectorAll("tbody tr")];
   expect(rows[0]!.textContent).toContain("2026-09-30");
   expect(rows[6]!.textContent).toContain("2026-10-06");

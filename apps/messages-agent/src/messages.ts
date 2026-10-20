@@ -1,19 +1,28 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { sendStagedMessagesAttachment, type MessagesSubmission } from "./stager.js";
 
 const execFileAsync = promisify(execFile);
 
-export function messagesPhoneHandle(phoneE164: string) {
-  const match = /^\+1(\d{10})$/.exec(phoneE164);
-  return match?.[1] ?? phoneE164;
-}
-
 export const messagesAttachmentScript = `on run argv
+with timeout of 45 seconds
 set phoneNumber to item 1 of argv
 set phoneE164 to item 2 of argv
 set filePath to item 3 of argv
 set attachmentKind to "IMAGE"
 if (count of argv) is greater than 3 then set attachmentKind to item 4 of argv
+if attachmentKind is "DIAGNOSE" then
+  set fileHandle to open for access (POSIX file filePath as alias)
+  try
+    read fileHandle for 8 as data
+    close access fileHandle
+  on error failureMessage number messageCode
+    close access fileHandle
+    error failureMessage number messageCode
+  end try
+  tell application "Messages" to get count of accounts
+  return "ready"
+end if
 if attachmentKind is "CONVERSATION_IMAGE" then
   set serviceUsed to sendToExistingChat(phoneE164, filePath)
   if serviceUsed is not "" then
@@ -29,6 +38,7 @@ end repeat
 if serviceUsed is "" then error "No enabled Messages account can address this phone number"
 delay 15
 return serviceUsed
+end timeout
 end run
 
 on sendToExistingChat(phoneE164, filePath)
@@ -92,12 +102,6 @@ export async function sendMessagesAttachment(
   phoneE164: string,
   attachmentPath: string,
   attachmentKind: "IMAGE" | "CONVERSATION_IMAGE" = "IMAGE",
-): Promise<string> {
-  const phoneHandle = messagesPhoneHandle(phoneE164);
-  const { stdout } = await execFileAsync(
-    "/usr/bin/osascript",
-    ["-e", messagesAttachmentScript, "--", phoneHandle, phoneE164, attachmentPath, attachmentKind],
-    { timeout: 45_000 },
-  );
-  return stdout.trim();
+): Promise<MessagesSubmission> {
+  return sendStagedMessagesAttachment(phoneE164, attachmentPath, attachmentKind);
 }

@@ -4,6 +4,20 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.34.4 — 2026-10-22
+
+- Merge online gift card sales into the gift card ledger table, with separate physical-card and online-sale sections and shared sale columns. Group repeated purchases by username, show usage once, and retain accounts without registered sales and matching mobile sections.
+- Sync bilingual product/design documentation and component checks. No API or database changes; NAS requires a Web update.
+
+## 1.34.3 — 2026-10-22
+
+- Increase trend percentage numbers from 14px to 20px while retaining 14px labels and 30px primary values. Keep the first metric and all financial calculations unchanged. NAS requires a Web update.
+
+## 1.34.2 — 2026-10-22
+
+- Make current amounts and average daily service count the primary numbers in Business analytics trend cards, with smaller percentage changes below. Retain direction arrows and both date ranges; remove the separate direction line, closed-day counts, and sample-difference notices.
+- Preserve financial calculations, precision and missing/zero/negative-baseline explanations. Sync bilingual help/product/design documentation and responsive code checks. No API or database changes; NAS requires a Web update.
+
 ## 1.34.1 — 2026-10-22
 
 - Complete English-first bilingual documentation across current manuals, maintenance instructions, recovery tools, plugin instructions, changelog history, and archived records. Preserve technical examples and historical facts; add matching Chinese editions, reciprocal language links, localized navigation, and compatibility anchors.

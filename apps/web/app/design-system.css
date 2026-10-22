@@ -183,7 +183,8 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .analytics-overview__metric dd { margin: 14px 0 0; color: var(--ink); font-size: 1.875rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1.25; overflow-wrap: anywhere; }
 .analytics-overview__metric .analytics-overview__caption { margin-top: 8px; color: var(--muted); font-size: .875rem; font-weight: 400; letter-spacing: normal; line-height: 1.5; }
 .analytics-overview__as-of { margin: 0 0 12px; color: var(--muted); font-size: .875rem; line-height: 1.6; }
-.analytics-overview__metric .analytics-overview__value { font-size: .875rem; font-weight: 400; letter-spacing: normal; line-height: 1.6; }
+.analytics-overview__metric .analytics-overview__change { margin-top: 8px; font-size: .875rem; font-weight: 400; letter-spacing: normal; line-height: 1.6; }
+.analytics-overview__change-number { font-size: 1.25rem; }
 .analytics-overview__value strong { font-weight: 600; }
 .analytics-overview__change[data-direction="UP"] { color: var(--success); }
 .analytics-overview__change[data-direction="DOWN"] { color: var(--danger); }

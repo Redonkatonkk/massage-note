@@ -102,7 +102,16 @@ it("台账把重复购买归为用户名一组，使用金额只合计一次且�
   const dom = document.createElement("div"); dom.innerHTML = markup;
   expect(dom.querySelectorAll(".gift-card-ledger__summary article strong")[2]!.textContent).toBe("US$10");
   expect(dom.textContent).toContain("2 次购买"); expect(dom.textContent).toContain("用户名 unknown");
-  expect(dom.querySelectorAll(".gift-card-ledger__table tbody tr")).toHaveLength(1);
+  const table = dom.querySelector(".gift-card-ledger__table")!;
+  expect(dom.querySelectorAll("table")).toHaveLength(1);
+  expect([...table.querySelectorAll("tbody")].map((group) => group.getAttribute("aria-label"))).toEqual(["实体卡", "网上卖卡"]);
+  expect(table.querySelectorAll('tbody[aria-label="实体卡"] tr')).toHaveLength(2);
+  const online = table.querySelector('tbody[aria-label="网上卖卡"]')!;
+  expect(online.querySelectorAll("tr")).toHaveLength(4);
+  expect(online.querySelector(".gift-card-ledger__account")?.getAttribute("rowspan")).toBe("2");
+  expect(online.querySelectorAll(".gift-card-ledger__usage-list article")).toHaveLength(1);
+  expect(online.textContent).toContain("用户名 unknown未登记销售");
+  expect(dom.querySelectorAll(".mobile-data-view .mobile-data-card")).toHaveLength(3);
 });
 
 it("用户名输入和模式按钮在手机样式中可换行，保持文本输入与触控高度", async () => {

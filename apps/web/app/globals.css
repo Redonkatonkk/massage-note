@@ -2644,6 +2644,13 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 .gift-card-ledger__summary span { color: var(--muted); font-size: .85rem; }
 .gift-card-ledger__summary strong { font-size: 1.3rem; }
 .gift-card-ledger__table td { vertical-align: top; }
+.gift-card-ledger__table th.gift-card-ledger__section-heading { position: static; background: var(--surface-soft); color: var(--ink); text-align: left; }
+.gift-card-ledger__table td.gift-card-ledger__sale-date { position: static; text-align: right; }
+.gift-card-ledger__account { min-width: 160px; max-width: 240px; white-space: normal; overflow-wrap: anywhere; }
+.gift-card-ledger__account small { display: block; margin-top: 4px; color: var(--muted); }
+.gift-card-ledger__mobile-section { display: grid; gap: 12px; }
+.gift-card-ledger__mobile-section + .gift-card-ledger__mobile-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
+.gift-card-ledger__mobile-section > .table-title { margin: 0; }
 .gift-card-ledger__serial { color: var(--brand); font-variant-numeric: tabular-nums; }
 .gift-card-ledger__usage-cell { min-width: min(520px, 70vw); text-align: left !important; white-space: normal; }
 .gift-card-ledger__usage-cell details > summary { color: var(--brand); font-weight: 650; cursor: pointer; }

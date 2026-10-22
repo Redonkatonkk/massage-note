@@ -11,14 +11,14 @@ export function AnalyticsOverview({ trends, loading = false, failed = false }: {
   const t = (zh: string, english: string) => en ? english : zh;
   const decimal = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const metrics = [
-    { key: "revenue7", label: t("7天环比", "7-day change"), caption: t("近7天日均营业额", "7-day average daily revenue"), days: 7 },
-    { key: "revenue30", label: t("30天环比", "30-day change"), caption: t("近30天日均营业额", "30-day average daily revenue"), days: 30 },
-    { key: "records30", label: t("30天平均日单量环比", "30-day daily service count change"), caption: t("近30天平均日单量", "30-day average daily service count"), days: 30 },
-    { key: "income30", label: t("30天总收入环比", "30-day total income change"), caption: t("近30天总收入", "30-day total income"), days: 30 },
+    { key: "revenue7", label: t("近7天日均营业额", "7-day average daily revenue") },
+    { key: "revenue30", label: t("近30天日均营业额", "30-day average daily revenue") },
+    { key: "records30", label: t("近30天平均日单量", "30-day average daily service count") },
+    { key: "income30", label: t("近30天总收入", "30-day total income") },
   ] as const;
   const amount = (value: string | null, count: boolean) => value === null ? "—" : count
     ? `${decimal.format(Number(value))} ${t("单／日", "records/day")}` : formatUsdPrecise(Number(value), locale);
-  const mainValue = (metric: FinanceTrendComparison | undefined) => {
+  const changeValue = (metric: FinanceTrendComparison | undefined) => {
     if (metric?.status === "NEW") return t("新增", "New");
     if (metric?.changeTenthsPercent == null) return "—";
     const arrow = metric.direction === "UP" ? "↑" : metric.direction === "DOWN" ? "↓" : "→";
@@ -32,7 +32,7 @@ export function AnalyticsOverview({ trends, loading = false, failed = false }: {
       case "NEW": return t("上期为零，本期新增", "Previous period was zero; new activity");
       case "ZERO_BASELINE": return t("上期为零，无法计算比例", "Previous period was zero; percentage unavailable");
       case "NEGATIVE_BASELINE": return t("上期为负数，无法计算比例", "Previous period was negative; percentage unavailable");
-      case "COMPARABLE": return metric.direction === "UP" ? t("上涨", "Up") : metric.direction === "DOWN" ? t("下降", "Down") : t("持平", "Unchanged");
+      case "COMPARABLE": return "";
     }
   };
   const available = !failed && trends !== null;
@@ -44,14 +44,13 @@ export function AnalyticsOverview({ trends, loading = false, failed = false }: {
         const count = config.key === "records30";
         return <div className="analytics-overview__metric" key={config.key} data-metric={config.key}>
           <dt><UiIcon name={count ? "log" : "trend"} />{config.label}</dt>
-          <dd className="analytics-overview__change" data-direction={metric?.direction ?? undefined}>{mainValue(metric)}</dd>
-          <dd className="analytics-overview__value">{config.caption} <strong>{amount(metric?.current.value ?? null, count)}</strong></dd>
+          <dd className="analytics-overview__value"><strong>{amount(metric?.current.value ?? null, count)}</strong></dd>
+          <dd className="analytics-overview__change" data-direction={metric?.direction ?? undefined}>{t("环比", "Period change")} <span className="analytics-overview__change-number">{changeValue(metric)}</span></dd>
           {metric && <>
-            <dd className="analytics-overview__caption">{reason(metric)}{metric.status !== "COMPARABLE" && metric.difference !== null && <> · {t("变化", "Change")} {Number(metric.difference) > 0 ? "+" : ""}{amount(metric.difference, count)}</>}</dd>
+            {metric.status !== "COMPARABLE" && <dd className="analytics-overview__caption">{reason(metric)}{metric.difference !== null && <> · {t("变化", "Change")} {Number(metric.difference) > 0 ? "+" : ""}{amount(metric.difference, count)}</>}</dd>}
             <dd className="analytics-overview__periods">
-              <span>{t("本期", "Current")}: {metric.current.dateFrom} — {metric.current.dateTo} · {metric.current.closedDayCount}/{config.days} {t("个已日结日", "closed days")}</span>
-              <span>{t("上期", "Previous")}: {metric.previous.dateFrom} — {metric.previous.dateTo} · {metric.previous.closedDayCount}/{config.days} {t("个已日结日", "closed days")}</span>
-              {metric.current.closedDayCount !== metric.previous.closedDayCount && <span>{t("两期已日结样本天数不同", "Closed-day sample counts differ between periods")}</span>}
+              <span>{t("本期", "Current")}: {metric.current.dateFrom} — {metric.current.dateTo}</span>
+              <span>{t("上期", "Previous")}: {metric.previous.dateFrom} — {metric.previous.dateTo}</span>
             </dd>
           </>}
         </div>;

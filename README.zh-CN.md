@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Redonkatonkk/massage-note/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Redonkatonkk/massage-note/actions/workflows/ci.yml)
 
-当前版本：`1.34.1`
+当前版本：`1.34.4`
 
 面向美国按摩店的全栈 TypeScript 管理应用，提供适配手机、平板和电脑的中英文界面，把记工、混合付款、员工提成、日结、工资支付登记和经营分析串成可追溯的业务流程。
 

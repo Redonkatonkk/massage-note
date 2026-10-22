@@ -93,11 +93,13 @@ test("analytics overview breakpoints and main chart proportions preserve natural
 test("trend cards keep semantic directions and complete amounts and periods on phones", async () => {
   const { JSDOM } = createRequire(resolve(import.meta.dirname, "../../apps/web/package.json"))("jsdom");
   const sources = await Promise.all(uiStyleFiles.map(async name => ({ name, css: await readFile(resolve(import.meta.dirname, "../../apps/web/app", name), "utf8") })));
-  const cards = ["UP", "DOWN", "FLAT"].map(direction => `<div class="analytics-overview__metric"><dd class="analytics-overview__change" data-direction="${direction}">↑ 123,456.7%</dd><dd class="analytics-overview__value"><strong>-US$123,456,789.12</strong></dd><dd class="analytics-overview__periods">2026-09-08 — 2026-10-07 · 20/30 closed days</dd></div>`).join("");
+  const cards = ["UP", "DOWN", "FLAT"].map(direction => `<div class="analytics-overview__metric"><dd class="analytics-overview__value"><strong>-US$123,456,789.12</strong></dd><dd class="analytics-overview__change" data-direction="${direction}">Period change / 环比 <span class="analytics-overview__change-number">↑ 123,456.7%</span></dd><dd class="analytics-overview__periods">2026-09-08 — 2026-10-07</dd></div>`).join("");
   for (const width of [320, 600, 1100]) {
     const dom = new JSDOM(`<style>${stylesAtWidth(sources, width)}</style><dl class="analytics-overview__metrics">${cards}</dl>`);
     try {
       const style = selector => dom.window.getComputedStyle(dom.window.document.querySelector(selector));
+      assert.ok(parseFloat(style(".analytics-overview__value").fontSize) > parseFloat(style(".analytics-overview__change-number").fontSize));
+      assert.ok(parseFloat(style(".analytics-overview__change-number").fontSize) > parseFloat(style(".analytics-overview__change").fontSize));
       assert.notEqual(style('[data-direction="UP"]').color, style('[data-direction="DOWN"]').color);
       assert.notEqual(style('[data-direction="FLAT"]').color, style('[data-direction="DOWN"]').color);
       for (const selector of [".analytics-overview__value", ".analytics-overview__periods"]) {

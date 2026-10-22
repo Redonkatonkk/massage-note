@@ -2,7 +2,7 @@
 
 **[English](DEVELOPMENT.md)** | **简体中文**
 
-> 适用版本：`1.34.4`
+> 适用版本：`1.34.5`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.zh-CN.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.zh-CN.md)，HTTP 细节看 [`API.md`](API.zh-CN.md)。
 

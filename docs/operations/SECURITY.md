@@ -1,8 +1,10 @@
 <a id="安全说明"></a>
 
-# Safety instructions
+# Security Guide
 
 **English** | **[简体中文](SECURITY.zh-CN.md)**
+
+The public GitHub repository has secret scanning and push protection enabled. Keep the staged-file checks in the release workflow as well. Reason: GitHub checks and local scanning provide separate checks before credentials become public; neither replaces careful handling of production configuration.
 
 <a id="已实施控制"></a>
 

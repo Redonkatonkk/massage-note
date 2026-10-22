@@ -1,6 +1,6 @@
 <a id="发布检查清单"></a>
 
-# Post a checklist
+# Release Checklist
 
 **English** | **[简体中文](RELEASE_CHECKLIST.zh-CN.md)**
 

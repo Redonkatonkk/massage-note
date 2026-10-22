@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](NAS_DEPLOYMENT.zh-CN.md)**
 
-> Current version: `1.34.4` · Mirror: `ghcr.io/redonkatonkk/massage-note`
+> Current version: `1.34.5` · Mirror: `ghcr.io/redonkatonkk/massage-note`
 > Historical version changes can be viewed in a unified manner [`CHANGELOG.md`](../../CHANGELOG.md) and will not be accumulated repeatedly in this manual.
 
 Standard release link:
@@ -150,6 +150,8 @@ Don't use `git add -A` without checking, and don't commit `.env`, `.local-ai/`, 
 ### Waiting for corresponding CI
 
 On non-PR `main` events, `.github/workflows/ci.yml` runs `verify` and `build-nas-image` in parallel. The build creates a commit-specific candidate image; `publish-nas-image` promotes that same digest to release tags only after both jobs succeed. Branch/PR builds retain production-build verification without publishing release tags.
+
+Push-triggered CI runs on branches only; creating a Release tag does not rerun verification of the same commit. Pull requests and manual dispatch remain available. Reason: the branch workflow already verifies the release commit, so tag creation should not duplicate the full suite. See the [GitHub Actions branch/tag filter reference](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore).
 
 The image build is responsible for the production build check of this type of run, and `verify` will no longer build again; ordinary branch push and PR will continue to perform production builds within `verify`. Depend on the lock file and workspace installation configuration `pnpm fetch` first, and then install it offline; GHCR `buildcache-main` saves the middle layer, and only writes `buildcache-benchmark` for manual branch testing. Reason: Package version increments should not download dependencies repeatedly, and benchmarks cannot override the official build cache. The solution is based on [pnpm fetch](https://pnpm.io/cli/fetch) and [Docker registry cache](https://docs.docker.com/build/cache/backends/registry/).
 

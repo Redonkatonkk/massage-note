@@ -2,6 +2,8 @@
 
 **[English](SECURITY.md)** | **简体中文**
 
+公开 GitHub 仓库已启用密钥扫描和推送保护，发布流程仍保留暂存文件扫描。保留原因：GitHub 检查和本地扫描分别提供凭据公开前的检查，不能替代对生产配置的妥善保管。
+
 ## 已实施控制
 
 - Firebase Phone Auth 验证手机号所有权；密码使用随机盐 `scrypt` 摘要，密码验证成功后由 Admin SDK 签发短期 Custom Token。API 使用 `Secure`、`HttpOnly`、`SameSite=Lax` 会话 Cookie，会话验证包含撤销检查。保留原因：当前会话校验与撤销依赖验证后的账号，明文密码不能作为持久凭据。

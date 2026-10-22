@@ -4,6 +4,13 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.34.5 — 2026-10-22
+
+- Improve the GitHub description and technology topics, enable automatic deletion of merged PR branches, and enable secret scanning and push protection while preserving branches with unmerged commits.
+- Add prominent latest-release and changelog links to both README editions, clarify the English release/security document titles, and correct a historical English description of the agent's read-only access to sending metadata.
+- Use English CI workflow/job names and run push-triggered CI on branches only, avoiding duplicate full verification when a Release tag is created. Preserve pull requests, manual runs, parallel verification/image builds, and immutable image promotion.
+- No application behavior or database changes.
+
 ## 1.34.4 — 2026-10-22
 
 - Merge online gift card sales into the gift card ledger table, with separate physical-card and online-sale sections and shared sale columns. Group repeated purchases by username, show usage once, and retain accounts without registered sales and matching mobile sections.
@@ -68,7 +75,7 @@ For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page sav
 
 ## 1.32.14 — 2026-10-20
 
-- The Mac sending agent only reads and observes the sending status metadata of this task after the command is accepted. If it fails, it will enter the existing upper limit and retry; unconfirmed, database unreadable or old attempt receipts will no longer be recorded as successful, and the chat text will not be read or the Messages database will be rewritten.
+- After a send command is accepted, the Mac agent observes only that task's sending-status metadata through read-only access. Explicit failures use the existing bounded retries; unconfirmed results, unreadable databases, and receipts from earlier attempts are not recorded as success. The agent does not read chat bodies or modify the Messages database.
 - There will be an interval of 2 minutes after the end of a normal task, and at least 5 minutes after a failure, the next collection time will be persisted; restart to resume observation and retreat, and the heartbeat will run independently. Keep the original sending route, no API contracts or database migrations.
 - The history of daily closing, interval settlement and employee subtotal SENT uniformly displays "Submitted·Unconfirmed Delivery", changes to the color to be verified and explains the true delivery source; adds asynchronous failure, status isolation, read-only metadata, waiting for retry and phone status return. The agent needs to be updated independently, and the web copy needs to be updated on the NAS.
 

@@ -4,7 +4,9 @@
 
 [![CI](https://github.com/Redonkatonkk/massage-note/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Redonkatonkk/massage-note/actions/workflows/ci.yml)
 
-Current version: `1.34.4`
+**[Latest release](https://github.com/Redonkatonkk/massage-note/releases/latest)** · **[Changelog](CHANGELOG.md)**
+
+Current version: `1.34.5`
 
 A full-stack TypeScript application for massage shop operations in the United States, with an English/Chinese interface for phones, tablets, and desktops. It connects service records, split payments, employee commissions, daily closing, payroll tracking, and business analytics in one auditable workflow.
 

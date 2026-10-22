@@ -1,12 +1,13 @@
-name: 持续集成
+name: CI
 
 on:
   push:
+    branches: ["**"]
   pull_request:
   workflow_dispatch:
     inputs:
       build_nas_image:
-        description: 构建 NAS 候选镜像并计时（分支运行不发布正式标签）
+        description: Build and time a NAS candidate image; branch runs do not publish release tags
         type: boolean
         default: false
 
@@ -15,6 +16,7 @@ permissions:
 
 jobs:
   verify:
+    name: Verify
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://massage:massage@localhost:5432/massage_note
@@ -43,25 +45,25 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: 检查版本、文档链接并准备共享包
+      - name: Check versions, documentation and UI; prepare shared packages
         run: pnpm version:check && pnpm docs:check && pnpm ui:check && pnpm ui:mobile && pnpm predev
-      - name: 类型检查
+      - name: Type check
         run: pnpm -r typecheck
-      - name: 工具与单元测试（API 在集成测试阶段一并运行）
+      - name: Run tooling, unit and component tests
         run: pnpm test:tooling && pnpm --filter @massage-note/domain --filter @massage-note/contracts --filter @massage-note/messages-agent --filter @massage-note/web test
-      - name: 运行临时 CI 数据库集成测试
+      - name: Run database and API integration tests
         run: |
           pnpm --filter @massage-note/database migrate:deploy
           pnpm --filter @massage-note/database test
           pnpm --filter @massage-note/api test
         env:
           DATABASE_INTEGRATION_TESTS: "1"
-      - name: 生产构建（发布运行由并行镜像构建覆盖）
+      - name: Build production applications for branches and pull requests
         if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && !inputs.build_nas_image)
         run: pnpm build
 
   build-nas-image:
-    name: 并行构建 NAS 候选镜像
+    name: Build NAS image
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || inputs.build_nas_image)
     runs-on: ubuntu-latest
     permissions:
@@ -74,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 读取版本与规范化镜像名
+      - name: Read version and normalize image name
         id: image
         shell: bash
         run: |
@@ -88,14 +90,14 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: 登录 GitHub Container Registry
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 构建并推送 linux/amd64 候选镜像
+      - name: Build and push linux/amd64 candidate image
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -124,7 +126,7 @@ jobs:
             NEXT_PUBLIC_FIREBASE_APP_ID=${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
 
   publish-nas-image:
-    name: 验证通过后发布正式镜像标签
+    name: Publish NAS image
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: [verify, build-nas-image]
     runs-on: ubuntu-latest
@@ -141,7 +143,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: 将已验证 digest 标记为正式版本
+      - name: Promote verified image digest to release tags
         shell: bash
         env:
           IMAGE: ${{ needs.build-nas-image.outputs.name }}
@@ -153,7 +155,7 @@ jobs:
           trap 'rm -f "$error_file"' EXIT
           if existing=$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{.Manifest.Digest}}' 2>"$error_file"); then
             if [[ "$existing" != "$DIGEST" ]]; then
-              echo "正式版本 $VERSION 已存在且 digest 不同；请递增版本。" >&2
+              echo "Version $VERSION already points to a different digest; increment VERSION." >&2
               exit 1
             fi
           elif ! grep -Fq "$IMAGE:$VERSION: not found" "$error_file" \
@@ -166,7 +168,7 @@ jobs:
             --tag "$IMAGE:sha-${GITHUB_SHA:0:7}" "$IMAGE@$DIGEST"
 
   report-timing:
-    name: 记录流水线各阶段耗时
+    name: Report timing
     if: always()
     needs: [verify, build-nas-image, publish-nas-image]
     runs-on: ubuntu-latest
@@ -174,7 +176,7 @@ jobs:
       actions: read
       contents: read
     steps:
-      - name: 写入运行计时摘要
+      - name: Write job timing summary
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -183,7 +185,7 @@ jobs:
             --jq '.jobs[] | select(.completed_at != null) | [.name, .conclusion, (((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601)) | tostring)] | @tsv' \
             > "$RUNNER_TEMP/job-timing.tsv"
           {
-            echo '| 阶段 | 结果 | 耗时（秒） |'
+            echo '| Stage / 阶段 | Result / 结果 | Duration (seconds) / 耗时（秒） |'
             echo '| --- | --- | ---: |'
             while IFS=$'\t' read -r name result seconds; do
               printf '| %s | %s | %s |\n' "$name" "$result" "$seconds"

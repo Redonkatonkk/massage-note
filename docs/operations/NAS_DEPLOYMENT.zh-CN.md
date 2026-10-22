@@ -2,7 +2,7 @@
 
 **[English](NAS_DEPLOYMENT.md)** | **简体中文**
 
-> 当前版本：`1.34.4` · 镜像：`ghcr.io/redonkatonkk/massage-note`
+> 当前版本：`1.34.5` · 镜像：`ghcr.io/redonkatonkk/massage-note`
 > 历史版本变化统一查看 [`CHANGELOG.md`](../../CHANGELOG.zh-CN.md)，不在本手册重复累积。
 
 标准发布链路：
@@ -132,6 +132,8 @@ git push origin main
 ### 等待对应 CI
 
 `.github/workflows/ci.yml` 在 `main` 的非 PR 事件中并行运行 `verify` 与 `build-nas-image`；只有两者都成功才运行 `publish-nas-image`，把候选镜像的同一 digest 标为语义版本、`latest` 和提交标签，不重新构建。已有语义版本若指向其他 digest 则拒绝覆盖。保留原因：缩短串行等待，同时保持完整验证、不可变版本和产物追溯。
+
+push 触发只覆盖分支，创建 Release 标签不重复验证同一提交；PR 和手动运行入口继续保留。保留原因：分支工作流已验证发布提交，创建标签不应再重复执行完整测试。依据见 [GitHub Actions 分支／标签筛选说明](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore)。
 
 镜像构建承担这类运行的生产构建检查，`verify` 不再重复构建；普通分支 push 与 PR 继续在 `verify` 内执行生产构建。依赖先按锁文件和 workspace 安装配置 `pnpm fetch`，再离线安装；GHCR `buildcache-main` 保存中间层，手动分支实测只写 `buildcache-benchmark`。保留原因：包版本递增不应重复下载依赖，基准测试不能覆盖正式构建缓存。方案依据 [pnpm fetch](https://pnpm.io/cli/fetch) 与 [Docker registry cache](https://docs.docker.com/build/cache/backends/registry/)。
 

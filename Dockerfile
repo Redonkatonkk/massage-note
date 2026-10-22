@@ -44,7 +44,7 @@ RUN timeout -k 5s 180s pnpm --filter @massage-note/database deploy --prod --lega
 FROM node:24-alpine AS api
 WORKDIR /app
 ENV NODE_ENV=production API_PORT=4000
-ARG APP_VERSION=1.34.4
+ARG APP_VERSION=1.34.5
 LABEL org.opencontainers.image.title="Massage note API" \
       org.opencontainers.image.version=$APP_VERSION
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup

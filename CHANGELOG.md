@@ -4,6 +4,12 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.36.0 — 2026-10-22
+
+- Add a public, sign-in-free GitHub Pages demo using the original Web pages and an isolated synthetic API snapshot. Block writes, live authentication, AI calls and message delivery in the demo build.
+- Add English/Chinese portfolio entry points, a page gallery and reproducible demo build/data tooling.
+- Keep the production Web/API behavior and database schema unchanged.
+
 ## 1.35.0 — 2026-10-22
 
 - Rename Audit log to Data operations; owners can export a full or anonymized single-store JSON file and preview an atomic replacement import with a mandatory full recovery download.

@@ -1,6 +1,6 @@
 {
   "name": "massage-note",
-  "version": "1.35.0",
+  "version": "1.36.0",
   "private": true,
   "packageManager": "pnpm@11.9.0",
   "scripts": {
@@ -25,7 +25,9 @@
     "db:validate": "pnpm --filter @massage-note/database validate",
     "db:migrate": "pnpm --filter @massage-note/database migrate:dev",
     "db:deploy": "pnpm --filter @massage-note/database migrate:deploy",
-    "demo:seed": "pnpm db:deploy && docker compose exec -T postgres psql -U massage -d massage_note < scripts/seed-local-demo.sql"
+    "demo:seed": "pnpm db:deploy && docker compose exec -T postgres psql -U massage -d massage_note < scripts/seed-local-demo.sql",
+    "demo:build": "node scripts/build-portfolio-demo.mjs",
+    "demo:fixtures": "pnpm predev && pnpm --filter @massage-note/api build && node scripts/generate-portfolio-data.mjs"
   },
   "devDependencies": {
     "@types/node": "24.10.0",

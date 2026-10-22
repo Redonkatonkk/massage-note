@@ -1,5 +1,7 @@
 "use client";
 
+import { appHref } from "../../lib/demo-mode";
+
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import { browserStorage } from "../../lib/browser-storage";
@@ -193,7 +195,7 @@ export function ManagePageClient() {
       ?? profile.memberships.find((item) => item.store.id === browserStorage.getItem("massage_note_store_id"))
       ?? profile.memberships[0];
     if (!selected) {
-      window.location.replace("/");
+      window.location.replace(appHref("/"));
       return;
     }
     setMe(profile);
@@ -222,7 +224,7 @@ export function ManagePageClient() {
 
   useEffect(() => {
     void loadAll().catch((caught) => {
-      if ((caught as { status?: number }).status === 401) window.location.replace("/login");
+      if ((caught as { status?: number }).status === 401) window.location.replace(appHref("/login"));
       else setError(errorMessage(caught));
     }).finally(() => setLoading(false));
   }, [loadAll]);
@@ -264,7 +266,7 @@ export function ManagePageClient() {
     <main className="app-shell manage-shell">
       <header className="topbar">
         <div><p className="eyebrow">{store.name}</p><h1>{tabs.find(([value]) => value === tab)?.[1]}</h1><p className="business-date">{pageDescriptions[tab]} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
-        <div className="topbar-actions"><a className="store-switcher header-link" href="/help">使用帮助</a><a className="store-switcher header-link" href="/">返回今日记工</a></div>
+        <div className="topbar-actions"><a className="store-switcher header-link" href={appHref("/help")}>使用帮助</a><a className="store-switcher header-link" href={appHref("/")}>返回今日记工</a></div>
       </header>
       <nav className="section-tabs" aria-label="管理页面">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? "active" : ""} aria-pressed={tab === value} onClick={() => changeTab(value)}>{label}</button>)}</nav>
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -351,7 +353,7 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
       {canManage && <button className="primary-action" disabled={busy} type="submit">{busy ? "正在保存…" : "保存店铺设置"}</button>}
     </form>
     {canManage && <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">Mac 信息代理</p><h2>员工小结发送设备</h2></div><span className={`status-chip ${agentStatus?.lastSeenAt && Date.now() - new Date(agentStatus.lastSeenAt).getTime() < 180_000 ? "" : "warning"}`}>{agentStatus?.revokedAt ? "已撤销" : agentStatus?.lastSeenAt ? "最近在线" : "未连接"}</span></div><p className="field-help">代理令牌只在生成时显示一次。请在固定 Mac 上安装 messages-agent，并允许它控制“信息”App。</p>{agentStatus?.lastSeenAt && <p className="field-help">最后在线：{formatTime(agentStatus.lastSeenAt)} · 服务：{agentStatus.lastStatusJson?.serviceTypes?.join(" / ") || "未报告"}{agentStatus.lastStatusJson?.lastError ? ` · ${agentStatus.lastStatusJson.lastError}` : ""}</p>}{agentToken && <label>新代理令牌（请立即复制）<input readOnly value={agentToken} onFocus={(event) => event.currentTarget.select()} /></label>}<div className="inline-controls"><button className="primary-action compact" type="button" disabled={busy} onClick={() => void run(async () => { const result = await apiRequest<{ token: string; tokenPrefix: string }>(`/stores/${store.id}/closing-delivery-agent/credential`, { method: "POST" }); setAgentToken(result.token); setAgentStatus({ tokenPrefix: result.tokenPrefix, lastSeenAt: null, revokedAt: null }); })}>{agentStatus ? "轮换代理令牌" : "生成代理令牌"}</button>{agentStatus && !agentStatus.revokedAt && <button className="secondary-action compact" type="button" disabled={busy} onClick={() => void run(async () => { await apiRequest(`/stores/${store.id}/closing-delivery-agent/credential`, { method: "DELETE" }); setAgentStatus((current) => current ? { ...current, revokedAt: new Date().toISOString() } : current); setAgentToken(""); })}>撤销代理</button>}</div></section>}
-    {membership.role === "OWNER" && <section className="manage-card danger-zone"><div className="manage-heading"><div><p className="eyebrow">仅店主</p><h2>店主转移与删除店铺</h2></div></div><p className="field-help">转移后你会变为经理，新店主获得全部店主权限。删除店铺会让所有成员立即无法进入，但历史数据不会物理删除。</p><div className="inline-controls"><select value={nextOwner} onChange={(event) => setNextOwner(event.target.value)}><option value="">选择新店主</option>{members.filter((item) => item.id !== membership.id && item.status === "ACTIVE" && Boolean(item.user)).map((item) => <option key={item.id} value={item.id}>{item.displayName}（{roleText[item.role]}）</option>)}</select><button className="secondary-action" type="button" disabled={busy || !nextOwner} onClick={() => { if (!window.confirm("确认把店主身份转移给所选成员吗？")) return; void run(async () => { await apiRequest(`/stores/${store.id}/owner-transfer`, { method: "POST", idempotent: true, body: { version: store.version, newOwnerMembershipId: nextOwner } }); await reload(); }); }}>转移店主身份</button><button className="danger-button" type="button" disabled={busy} onClick={() => { const answer = window.prompt(`请输入店铺名称“${store.name}”确认删除`); if (answer !== store.name) return; const reason = window.prompt("请填写删除店铺原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${store.id}`, { method: "DELETE", idempotent: true, body: { version: store.version, reason: reason.trim() } }); browserStorage.removeItem("massage_note_store_id"); window.location.replace("/"); }); }}>删除店铺</button></div></section>}
+    {membership.role === "OWNER" && <section className="manage-card danger-zone"><div className="manage-heading"><div><p className="eyebrow">仅店主</p><h2>店主转移与删除店铺</h2></div></div><p className="field-help">转移后你会变为经理，新店主获得全部店主权限。删除店铺会让所有成员立即无法进入，但历史数据不会物理删除。</p><div className="inline-controls"><select value={nextOwner} onChange={(event) => setNextOwner(event.target.value)}><option value="">选择新店主</option>{members.filter((item) => item.id !== membership.id && item.status === "ACTIVE" && Boolean(item.user)).map((item) => <option key={item.id} value={item.id}>{item.displayName}（{roleText[item.role]}）</option>)}</select><button className="secondary-action" type="button" disabled={busy || !nextOwner} onClick={() => { if (!window.confirm("确认把店主身份转移给所选成员吗？")) return; void run(async () => { await apiRequest(`/stores/${store.id}/owner-transfer`, { method: "POST", idempotent: true, body: { version: store.version, newOwnerMembershipId: nextOwner } }); await reload(); }); }}>转移店主身份</button><button className="danger-button" type="button" disabled={busy} onClick={() => { const answer = window.prompt(`请输入店铺名称“${store.name}”确认删除`); if (answer !== store.name) return; const reason = window.prompt("请填写删除店铺原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${store.id}`, { method: "DELETE", idempotent: true, body: { version: store.version, reason: reason.trim() } }); browserStorage.removeItem("massage_note_store_id"); window.location.replace(appHref("/")); }); }}>删除店铺</button></div></section>}
   </section>;
 }
 

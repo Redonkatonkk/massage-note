@@ -21,3 +21,5 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 *.lbpkg
+
+.next-demo/

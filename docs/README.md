@@ -4,6 +4,8 @@
 
 **English** | **[简体中文](README.zh-CN.md)**
 
+[Portfolio gallery and sign-in-free demo](portfolio/README.md) — resume entrance, 17 page images, walkthrough and demo boundaries.
+
 Project overview: **[English README](../README.md)** · **[中文 README](../README.zh-CN.md)**. Every manual has an English default edition and a matching Chinese edition, linked at the top.
 
 This is the documentation entry point for Massage Note. Choose the manual for the task below. Reason: documents have distinct responsibilities, so ordinary tasks need only the relevant current evidence; repository-wide cleanup follows the maintenance rules.

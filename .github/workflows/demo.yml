@@ -1,0 +1,41 @@
+name: Portfolio demo
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/web/**", "packages/domain/**", "packages/contracts/**", "scripts/build-portfolio-demo.mjs", "pnpm-lock.yaml", ".github/workflows/demo.yml", "VERSION"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portfolio-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.9.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @massage-note/domain --filter @massage-note/contracts build
+      - run: pnpm demo:build
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: apps/web/out }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

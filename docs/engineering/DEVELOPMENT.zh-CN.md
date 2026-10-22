@@ -2,7 +2,7 @@
 
 **[English](DEVELOPMENT.md)** | **简体中文**
 
-> 适用版本：`1.35.0`
+> 适用版本：`1.36.0`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.zh-CN.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.zh-CN.md)，HTTP 细节看 [`API.md`](API.zh-CN.md)。
 
@@ -166,3 +166,22 @@ CI 发布运行将完整验证与镜像构建并行，生产构建由镜像阶�
 ## 店铺数据迁移验证
 
 修改导入导出时，在独立测试库运行 store-data API 集成用例及 DataOperationsPanel 组件测试，覆盖完整和演示文件往返、嵌套身份清除、精度、应用只追加权限、冲突、重放和事务回滚。见[运维指南](../operations/OPERATIONS.zh-CN.md#店铺数据文件)。原因：仅结构校验不能证明恢复顺序、生产权限或演示数据处理正确。
+
+## 公开作品演示
+
+[作品图集与演示路线](../portfolio/README.zh-CN.md)提供 GitHub Pages 入口及全部页面图片。演示复用原 Web 组件，由 `NEXT_PUBLIC_PORTFOLIO_DEMO=true` 在构建期启用独立的只读数据适配器，默认 API、认证与实时连接不可访问；普通构建继续使用真实 API。原因：公开简历链接需要免登录且不会接触业务数据的稳定展示。
+
+```bash
+pnpm --filter @massage-note/domain --filter @massage-note/contracts build
+pnpm demo:build
+```
+
+输出在 `apps/web/out`，默认路径前缀 `/massage-note`；使用 `DEMO_BASE_PATH= pnpm demo:build` 可构建根路径托管版本。构建在不含 `.env` 的临时源码副本中进行，不会覆盖本地开发缓存。`.github/workflows/demo.yml` 在 main 更新后构建并发布 GitHub Pages；仓库 Pages 需选择 GitHub Actions 作为来源，独立于 NAS 发布。
+
+`apps/web/demo/responses.json` 仅包含合成数据。需要重生成时运行：
+
+```bash
+pnpm demo:fixtures
+```
+
+该工具要求本机项目 PostgreSQL（默认 5432）和构建依赖；创建全新临时数据库、执行迁移和固定日期的合成种子，通过真实 API 生成三个月记录与日结，保存响应后关闭临时 API 并删除该临时库，不读取 `.env` 或现有业务库。日期固定为 2026-10-22；调整快照日期时须同步生成脚本、Demo 文案和测试中的日期及查询范围。不要用业务导出文件替换公开快照。`demo/client.test.ts` 覆盖写入拦截、快照匹配和身份数据；`demo/pages.test.tsx` 直接渲染 15 个页面／页签，验证默认加载不调用网络。原因：演示数据与业务数据的隔离需要独立的可执行证据。

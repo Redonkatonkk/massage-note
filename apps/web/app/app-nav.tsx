@@ -1,5 +1,7 @@
 "use client";
 
+import { appHref } from "../lib/demo-mode";
+
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { BrandMark, UiIcon, type IconName } from "./ui/primitives";
 import { LanguageSwitcher } from "./language-provider";
@@ -28,7 +30,7 @@ export function AppNav({ active, storeId, role = "EMPLOYEE", activeTab, onTabCha
   ];
   return <div className="app-nav-space" style={{ "--app-nav-height": navHeight === null ? undefined : `${navHeight}px` } as CSSProperties}>
     <nav ref={navRef} className="bottom-nav" aria-label="主要导航">
-      <a className="app-nav-brand" href="/" aria-label="Massage note 首页"><BrandMark /><span>massage<span className="app-nav-brand__note">note.</span></span></a>
+      <a className="app-nav-brand" href={appHref("/")} aria-label="Massage note 首页"><BrandMark /><span>massage<span className="app-nav-brand__note">note.</span></span></a>
       <p className="app-nav-caption">店铺工作台</p>
       <div className={`app-nav-links${assistant ? " app-nav-links--with-ai" : ""}`}>{items.map((item) => {
         const children = item.page === "finance" ? financeNavigationTabs(role) : item.page === "manage" ? manageNavigationTabs(role) : [];
@@ -37,10 +39,10 @@ export function AppNav({ active, storeId, role = "EMPLOYEE", activeTab, onTabCha
         const isExpanded = expandedGroups[item.page] ?? false;
         const itemClassName = `bottom-nav__item${isActive ? " bottom-nav__item--active" : ""}`;
         return <div className="app-nav-group" key={item.page}>
-          <a aria-label={item.label} aria-current={isActive ? "page" : undefined} className={`${itemClassName}${hasChildren ? " app-nav-parent-link" : ""}`} href={item.href}><UiIcon name={item.icon} /><span className="app-nav-label">{item.label}</span></a>
+          <a aria-label={item.label} aria-current={isActive ? "page" : undefined} className={`${itemClassName}${hasChildren ? " app-nav-parent-link" : ""}`} href={appHref(item.href)}><UiIcon name={item.icon} /><span className="app-nav-label">{item.label}</span></a>
           {hasChildren && <button type="button" aria-label={item.label} aria-current={isActive ? "page" : undefined} aria-expanded={isExpanded} aria-controls={`${submenuId}-${item.page}`} className={`${itemClassName} app-nav-toggle`} onClick={() => setExpandedGroups(groups => ({ ...groups, [item.page]: !groups[item.page] }))}><UiIcon name={item.icon} /><span className="app-nav-label">{item.label}</span><UiIcon name="arrow" className="app-nav-toggle__arrow" /></button>}
           {hasChildren && (item.page === "finance" || item.page === "manage") && <div id={`${submenuId}-${item.page}`} className="app-nav-submenu" hidden={!isExpanded}>
-            {children.map(([value, label]) => <a key={value} href={navigationTabHref(item.page as "finance" | "manage", value, storeId)} aria-current={isActive && activeTab === value ? "page" : undefined} onClick={event => {
+            {children.map(([value, label]) => <a key={value} href={appHref(navigationTabHref(item.page as "finance" | "manage", value, storeId))} aria-current={isActive && activeTab === value ? "page" : undefined} onClick={event => {
               if (isActive && onTabChange && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                 event.preventDefault(); onTabChange(value);
               }
@@ -48,7 +50,7 @@ export function AppNav({ active, storeId, role = "EMPLOYEE", activeTab, onTabCha
           </div>}
         </div>;
       })}{assistant && <div className="app-nav-group">{assistant}</div>}</div>
-      <div className="app-nav-footer"><LanguageSwitcher /><a href="/help" aria-label="使用帮助"><UiIcon name="help" /><span className="app-nav-label">使用帮助</span><UiIcon name="arrow" className="app-nav-footer__arrow" /></a><span className="app-nav-version">Massage note</span></div>
+      <div className="app-nav-footer"><LanguageSwitcher /><a href={appHref("/help")} aria-label="使用帮助"><UiIcon name="help" /><span className="app-nav-label">使用帮助</span><UiIcon name="arrow" className="app-nav-footer__arrow" /></a><span className="app-nav-version">Massage note</span></div>
     </nav>
   </div>;
 }

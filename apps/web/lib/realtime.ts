@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiBase } from "./api";
+import { isPortfolioDemo } from "./demo-mode";
 import { createStoreChannel, type RealtimeChange, type RealtimeState } from "./realtime-client";
 export type { RealtimeChange, RealtimeState } from "./realtime-client";
 
@@ -9,10 +10,10 @@ const channels = new Map<string, { channel: ReturnType<typeof createStoreChannel
 
 export function useStoreRealtime(storeId: string | undefined, onChange: (change: RealtimeChange) => void | Promise<void>) {
   const handler = useRef(onChange);
-  const [state, setState] = useState<RealtimeState>("连接中");
+  const [state, setState] = useState<RealtimeState>(isPortfolioDemo ? "已同步" : "连接中");
   useEffect(() => { handler.current = onChange; }, [onChange]);
   useEffect(() => {
-    if (!storeId) return;
+    if (!storeId || isPortfolioDemo) return;
     let entry = channels.get(storeId);
     if (!entry) {
       entry = { channel: createStoreChannel(`${apiBase}/stores/${storeId}/events`), subscribers: 0 };

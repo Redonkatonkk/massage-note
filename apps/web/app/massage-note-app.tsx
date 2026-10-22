@@ -1,5 +1,7 @@
 "use client";
 
+import { appHref } from "../lib/demo-mode";
+
 import { useAutoDismissState } from "./use-auto-dismiss-state";
 
 import { createRefreshQueue } from "../lib/refresh-queue";
@@ -256,7 +258,7 @@ export function MassageNoteApp() {
       } else setMembership(null);
     } catch (caught) {
       if ((caught as { status?: number }).status === 401) {
-        window.location.replace("/login");
+        window.location.replace(appHref("/login"));
         return;
       }
       setError(errorMessage(caught));

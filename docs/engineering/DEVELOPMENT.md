@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](DEVELOPMENT.zh-CN.md)**
 
-> Applies to version: `1.35.0`
+> Applies to version: `1.36.0`
 
 This guide describes the current repository’s development workflow. See [`PRODUCT.md`](../product/PRODUCT.md) for business rules, [`ARCHITECTURE.md`](ARCHITECTURE.md) for code boundaries, and [`API.md`](API.md) for HTTP details.
 
@@ -194,3 +194,22 @@ Documentation uses paired `.md` (English default) and `.zh-CN.md` files, except 
 ## Store data transfer validation
 
 Run the store-data API integration suite against the independent test database and the DataOperationsPanel component tests for changes to import/export. Include full/demo round trips, nested identity removal, precision, append-only application privileges, conflicts, replay and transaction rollback. See [operations](../operations/OPERATIONS.md#store-data-files). Reason: schema validation alone cannot prove restore order, production permissions or safe demonstration data.
+
+## Public portfolio demo
+
+The [portfolio gallery and walkthrough](../portfolio/README.md) provides the GitHub Pages entrance and all page images. The demo reuses the original Web components. `NEXT_PUBLIC_PORTFOLIO_DEMO=true` selects an isolated read-only adapter at build time; normal API, authentication and realtime connections are unavailable. Normal builds continue using the real API. Reason: a public resume link needs a stable, sign-in-free presentation without access to business data.
+
+```bash
+pnpm --filter @massage-note/domain --filter @massage-note/contracts build
+pnpm demo:build
+```
+
+Output is `apps/web/out`, with `/massage-note` as the default path prefix. Use `DEMO_BASE_PATH= pnpm demo:build` for root-path hosting. Builds use a temporary source copy without `.env` and preserve local development caches. `.github/workflows/demo.yml` builds and publishes GitHub Pages after main updates; repository Pages must use GitHub Actions as its source. This is independent of NAS releases.
+
+`apps/web/demo/responses.json` contains synthetic data only. To regenerate it:
+
+```bash
+pnpm demo:fixtures
+```
+
+The tool requires this project's local PostgreSQL on its default port 5432 and build dependencies. It creates a fresh temporary database, applies migrations and a fixed-date synthetic seed, then generates three months of records and closings through the real API. After saving responses it closes the temporary API and drops that temporary database. It does not read `.env` or an existing business database. The date is fixed to 2026-10-22; changing it requires synchronizing the generator, demo copy, test dates and query ranges. Never replace the public snapshot with a business export. `demo/client.test.ts` covers write blocking, snapshot matching and identity data; `demo/pages.test.tsx` renders 15 original pages/tabs and verifies that initial loading makes no network requests. Reason: isolation between demonstration and business data needs independent executable evidence.

@@ -2,7 +2,7 @@
 
 **[English](NAS_DEPLOYMENT.md)** | **简体中文**
 
-> 当前版本：`1.35.0` · 镜像：`ghcr.io/redonkatonkk/massage-note`
+> 当前版本：`1.36.0` · 镜像：`ghcr.io/redonkatonkk/massage-note`
 > 历史版本变化统一查看 [`CHANGELOG.md`](../../CHANGELOG.zh-CN.md)，不在本手册重复累积。
 
 标准发布链路：

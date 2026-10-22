@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, apiBase, errorMessage } from "../lib/api";
 import type { AppLocale } from "../lib/i18n";
+import { isPortfolioDemo } from "../lib/demo-mode";
 
 const recordingMimeTypes = [
   "audio/mp4;codecs=mp4a.40.2",
@@ -29,6 +30,7 @@ export function useAiVoiceInput({
   onText: (text: string) => void;
   onError: (message: string) => void;
 }) {
+  enabled = enabled && !isPortfolioDemo;
   const [recording, setRecording] = useState(false);
   const [finishingRecording, setFinishingRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);

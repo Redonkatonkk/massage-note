@@ -1,3 +1,5 @@
+
+import { appHref } from "../../lib/demo-mode";
 import type { Metadata } from "next";
 import { HelpTopics } from "./help-topics";
 
@@ -32,7 +34,7 @@ const moneyRows = [
 
 export default function HelpPage() {
   return <main className="help-shell">
-    <header className="help-hero"><div><p className="eyebrow">Massage note</p><h1>使用帮助</h1><p>这里说明最常用的操作、金额口径和安全规则。所有财务金额都由服务器按整数美分计算；一般页面以整美元便于浏览，工资结算按美分精确显示，均不改变账本原始值。</p></div><a className="primary-action help-back" href="/">返回今日记工</a></header>
+    <header className="help-hero"><div><p className="eyebrow">Massage note</p><h1>使用帮助</h1><p>这里说明最常用的操作、金额口径和安全规则。所有财务金额都由服务器按整数美分计算；一般页面以整美元便于浏览，工资结算按美分精确显示，均不改变账本原始值。</p></div><a className="primary-action help-back" href={appHref("/")}>返回今日记工</a></header>
 
     <HelpTopics />
     <section className="help-grid">

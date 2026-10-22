@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LoginForm } from "./login-form";
 import { BrandMark, UiIcon } from "../ui/primitives";
+import { appHref, isPortfolioDemo } from "../../lib/demo-mode";
 
 export const metadata: Metadata = {
   title: "登录 · Massage note",
@@ -26,7 +27,7 @@ export default function LoginPage() {
         <p className="login-device-note"><UiIcon name="check" />手机、iPad、电脑实时同步</p>
       </section>
 
-      <LoginForm />
+      {isPortfolioDemo ? <section className="setup-card"><p className="eyebrow">Portfolio demo / 作品演示</p><h2>No sign-in required / 无需登录</h2><p>This public demo uses synthetic data. Authentication is disabled. / 公开演示使用虚构数据，登录功能已禁用。</p><a className="primary-action" href={appHref("/")}>Explore demo / 进入演示</a></section> : <LoginForm />}
     </main>
   );
 }

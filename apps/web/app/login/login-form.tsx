@@ -1,5 +1,7 @@
 "use client";
 
+import { appHref } from "../../lib/demo-mode";
+
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import {
@@ -101,7 +103,7 @@ export function LoginForm() {
     if (!csrfResponse.ok) throw new Error("无法建立安全登录，请稍后再试");
     const csrf = (await csrfResponse.json()) as { csrfToken: string };
     await postJson("/auth/session", { idToken, csrfToken: csrf.csrfToken, ...extra });
-    window.location.assign("/");
+    window.location.assign(appHref("/"));
   }
 
   async function useCachedLogin(): Promise<boolean> {
@@ -290,7 +292,7 @@ export function LoginForm() {
     setError("");
     try {
       await postJson("/auth/dev-session", { phoneE164: `+1${phoneDigits}` });
-      window.location.assign("/");
+      window.location.assign(appHref("/"));
     } catch (caught) {
       setError(loginError(caught, "本地测试登录失败"));
     } finally {

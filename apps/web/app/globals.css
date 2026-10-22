@@ -3373,3 +3373,13 @@ body { position: relative; }
   box-shadow: none;
   pointer-events: none;
 }
+
+/* Public portfolio shell uses the application's existing visual tokens. */
+.demo-banner { position: relative; z-index: 2; margin: 12px 20px 0 100px; padding: 14px 18px; background: var(--brand-soft); border: 1px solid var(--line); border-radius: var(--radius-panel); color: var(--ink); }
+.demo-banner__intro { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.demo-banner__intro > span { color: var(--muted); font-size: 14px; }
+.demo-banner .language-switcher { position: static; margin-left: auto; }
+.demo-banner nav { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; }
+.demo-banner a { color: var(--brand-dark); font-size: 14px; text-underline-offset: 3px; }
+.demo-banner p { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+@media (max-width: 900px) { .demo-banner { margin: 12px 12px 0; padding: 12px; } }

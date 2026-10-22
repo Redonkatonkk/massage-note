@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import type { FinanceAnalyticsResponse } from "@massage-note/contracts";
+import { isPortfolioDemo } from "../../lib/demo-mode";
 import { apiBase, apiRequest, errorMessage } from "../../lib/api";
 import { formatUsdPrecise } from "../../lib/money";
 import type { FinanceSummaryResponse } from "../../lib/types";
@@ -111,7 +112,7 @@ export function MonthlySummaryDashboard({ storeId, today, month, summary, loadin
           <button type="button" className="secondary-action" disabled={busy || month >= today.slice(0, 7)} aria-label={t("下一个月", "Next month")} onClick={() => onMonthChange(shiftMonth(month, 1))}>›</button>
         </div>
         {month !== today.slice(0, 7) && <button className="secondary-action" type="button" disabled={busy} onClick={() => onMonthChange(today.slice(0, 7))}>{t("回到本月", "This month")}</button>}
-        {current && <a className="primary-action export-link" href={`${apiBase}/stores/${storeId}/finance/export.csv?${monthlyQuery(ranges.dateFrom, ranges.dateTo)}`} download><UiIcon name="log" />{t("导出本月", "Export month")}</a>}
+        {current && !isPortfolioDemo && <a className="primary-action export-link" href={`${apiBase}/stores/${storeId}/finance/export.csv?${monthlyQuery(ranges.dateFrom, ranges.dateTo)}`} download><UiIcon name="log" />{t("导出本月", "Export month")}</a>}
       </div>
     </header>
     <div className="monthly-finance__context"><p>{t("对比范围", "Comparison")}: {periods.slice(1).map(period => `${period.dateFrom} — ${period.dateTo}`).join(" · ")}{ranges.partial ? t(" · 同期（按日历日期对齐）", " · Same day-of-month ranges") : t(" · 完整自然月", " · Full calendar months")}</p><p>{t("汇总金额含未日结记录；均线仅使用已日结样本。总收入尚未扣除固定支出。", "Summary amounts include open days; averages use closed-day samples only. Total income is before operating expenses.")}</p></div>

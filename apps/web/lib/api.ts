@@ -4,9 +4,10 @@ import {
   translateApiError,
   translateText,
 } from "./i18n";
+import { isPortfolioDemo } from "./demo-mode";
 
 export const apiBase =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1";
+  isPortfolioDemo ? "/__demo_api_disabled__" : process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -39,6 +40,20 @@ export async function apiRequest<T>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<T> {
+  if (process.env.NEXT_PUBLIC_PORTFOLIO_DEMO === "true") {
+    if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const { demoRequest } = await import("../demo/client");
+    try {
+      const payload = demoRequest(path, options.method ?? "GET");
+      registerCatalogNamesFromPayload(payload, path);
+      return payload as T;
+    } catch (error) {
+      if (error instanceof Error && "status" in error && "code" in error) {
+        throw new ApiError(Number(error.status), { code: error.code, message: error.message });
+      }
+      throw error;
+    }
+  }
   const { body, idempotent, ...requestOptions } = options;
   const headers = new Headers(requestOptions.headers);
   if (body !== undefined) headers.set("Content-Type", "application/json");

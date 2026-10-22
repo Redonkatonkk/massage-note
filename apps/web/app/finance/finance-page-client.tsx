@@ -1,5 +1,7 @@
 "use client";
 
+import { appHref } from "../../lib/demo-mode";
+
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import { ExpensesPanel } from "./expenses-panel";
@@ -248,7 +250,7 @@ export function FinancePageClient() {
           ) ??
           profile.memberships[0];
         if (!selected) {
-          window.location.replace("/");
+          window.location.replace(appHref("/"));
           return;
         }
         setMe(profile);
@@ -295,7 +297,7 @@ export function FinancePageClient() {
         }
       } catch (caught) {
         if ((caught as { status?: number }).status === 401) {
-          window.location.replace("/login");
+          window.location.replace(appHref("/login"));
           return;
         }
         setError(errorMessage(caught));
@@ -412,7 +414,7 @@ export function FinancePageClient() {
     <main className="app-shell finance-shell">
       <header className="topbar">
         <div><p className="eyebrow">{membership.store.name}</p><h1>{financeTabs.find(([value]) => value === tab)?.[1]}</h1><p className="business-date">{pageDescriptions[tab]} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
-        <a className="store-switcher header-link" href="/">返回今日记工</a>
+        <a className="store-switcher header-link" href={appHref("/")}>返回今日记工</a>
       </header>
 
       <nav className="section-tabs" aria-label="财务页面">

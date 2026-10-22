@@ -1,5 +1,7 @@
 "use client";
 
+import { appHref } from "../../lib/demo-mode";
+
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import { browserStorage } from "../../lib/browser-storage";
@@ -42,7 +44,7 @@ export function ProfilePageClient() {
 
   useEffect(() => {
     void load().catch((caught) => {
-      if ((caught as { status?: number }).status === 401) window.location.replace("/login");
+      if ((caught as { status?: number }).status === 401) window.location.replace(appHref("/login"));
       else setProfileError(errorMessage(caught));
     }).finally(() => setLoading(false));
   }, [load]);
@@ -56,9 +58,9 @@ export function ProfilePageClient() {
   const roleText = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工" } as const;
   return (
     <main className="app-shell manage-shell profile-shell">
-      <header className="topbar"><div><p className="eyebrow">账号与偏好</p><h1>我的</h1><p className="business-date">{me.phoneE164}</p></div><a className="store-switcher header-link" href="/help">使用帮助</a></header>
+      <header className="topbar"><div><p className="eyebrow">账号与偏好</p><h1>我的</h1><p className="business-date">{me.phoneE164}</p></div><a className="store-switcher header-link" href={appHref("/help")}>使用帮助</a></header>
       <section className="manage-section profile-layout">
-        <aside className="profile-summary"><div className="profile-avatar" aria-hidden="true">{Array.from(me.firstName || me.phoneE164)[0]}</div><p className="eyebrow">个人账号</p><h2>{[me.firstName, me.lastName].filter(Boolean).join(" ") || me.phoneE164}</h2><p>{me.phoneE164}</p>{selectedMembership && <div><strong>{selectedMembership.store.name}</strong><span>{roleText[selectedMembership.role]}</span></div>}<a className="secondary-action button-link" href="/">返回工作台</a></aside>
+        <aside className="profile-summary"><div className="profile-avatar" aria-hidden="true">{Array.from(me.firstName || me.phoneE164)[0]}</div><p className="eyebrow">个人账号</p><h2>{[me.firstName, me.lastName].filter(Boolean).join(" ") || me.phoneE164}</h2><p>{me.phoneE164}</p>{selectedMembership && <div><strong>{selectedMembership.store.name}</strong><span>{roleText[selectedMembership.role]}</span></div>}<a className="secondary-action button-link" href={appHref("/")}>返回工作台</a></aside>
         <form className="manage-card" onSubmit={(event) => {
           event.preventDefault();
           setProfileBusy(true); setProfileError(""); setProfileSaved(false);
@@ -84,7 +86,7 @@ export function ProfilePageClient() {
             }}>{me.memberships.map((membership) => <option key={membership.id} value={membership.store.id}>{membership.store.name} · {roleText[membership.role]}</option>)}</select></label>
             <p className="field-help">今日、财务和店铺设置都会使用这里选择的店铺。{selectedMembership ? `当前身份：${roleText[selectedMembership.role]}。` : ""}</p>
             {storeSaved && <p className="success-notice" role="status">当前店铺已切换</p>}
-            <a className="primary-action button-link" href="/">进入所选店铺</a>
+            <a className="primary-action button-link" href={appHref("/")}>进入所选店铺</a>
           </> : <p className="field-help">你目前还没有加入任何店铺。回到今日页面可以创建店铺或申请加入。</p>}
         </section>
         <form className="manage-card" onSubmit={(event) => {
@@ -111,7 +113,7 @@ export function ProfilePageClient() {
           {passwordError && <p className="form-error" role="alert">{passwordError}</p>}
           <button className="primary-action" type="submit" disabled={passwordBusy}>{passwordBusy ? "正在更新…" : (me.hasPassword ? "确认修改密码" : "设置密码")}</button>
         </form>
-        <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">登录状态</p><h2>退出账号</h2></div></div><p className="field-help">退出后，这台设备会保留经过验证的登录状态。下次输入同一手机号码时可以直接登录，减少验证码短信。</p><button className="secondary-action" type="button" disabled={signOutBusy} onClick={() => { setSignOutBusy(true); void apiRequest("/auth/session", { method: "DELETE" }).finally(() => window.location.replace("/login")); }}>{signOutBusy ? "正在退出…" : "退出"}</button></section>
+        <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">登录状态</p><h2>退出账号</h2></div></div><p className="field-help">退出后，这台设备会保留经过验证的登录状态。下次输入同一手机号码时可以直接登录，减少验证码短信。</p><button className="secondary-action" type="button" disabled={signOutBusy} onClick={() => { setSignOutBusy(true); void apiRequest("/auth/session", { method: "DELETE" }).finally(() => window.location.replace(appHref("/login"))); }}>{signOutBusy ? "正在退出…" : "退出"}</button></section>
       </section>
       <AppNav active="profile" storeId={selectedStoreId || undefined} role={selectedMembership?.role} />
     </main>

@@ -15,13 +15,15 @@ try {
   }
 }
 
+const demo = process.env.NEXT_PUBLIC_PORTFOLIO_DEMO === "true";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  output: "standalone",
+  output: demo ? "export" : "standalone",
+  ...(demo ? { distDir: ".next-demo", trailingSlash: true, basePath: process.env.NEXT_PUBLIC_APP_BASE_PATH ?? "" } : {}),
   outputFileTracingRoot: resolve(dirname(fileURLToPath(import.meta.url)), "../.."),
   transpilePackages: ["@massage-note/contracts"],
-  async rewrites() {
+  ...(!demo && { async rewrites() {
     const apiProxyTarget = process.env.API_PROXY_TARGET;
     if (!apiProxyTarget) {
       return [];
@@ -33,8 +35,8 @@ const nextConfig: NextConfig = {
         destination: `${apiProxyTarget}/api/:path*`,
       },
     ];
-  },
-  async headers() {
+  } }),
+  ...(!demo && { async headers() {
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1";
     const apiOrigin = /^https?:\/\//.test(apiBaseUrl) ? new URL(apiBaseUrl).origin : "";
     const securityHeaders = [
@@ -46,7 +48,7 @@ const nextConfig: NextConfig = {
       ...(process.env.NODE_ENV === "production" ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }] : []),
     ];
     return [{ source: "/(.*)", headers: securityHeaders }];
-  },
+  } }),
 };
 
 export default nextConfig;

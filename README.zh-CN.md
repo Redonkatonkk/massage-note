@@ -6,11 +6,21 @@
 
 **[最新正式版](https://github.com/Redonkatonkk/massage-note/releases/latest)** · **[更新记录](CHANGELOG.zh-CN.md)**
 
-当前版本：`1.35.0`
+当前版本：`1.36.0`
 
 面向美国按摩店的全栈 TypeScript 管理应用，提供适配手机、平板和电脑的中英文界面，把记工、混合付款、员工提成、日结、工资支付登记和经营分析串成可追溯的业务流程。
 
 **[工程重点](#工程重点)** · **[系统架构](#系统架构)** · **[本地运行](#本地运行)** · **[代码阅读入口](#代码阅读入口)** · **[项目文档](#项目文档)**
+
+## 在线演示与页面展示
+
+**[打开免登录 Demo](https://redonkatonkk.github.io/massage-note/)** · **[全部 17 个页面展示](docs/portfolio/README.zh-CN.md)**
+
+演示复用真实界面，使用虚构数据，默认英文并支持切换中文。可浏览记工、财务分析和管理流程；数据只读，真实登录、保存、AI 与消息发送禁用。[一分钟演示路线与限制](docs/portfolio/README.zh-CN.md#一分钟演示路线)。
+
+| 今日记工 | 经营分析 |
+| --- | --- |
+| ![员工记工与混合付款](docs/portfolio/images/work-board.jpg) | ![经营分析与营业额趋势](docs/portfolio/images/analytics.jpg) |
 
 ## 解决的问题
 

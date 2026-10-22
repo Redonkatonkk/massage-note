@@ -298,8 +298,8 @@ export function RecordEditor({
 
   useEffect(() => {
     if (!draftLoaded || !draftDirty) return;
-    browserStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardIsOnline, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note }));
-  }, [draftLoaded, draftDirty, draftKey, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardIsOnline, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note]);
+    browserStorage.setItem(draftKey, JSON.stringify({ storeId, savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardIsOnline, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note }));
+  }, [draftLoaded, draftDirty, draftKey, storeId, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardIsOnline, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note]);
 
   const initialAddonSignature = JSON.stringify(
     initialAddons.map(({ key: _key, ...item }) => item),

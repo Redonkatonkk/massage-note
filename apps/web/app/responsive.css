@@ -803,3 +803,9 @@ button, summary { overflow-wrap: anywhere; }
   .today-header-calendar { padding-right: 0; border-right: 0; }
   .members-master-detail { grid-template-columns: 280px minmax(0, 1fr); gap: 20px; }
 }
+
+@media (max-width: 900px) {
+  .data-operations-grid { grid-template-columns: minmax(0, 1fr); }
+  .data-operations-grid > section + section { padding-top: 20px; border-top: 1px solid var(--line); }
+  .data-operations input, .data-operations select { min-width: 0; font-size: 1rem; }
+}

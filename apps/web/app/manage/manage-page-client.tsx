@@ -29,6 +29,7 @@ import { AppNav } from "../app-nav";
 import { useLanguage } from "../language-provider";
 import { WorkBotPanel } from "./work-bot-panel";
 import { RecoveryPanel } from "./recovery-panel";
+import { DataOperationsPanel } from "./data-operations-panel";
 import { AuditDetails } from "./audit-details";
 import { UiIcon } from "../ui/primitives";
 import { MembersPanel } from "./members-panel";
@@ -41,6 +42,7 @@ const roleText = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工" } as c
 
 const actionText: Record<string, string> = {
   "store.created": "创建店铺",
+  "store.data_imported": "导入店铺数据",
   "store.settings_updated": "修改店铺设置",
   "store.owner_transferred": "转移店主",
   "store.deleted": "删除店铺",
@@ -250,7 +252,7 @@ export function ManagePageClient() {
     catalog: "维护服务价格、加项与折扣，历史账目保留原有快照。",
     "work-bot": "设置群内用语，核对绑定身份与机器人操作。",
     recovery: "核对删除原因，按需恢复记工与礼物卡销售。",
-    audit: "按时间、成员和操作查找店铺的变更记录。",
+    audit: "导入或导出店铺数据，按时间、成员和操作查找变更记录。",
   };
   function changeTab(value: string) {
     if (value === tab) return;
@@ -271,7 +273,7 @@ export function ManagePageClient() {
       {tab === "catalog" && <CatalogPanel storeId={store.id} canManage={canManage} catalog={catalog} busy={busy} run={run} reload={loadAll} />}
       {tab === "work-bot" && canManage && workBot && <WorkBotPanel key={store.id} storeId={store.id} catalog={catalog} settings={workBot} busy={busy} run={run} reload={loadAll} />}
       {tab === "recovery" && canManage && <RecoveryPanel storeId={store.id} records={deletedRecords} giftCardSales={deletedGiftCardSales} busy={busy} run={run} reload={loadAll} />}
-      {tab === "audit" && canManage && <AuditPanel storeId={store.id} members={members} />}
+      {tab === "audit" && canManage && <div className="manage-section">{membership.role === "OWNER" && <DataOperationsPanel key={store.id} storeId={store.id} memberIds={members.map(member => member.id)} onImported={() => window.location.reload()} />}<AuditPanel key={store.id} storeId={store.id} members={members} /></div>}
       <AppNav active="manage" storeId={store.id} role={membership.role} activeTab={tab} onTabChange={changeTab} />
     </main>
   );
@@ -539,5 +541,5 @@ function AuditPanel({ storeId, members }: { storeId: string; members: StoreMembe
   const params = useMemo(() => { const value = new URLSearchParams({ limit: "30" }); if (action) value.set("action", action); if (actor) value.set("actorMembershipId", actor); if (entityType) value.set("entityType", entityType); if (dateFrom) value.set("dateFrom", dateFrom); if (dateTo) value.set("dateTo", dateTo); return value; }, [action, actor, entityType, dateFrom, dateTo]);
   const load = useCallback(async (append = false) => { setLoading(true); setError(""); try { const query = new URLSearchParams(params); if (append && cursor) query.set("cursor", cursor); const page = await apiRequest<AuditLogPage>(`/stores/${storeId}/audit-logs?${query}`); setItems((current) => append ? [...current, ...page.items] : page.items); setCursor(page.nextCursor); } catch (caught) { setError(errorMessage(caught)); } finally { setLoading(false); } }, [storeId, params, cursor]);
   useEffect(() => { void load(false); }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <section className="manage-section"><section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">不可篡改的操作历史</p><h2>审计记录</h2></div></div><div className="audit-filters"><label>开始营业日<input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label><label>结束营业日<input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label><label>操作类型<select value={action} onChange={(event) => setAction(event.target.value)}><option value="">全部操作</option>{Object.entries(actionText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>对象类型<select value={entityType} onChange={(event) => setEntityType(event.target.value)}><option value="">全部对象</option>{Object.entries(entityText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>操作人<select value={actor} onChange={(event) => setActor(event.target.value)}><option value="">全部成员</option>{members.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label><button className="secondary-action compact" type="button" disabled={loading} onClick={() => void load(false)}>刷新</button></div>{error && <p className="form-error">{error}</p>}<div className="audit-list">{items.map((item) => <article key={item.id}><button type="button" aria-expanded={expanded === item.id} onClick={() => setExpanded((current) => current === item.id ? null : item.id)}><span className="audit-icon" aria-hidden="true"><UiIcon name="log" /></span><div><strong>{actionText[item.action] ?? "其他系统操作"}</strong><span>{item.actor?.displayName ?? "系统"} · {formatTime(item.createdAt)}{item.businessDate ? ` · 营业日 ${item.businessDate.slice(0, 10)}` : ""}</span></div><em>{expanded === item.id ? "收起" : "详情"}</em></button>{expanded === item.id && <AuditDetails item={item} entityLabel={entityText[item.entityType] ?? "其他对象"} /> }</article>)}{!loading && items.length === 0 && <p className="empty-state">没有符合条件的审计记录。</p>}</div>{loading && <p className="empty-state">正在读取审计记录…</p>}{cursor && <button className="secondary-action" disabled={loading} type="button" onClick={() => void load(true)}>加载更多</button>}</section></section>;
+  return <section className="manage-section"><section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">不可篡改的操作历史</p><h2>操作历史</h2></div></div><div className="audit-filters"><label>开始营业日<input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label><label>结束营业日<input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label><label>操作类型<select value={action} onChange={(event) => setAction(event.target.value)}><option value="">全部操作</option>{Object.entries(actionText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>对象类型<select value={entityType} onChange={(event) => setEntityType(event.target.value)}><option value="">全部对象</option>{Object.entries(entityText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>操作人<select value={actor} onChange={(event) => setActor(event.target.value)}><option value="">全部成员</option>{members.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label><button className="secondary-action compact" type="button" disabled={loading} onClick={() => void load(false)}>刷新</button></div>{error && <p className="form-error">{error}</p>}<div className="audit-list">{items.map((item) => <article key={item.id}><button type="button" aria-expanded={expanded === item.id} onClick={() => setExpanded((current) => current === item.id ? null : item.id)}><span className="audit-icon" aria-hidden="true"><UiIcon name="log" /></span><div><strong>{actionText[item.action] ?? "其他系统操作"}</strong><span>{item.actor?.displayName ?? "系统"} · {formatTime(item.createdAt)}{item.businessDate ? ` · 营业日 ${item.businessDate.slice(0, 10)}` : ""}</span></div><em>{expanded === item.id ? "收起" : "详情"}</em></button>{expanded === item.id && <AuditDetails item={item} entityLabel={entityText[item.entityType] ?? "其他对象"} /> }</article>)}{!loading && items.length === 0 && <p className="empty-state">没有符合条件的审计记录。</p>}</div>{loading && <p className="empty-state">正在读取审计记录…</p>}{cursor && <button className="secondary-action" disabled={loading} type="button" onClick={() => void load(true)}>加载更多</button>}</section></section>;
 }

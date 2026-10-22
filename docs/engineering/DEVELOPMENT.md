@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](DEVELOPMENT.zh-CN.md)**
 
-> Applies to version: `1.34.5`
+> Applies to version: `1.35.0`
 
 This guide describes the current repository’s development workflow. See [`PRODUCT.md`](../product/PRODUCT.md) for business rules, [`ARCHITECTURE.md`](ARCHITECTURE.md) for code boundaries, and [`API.md`](API.md) for HTTP details.
 
@@ -190,3 +190,7 @@ Every time you complete any project changes, including code, configuration and d
 The plug-in source code and backend are maintained in the same repository. For the entrance, see [Plug-in Development Guide](../../integrations/langbot-plugin/DEVELOPMENT.md). The installation package is output to the plug-in's `dist/`, and the old package is retained in `dist/archive/`; LangBot's running data is located in the `langbot-local/docker/data/` of the workspace brother repository and is not modified as source code.
 
 Documentation uses paired `.md` (English default) and `.zh-CN.md` files, except the plugin’s established `readme/README_zh_Hans.md`. `pnpm docs:check` validates local file links, reciprocal language links within the first eight lines, English/Chinese prose, heading structure, and matching executable examples. It skips prose inside code examples and allows translated `text`/`mermaid` diagrams. It cannot prove translation equivalence or validate external URLs/heading anchors; review those when editing. Reason: structural checks catch missing editions and obvious drift, while technical meaning still needs human review.
+
+## Store data transfer validation
+
+Run the store-data API integration suite against the independent test database and the DataOperationsPanel component tests for changes to import/export. Include full/demo round trips, nested identity removal, precision, append-only application privileges, conflicts, replay and transaction rollback. See [operations](../operations/OPERATIONS.md#store-data-files). Reason: schema validation alone cannot prove restore order, production permissions or safe demonstration data.

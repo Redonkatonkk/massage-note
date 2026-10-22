@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.34.5`
+> Applies to version: `1.35.0`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -495,3 +495,19 @@ The monthly response is `totalCents = recurringCents + oneTimeCents`, `dailyAver
 `lines` contains project/rule ID, complete period start and end date (all included), `periodAmountCents` (full period amount), `allocatedCents` (this month's allocation) and `hasOverride`, remove `source`. If there is no single period bill before taking effect, the two amounts will be `null`; if there is a bill (including zero), the entire period will be covered. The response rule returns `defaultAmountFrom` and does not return the old `amountMode`. After canceling the single-period modification, if the cycle start date is not earlier than this date, the usual amount will be restored, otherwise it will be restored to not entered. The `endExclusive` of the rule is the date to stop starting a new period, without truncating the already started period. The expenditure interface is independent of business day daily closing, and supplementary recording is not prohibited due to closed. Reason: Stop only constrains new cycles. Existing cycles and independent expense accounts cannot be truncated by closing or new rules.
 
 The upgrade boundary of the old budget rules is aligned upward with the legal period based on the first of the month in the store's time zone when the migration is executed, and the fixed rules use the original starting date. Forward migration does not rebuild rules or bills, and retains complete coverage across monthly cycles; the old amount model is only for storage compatibility. Reason: Unrecorded history cannot be filled by estimation, and the UTC month cannot replace the local month of the store.
+
+## Store data operations
+
+Only an active Owner may use `/stores/:storeId/data`. Managers retain access to the audit list. Shared file contracts are in [`store-data.ts`](../../packages/contracts/src/store-data.ts).
+
+| Method and path | Request and result |
+| --- | --- |
+| `GET /stores/:storeId/data/export?mode=full` | Downloads one full JSON file. Use `mode=anonymized` for a demo file. Optional `previewId` marks a full recovery download for that preview. |
+| `POST /stores/:storeId/data/import/preview` | `{ backup }`; returns `previewId`, ten-minute expiry, target name/fingerprint, source summary, mode and per-table counts. |
+| `POST /stores/:storeId/data/import/confirm` | `{ backup, previewId, confirmName }` and `Idempotency-Key`; atomically replaces this store and returns `{ imported, storeId, mode }`. |
+
+The file has `format: "massage-note-store"`, `formatVersion: 1`, application version, export mode/time, source summary, data and SHA-256 checksum. Hash the UTF-8 canonical JSON of all fields except `checksum`, with object keys sorted lexicographically and array order retained. BigInt amounts and Decimal positions are decimal strings; dates retain their saved values. Required fields and references must match the supported schema. Import payloads are limited to 50 MiB; only these two POST routes have a larger JSON parser limit.
+
+Preview stores only actor, target, hashes, expiry and completion metadata. Confirm rechecks Owner access, exact target name, recovery download, file checksum and target fingerprint. A changed/expired preview returns 409; an invalid file returns 400. The same key and request replay the completed result. A fixed-order write lock covers mutable import tables, including background writers; reads continue, lock wait is bounded to five seconds, and the transaction to sixty seconds. Constraint failures roll back the entire replacement. Append-only audit/outbox privileges remain intact.
+
+The target store ID/code and current Owner account remain; the source Owner profile binds to that account, while other member profiles have no login binding. Sending is disabled, delivery credentials revoked, robot groups removed and pending AI changes cancelled. Original target audits remain, imported history is deduplicated by origin ID, and operation names remain readable through actor snapshots. One import audit triggers a full client refresh; imported historical rows do not generate individual events. See [operations](../operations/OPERATIONS.md#store-data-files) for backup scope and recovery instructions.

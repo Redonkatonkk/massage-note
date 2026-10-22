@@ -86,3 +86,15 @@ Maintenance only deletes expired idempotency caches, expired/long-consumed AI pr
 - **Key leak**: Immediately rotate the corresponding supplier key/database password, restart the service, and check the audit and access logs within the time range; if the Firebase private key is leaked, the service account key must be revoked. Reason: Old secrets must be revoked, deleting the file will not invalidate the credentials.
 
 Mac Messages sending agent installation, permissions, attachment routing, and specialized troubleshooting have been centralized into [`MESSAGES_AGENT.md`](MESSAGES_AGENT.md).
+
+## Store data files
+
+In **Management → Data operations**, an Owner can download one JSON file, choosing **Anonymized demo data** (default) or **Full data**. Both modes are importable. This is a portable business-data file; PostgreSQL 17 still runs as a service with a Docker volume. It complements the existing database dump and encrypted disaster-recovery package.
+
+The file includes settings, member profiles, catalog/commission history, shifts and boards, work records and payment snapshots, gift cards, lost customers, expenses, cash/payroll settlements, daily closing snapshots, deleted business records and audit history. Global accounts/passwords, credentials, sessions, AI conversations/previews, caches, external bindings and delivery jobs are excluded. Imported members must reclaim their accounts; the current target Owner keeps access. External delivery must be configured again.
+
+Demo files replace store/member/catalog names, phone numbers, gift-card identifiers, object/request IDs and free text. The same replacement is applied to nested closing, ranking and audit snapshots. Unsupported text is not passed through; an unsafe field aborts demo export. Original amounts, dates, times, proportions and states remain, so demo files still disclose the original business figures. No reverse identity map is included. Export does not modify the source business data.
+
+To demonstrate another deployment: start its application and PostgreSQL, sign in, create a target store, open Data operations, select the JSON file and validate it. Review source, target, date range and counts; download the mandatory **full recovery backup**, confirm that it was saved, and type the target store name. Confirm replacement within ten minutes. Existing business data is replaced; original target audits are retained, and runtime bindings are revoked. Concurrent changes require a new preview and recovery download. Table writes may briefly wait while replacement commits; failed imports leave the original data intact.
+
+To undo a successful replacement, import the full recovery file through the same preview/confirmation flow. Other member login bindings and external authorization must still be re-established. Keep full files in restricted storage and outside Git. Apply database migrations when deploying version 1.35.0.

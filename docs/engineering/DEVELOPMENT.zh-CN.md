@@ -2,7 +2,7 @@
 
 **[English](DEVELOPMENT.md)** | **简体中文**
 
-> 适用版本：`1.34.5`
+> 适用版本：`1.35.0`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.zh-CN.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.zh-CN.md)，HTTP 细节看 [`API.md`](API.zh-CN.md)。
 
@@ -162,3 +162,7 @@ CI 发布运行将完整验证与镜像构建并行，生产构建由镜像阶�
 插件源码与后端在同一仓库维护，入口见 [插件开发指南](../../integrations/langbot-plugin/DEVELOPMENT.zh-CN.md)。安装包输出到插件的 `dist/`，旧包保留在 `dist/archive/`；LangBot 的运行数据位于工作区兄弟仓库的 `langbot-local/docker/data/`，不作为源码修改。
 
 文档采用 `.md`（英文默认）与 `.zh-CN.md` 配对，插件沿用 `readme/README_zh_Hans.md`。`pnpm docs:check` 检查本地文件链接、前八行内双向语言链接、英中说明文字、标题结构和可执行示例一致性；代码示例内文字不作语言判断，`text`／`mermaid` 图示允许翻译。该检查不能证明翻译语义等价，也不验证外部 URL／标题锚点，修改时仍须核对。保留原因：结构检查能发现漏译和明显漂移，技术含义仍需人工复核。
+
+## 店铺数据迁移验证
+
+修改导入导出时，在独立测试库运行 store-data API 集成用例及 DataOperationsPanel 组件测试，覆盖完整和演示文件往返、嵌套身份清除、精度、应用只追加权限、冲突、重放和事务回滚。见[运维指南](../operations/OPERATIONS.zh-CN.md#店铺数据文件)。原因：仅结构校验不能证明恢复顺序、生产权限或演示数据处理正确。

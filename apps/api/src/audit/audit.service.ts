@@ -49,7 +49,9 @@ export class AuditService {
     return {
       items: page.map((row) => ({
         ...row,
-        actor: row.actorMembershipId ? actorById.get(row.actorMembershipId) ?? null : null,
+        actor: row.actorSnapshotJson && typeof row.actorSnapshotJson === "object" && !Array.isArray(row.actorSnapshotJson) && typeof row.actorSnapshotJson.displayName === "string"
+          ? row.actorSnapshotJson
+          : row.actorMembershipId ? actorById.get(row.actorMembershipId) ?? null : null,
       })),
       nextCursor: hasMore ? page.at(-1)?.id ?? null : null,
     };

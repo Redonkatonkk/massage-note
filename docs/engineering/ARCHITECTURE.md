@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](ARCHITECTURE.zh-CN.md)**
 
-> Verified against version: `1.34.5`
+> Verified against version: `1.35.0`
 > This article describes the current implementation; a draft design from the beginning of the project can be found in [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md).
 
 Massage note is a TypeScript modular monolith managed by the pnpm workspace. Web, API and shared packages are developed and tested in the same repository. Production can be run as a Web/API dual container or simultaneously in a Synology single image.
@@ -267,3 +267,7 @@ Field `calculateExpenseMonth` uses a BigInt to directly locate the intersecting 
 The `isDispatchExcluded` of the work record is saved independently by the shared creation/update contract, WorkRecordsService and database. Web drafts and Kanban boards read the same field; `recordTrackItems` sorts it together with the highlight record from right to left in time, `record-card--right-group` only controls right alignment, and `isHighlighted` continues to control the color and amount rules independently. Reason: Separate placement and highlight semantics to avoid scheduling tags that change financial calculations.
 
 The individual daily statement is composed of domain's `employee-closing-template.ts` to unify Chinese and English display content and stable time sorting. Web's `employee-closing-statement.tsx` displays two columns of work record cards. `employee-closing-image.ts` outputs the same SVG and is converted to PNG by Web canvas and Mac `sips` respectively. All income is still taken from the backend snapshot, and the page cash handover/send operation is outside the template. Reason: Shared display content prevents pages, exports, and SMS attachments from evolving separately. The display layer must not recalculate wages or imply that they have been paid.
+
+## Store data transfer boundary
+
+The store-data module snapshots the explicit table registry under Repeatable Read, validates scalar types and tenant references against Prisma metadata, and applies a versioned JSON file in a bounded transaction. Preview metadata stores no uploaded business payload. Database actor snapshots retain append-only audit readability after member replacement. Reason: restore is a maintenance operation and must not replay normal business actions, financial calculations or external delivery.

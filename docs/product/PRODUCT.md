@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](PRODUCT.zh-CN.md)**
 
-> Applies to version: `1.34.5`
+> Applies to version: `1.35.0`
 > Check basis: domain functions, shared contracts, API services and their tests. See [API](../engineering/API.md) for the HTTP fields, see [UI Design](../engineering/UI_DESIGN.md) for the layout, and see [Development Guide](../engineering/DEVELOPMENT.md) for the maintenance process.
 
 <a id="产品范围与数据原则"></a>
@@ -226,3 +226,7 @@ Let P be the main item, E be the add-on total, and D be the discount; CS/CC/GCS 
 - WeChat robot rules are concentrated in [Robot Manual](../operations/LANGBOT_WORK_BOT.md): real-time directory, original text evidence, bound identity and restricted intention; multiple people working together, clarifying and learning only. Reason: The plug-in and web confirmation processes are different and cannot be copied into the same preview policy.
 - The Web does not register service workers, does not provide installation entrances, and does not persistently cache business responses; it only retains preferences and does not submit drafts for a limited time. Reason: Offline legacy accounts and sensitive caches can mislead write and shared device users.
 - Reservations, room/scheduling, customer profiles, software collections, balance write-offs, inventory, refund lines, autopay, payroll taxes/tax returns, and shared device PINs are not part of the existing implementation. Reason: Cleanup does not extend the product scope, and it cannot write the first version of the plan as a delivered feature.
+
+## Store data portability
+
+Owners can export full or anonymized single-store JSON files and overwrite the current store after preview, a full recovery download and exact-name confirmation. Managers retain audit reading only. Anonymized files retain real money and dates; other members reclaim accounts after import. See [operations](../operations/OPERATIONS.md#store-data-files) for the complete scope. Reason: interview demonstrations need portable data without granting copied account access.

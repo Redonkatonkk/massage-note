@@ -6,10 +6,12 @@ import type { NextFunction, Request, Response } from "express";
 import { AppModule } from "./app.module.js";
 import { ApiExceptionFilter } from "./common/api-exception.filter.js";
 import { RateLimitService } from "./common/rate-limit.service.js";
+import { jsonRequestBody, requestBodyError, urlencodedRequestBody } from "./common/request-body.js";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     cors: false,
+    bodyParser: false,
   });
   const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
 
@@ -56,6 +58,7 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: [webOrigin],
     credentials: true,
+    exposedHeaders: ["Content-Disposition", "X-Request-Id"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
@@ -68,6 +71,9 @@ async function bootstrap(): Promise<void> {
       "Last-Event-ID",
     ],
   });
+  app.use(jsonRequestBody);
+  app.use(urlencodedRequestBody);
+  app.use(requestBodyError);
   app.setGlobalPrefix("api/v1");
   app.useGlobalFilters(new ApiExceptionFilter());
   app.enableShutdownHooks();

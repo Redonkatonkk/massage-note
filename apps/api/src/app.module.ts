@@ -17,6 +17,7 @@ import { RateLimitService } from "./common/rate-limit.service.js";
 import { GiftCardsModule } from "./gift-cards/gift-cards.module.js";
 import { WorkBotModule } from "./work-bot/work-bot.module.js";
 import { LostCustomersModule } from "./lost-customers/lost-customers.module.js";
+import { StoreDataModule } from "./store-data/store-data.module.js";
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { LostCustomersModule } from "./lost-customers/lost-customers.module.js";
     WorkRecordsModule,
     GiftCardsModule,
     LostCustomersModule,
+    StoreDataModule,
     BoardsModule,
     FinanceModule,
     AuditModule,

@@ -918,6 +918,8 @@ model AuditLog {
   reason            String?
   requestId         String   @map("request_id")
   idempotencyKeyHash String? @map("idempotency_key_hash")
+  actorSnapshotJson  Json?    @map("actor_snapshot_json")
+  originAuditId      String?  @map("origin_audit_id") @db.Uuid
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   store Store @relation(fields: [storeId], references: [id])
@@ -925,7 +927,24 @@ model AuditLog {
   @@index([storeId, createdAt])
   @@index([storeId, entityType, entityId])
   @@index([storeId, businessDate])
+  @@unique([storeId, originAuditId])
   @@map("audit_logs")
+}
+
+// Short-lived import metadata only; uploaded business data is never staged here.
+model StoreDataImportPreview {
+  id String @id @default(uuid()) @db.Uuid
+  storeId String @map("store_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  checksum String
+  targetFingerprint String @map("target_fingerprint")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  recoveryDownloadedAt DateTime? @map("recovery_downloaded_at") @db.Timestamptz(3)
+  idempotencyKey String? @map("idempotency_key")
+  resultJson Json? @map("result_json")
+  @@unique([storeId, userId, idempotencyKey])
+  @@index([expiresAt])
+  @@map("store_data_import_previews")
 }
 
 model IdempotencyRequest {

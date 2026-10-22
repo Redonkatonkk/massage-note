@@ -21,6 +21,7 @@ describe("角色菜单与分区深链接", () => {
     expect(resolveFinanceTab("expenses", role)).toBe("expenses");
     expect(resolveFinanceTab("analytics", role)).toBe("analytics");
     expect(resolveManageTab("work-bot", role)).toBe("work-bot");
+    expect(manageNavigationTabs(role)).toContainEqual(["audit", "数据操作"]);
     expect(resolveManageTab("unknown", role)).toBe("store");
     expect(resolveFinanceTab(null, role)).toBe("summary");
   });

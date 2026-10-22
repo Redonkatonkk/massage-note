@@ -4,6 +4,12 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.35.0 — 2026-10-22
+
+- Rename Audit log to Data operations; owners can export a full or anonymized single-store JSON file and preview an atomic replacement import with a mandatory full recovery download.
+- Preserve exact money, business dates, soft-deleted history, and audit actor snapshots; anonymize identifiers and nested history for interview demonstrations.
+- Keep the target owner, require other members to reclaim accounts, and revoke external delivery authorization after import.
+
 ## 1.34.5 — 2026-10-22
 
 - Improve the GitHub description and technology topics, enable automatic deletion of merged PR branches, and enable secret scanning and push protection while preserving branches with unmerged commits.

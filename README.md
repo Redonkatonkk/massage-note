@@ -6,7 +6,7 @@
 
 **[Latest release](https://github.com/Redonkatonkk/massage-note/releases/latest)** · **[Changelog](CHANGELOG.md)**
 
-Current version: `1.34.5`
+Current version: `1.35.0`
 
 A full-stack TypeScript application for massage shop operations in the United States, with an English/Chinese interface for phones, tablets, and desktops. It connects service records, split payments, employee commissions, daily closing, payroll tracking, and business analytics in one auditable workflow.
 
@@ -186,3 +186,5 @@ This README is the English project overview. Product, engineering, operations, r
 ## Scope
 
 Massage Note records shop operations and tracks earnings and payroll payments. Appointment scheduling, card processing, payroll tax calculation, and tax filing are outside the current implementation. Employee statement submission is tracked separately from confirmed delivery.
+
+Owners can move interview/demo data using a single full or anonymized JSON file in **Management → Data operations**. See [store data files](docs/operations/OPERATIONS.md#store-data-files) for import and recovery instructions. Anonymized files retain real amounts and dates.

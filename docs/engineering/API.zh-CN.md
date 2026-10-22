@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.34.5`
+> 适用版本：`1.35.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -443,3 +443,19 @@ Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，
 `lines` 含项目/规则 ID、完整周期起止日（均包含）、`periodAmountCents`（整期金额）、`allocatedCents`（本月分摊）和 `hasOverride`，移除 `source`。生效前无单期账单时两个金额为 `null`；有账单（含零）则覆盖整期。响应规则返回 `defaultAmountFrom`，不返回旧 `amountMode`。撤销单期修改后，周期开始日不早于此日期则恢复常用金额，否则恢复未录入。规则的 `endExclusive` 为停止开始新周期的日期，不截断已开始周期。支出接口独立于营业日日结，不因已日结而禁止补录。保留原因：停止只约束新周期，已有周期与独立支出账目不能被关账或新规则截断。
 
 旧预算规则升级边界按迁移执行时店铺时区的本月月首向上对齐合法周期，固定规则沿用原开始日。前向迁移不重建规则或账单，跨月周期保留完整覆盖；旧金额模式只作存储兼容。保留原因：历史未录入不能被估算填满，UTC 月份也不能替代店铺当地月份。
+
+## 店铺数据操作
+
+只有在职店长可使用 `/stores/:storeId/data`；经理仍可读取审计列表。共享文件契约见 [`store-data.ts`](../../packages/contracts/src/store-data.ts)。
+
+| 方法与路径 | 请求及结果 |
+| --- | --- |
+| `GET /stores/:storeId/data/export?mode=full` | 下载一个完整 JSON 文件；`mode=anonymized` 下载演示文件。可选 `previewId` 标记该预览已下载完整恢复备份。 |
+| `POST /stores/:storeId/data/import/preview` | `{ backup }`；返回 `previewId`、十分钟有效期、目标名称及指纹、来源摘要、模式及各表数量。 |
+| `POST /stores/:storeId/data/import/confirm` | `{ backup, previewId, confirmName }` 及 `Idempotency-Key`；原子覆盖当前店铺，返回 `{ imported, storeId, mode }`。 |
+
+文件包含 `format: "massage-note-store"`、`formatVersion: 1`、应用版本、导出模式与时间、来源摘要、数据和 SHA-256 校验值。除 `checksum` 外的所有字段构成 UTF-8 规范 JSON，对象键按字典顺序排列，数组保留顺序，再计算哈希。BigInt 金额和 Decimal 排序值使用十进制字符串，日期保留保存值。必填字段和引用必须符合支持的结构。导入文件上限为 50 MiB，仅这两个 POST 路由放宽 JSON 解析限制。
+
+预览只保存操作人、目标、哈希、有效期及完成元数据。确认时重新检查店长权限、目标店名、恢复备份下载、文件校验值及目标指纹。预览变化或过期返回 409，文件无效返回 400；同一幂等键及请求重放已完成结果。按固定顺序锁定可变的导入相关表，包含后台写入；读取可继续，等待锁最多五秒，事务最多六十秒。约束失败会整体回滚，审计与 outbox 的只追加权限保持不变。
+
+保留目标店铺 ID、编号和当前店长账号，将来源店长档案绑定该账号，其他成员档案不绑定登录。关闭发送、撤销发送凭据、解除机器人群绑定，并取消待执行 AI 变更。目标原有审计继续保留，导入历史按来源 ID 去重，通过操作人快照保留可读姓名。仅导入完成审计触发全量客户端刷新，历史行不逐条产生事件。备份范围和恢复步骤见[运维指南](../operations/OPERATIONS.zh-CN.md#店铺数据文件)。

@@ -2,7 +2,7 @@
 
 **[English](ARCHITECTURE.md)** | **简体中文**
 
-> 状态：与 `1.34.5` 代码结构核对。
+> 状态：与 `1.35.0` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.zh-CN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -233,3 +233,7 @@ Web 表单
 记工的 `isDispatchExcluded` 由共享创建／更新契约、WorkRecordsService 和数据库独立保存，Web 草稿与看板读取同一字段；`recordTrackItems` 将它与高亮记录共同按时间从右向左排序，`record-card--right-group` 只控制右对齐，`isHighlighted` 继续独立控制颜色和金额规则。保留原因：把展示位置与高亮语义分开，避免排工标记改变财务计算。
 
 个人日结由 domain 的 `employee-closing-template.ts` 统一中英文展示内容和稳定时间排序，Web 的 `employee-closing-statement.tsx` 展示两列记工卡，`employee-closing-image.ts` 输出同款 SVG 并分别由 Web canvas 与 Mac `sips` 转为 PNG。所有收入仍取后端快照，页面现金交接／发送操作在模板之外。保留原因：共享展示内容防止页面、导出和短信附件分别演变，展示层不得重算工资或暗示已发放。
+
+## 店铺数据迁移边界
+
+store-data 模块在可重复读事务中读取明确的表清单，按 Prisma 元数据校验字段类型和店铺引用，并在有限时事务中应用带格式版本的 JSON 文件。预览元数据不保存上传的业务内容；数据库操作人快照使成员替换后的只追加审计仍可阅读。原因：恢复属于维护操作，不应重放日常业务动作、财务计算或外部发送。

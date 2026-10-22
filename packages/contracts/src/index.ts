@@ -15,3 +15,4 @@ export * from "./work-record.js";
 export * from "./work-bot.js";
 export * from "./finance-analytics.js";
 export * from "./expenses.js";
+export * from "./store-data.js";

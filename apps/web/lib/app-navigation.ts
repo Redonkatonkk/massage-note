@@ -18,7 +18,7 @@ export function financeNavigationTabs(role: NavigationRole): Array<[FinanceTab, 
 export function manageNavigationTabs(role: NavigationRole): Array<[ManageTab, string]> {
   return role === "EMPLOYEE"
     ? [["store", "店铺信息"], ["catalog", "项目说明"]]
-    : [["store", "店铺设置"], ["members", "成员管理"], ["catalog", "项目与提成"], ["work-bot", "记工机器人"], ["recovery", "业务回收站"], ["audit", "审计记录"]];
+    : [["store", "店铺设置"], ["members", "成员管理"], ["catalog", "项目与提成"], ["work-bot", "记工机器人"], ["recovery", "业务回收站"], ["audit", "数据操作"]];
 }
 
 export function resolveFinanceTab(value: string | null, role: NavigationRole): FinanceTab {

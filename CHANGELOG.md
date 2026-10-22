@@ -9,6 +9,7 @@ For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page sav
 - Rename Audit log to Data operations; owners can export a full or anonymized single-store JSON file and preview an atomic replacement import with a mandatory full recovery download.
 - Preserve exact money, business dates, soft-deleted history, and audit actor snapshots; anonymize identifiers and nested history for interview demonstrations.
 - Keep the target owner, require other members to reclaim accounts, and revoke external delivery authorization after import.
+- Run API integration tests sequentially because atomic store replacement locks shared database tables.
 
 ## 1.34.5 — 2026-10-22
 

@@ -55,7 +55,7 @@ jobs:
         run: |
           pnpm --filter @massage-note/database migrate:deploy
           pnpm --filter @massage-note/database test
-          pnpm --filter @massage-note/api test
+          pnpm --filter @massage-note/api exec vitest run --passWithNoTests --maxWorkers=1
         env:
           DATABASE_INTEGRATION_TESTS: "1"
       - name: Build production applications for branches and pull requests

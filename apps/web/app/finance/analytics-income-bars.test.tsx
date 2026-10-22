@@ -35,6 +35,8 @@ afterEach(async () => { await act(async () => root.unmount()); container.remove(
 
 it("默认每周，每期三项纵向排列并横向绘柱，支持聚焦读数及负收入", async () => {
   await render();
+  expect(container.querySelector(".analytics-income-bars")!.getAttribute("tabindex")).toBe("0");
+  expect(container.querySelector(".analytics-income-bars")!.getAttribute("aria-label")).toContain("上下滚动查看全部周期");
   expect(container.querySelector("select")!.value).toBe("WEEK");
   expect([...container.querySelectorAll(".analytics-income-legend li")].map(item => item.textContent)).toEqual(["总流水", "店铺收入", "总收入"]);
   const bars = [...container.querySelectorAll<SVGRectElement>("rect[data-series]")];
@@ -76,6 +78,7 @@ it("切换每天和每月即时重分组，数据表保留全部金额及所选�
 
 it("加载、失败重试及空状态保留图表位置，数据恢复后展示当前金额", async () => {
   await render({ days: [], loading: true });
+  expect(container.querySelector(".analytics-income-bars")!.getAttribute("tabindex")).toBe("0");
   expect(container.textContent).toContain("正在读取流水与收入");
   expect(container.querySelector(".analytics-plot")).toBeNull();
   await render({ days: [], failed: true, error: "读取失败" });
@@ -93,4 +96,22 @@ it("英文周期、图例和金额口径可读", async () => {
   expect(container.textContent).toContain("Weeks run Monday–Sunday");
   expect(container.textContent).toContain("before card fees");
   expect(container.querySelector("tbody")!.textContent).toContain("Total turnover $300.03");
+  expect(container.querySelector(".analytics-income-bars")!.getAttribute("aria-label")).toContain("scroll vertically");
+});
+
+it("长区间的首尾周期与完整明细仍在可聚焦滚动面板内，周期切换不丢失金额", async () => {
+  await act(async () => root.render(<AnalyticsIncomeBars days={days} dateFrom="2026-01-01" dateTo="2026-10-06" loading={false} failed={false} error="" retry={retry} />));
+  await select("DAY");
+  const panel = container.querySelector<HTMLElement>(".analytics-income-bars")!;
+  expect(panel.tabIndex).toBe(0);
+  const rows = [...panel.querySelectorAll("tbody tr")];
+  expect(rows).toHaveLength(279);
+  expect(rows[0]!.textContent).toContain("2026-01-01");
+  expect(rows.at(-1)!.textContent).toContain("2026-10-06");
+  expect(panel.querySelectorAll(".analytics-horizontal-bars > svg")).toHaveLength(279);
+  expect(panel.textContent).toContain("US$300.03");
+  await select("MONTH");
+  expect(container.querySelector<HTMLElement>(".analytics-income-bars")!.tabIndex).toBe(0);
+  expect(container.querySelectorAll("tbody tr")).toHaveLength(10);
+  expect(container.querySelector("tbody")!.textContent).toContain("US$500.05");
 });

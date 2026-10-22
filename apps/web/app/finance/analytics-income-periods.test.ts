@@ -3,6 +3,7 @@ import { groupIncomePeriods, type IncomePeriod } from "./analytics-income-period
 
 const day = (businessDate: string, dailyTurnoverCents: number, storeIncomeCents: number, totalIncomeCents: number) => ({ businessDate, dailyTurnoverCents, storeIncomeCents, totalIncomeCents });
 
+
 it("自然周跨年按周一分界，仅合计所选区间并保留三项独立金额", () => {
   const result = groupIncomePeriods([
     day("2025-12-30", 99999, 99999, 99999), day("2026-01-07", 99999, 99999, 99999),

@@ -1,64 +1,74 @@
-# 按摩店记工与财务管理系统：架构与实施计划
+<a id="按摩店记工与财务管理系统架构与实施计划"></a>
 
-> 历史引用，不是现行规则。保留原因：保存当时设计、审查或交付证据，供追溯；所有旧要求不再约束当前代码。
+# Massage shop work record and financial management system: structure and implementation plan
 
-> **归档文档**：这是 2026-08-04 编码前确认的初始设计与分阶段计划。路由、模块和测试工具已有变化，请勿用它判断当前实现。当前架构见 [`../engineering/ARCHITECTURE.md`](../engineering/ARCHITECTURE.md)，当前产品规则见 [`../product/PRODUCT.md`](../product/PRODUCT.md)。原状态：已确认，2026-08-04 开始实施；原依据：产品需求与已确认的补充规则。
-> 产品界面：第一版全部使用简体中文；代码、数据库字段和 API 路径使用英文内部命名
+**English** | **[简体中文](INITIAL_ARCHITECTURE_PLAN.zh-CN.md)**
 
-## 0. 已确认的设计结论
+> Historical references, not current rules. Reason: Save evidence of current design, review or delivery for traceability; all old requirements no longer bind the current code.
 
-1. 权限角色与“是否参与记工”分离。Owner、Manager、Employee 都可参与记工。
-2. 参与记工的经理进入普通工资结算；拥有者本人计算服务收入，但不产生“老板欠自己”。
-3. 折扣不降低员工工资。
-4. 金额非负，折扣不超过大费基数；退款以后使用独立冲正流程。
-5. 现金不足时，只把员工实际拿到的现金算作“已通过现金取得”，不足部分仍由老板支付。
-6. 日结后员工不能修改；拥有者或经理必须先取消日结。相关现金结算自动回到未结清。
-7. 自定义项目使用员工默认提成，其次使用店铺全局提成；员工不能自行修改本单提成。
-8. 付款确认支持现金、刷卡和礼物卡；礼物卡付款必须携带序列号，全部空白金额自动转为 0，但大费至少明确填写一种付款方式。
-9. 所有金额使用整数美分；所有服务项分别计算工资并四舍五入到美分。
-10. 第一版不允许离线写入。断网时保留未提交表单并明确提示，恢复网络后由用户重新提交。
+> **Archived Document**: This is the initial design and phased plan confirmed before coding on 2026-08-04. Routing, modules and testing tools have changed, please do not use this to judge the current implementation. See [`../engineering/ARCHITECTURE.md`](../engineering/ARCHITECTURE.md) for the current architecture, and see [`../product/PRODUCT.md`](../product/PRODUCT.md) for the current product rules. Original status: confirmed, implemented on 2026-08-04; original basis: product requirements and confirmed supplementary rules.
+> Product interface: The first version is all in Simplified Chinese; code, database fields and API paths use English internal naming
+
+<a id="0-已确认的设计结论"></a>
+
+## 0. Confirmed design conclusions
+
+1. Permission roles are separated from "whether to participate in work record". Owner, Manager, and Employee can all participate in work record.
+2. Managers who participate in work records enter ordinary salary settlement; the owner himself calculates service income, but does not generate "the boss owes himself".
+3. Discounts do not reduce employee wages.
+4. The amount is non-negative, and the discount does not exceed the service fee base; an independent correction process will be used after the refund.
+5. When there is insufficient cash, only the cash actually received by employees will be counted as "obtained through cash", and the shortfall will still be paid by the boss.
+6. Employees cannot modify it after the daily closing; the owner or manager must cancel the daily closing first. The relevant cash settlement automatically returns to unsettled.
+7. Customized items use the employee's default commission, followed by the store's global commission; employees cannot modify the commission for this order by themselves.
+8. Payment confirmation supports cash, credit card and gift card; gift card payment must carry the serial number, and all blank amounts will automatically be converted to 0, but the service fee must clearly fill in at least one payment method.
+9. All amounts are reported to whole cents; wages are calculated individually for all service items and rounded to the nearest cent.
+10. The first version does not allow offline writing. When the network is disconnected, the unsubmitted form is retained and clearly prompted, and the user resubmits it after the network is restored.
 
 ---
 
-## 1. 系统架构
+<a id="1-系统架构"></a>
 
-### 1.1 总体架构图
+## 1. System architecture
+
+<a id="11-总体架构图"></a>
+
+### 1.1 Overall architecture diagram
 
 ```mermaid
 flowchart LR
-    subgraph Client["客户端"]
-        Web["响应式 Web / PWA\n手机、iPad、电脑"]
-        Native["未来 iPhone / iPad 原生应用"]
+    subgraph Client["client"]
+        Web["Responsive Web / PWA\ncell phone、iPad、computer"]
+        Native["future iPhone / iPad native application"]
     end
 
-    subgraph Edge["入口层"]
+    subgraph Edge["entrance level"]
         CDN["CDN / HTTPS / WAF"]
-        WebApp["Next.js Web 应用"]
+        WebApp["Next.js Web application"]
     end
 
-    subgraph Backend["后端模块化单体"]
+    subgraph Backend["Backend modular monolith"]
         API["NestJS REST API /api/v1"]
-        Auth["认证与授权"]
-        Domain["记工、财务、结算领域服务"]
-        AI["AI 工具网关"]
-        RT["SSE 实时事件流"]
+        Auth["Authentication and Authorization"]
+        Domain["Services in the fields of timekeeping, finance and settlement"]
+        AI["AI tool gateway"]
+        RT["SSE real-time event streaming"]
     end
 
-    subgraph Data["数据与基础设施"]
-        PG[("PostgreSQL\n业务真相来源")]
-        Redis[("Redis\n分布式限流")]
+    subgraph Data["Data and infrastructure"]
+        PG[("PostgreSQL\nsource of business truth")]
+        Redis[("Redis\nDistributed rate limiting")]
     end
 
-    subgraph External["外部服务"]
+    subgraph External["external services"]
         Firebase["Firebase Phone Auth"]
-        MiniMax["MiniMax 文本 / 音频模型\n自然语言理解与语音转写"]
+        MiniMax["MiniMax Text/audio model\nNatural language understanding and speech transcription"]
     end
 
     Web --> CDN --> WebApp
     WebApp --> API
     Web --> RT
-    Native -.未来.-> API
-    Native -.未来.-> RT
+    Native -.future.-> API
+    Native -.future.-> RT
     API --> Auth
     API --> Domain
     API --> AI
@@ -70,191 +80,211 @@ flowchart LR
     PG --> RT
 ```
 
-### 1.2 技术选型
+<a id="12-技术选型"></a>
 
-| 层级 | 选型 | 理由 |
+### 1.2 Technology selection
+
+| Level | Selection | Reason |
 |---|---|---|
-| Monorepo | pnpm workspaces | 使用工作区自带的受控运行环境，统一 TypeScript、契约、测试和脚本 |
-| Web | Next.js App Router + TypeScript | 响应式页面、PWA、服务端首屏和未来多语言结构；采用官方当前推荐的 App Router |
-| UI | React + 无障碍组件基础 + CSS 设计令牌 | 支持大字体、大按钮、高对比度和移动端适配，不依赖图标表达 |
-| API | NestJS 模块化单体 | 权限、验证、事务和 SSE 结构明确；未来原生应用直接复用 REST API |
-| 数据库 | PostgreSQL | 事务、约束、部分唯一索引、JSONB 审计和行级安全能力适合财务系统 |
-| ORM | Prisma | 类型安全、迁移、事务和乐观锁实现清晰；复杂约束使用 SQL migration 补充 |
-| 校验 | Zod（共享 API 契约）+ 后端 DTO 管道 | 前后端共享输入结构；后端仍是最终校验者 |
-| 实时 | NestJS SSE + PostgreSQL Outbox | 客户端只需要接收“已变化”通知，SSE 更轻；事件持久化支持断线游标，多实例共同读取同一 PostgreSQL，断线后通过 REST 重新同步 |
-| 登录 | Firebase Phone Auth + 后端安全会话 Cookie | 满足美国手机号验证码、reCAPTCHA、多设备和撤销全部会话 |
-| AI | 自建 `LanguageModelProvider`，第一实现 MiniMax | AI 与业务工具隔离，可替换供应商；MiniMax 当前文本接口支持工具调用 |
-| 语音 | 自建 `SpeechToTextProvider`，第一实现 MiniMax `music-cover` 内置 ASR | 与文本模型共用 API key，Provider 边界保持可替换，支持中英文短音频 |
-| 测试 | Vitest + Supertest + Playwright | 领域公式、API 权限和端到端操作分层覆盖 |
-| 部署 | 容器化 Web、API + 托管 PostgreSQL/Redis | 不绑定单一云平台，Web 与 API 可独立扩容；首版维护任务由受控计划任务执行 |
+| Monorepo | pnpm workspaces | Unify TypeScript, contracts, tests, and scripts using a controlled runtime environment that comes with the workspace |
+| Web | Next.js App Router + TypeScript | Responsive pages, PWA, server-side first screen and future multi-language structures; using the officially recommended App Router |
+| UI | React + Accessible Component Basics + CSS Design Token | Supports large fonts, large buttons, high contrast and mobile adaptation, and does not rely on icon expression |
+| API | NestJS modular monolith | Clear structure of permissions, authentication, transactions and SSE; future native applications can directly reuse REST API |
+| Database | PostgreSQL | Transactions, constraints, partially unique indexes, JSONB auditing and row-level security capabilities are suitable for financial systems |
+| ORM | Prisma | Type safety, migration, transactions and optimistic locking are implemented clearly; complex constraints are supplemented by SQL migration |
+| Verification | Zod (shared API contract) + back-end DTO pipeline | The front-end and back-end share the input structure; the back-end is still the final validator |
+| Real-time | NestJS SSE + PostgreSQL Outbox | The client only needs to receive the "changed" notification, SSE is lighter; event persistence supports disconnected cursors, multiple instances jointly read the same PostgreSQL, and resynchronize through REST after disconnection |
+| Login | Firebase Phone Auth + backend secure session cookies | Meets US phone number verification codes, reCAPTCHA, multiple devices and revoke all sessions |
+| AI | Self-built `LanguageModelProvider`, the first to implement MiniMax | AI is isolated from business tools and can replace suppliers; MiniMax’s current text interface supports tool calling |
+| Speech | Self-built `SpeechToTextProvider`, the first to implement MiniMax `music-cover` built-in ASR | Shared API key with text model, Provider boundary remains replaceable, supports Chinese and English short audio |
+| Testing | Vitest + Supertest + Playwright | Hierarchical coverage of domain formulas, API permissions and end-to-end operations |
+| Deployment | Containerized Web, API + managed PostgreSQL/Redis | Not bound to a single cloud platform, Web and API can be expanded independently; first version maintenance tasks are performed by controlled scheduled tasks |
 
-版本策略：编码开始时选择并锁定当日稳定版本，不使用浮动的 `latest`；每次升级必须经过财务、权限和迁移测试。
+Version strategy: Select and lock the stable version of the day at the beginning of coding, and do not use floating `latest`; each upgrade must go through financial, permission and migration testing.
 
-### 1.3 模块边界
+<a id="13-模块边界"></a>
+
+### 1.3 Module boundaries
 
 ```text
 apps/
-  web/          中文响应式 Web/PWA
-  api/          REST API、SSE、认证、AI 与领域编排
+  web/          Chinese responsive Web/PWA
+  api/          REST API、SSE、Certification、AI and domain orchestration
 packages/
-  contracts/    Zod 请求/响应、事件和 AI 工具契约
-  domain/       无框架依赖的金额、工资、营业日和权限规则
-  ui/           老人友好组件和设计令牌
-  config/       TypeScript、Lint、测试共享配置
+  contracts/    Zod request/response, events and AI instrumental contract
+  domain/       Amount, salary, business day, and permission rules without framework dependencies
+  ui/           Age-friendly components and design tokens
+  config/       TypeScript、Lint、Test shared configuration
 ```
 
-后端保持“模块化单体”，第一版不拆微服务。核心模块为：Auth、Stores、Memberships、Catalog、Shifts、WorkRecords、Finance、BusinessDayClosing、CashSettlement、Payroll、Audit、Realtime、AI。
+The backend remains a "modular monolith" and the first version does not dismantle microservices. The core modules are: Auth, Stores, Memberships, Catalog, Shifts, WorkRecords, Finance, BusinessDayClosing, CashSettlement, Payroll, Audit, Realtime, AI.
 
-### 1.4 真相来源原则
+<a id="14-真相来源原则"></a>
 
-- PostgreSQL 是业务数据唯一真相来源。
-- SSE 事件只通知“数据已变化”，不作为最终数据。
-- 前端不提交工资、合计或老板尚欠的最终值；后端从明细重算。
-- 保存的汇总快照用于历史查询和审计，但必须由领域计算器生成。
-- AI 输出只是候选参数，不能成为财务真相来源。
+### 1.4 Principle of source of truth
+
+- PostgreSQL is the single source of truth for your business data.
+- SSE events only notify "data has changed" and are not final data.
+- The front-end does not submit wages, totals, or final values owed by the boss; the back-end recalculates from details.
+- Saved summary snapshots are used for historical queries and auditing, but must be generated by a domain calculator.
+- AI outputs are only candidate parameters and cannot be a source of financial truth.
 
 ---
 
-## 2. 页面与路由清单
+<a id="2-页面与路由清单"></a>
 
-所有可见标题、按钮、状态、错误、日期和金额说明均为中文。URL 使用稳定英文路径，避免以后翻译导致链接变化。
+## 2. Page and route list
 
-| 路由 | 页面 | 主要角色 | 移动端重点 |
+All visible titles, buttons, status, errors, dates and amount descriptions are in Chinese. Use a stable English path for the URL to avoid link changes caused by future translation.
+
+| Routing | Pages | Main Roles | Mobile Focus |
 |---|---|---|---|
-| `/login` | 手机号登录、验证码 | 全部 | 数字键盘、重发倒计时、清晰错误 |
-| `/onboarding/profile` | 首次填写姓名 | 全部 | 两个大输入框 |
-| `/stores` | 我的店铺、切换店铺 | 全部 | 大卡片列表 |
-| `/stores/new` | 创建店铺 | 全部 | 六位 ID 和重复校验 |
-| `/stores/join` | 申请加入店铺 | 全部 | 先显示店名再确认 |
-| `/s/[storeId]/setup` | 店铺设置向导 | Owner | 分步表单、可返回 |
-| `/s/[storeId]/today` | 今日记工主页面 | 有效成员 | 手机员工卡片；横屏纸质表格 |
-| `/s/[storeId]/day/[businessDate]` | 指定营业日主表格 | Owner/Manager | 历史状态、日结锁定提示 |
-| `/s/[storeId]/records/[recordId]` | 记工详情 | 按权限 | 固定保存按钮、删除远离保存 |
-| `/s/[storeId]/finance` | 全店财务 | Owner/Manager | 筛选抽屉、可展开明细 |
-| `/s/[storeId]/my-finance` | 我的财务 | 参与记工成员 | 应得、已取得、已支付、尚欠 |
-| `/s/[storeId]/cash/[businessDate]` | 每日现金结算 | Owner/Manager；员工只读自己 | 一人一卡、一键结清 |
-| `/s/[storeId]/payroll` | 工资结算账本 | Owner/Manager | 新增支付、历史、撤销 |
-| `/s/[storeId]/payroll/[settlementId]` | 工资结算详情 | Owner/Manager；员工只读自己的 | 展示计算组成 |
-| `/s/[storeId]/close/[businessDate]` | 日结检查与日结 | Owner/Manager | 异常置顶、强制日结二次确认 |
-| `/s/[storeId]/members` | 成员、申请、角色、参与记工 | Owner/Manager | 防误删、角色说明 |
-| `/s/[storeId]/catalog/services` | 主要项目 | Owner/Manager | 排序、启停、价格和提成 |
-| `/s/[storeId]/catalog/addons` | 额外项目 | Owner/Manager | 同上 |
-| `/s/[storeId]/catalog/discounts` | 折扣项目 | Owner/Manager | 固定金额 |
-| `/s/[storeId]/commissions` | 员工默认和特殊提成 | Owner/Manager | 显示生效优先级 |
-| `/s/[storeId]/settings` | 店铺设置 | Owner/Manager | 时区、截止时间、店铺名称 |
-| `/s/[storeId]/audit` | 操作日志 | Owner/Manager | 按日期、人员、对象筛选 |
-| `/s/[storeId]/ai/work` | AI 记工助手 | 有效成员 | 文字、录音、结构化预览 |
-| `/s/[storeId]/ai/finance` | AI 财务助手 | 按财务权限 | 回答必须带统计口径和明细入口 |
+| `/login` | Mobile phone number login, verification code | All | Numeric keyboard, resend countdown, clear error |
+| `/onboarding/profile` | Fill in the name for the first time | All | Two large input boxes |
+| `/stores` | My store, switch store | All | Large card list |
+| `/stores/new` | Create store | All | Six-digit ID and duplicate check |
+| `/stores/join` | Apply to join a store | All | Display the store name first and then confirm |
+| `/s/[storeId]/setup` | Store setup wizard | Owner | Step-by-step form, returnable |
+| `/s/[storeId]/today` | Today's work record main page | Valid members | Mobile employee cards; Horizontal paper forms |
+| `/s/[storeId]/day/[businessDate]` | Specify business day main table | Owner/Manager | Historical status, daily closing lock prompt |
+| `/s/[storeId]/records/[recordId]` | work record details | By permissions | Fixed save button, delete away from save |
+| `/s/[storeId]/finance` | Whole store finance | Owner/Manager | Filter drawer, expandable details |
+| `/s/[storeId]/my-finance` | My finances | Participating work record members | Due, obtained, paid, owed |
+| `/s/[storeId]/cash/[businessDate]` | Daily cash settlement | Owner/Manager; employees can only read themselves | One person, one card, one-click settlement |
+| `/s/[storeId]/payroll` | Salary settlement ledger | Owner/Manager | Add payment, history, revocation |
+| `/s/[storeId]/payroll/[settlementId]` | Salary settlement details | Owner/Manager; employees can only read their own | Display calculation composition |
+| `/s/[storeId]/close/[businessDate]` | daily closing check and daily closing | Owner/Manager | Exception pinned, forced daily closing secondary confirmation |
+| `/s/[storeId]/members` | Members, applications, roles, participation work record | Owner/Manager | Prevention of accidental deletion, role description |
+| `/s/[storeId]/catalog/services` | Main projects | Owner/Manager | Sorting, start and stop, price and commission |
+| `/s/[storeId]/catalog/addons` | Additional items | Owner/Manager | Same as above |
+| `/s/[storeId]/catalog/discounts` | Discount items | Owner/Manager | Fixed amount |
+| `/s/[storeId]/commissions` | Employee default and special commissions | Owner/Manager | Display effective priority |
+| `/s/[storeId]/settings` | Store settings | Owner/Manager | Time zone, deadline, store name |
+| `/s/[storeId]/audit` | Operation log | Owner/Manager | Filter by date, person, object |
+| `/s/[storeId]/ai/work` | AI work record assistant | Valid members | Text, recording, structured preview |
+| `/s/[storeId]/ai/finance` | AI financial assistant | By financial authority | Answers must include statistical scope and detailed entry |
 
-全局导航：今日、我的财务、AI；Owner/Manager 额外显示财务、结算、管理。手机底部导航最多四个主入口，其余放入“更多”。
+Global navigation: Today, My Finance, AI; Owner/Manager additionally displays Finance, Settlement, and Management. There are up to four main entrances in the bottom navigation of the phone, and the rest are placed in "More".
 
 ---
 
-## 3. 用户流程
+<a id="3-用户流程"></a>
 
-### 3.1 注册、创建或加入店铺
+## 3. User flow
+
+<a id="31-注册创建或加入店铺"></a>
+
+### 3.1 Register, create or join a store
 
 ```mermaid
 flowchart TD
-    A["输入美国手机号"] --> B["reCAPTCHA 与短信验证码"]
-    B --> C{"是否已有姓名资料"}
-    C -- 否 --> D["填写 First Name / Last Name"]
-    C -- 是 --> E["店铺列表"]
+    A["Enter U.S. mobile phone number"] --> B["reCAPTCHA Verification code with SMS"]
+    B --> C{"Do you already have name information?"}
+    C -- no --> D["fill in First Name / Last Name"]
+    C -- yes --> E["Store list"]
     D --> E
-    E --> F{"创建还是加入"}
-    F -- 创建 --> G["输入店名与六位店铺 ID"]
-    G --> H["时区、营业日截止、提成、项目向导"]
-    H --> I["进入今日主页"]
-    F -- 加入 --> J["输入六位店铺 ID"]
-    J --> K["显示店名并确认"]
-    K --> L{"注册 First Name 是否匹配待认领员工"}
-    L -- 是 --> M["绑定真实账号到原成员关系"]
+    E --> F{"Create or join"}
+    F -- create --> G["Enter the store name and six digits of the store ID"]
+    G --> H["Time zone, business day deadline, commission, project guide"]
+    H --> I["Enter today's homepage"]
+    F -- join in --> J["Enter a six-digit store ID"]
+    J --> K["Show store name and confirm"]
+    K --> L{"register First Name Whether it matches the employee to be claimed"}
+    L -- yes --> M["Bind the real account to the original membership relationship"]
     M --> I
-    L -- 否 --> N["等待 Owner/Manager 审批"]
+    L -- no --> N["wait Owner/Manager Approval"]
     N --> I
 ```
 
-### 3.2 快速记工与付款确认
+<a id="32-快速记工与付款确认"></a>
+
+### 3.2 Fast work record and payment confirmation
 
 ```mermaid
 flowchart TD
-    A["点击员工行的 +"] --> B["选择项目；时间默认现在；可选高亮"]
-    B --> C["后端生成项目、价格、时长、提成快照"]
-    C --> D["保存浅橙色待结账记录"]
-    D --> E["打开记录详情"]
-    E --> F["填写折扣、额外项目、现金/刷卡/礼物卡大费和小费"]
-    F --> G{"大费是否至少明确填写一项；礼物卡是否有序列号"}
-    G -- 否 --> H["保持待结账并提示"]
-    G -- 是 --> I["后端补齐空白为 0 并重算"]
-    I --> J{"实收大费是否等于折后大费"}
-    J -- 否 --> K["显示差额警告，仍允许确认"]
-    J -- 是 --> L["确认付款"]
+    A["Click on the employee row +"] --> B["Select item; time defaults to now; optional highlighting"]
+    B --> C["The backend generates project, price, duration, and commission snapshots"]
+    C --> D["Save light orange pending checkout records"]
+    D --> E["Open record details"]
+    E --> F["Fill in discounts, extras, cash/card/gift card fees and tips"]
+    F --> G{"Whether Dafei has clearly filled in at least one item; whether the gift card has a serial number"}
+    G -- no --> H["Keep pending checkout and prompt"]
+    G -- yes --> I["The backend fills in the gaps as 0 and recalculate"]
+    I --> J{"Is the actual large fee equal to the discounted large fee?"}
+    J -- no --> K["Show balance warning, still allow confirmation"]
+    J -- yes --> L["Confirm payment"]
     K --> L
-    L --> M["解除浅橙色并实时同步"]
+    L --> M["Unlock light orange and sync in real time"]
 ```
 
-### 3.3 日结、现金结算与工资结算
+<a id="33-日结现金结算与工资结算"></a>
+
+### 3.3 daily closing, cash settlement and salary settlement
 
 ```mermaid
 flowchart TD
-    A["日结检查"] --> B{"是否有待结账、空白小费或异常"}
-    B -- 无 --> C["正常日结"]
-    B -- 有 --> D{"Owner/Manager 是否强制日结"}
-    D -- 否 --> E["返回修正"]
-    D -- 是 --> F["记录异常快照和原因"]
-    C --> G["营业日锁定"]
+    A["Daily check"] --> B{"Whether there is pending checkout, blank tip or exception"}
+    B -- none --> C["Normal daily settlement"]
+    B -- have --> D{"Owner/Manager Whether daily settlement is mandatory"}
+    D -- no --> E["Return to correction"]
+    D -- yes --> F["Record exception snapshots and reasons"]
+    C --> G["Business day lock"]
     F --> G
-    G --> H["逐员工现金结算"]
-    H --> I["标记已全部结清"]
-    I --> J["现金实际取得计入工资余额"]
-    J --> K["老板按需要建立工资结算账本"]
-    K --> L["实时重算老板尚欠或超额支付"]
+    G --> H["Cash settlement on an employee-by-employee basis"]
+    H --> I["Marks are all settled"]
+    I --> J["Actual receipts of cash are included in payroll balance"]
+    J --> K["The boss creates a salary settlement account book as needed"]
+    K --> L["Real-time recalculation of boss’s arrears or overpayments"]
 ```
 
-历史修正：先取消日结 → 相关现金结算回到未结清 → 修改记工 → 重新日结 → 重新确认现金；已有工资结算账本保留，余额自动重算并显示历史修改警告。
+History correction: first cancel the daily closing → return the relevant cash settlement to unsettled → modify the work record → re-do the daily closing → re-confirm the cash; the existing salary settlement account book is retained, the balance is automatically recalculated and a historical modification warning is displayed.
 
 ---
 
-## 4. 角色权限矩阵
+<a id="4-角色权限矩阵"></a>
 
-`参与记工`是成员属性，不是第四种角色。下表中的“自己”指该成员作为服务人员产生的数据。
+## 4. Role permission matrix
 
-| 能力 | Owner | Manager | Employee |
+`参与记工`It is a member attribute, not the fourth role. "Self" in the table below refers to data generated by the member as a service worker.
+
+| Capabilities | Owner | Manager | Employee |
 |---|---:|---:|---:|
-| 查看当天全员记工 | 是 | 是 | 是 |
-| 新增/修改/删除当天全员记工 | 是 | 是 | 是 |
-| 修改已日结或历史记工 | 取消日结后 | 取消日结后 | 否 |
-| 查看自己全部历史财务 | 是 | 是 | 是 |
-| 查看他人历史财务 | 是 | 是 | 否 |
-| 上下班打卡 | 参与记工时 | 参与记工时 | 参与记工时 |
-| 使用记工 AI | 是 | 是 | 是 |
-| 使用财务 AI | 全店 | 全店 | 仅自己 |
-| 管理项目、折扣和提成 | 是 | 是 | 否 |
-| 审批加入申请 | 是 | 是 | 否 |
-| 只填名字预先创建员工 | 是 | 是 | 否 |
-| 修改普通成员/经理角色 | 是 | 是 | 否 |
-| 修改、移除或降级 Owner | 仅通过转移流程 | 否 | 否 |
-| 指定其他 Manager | 是 | 是 | 否 |
-| 日结、取消日结 | 是 | 是 | 否 |
-| 现金结算 | 是 | 是 | 仅查看自己 |
-| 工资结算 | 是 | 是 | 仅查看自己 |
-| 查看全店审计 | 是 | 是 | 否 |
-| 修改店铺设置 | 是 | 是 | 否 |
-| 转移 Owner | 是 | 否 | 否 |
-| 删除店铺 | 是 | 否 | 否 |
+| View the work record of all employees on the day | Yes | Yes | Yes |
+| Add/modify/delete the work record of all employees on the day | Yes | Yes | Yes |
+| Modify closed or historical work record | After canceling daily closing | After canceling daily closing | No |
+| View all your financial history | Yes | Yes | Yes |
+| View other people's financial history | Yes | Yes | No |
+| Punch in and out | When participating in work record | When participating in work record | When participating in work record |
+| Using work record AI | Yes | Yes | Yes |
+| Using financial AI | Storewide | Storewide | Only yourself |
+| Manage projects, discounts and commissions | Yes | Yes | No |
+| Approval of joining application | Yes | Yes | No |
+| Fill in name only to pre-create employees | Yes | Yes | No |
+| Modify regular member/manager role | Yes | Yes | No |
+| Modify, remove or demote Owner | Through transfer process only | No | No |
+| Specify another Manager | Yes | Yes | No |
+| daily closing, cancel daily closing | Yes | Yes | No |
+| Cash Settlement | Yes | Yes | See only myself |
+| Salary Settlement | Yes | Yes | View only yourself |
+| View full store audit | Yes | Yes | No |
+| Modify store settings | Yes | Yes | No |
+| Transfer Owner | Yes | No | No |
+| Delete store | Yes | No | No |
 
-补充限制：
+Additional restrictions:
 
-- 员工修改他人当天记录时，审计日志明确记录操作人和所属员工。
-- 员工不能修改任何提成比例，即使该记录属于自己。
-- Owner 本人服务收入进入经营统计，但排除在工资结算对象和“老板尚欠员工”之外。
-- 所有权限由 API Guard、领域权限策略和数据库租户隔离共同执行，前端隐藏按钮不构成权限控制。
+- When an employee modifies someone else's record of the day, the audit log clearly records the operator and the employee involved.
+- Employees cannot modify any commission ratio, even if the record belongs to them.
+- The Owner's service income is included in the business statistics, but is excluded from salary settlement objects and "the boss still owes employees".
+- All permissions are jointly enforced by API Guard, domain permission policies, and database tenant isolation. Front-end hidden buttons do not constitute permission control.
 
 ---
 
-## 5. ER 图
+<a id="5-er-图"></a>
 
-为保持图可读性，只显示主要关系；详细快照、事件和审计字段见下一节。
+## 5. ER diagram
+
+To keep the diagram readable, only major relationships are shown; detailed snapshots, events, and audit fields are provided in the next section.
 
 ```mermaid
 erDiagram
@@ -292,65 +322,77 @@ erDiagram
 
 ---
 
-## 6. 数据表与字段设计
+<a id="6-数据表与字段设计"></a>
 
-### 6.1 通用约定
+## 6. Data table and field design
 
-- 主键使用应用生成 UUID；六位店铺 ID 使用 `char(6)`，允许前导 0。
-- 时间点使用 `timestamptz`；营业日使用店铺本地 `date`。
-- 金额字段统一后缀 `_cents`，类型 `bigint`，正常业务输入 `>= 0`。
-- 提成统一后缀 `_bps`，`60% = 6000`，范围 `0..10000`。
-- 可修改聚合根带 `version integer`，从 1 开始。
-- 软删除对象带 `deleted_at`、`deleted_by`、`delete_reason`。
-- 业务表带 `created_at`、`updated_at`、`created_by`、`updated_by`。
-- 租户业务表必须有 `store_id`，并建立以 `store_id` 开头的索引。
+<a id="61-通用约定"></a>
 
-### 6.2 账号、店铺和成员
+### 6.1 General Conventions
 
-| 表 | 关键字段 | 约束与说明 |
+- The primary key uses an application-generated UUID; the six-digit store ID uses `char(6)`, leading 0s are allowed.
+- Use `timestamptz` for time points; use store local `date` for business day.
+- The amount field has a unified suffix of `_cents`, type `bigint`, and normal business input `>= 0`.
+- The commission has a unified suffix of `_bps`, `60% = 6000`, and a range of `0..10000`.
+- Modifiable aggregate root with `version integer`, starting from 1.
+- The soft deletion object takes `deleted_at`, `deleted_by`, `delete_reason`.
+- Business table with `created_at`, `updated_at`, `created_by`, `updated_by`.
+- The tenant business table must have `store_id`, and create an index starting with `store_id`.
+
+<a id="62-账号店铺和成员"></a>
+
+### 6.2 Accounts, stores and members
+
+| Table | Key Fields | Constraints and Description |
 |---|---|---|
-| `users` | `firebase_uid`, `phone_e164`, `first_name`, `last_name`, `status` | `firebase_uid`、手机号唯一；手机号加密/受控展示 |
-| `stores` | `store_code`, `name`, `timezone`, `business_cutoff_local`, `owner_membership_id`, `status`, `version` | `store_code` 全局唯一；时区为 IANA 名称；删除为软删除 |
-| `store_memberships` | `store_id`, `user_id`, `role`, `display_name`, `is_service_provider`, `default_commission_bps`, `status`, `joined_at`, `left_at`, `version` | `user_id` 在预建员工认领前可为空；活跃显示名大小写不敏感唯一；每店仅一个活跃 Owner |
-| `store_join_requests` | `store_id`, `user_id`, `requested_display_name`, `status`, `reviewed_by`, `reviewed_at`, `version` | 同一用户同店只允许一个待审批申请 |
+| `users` | `firebase_uid`, `phone_e164`, `first_name`, `last_name`, `status` | `firebase_uid`, unique phone number; phone number encrypted/controlled display |
+| `stores` | `store_code`, `name`, `timezone`, `business_cutoff_local`, `owner_membership_id`, `status`, `version` | `store_code` Globally unique; timezone is IANA name; deletion is soft deletion |
+| `store_memberships` | `store_id`, `user_id`, `role`, `display_name`, `is_service_provider`, `default_commission_bps`, `status`, `joined_at`, `left_at`, `version` | `user_id` can be empty before claiming by pre-created employees; active display name is case-insensitive and unique; only one active per store Owner |
+| `store_join_requests` | `store_id`, `user_id`, `requested_display_name`, `status`, `reviewed_by`, `reviewed_at`, `version` | The same user and store are only allowed one pending application |
 
-Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同时更新旧/新角色与 `owner_membership_id`。任何一步失败则整体回滚。
+Owner transfer locks the store and two memberships in a `Serializable` transaction, while updating the old/new roles and `owner_membership_id`. If any step fails, the entire process will be rolled back.
 
-### 6.3 营业日、排班和表格
+<a id="63-营业日排班和表格"></a>
 
-| 表 | 关键字段 | 约束与说明 |
+### 6.3 business day, schedule and form
+
+| Table | Key Fields | Constraints and Description |
 |---|---|---|
-| `shifts` | `store_id`, `membership_id`, `business_date`, `clock_in_at`, `clock_out_at`, `created_by` | 允许一天多段；同成员最多一条未下班记录 |
-| `daily_boards` | `store_id`, `business_date`, `version` | 每店每营业日唯一；整日排序的并发令牌 |
-| `daily_employee_rows` | `board_id`, `store_id`, `membership_id`, `position`, `is_hidden`, `added_by`, `version` | 每人每天一行；隐藏不影响记录和财务 |
+| `shifts` | `store_id`, `membership_id`, `business_date`, `clock_in_at`, `clock_out_at`, `created_by` | Allow multiple segments in a day; the same member can have at most one off-duty record |
+| `daily_boards` | `store_id`, `business_date`, `version` | Unique per store per business day; concurrent token sorted throughout the day |
+| `daily_employee_rows` | `board_id`, `store_id`, `membership_id`, `position`, `is_hidden`, `added_by`, `version` | One row per person per day; hiding does not affect records and finances |
 
-营业日计算：把 `start_at` 转为店铺时区；若本地时间 `>= business_cutoff_local`，`business_date = 本地日期 + 1 天`，否则为本地日期。恰好截止时间归下一营业日。记录同时保存 `store_timezone_snapshot` 和 `business_cutoff_snapshot`；以后修改店铺设置不重分旧记录。
+ business day calculation: put `start_at` Convert to store time zone; if local time `>= business_cutoff_local`, `business_date = 本地日期 + 1 天`, otherwise the local date. Exactly the deadline falls on the next business day. Records are saved simultaneously `store_timezone_snapshot` and `business_cutoff_snapshot`; Modifying store settings in the future will not re-distribute old records.
 
-### 6.4 项目与提成
+<a id="64-项目与提成"></a>
 
-| 表 | 关键字段 | 约束与说明 |
+### 6.4 Projects and commissions
+
+| Table | Key Fields | Constraints and Description |
 |---|---|---|
-| `service_items` | `store_id`, `full_name`, `short_name`, `default_commission_bps`, `position`, `is_enabled` | 项目身份与提成；旧时长/价格列仅用于滚动部署兼容 |
-| `service_item_price_options` | `service_item_id`, `duration_minutes`, `price_cents`, `position` | 同一项目时长唯一；时长 1–720 分钟；价格非负 |
-| `addon_items` | `store_id`, `name`, `short_name`, `amount_cents`, `duration_minutes`, `default_commission_bps`, `position`, `is_enabled` | 时长可空 |
-| `discount_items` | `store_id`, `name`, `short_name`, `amount_cents`, `position`, `is_enabled` | 只支持固定金额 |
-| `employee_default_commissions` | `store_id`, `membership_id`, `commission_bps`, `effective_from`, `effective_to` | 保留时间段历史，不覆盖旧值 |
-| `employee_item_commissions` | `store_id`, `membership_id`, `item_type`, `item_id`, `commission_bps`, `effective_from`, `effective_to` | 项目级特殊比例；时间段不得重叠 |
+| `service_items` | `store_id`, `full_name`, `short_name`, `default_commission_bps`, `position`, `is_enabled` | Project identity and commission; old duration/price columns are only compatible with rolling deployment |
+| `service_item_price_options` | `service_item_id`, `duration_minutes`, `price_cents`, `position` | The duration of the same item is unique; duration 1–720 minutes; price is non-negative |
+| `addon_items` | `store_id`, `name`, `short_name`, `amount_cents`, `duration_minutes`, `default_commission_bps`, `position`, `is_enabled` | Duration can be null |
+| `discount_items` | `store_id`, `name`, `short_name`, `amount_cents`, `position`, `is_enabled` | Only supports fixed amounts |
+| `employee_default_commissions` | `store_id`, `membership_id`, `commission_bps`, `effective_from`, `effective_to` | Keep the history of the time period and do not overwrite old values |
+| `employee_item_commissions` | `store_id`, `membership_id`, `item_type`, `item_id`, `commission_bps`, `effective_from`, `effective_to` | Project-level special ratio; time periods must not overlap |
 
-`store_memberships.default_commission_bps` 可作为当前值缓存，历史和生效区间以 commission 表为准。实际记工永远保存最终比例快照。
+`store_memberships.default_commission_bps` can be cached as the current value, and the historical and effective intervals are based on the commission table. The actual work record keeps a final scale snapshot forever.
 
-### 6.5 记工与快照
+<a id="65-记工与快照"></a>
 
-| 表 | 关键字段 | 约束与说明 |
+### 6.5 work record and snapshot
+
+| Table | Key Fields | Constraints and Description |
 |---|---|---|
-| `work_records` | `store_id`, `employee_membership_id`, `business_date`, `start_at`, `end_at`, `actual_duration_minutes`, `status`, `is_highlighted`, `note`, 各汇总金额、`version` | `status = pending_payment / confirmed`；高亮只改变展示与查询筛选；软删除；汇总只由服务器写 |
-| `work_record_service_snapshots` | `work_record_id`, `source_service_item_id`, `is_custom`, `name`, `short_name`, `amount_cents`, `duration_minutes`, `commission_bps`, `wage_cents` | 一单一个；改项目时更新当前快照，同时在审计中保留旧值 |
-| `work_record_addon_snapshots` | `work_record_id`, `source_addon_item_id`, `is_custom`, `name`, `short_name`, `amount_cents`, `duration_minutes`, `commission_bps`, `wage_cents`, `position` | 一单多个 |
-| `work_record_discount_snapshots` | `work_record_id`, `source_discount_item_id`, `is_custom`, `name`, `amount_cents`, `position` | 一单多个；总额不得超过大费基数 |
-| `payment_breakdowns` | `work_record_id`, `cash_service_cents`, `card_service_cents`, `gift_card_serial_number`, `gift_card_service_cents`, `cash_tip_cents`, `card_tip_cents`, `gift_card_tip_cents`, `confirmed_at`, `confirmed_by`, `version` | 待结账时可空；确认后六项金额均非空、非负；使用礼物卡时序列号非空 |
-| `gift_card_sales` | `store_id`, `business_date`, `serial_number`, `serial_number_normalized`, `face_value_cents`, `discount_threshold_cents`, `discount_rate_bps`, `discount_cents`, `cash_cents`, `card_cents`, `amount_cents`, `operator_membership_id`, `version` | 面值减折扣等于现金加刷卡且大于 0；每店序列号从 1001 事务分配且不复用；软删除并审计 |
+| `work_records` | `store_id`, `employee_membership_id`, `business_date`, `start_at`, `end_at`, `actual_duration_minutes`, `status`, `is_highlighted`, `note`, each summary amount, `version` | `status = pending_payment / confirmed`; highlight only changes the display and query filtering; soft deletion ;Summaries are only written by the server |
+| `work_record_service_snapshots` | `work_record_id`, `source_service_item_id`, `is_custom`, `name`, `short_name`, `amount_cents`, `duration_minutes`, `commission_bps`, `wage_cents` | One by one; update the current snapshot when changing the project, while retaining the old value in the audit |
+| `work_record_addon_snapshots` | `work_record_id`, `source_addon_item_id`, `is_custom`, `name`, `short_name`, `amount_cents`, `duration_minutes`, `commission_bps`, `wage_cents`, `position` | One single and multiple |
+| `work_record_discount_snapshots` | `work_record_id`, `source_discount_item_id`, `is_custom`, `name`, `amount_cents`, `position` | One order and multiple; the total amount shall not exceed the service fee base |
+| `payment_breakdowns` | `work_record_id`, `cash_service_cents`, `card_service_cents`, `gift_card_serial_number`, `gift_card_service_cents`, `cash_tip_cents`, `card_tip_cents`, `gift_card_tip_cents`, `confirmed_at`, `confirmed_by`, `version` | Can be empty when checking out; after confirmation, the six amounts are not empty or negative; when using gift card, the serial number is not empty |
+| `gift_card_sales` | `store_id`, `business_date`, `serial_number`, `serial_number_normalized`, `face_value_cents`, `discount_threshold_cents`, `discount_rate_bps`, `discount_cents`, `cash_cents`, `card_cents`, `amount_cents`, `operator_membership_id`, `version` | The face value minus discount is equal to cash plus card and is greater than 0; the serial number of each store is allocated from transaction 1001 and is not reused; soft deletion and audit |
 
-`work_records` 的服务器汇总字段：
+Server summary fields for `work_records`:
 
 - `main_service_amount_cents`
 - `addon_total_cents`
@@ -359,372 +401,432 @@ Owner 转移在 `Serializable` 事务中锁定店铺和两条 membership，同�
 - `discounted_fee_performance_cents`
 - `cash_service_cents`
 - `card_service_cents`
-- `gift_card_serial_number`（未使用礼物卡时为空）
+- `gift_card_serial_number` (empty when gift card is not used)
 - `gift_card_service_cents`
-- `cash_tip_cents`（待结账可空）
-- `card_tip_cents`（待结账可空）
-- `gift_card_tip_cents`（待结账可空）
-- `total_tip_cents`（待结账可空）
+- `cash_tip_cents` (can be empty pending checkout)
+- `card_tip_cents` (can be empty pending checkout)
+- `gift_card_tip_cents` (can be empty pending checkout)
+- `total_tip_cents` (can be empty pending checkout)
 - `actual_service_collected_cents`
-- `customer_total_paid_cents`（待结账可空）
+- `customer_total_paid_cents` (can be empty pending checkout)
 - `main_service_wage_cents`
 - `addon_wage_cents`
 - `total_large_fee_wage_cents`
-- `employee_total_income_cents`（小费未知时为临时值，并带 incomplete 标记）
+- `employee_total_income_cents` (tips are temporary values when unknown and marked with incomplete)
 - `cash_allocated_service_wage_cents`
 - `cash_acquired_service_wage_cents`
 - `cash_wage_shortfall_cents`
 
-待结账记录的大费工资仍计入“今日临时统计”，但空白小费不能静默伪装成已确认的 0；API 同时返回 `incomplete_record_count`。正常日结要求补全，强制日结才允许带着异常快照继续。
+The service commission of pending checkout records is still included in "today's temporary statistics", but blank tips cannot be silently disguised as confirmed 0; the API also returns `incomplete_record_count`. Normal daily closing requires completion, and forced daily closing is allowed to continue with abnormal snapshots.
 
-### 6.6 日结、现金和工资账本
+<a id="66-日结现金和工资账本"></a>
 
-| 表 | 关键字段 | 约束与说明 |
+### 6.6 daily closing, cash and payroll ledger
+
+| Table | Key Fields | Constraints and Description |
 |---|---|---|
-| `business_day_closings` | `store_id`, `business_date`, `cycle_no`, `status`, `is_forced`, `warning_snapshot_json`, `totals_snapshot_json`, `closed_by`, `closed_at`, `cancelled_by`, `cancelled_at`, `version` | 每次重新日结创建新周期；同一营业日最多一个有效关闭周期 |
-| `daily_cash_settlements` | `store_id`, `business_date`, `membership_id`, 各现金快照金额、`status`, `note`, `settled_by`, `settled_at`, `version` | 每人每天一条当前记录；结清时保存计算快照；修改历史后回到未结清 |
-| `payroll_settlements` | `store_id`, `membership_id`, `settlement_date`, `period_start`, `period_end`, `service_wage_cents`, `cash_tip_cents`, `card_tip_cents`, `adjustment_cents`, `total_paid_cents`, `payment_method`, `note`, `version` | Owner 不能作为被支付对象；总额由服务器计算；软删除 |
+| `business_day_closings` | `store_id`, `business_date`, `cycle_no`, `status`, `is_forced`, `warning_snapshot_json`, `totals_snapshot_json`, `closed_by`, `closed_at`, `cancelled_by`, `cancelled_at`, `version` | Refresh every time daily closing creates a new cycle; there is at most one valid closing cycle for the same business day |
+| `daily_cash_settlements` | `store_id`, `business_date`, `membership_id`, the amount of each cash snapshot, `status`, `note`, `settled_by`, `settled_at`, `version` | One current record per person per day; save the calculation snapshot when settling; return to unsettled after modifying the history |
+| `payroll_settlements` | `store_id`, `membership_id`, `settlement_date`, `period_start`, `period_end`, `service_wage_cents`, `cash_tip_cents`, `card_tip_cents`, `adjustment_cents`, `total_paid_cents`, `payment_method`, `note`, `version` | Owner cannot be the object to be paid; the total amount is calculated by the server; soft deletion |
 
-日期范围和高亮状态是账本说明与筛选维度，不锁定或“占用”某批记工；允许日期范围重叠。高亮筛选必须同时作用于财务汇总、组成明细和 CSV 导出。老板尚欠始终按累计应得、已通过结清现金取得和有效工资账本重新计算，因此部分支付、超额支付和历史修正不会产生双重归属逻辑。
+The date range and highlight status are account description and filtering dimensions and do not lock or "occupy" a certain batch of work records; date ranges are allowed to overlap. The highlight filter must work on both financial summaries, component details, and CSV exports. Owner's outstanding is always recalculated on a cumulative basis, earned through settled cash, and valid payroll ledger, so partial payments, overpayments, and historical revisions do not create double vesting logic.
 
-### 6.7 审计、可靠性和 AI
+<a id="67-审计可靠性和-ai"></a>
 
-| 表 | 关键字段 | 约束与说明 |
+### 6.7 Auditing, Reliability and AI
+
+| Table | Key Fields | Constraints and Description |
 |---|---|---|
-| `audit_logs` | `store_id`, `actor_user_id`, `actor_membership_id`, `action`, `entity_type`, `entity_id`, `business_date`, `before_json`, `after_json`, `reason`, `request_id`, `created_at` | 只追加，不更新、不软删除；与业务写入同事务 |
-| `idempotency_requests` | `store_id`, `user_id`, `key`, `route`, `request_hash`, `status`, `response_code`, `response_json`, `expires_at` | `(store_id,user_id,key,route)` 唯一；相同键不同请求体返回冲突 |
-| `domain_outbox` | `store_id`, `topic`, `aggregate_type`, `aggregate_id`, `payload_json`, `created_at`, `published_at`, `attempt_count` | 与业务审计同事务写；SSE 按游标至少一次投递，客户端收到后重新拉取 REST 真相 |
-| `ai_conversations` | `store_id`, `user_id`, `assistant_type`, `created_at`, `last_message_at` | 会话按店隔离 |
-| `ai_query_logs` | `conversation_id`, `store_id`, `user_id`, `model_provider`, `model_name`, `input_text`, `tool_calls_json`, `tool_results_redacted_json`, `outcome`, `latency_ms`, `created_at` | 不保存音频；敏感字段脱敏；可配置保留期 |
-| `ai_change_previews` | `store_id`, `user_id`, `operation`, `canonical_payload_json`, `base_versions_json`, `warnings_json`, `expires_at`, `confirmed_at`, `consumed_at` | 一次性预览；确认时重新鉴权、重算和检查版本 |
+| `audit_logs` | `store_id`, `actor_user_id`, `actor_membership_id`, `action`, `entity_type`, `entity_id`, `business_date`, `before_json`, `after_json`, `reason`, `request_id`, `created_at` | Append only, no update, no soft deletion ;Same transaction as business writing |
+| `idempotency_requests` | `store_id`, `user_id`, `key`, `route`, `request_hash`, `status`, `response_code`, `response_json`, `expires_at` | `(store_id,user_id,key,route)` unique; the same key and different request bodies return conflicts |
+| `domain_outbox` | `store_id`, `topic`, `aggregate_type`, `aggregate_id`, `payload_json`, `created_at`, `published_at`, `attempt_count` | Written in the same transaction as business audit; SSE delivers at least once according to the cursor, and the client re-pulls the REST truth after receiving it |
+| `ai_conversations` | `store_id`, `user_id`, `assistant_type`, `created_at`, `last_message_at` | Conversation isolation by store |
+| `ai_query_logs` | `conversation_id`, `store_id`, `user_id`, `model_provider`, `model_name`, `input_text`, `tool_calls_json`, `tool_results_redacted_json`, `outcome`, `latency_ms`, `created_at` | Audio is not saved; sensitive fields are masked; configurable retention period |
+| `ai_change_previews` | `store_id`, `user_id`, `operation`, `canonical_payload_json`, `base_versions_json`, `warnings_json`, `expires_at`, `confirmed_at`, `consumed_at` | One-time preview; re-authenticate, recalculate and check version when confirming |
 
-### 6.8 关键数据库约束
+<a id="68-关键数据库约束"></a>
 
-- 活跃 Owner：每个 `store_id` 仅一个 `role='OWNER'` 的活跃 membership。
-- 活跃显示名：`(store_id, lower(display_name))` 部分唯一。
-- 店铺代码：六位数字正则检查并全局唯一。
-- 所有快照金额非负；折扣总额通过领域事务校验不超过大费基数。
-- 提成 `0..10000 bps`。
-- `end_at >= start_at`；允许跨营业日截止，但业务日期不改变。
-- 已确认付款六个拆分金额均非空；礼物卡金额大于 0 时序列号必须非空，金额为 0 时序列号必须为空。
-- 所有 store-scoped 外键尽量采用 `(store_id, id)` 组合约束，防止错误跨店关联。
+### 6.8 Key database constraints
+
+- Active Owner: Each `store_id` only one `role='OWNER'` active membership.
+- Active display name: `(store_id, lower(display_name))` Partially unique.
+- Store code: six-digit regular check and globally unique.
+- All snapshot amounts are non-negative; the total discount does not exceed the service fee base through domain transaction verification.
+- Commission `0..10000 bps`.
+- `end_at >= start_at`; allows cross-business day deadlines, but the business date does not change.
+- The six split amounts of the confirmed payment are all non-empty; when the gift card amount is greater than 0, the serial number must be non-empty, and when the amount is 0, the serial number must be empty.
+- All store-scoped foreign keys try to use `(store_id, id)` combination constraints to prevent incorrect cross-store associations.
 
 ---
 
-## 7. 财务公式、舍入与边界案例
+<a id="7-财务公式舍入与边界案例"></a>
 
-### 7.1 基础金额
+## 7. Financial formulas, rounding and edge cases
 
-设：
+<a id="71-基础金额"></a>
 
-- `P`：主要项目金额
-- `Ei`：第 i 个额外项目金额，`E = ΣEi`
-- `D`：折扣总额
-- `CS`：现金大费
-- `CC`：刷卡大费
-- `GCS`：礼物卡大费
-- `CT`：现金小费
-- `CCT`：刷卡小费
-- `GCT`：礼物卡小费
+### 7.1 Basic amount
 
-```text
-大费基数 = P + E
-折后大费业绩 = P + E - D
-实收服务费 = CS + CC + GCS
-收款差额 = 实收服务费 - 折后大费业绩
-小费总额 = CT + CCT + GCT
-客人总付款 = CS + CC + GCS + CT + CCT + GCT
-```
+set up:
 
-界面建议标签：`大费总额（折扣前）`、`折后大费`、`实际收到大费`、`收款差额`，避免把“实收服务费”误解为软件服务费。
-
-### 7.2 提成与工资
+- `P`: Main item amount
+- `Ei`: the amount of the i-th additional item, `E = ΣEi`
+- `D`: total discount
+- `CS`: cash service fee
+- `CC`: Swipe card service fee
+- `GCS`: gift card service fee
+- `CT`: cash tips
+- `CCT`: tips for swiping your card
+- `GCT`: gift card tips
 
 ```text
-主要项目工资 = round_half_up(P × main_rate_bps / 10000)
-单项额外项目工资_i = round_half_up(Ei × addon_rate_i_bps / 10000)
-额外项目工资 = Σ单项额外项目工资_i
-大费工资 W = 主要项目工资 + 额外项目工资
-员工应得总收入 = W + CT + CCT + GCT
+Big fee base = P + E
+Great results after discounts = P + E - D
+Actual service fee = CS + CC + GCS
+Collection difference = Actual service fee - Great results after discounts
+Total tip = CT + CCT + GCT
+Total guest payment = CS + CC + GCS + CT + CCT + GCT
 ```
 
-必须逐项舍入后再相加，不能先把项目合并再乘一个比例。折扣不进入工资公式。
+Interface suggested tags:`大费总额 (折扣前)`, `折后大费`, `实际收到大费`, `收款差额`, to avoid misunderstanding "actual service fees" as software service fees.
 
-### 7.3 混合付款现金分摊
+<a id="72-提成与工资"></a>
 
-每条记录独立计算：
+### 7.2 Commission and wages
 
 ```text
-若 CS + CC + GCS > 0：
-  现金对应大费工资 A = round_half_up(W × CS / (CS + CC + GCS))
-否则：
-  A = 0，并产生“实收服务费为 0”异常
-
-实际通过现金取得的大费工资 AC = min(CS, A)
-现金工资不足 S = A - AC
+Main project salary = round_half_up(P × main_rate_bps / 10000)
+Single additional project salary_i = round_half_up(Ei × addon_rate_i_bps / 10000)
+Extra project salary = ΣSingle additional project salary_i
+Big salary W = Main project salary + Extra project salary
+Total income due to employees = W + CT + CCT + GCT
 ```
 
-为了保证分摊后精确相加，非现金侧（刷卡与礼物卡）对应工资使用 `W - A`，不单独再次除法舍入。
+Items must be rounded off item by item before adding, items cannot be combined and then multiplied by a ratio. Discounts do not enter into the salary formula.
 
-每位员工每日：
+<a id="73-混合付款现金分摊"></a>
+
+### 7.3 Mixed payment cash allocation
+
+Each record is calculated independently:
 
 ```text
-员工共收到现金 = ΣCS + ΣCT
-实际通过现金取得 = ΣAC + ΣCT
-员工应提交店铺现金 = ΣCS - ΣAC
-现金工资不足 = ΣS
+like CS + CC + GCS > 0：
+  Cash corresponds to large wages A = round_half_up(W × CS / (CS + CC + GCS))
+otherwise：
+  A = 0，and produce“The actual service fee charged is 0”abnormal
+
+Big salary actually received in cash AC = min(CS, A)
+Insufficient cash salary S = A - AC
 ```
 
-应提交金额不会为负。只有该员工当天现金结算标记为“已全部结清”后，`ΣAC + ΣCT` 才进入累计“已通过现金取得”。
+In order to ensure accurate addition after amortization, the non-cash side (swipe card and gift card) uses `W - A` for the corresponding salary, and does not divide and round separately again.
 
-### 7.4 老板尚欠与超额支付
-
-不含 Owner 本人的记录：
+Each employee per day:
 
 ```text
-原始余额 B = 累计员工应得总收入
-             - 已通过已结清现金结算实际取得
-             - 有效工资结算账本累计 total_paid
-
-老板尚欠 = max(B, 0)
-已超额支付 = max(-B, 0)
+Employees received a total of cash = ΣCS + ΣCT
+actually obtained in cash = ΣAC + ΣCT
+Employees should submit store cash = ΣCS - ΣAC
+Insufficient cash salary = ΣS
 ```
 
-工资账本：
+The amount due will not be negative. Only after the employee's cash settlement for the day is marked as "all settled", `ΣAC + ΣCT` will enter the cumulative "acquired through cash".
+
+<a id="74-老板尚欠与超额支付"></a>
+
+### 7.4 The boss’s arrears and overpayments
+
+Excluding Owner’s own records:
+
+```text
+original balance B = Accumulated total income due to employees
+             - Actual acquisition through cleared cash settlement
+             - Accumulation of effective salary settlement ledgers total_paid
+
+The boss still owes = max(B, 0)
+Overpaid = max(-B, 0)
+```
+
+payroll ledger:
 
 ```text
 total_paid = service_wage + cash_tip + card_tip + adjustment
 ```
 
-前三项非负，`adjustment` 可正可负。若最终总额为负，必须额外二次确认并填写原因；该条账本相当于冲减既有支付，但不修改历史记工。
+The first three terms are non-negative, and `adjustment` can be positive or negative. If the final total is negative, an additional confirmation must be made and the reason must be filled in; this ledger is equivalent to offsetting the existing payment, but does not modify the historical work record.
 
-### 7.5 完整示例
+<a id="75-完整示例"></a>
 
-主要项目 $100、提成 60%；额外项目 $20、提成 50%；折扣 $15；现金大费 $40、刷卡大费 $65；现金小费 $10、刷卡小费 $20：
+### 7.5 Complete example
 
-| 项目 | 结果 |
+Main items are $100, commission is 60%; additional items are $20, commission is 50%; discount is $15; cash service fee is $40, card service fee is $65; cash tips are $10, card tips are $20:
+
+| Project | Results |
 |---|---:|
-| 大费基数 | $120.00 |
-| 折后大费业绩 | $105.00 |
-| 实收服务费 | $105.00 |
-| 主要项目工资 | $60.00 |
-| 额外项目工资 | $10.00 |
-| 大费工资 | $70.00 |
-| 员工应得总收入 | $100.00 |
-| 现金对应大费工资 | $26.67 |
-| 实际通过现金取得 | $26.67 + $10.00 = $36.67 |
-| 应提交店铺现金 | $40.00 - $26.67 = $13.33 |
-| 工资结算前老板尚欠 | $100.00 - $36.67 = $63.33 |
+| service fee base | $120.00 |
+| Service fee performance after discount | $105.00 |
+| Actual service fee | $105.00 |
+| Major Project Salary | $60.00 |
+| Additional Project Pay | $10.00 |
+| service commission | $70.00 |
+| Total employee earnings | $100.00 |
+| Cash service commission | $26.67 |
+| Actually obtained in cash | $26.67 + $10.00 = $36.67 |
+| Store cash should be submitted | $40.00 - $26.67 = $13.33 |
+| The boss still owes before salary settlement | $100.00 - $36.67 = $63.33 |
 
-### 7.6 必测边界
+<a id="76-必测边界"></a>
 
-1. 全现金、全刷卡、无小费、明确输入 0。
-2. 大费刷卡而小费现金；大费现金而小费刷卡。
-3. 大费现金/刷卡混合，产生半美分舍入。
-4. 多个额外项目使用不同提成。
-5. 多个折扣，折扣正好等于大费基数。
-6. 折扣后 $0，但员工仍有工资；现金不足的工资缺口进入老板尚欠。
-7. 实收少于、等于和多于折后大费。
-8. 实收服务费为 0。
-9. 提成优先级四层和自定义项目两层。
-10. 修改模板和提成后，历史工资不变。
-11. 日结后取消、修改、重新日结，现金状态回退。
-12. 部分工资支付、超额支付、负数调整、删除和恢复账本。
-13. Owner 参与记工但不产生老板尚欠；Manager 参与记工并产生余额。
-14. 小费空白与明确 0 的差别。
+### 7.6 Required boundaries
 
----
-
-## 8. API 设计
-
-### 8.1 通用规范
-
-- 前缀：`/api/v1`。
-- JSON 金额统一传整数美分；API 响应可额外给 `formatted` 中文展示值。
-- 所有资源响应带 `id`、`version`、`updatedAt`。
-- POST/PATCH/DELETE 必须带 `Idempotency-Key`；更新和删除必须带预期 `version`。
-- 店铺从路径取得，后端核验 membership；不信任请求体中的 `storeId`。
-- 错误结构：`code`、`messageZh`、`fieldErrors`、`requestId`、可选 `latestResource`。
-- 分页使用游标；财务导出和明细查询使用稳定排序。
-
-### 8.2 认证和账号
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/auth/session` | 用 Firebase ID token 换后端 HttpOnly 会话 |
-| DELETE | `/auth/session` | 退出当前设备 |
-| DELETE | `/auth/sessions` | 撤销 Firebase refresh tokens，退出全部设备 |
-| GET | `/me` | 当前用户、店铺 membership 摘要 |
-| PATCH | `/me/profile` | 首次或后续修改姓名 |
-
-### 8.3 店铺与成员
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/stores` | 创建店铺和 Owner membership |
-| GET | `/stores/resolve-code/:code` | 返回可公开的店名，不泄露成员信息 |
-| GET/PATCH/DELETE | `/stores/:storeId` | 读取、修改、软删除店铺 |
-| POST | `/stores/:storeId/owner-transfer` | 原子转移 Owner |
-| POST | `/stores/:storeId/join-requests` | 申请加入 |
-| GET | `/stores/:storeId/join-requests` | Owner/Manager 查看待审批 |
-| POST | `/stores/:storeId/join-requests/:id/approve` | 审批 |
-| POST | `/stores/:storeId/join-requests/:id/reject` | 拒绝 |
-| GET/PATCH/DELETE | `/stores/:storeId/members/:membershipId` | 成员、角色、参与记工、离职 |
-| POST | `/stores/:storeId/members` | Owner/Manager 只填名字创建待认领员工 |
-| POST | `/stores/:storeId/members/:membershipId/restore` | 恢复成员关系 |
-
-### 8.4 排班、今日表格和记工
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/stores/:storeId/business-days/current` | 返回服务器认定的当前营业日 |
-| GET | `/stores/:storeId/boards/:businessDate` | 整日表格、记录和统计快照 |
-| POST | `/stores/:storeId/shifts/clock-in` | 上班并确保今日行存在 |
-| POST | `/stores/:storeId/shifts/:shiftId/clock-out` | 下班 |
-| POST | `/stores/:storeId/boards/:date/rows` | Owner/Manager 手动加人 |
-| PATCH | `/stores/:storeId/boards/:date/rows/:rowId` | 隐藏/显示；允许在日结后执行，且不改变业务金额或日结状态 |
-| POST | `/stores/:storeId/boards/:date/reorder` | 以 board version 原子排序 |
-| POST | `/stores/:storeId/work-records` | 快速创建待结账记录 |
-| GET | `/stores/:storeId/work-records/:recordId` | 详情和审计摘要 |
-| PATCH | `/stores/:storeId/work-records/:recordId` | 修改项目、时间、金额等 |
-| POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 补 0、重算并确认付款 |
-| DELETE | `/stores/:storeId/work-records/:recordId` | 软删除 |
-| POST | `/stores/:storeId/work-records/:recordId/restore` | Owner/Manager 恢复 |
-| GET | `/stores/:storeId/gift-card-sales` | Owner/Manager 查看按序列号排序并带多条使用记录的礼物卡台账 |
-| POST | `/stores/:storeId/gift-card-sales` | 记录当天卖出的礼物卡，自动分配序列号并按面值与折扣快照校验实际收款 |
-| PATCH/DELETE | `/stores/:storeId/gift-card-sales/:saleId` | 修改或软删除卖卡记录；使用乐观锁与审计 |
-| GET/POST | `/stores/:storeId/gift-card-sales/deleted`、`.../:saleId/restore` | Owner/Manager 查看和恢复卖卡记录 |
-
-### 8.5 财务、日结和结算
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/stores/:storeId/finance/summary` | 按日期、人员、支付方式、金额类型汇总 |
-| GET | `/stores/:storeId/finance/details` | 组成明细 |
-| GET | `/stores/:storeId/finance/my-balance` | 当前用户自己的累计余额 |
-| GET | `/stores/:storeId/closings/:date/preview` | 日结检查和异常 |
-| POST | `/stores/:storeId/closings/:date` | 正常或强制日结 |
-| POST | `/stores/:storeId/closings/:date/cancel` | 取消日结并回退现金状态 |
-| GET | `/stores/:storeId/cash-settlements/:date` | 每日现金计算 |
-| POST | `/stores/:storeId/cash-settlements/:date/:membershipId/settle` | 标记全部结清 |
-| POST | `/stores/:storeId/cash-settlements/:date/:membershipId/reopen` | 取消结清 |
-| POST | `/stores/:storeId/cash-settlements/:date/settle-all` | 一键结清 |
-| GET/POST | `/stores/:storeId/payroll-settlements` | 列表、新增账本 |
-| GET/PATCH/DELETE | `/stores/:storeId/payroll-settlements/:id` | 查看、修改、软删除 |
-| POST | `/stores/:storeId/payroll-settlements/:id/restore` | 恢复 |
-
-### 8.6 设置、审计和 AI
-
-项目、额外项目、折扣和提成分别使用标准 `/stores/:storeId/...` CRUD API；删除均为软删除。审计使用 `GET /stores/:storeId/audit-logs`。
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/stores/:storeId/ai/work/messages` | 发送文字，模型只能调用记工工具 |
-| POST | `/stores/:storeId/ai/work/transcribe` | 上传短音频并返回文字，不直接执行 |
-| POST | `/stores/:storeId/ai/finance/messages` | 财务问答，只读工具 |
-| GET | `/stores/:storeId/ai/previews/:previewId` | 获取结构化预览 |
-| POST | `/stores/:storeId/ai/previews/:previewId/confirm` | 用户确认后执行一次 |
-| DELETE | `/stores/:storeId/ai/previews/:previewId` | 放弃预览 |
+1. All cash, all card swiping, no tips, enter 0 explicitly.
+2. service fee means swiping a card and tips means cash; service fee means cash and tips means swiping a card.
+3. Service fee cash/card hybrid, resulting in half-cent rounding.
+4. Multiple additional projects use different commissions.
+5. Multiple discounts, the discount is exactly equal to the service fee base.
+6. $0 after discount, but the employee still has wages; the cash-strapped wage gap goes into what the boss still owes.
+7. The actual charge is less than, equal to and more than the discounted service fee.
+8. The actual service fee charged is 0.
+9. There are four levels of commission priority and two levels of custom projects.
+10. After modifying the template and commission, the historical salary remains unchanged.
+11. Cancel, modify, and restart daily closing after daily closing, and the cash status will be rolled back.
+12. Partial salary payments, overpayments, negative adjustments, deletions and reinstatements.
+13. The Owner participates in the work record but does not generate a balance due to the boss; the Manager participates in the work record and generates a balance.
+14. tips The difference between blank and clear 0.
 
 ---
 
-## 9. 实时同步与并发冲突
+<a id="8-api-设计"></a>
 
-### 9.1 事件流
+## 8. API design
 
-1. API 在数据库事务中更新业务数据、审计日志和 `domain_outbox`。
-2. 提交成功后立即响应客户端。
-3. 已认证 SSE 连接按 `storeId` 和 `lastEventId` 从 outbox 顺序读取事件；无事件时发送心跳。
-4. 客户端收到 `store.changed` 后防抖并重新获取当前页面的 REST 真相。
-5. outbox 保留 7 天供短期重连；游标已过保留期时，页面初次加载本身会重新读取完整快照。
+<a id="81-通用规范"></a>
 
-主要事件：`work_record.created/updated/deleted/restored`、`board.reordered`、`shift.changed`、`closing.changed`、`cash_settlement.changed`、`payroll.changed`、`catalog.changed`、`membership.changed`。
+### 8.1 General specifications
 
-事件只包含 `eventId`、`storeId`、`businessDate`、`resourceType`、`resourceId`、`version`、`occurredAt`，不广播完整敏感财务数据。
+- Prefix: `/api/v1`.
+- The JSON amount is uniformly transmitted as an integer cent; the API response can additionally provide `formatted` Chinese display value.
+- All resources respond with `id`, `version`, `updatedAt`.
+- POST/PATCH/DELETE must have the `Idempotency-Key`; updates and deletes must have the expected `version`.
+- The store is obtained from the path, and the backend verifies membership; the `storeId` in the request body is not trusted.
+- Error structure: `code`, `messageZh`, `fieldErrors`, `requestId`, optional `latestResource`.
+- Cursors are used for paging; stable sorting is used for financial export and detailed queries.
 
-### 9.2 乐观锁
+<a id="82-认证和账号"></a>
 
-- PATCH/DELETE 使用 `WHERE id = ? AND store_id = ? AND version = expectedVersion`。
-- 0 行更新返回 HTTP 409，并带最新资源。
-- 记工金额、员工归属、付款拆分等财务字段不自动合并；用户查看差异后重试。
-- 备注也使用整体 version，避免静默覆盖。
-- 拖动排序以 `daily_boards.version` 为整板令牌，在单事务内更新全部 position。
+### 8.2 Authentication and account
 
-### 9.3 幂等与重复点击
+| Method | Path | Description |
+|---|---|---|
+| POST | `/auth/session` | Use Firebase ID token to replace backend HttpOnly session |
+| DELETE | `/auth/session` | Exit the current device |
+| DELETE | `/auth/sessions` | Revoke Firebase refresh tokens and log out of all devices |
+| GET | `/me` | Current user, store membership summary |
+| PATCH | `/me/profile` | First or subsequent name change |
 
-- 客户端每次用户操作生成唯一 `Idempotency-Key`，网络重试复用同一个键。
-- 相同键、路径和请求体返回第一次结果，不再次写入。
-- 相同键但不同请求体返回 409 `IDEMPOTENCY_KEY_REUSED`。
-- AI 预览确认还带一次性 `previewId`，消费后不能再次执行。
+<a id="83-店铺与成员"></a>
 
-### 9.4 断网和重新连接
+### 8.3 Stores and Members
 
-- 第一版不支持离线新增、修改或删除，避免多设备离线账务冲突。
-- 已编辑的记工详情以记录版本为保护保留在本机最多 7 天；断网时禁用提交并显示“网络中断，内容尚未保存”。退出登录会清除本应用草稿。
-- 请求超时但结果未知时，客户端用同一幂等键查询/重试。
-- EventSource 重连自动提交 `Last-Event-ID`；页面首次进入和事件通知后都通过 REST 获取最新快照。
-- PWA 只缓存应用壳和静态资源，不把敏感财务响应长期缓存到共享浏览器缓存。
+| Method | Path | Description |
+|---|---|---|
+| POST | `/stores` | Create store and Owner membership |
+| GET | `/stores/resolve-code/:code` | Returns the store name that can be disclosed without revealing member information |
+| GET/PATCH/DELETE | `/stores/:storeId` | Read, modify, soft deletion stores |
+| POST | `/stores/:storeId/owner-transfer` | Atomic transfer Owner |
+| POST | `/stores/:storeId/join-requests` | Apply to join |
+| GET | `/stores/:storeId/join-requests` | Owner/Manager View pending approval |
+| POST | `/stores/:storeId/join-requests/:id/approve` | Approval |
+| POST | `/stores/:storeId/join-requests/:id/reject` | REJECT |
+| GET/PATCH/DELETE | `/stores/:storeId/members/:membershipId` | Members, roles, participation work record, resignation |
+| POST | `/stores/:storeId/members` | Owner/Manager Fill in only the name to create an employee to be claimed |
+| POST | `/stores/:storeId/members/:membershipId/restore` | Restore membership |
+
+<a id="84-排班今日表格和记工"></a>
+
+### 8.4 Shift scheduling, today’s form and work record
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/stores/:storeId/business-days/current` | Returns the current business day as determined by the server |
+| GET | `/stores/:storeId/boards/:businessDate` | Snapshot of tables, records and statistics throughout the day |
+| POST | `/stores/:storeId/shifts/clock-in` | Go to work and make sure today's row exists |
+| POST | `/stores/:storeId/shifts/:shiftId/clock-out` | After get off work |
+| POST | `/stores/:storeId/boards/:date/rows` | Owner/Manager Add people manually |
+| PATCH | `/stores/:storeId/boards/:date/rows/:rowId` | Hide/show; allowed to be executed after daily closing without changing the business amount or daily closing status |
+| POST | `/stores/:storeId/boards/:date/reorder` | Atomic sort by board version |
+| POST | `/stores/:storeId/work-records` | Quickly create pending checkout records |
+| GET | `/stores/:storeId/work-records/:recordId` | Details and audit summary |
+| PATCH | `/stores/:storeId/work-records/:recordId` | Modify items, time, amount, etc. |
+| POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | Add 0, recalculate and confirm payment |
+| DELETE | `/stores/:storeId/work-records/:recordId` | soft deletion |
+| POST | `/stores/:storeId/work-records/:recordId/restore` | Owner/Manager restore |
+| GET | `/stores/:storeId/gift-card-sales` | Owner/Manager View the gift card ledger sorted by serial number and with multiple usage records |
+| POST | `/stores/:storeId/gift-card-sales` | Record the gift cards sold on the day, automatically assign serial numbers and verify actual receipts based on face value and discount snapshot |
+| PATCH/DELETE | `/stores/:storeId/gift-card-sales/:saleId` | Modify or soft deletion card sales records; use optimistic locking and auditing |
+| GET/POST | `/stores/:storeId/gift-card-sales/deleted`, `.../:saleId/restore` | Owner/Manager View and restore card sales records |
+
+<a id="85-财务日结和结算"></a>
+
+### 8.5 Finance, daily closing and settlement
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/stores/:storeId/finance/summary` | Summary by date, person, payment method, amount type |
+| GET | `/stores/:storeId/finance/details` | Composition details |
+| GET | `/stores/:storeId/finance/my-balance` | The current user’s own cumulative balance |
+| GET | `/stores/:storeId/closings/:date/preview` | daily closing checks and exceptions |
+| POST | `/stores/:storeId/closings/:date` | Normal or forced daily closing |
+| POST | `/stores/:storeId/closings/:date/cancel` | Cancel daily closing and fall back to cash status |
+| GET | `/stores/:storeId/cash-settlements/:date` | Daily cash calculation |
+| POST | `/stores/:storeId/cash-settlements/:date/:membershipId/settle` | Mark all settled |
+| POST | `/stores/:storeId/cash-settlements/:date/:membershipId/reopen` | Cancel settlement |
+| POST | `/stores/:storeId/cash-settlements/:date/settle-all` | One-click settlement |
+| GET/POST | `/stores/:storeId/payroll-settlements` | List, new ledger |
+| GET/PATCH/DELETE | `/stores/:storeId/payroll-settlements/:id` | View, modify, soft deletion |
+| POST | `/stores/:storeId/payroll-settlements/:id/restore` | Restore |
+
+<a id="86-设置审计和-ai"></a>
+
+### 8.6 Setup, Auditing and AI
+
+Items, extras, discounts and commissions respectively use the standard `/stores/:storeId/...` CRUD API; deletions are all soft deletion. Audit using `GET /stores/:storeId/audit-logs`.
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/stores/:storeId/ai/work/messages` | To send text, the model can only call the work record tool |
+| POST | `/stores/:storeId/ai/work/transcribe` | Upload short audio and return text, not executed directly |
+| POST | `/stores/:storeId/ai/finance/messages` | Financial Q&A, read-only tool |
+| GET | `/stores/:storeId/ai/previews/:previewId` | Get structured preview |
+| POST | `/stores/:storeId/ai/previews/:previewId/confirm` | Executed once after user confirms |
+| DELETE | `/stores/:storeId/ai/previews/:previewId` | Discard preview |
 
 ---
 
-## 10. 审计日志方案
+<a id="9-实时同步与并发冲突"></a>
 
-### 10.1 写入范围
+## 9. Real-time synchronization and concurrency conflicts
 
-记工新增/修改/删除/恢复、备注修改、付款确认、打卡、排序、隐藏、日结/取消、现金结清/回退、工资账本、角色、参与记工状态、提成、项目、店铺设置、Owner 转移、AI 确认写入均审计。
+<a id="91-事件流"></a>
 
-### 10.2 原则
+### 9.1 Event flow
 
-- 审计与业务写入位于同一数据库事务。
-- `before_json` 和 `after_json` 使用稳定字段名并保存金额美分值。
-- 每条日志记录 actor、目标员工、店铺、营业日、请求 ID、幂等键摘要、操作来源 `web/api/ai/system`。
-- 自动状态回退使用 `actor = system`，并记录触发该回退的父 `request_id`。
-- 审计表只追加，应用账号没有 UPDATE/DELETE 权限。
-- 手机号、Firebase token、Cookie、MiniMax 密钥、完整音频不得写入审计。
+1. API updates business data, audit logs, and `domain_outbox` in database transactions.
+2. Respond to the client immediately after successful submission.
+3. Authenticated SSE connections read events from the outbox sequentially by `storeId` and `lastEventId`; send a heartbeat when there are no events.
+4. After receiving `store.changed`, the client debounces and re-obtains the REST truth of the current page.
+5. The outbox is retained for 7 days for short-term reconnection; when the cursor expires, the initial page load itself rereads the full snapshot.
 
-### 10.3 查看权限
+Main events: `work_record.created/updated/deleted/restored`, `board.reordered`, `shift.changed`, `closing.changed`, `cash_settlement.changed`, `payroll.changed`, `catalog.changed`, `membership.changed`.
 
-- Owner/Manager 可查看本店完整审计。
-- Employee 可在自己有权查看的记录详情中看到简化修改历史；历史日期只显示自己的记录历史。
-- 跨店审计查询由服务层强制店铺作用域、对象归属校验和非超级用户数据库账号共同拒绝，并有真实 PostgreSQL 集成测试。
+The event only contains `eventId`, `storeId`, `businessDate`, `resourceType`, `resourceId`, `version`, `occurredAt` and does not broadcast the complete sensitive financial data.
+
+<a id="92-乐观锁"></a>
+
+### 9.2 Optimistic locking
+
+- PATCH/DELETE using `WHERE id = ? AND store_id = ? AND version = expectedVersion`.
+- 0 row updates return HTTP 409 with the latest resource.
+- Financial fields such as work record amount, employee attribution, and payment split are not automatically merged; users can try again after checking the differences.
+- Note also uses the overall version to avoid silent overwriting.
+- Drag sort uses `daily_boards.version` as the whole board token and updates all positions in a single transaction.
+
+<a id="93-幂等与重复点击"></a>
+
+### 9.3 idempotency and repeated clicks
+
+- The client generates a unique `Idempotency-Key` for each user operation, and the network retries the same key.
+- The same key, path and request body will return the first result and will not be written again.
+- The same key but different request body returns 409 `IDEMPOTENCY_KEY_REUSED`.
+- AI preview confirmation also carries a one-time `previewId`, which cannot be executed again after consumption.
+
+<a id="94-断网和重新连接"></a>
+
+### 9.4 Disconnect and reconnect
+
+- The first version does not support offline addition, modification or deletion to avoid offline accounting conflicts between multiple devices.
+- The edited work record details are kept on the local machine for up to 7 days under the protection of the record version; submission is disabled when the network is disconnected and "network disconnection, content has not been saved" is displayed. Logging out will clear this app draft.
+- When a request times out but the result is unknown, the client queries/retries with the same idempotency key.
+- EventSource automatically submits `Last-Event-ID` when reconnected; the latest snapshot is obtained through REST after the first entry of the page and event notification.
+- PWA only caches the application shell and static resources, and does not cache sensitive financial responses to the shared browser cache for a long time.
 
 ---
 
-## 11. AI 工具调用协议
+<a id="10-审计日志方案"></a>
 
-### 11.1 分层
+## 10. Audit log solution
+
+<a id="101-写入范围"></a>
+
+### 10.1 Writing range
+
+Work record addition/modification/deletion/restoration, note modification, payment confirmation, punch-in, sorting, hiding, daily closing/cancellation, cash settlement/return, payroll ledger, role, participating work record status, commission, project, store settings, Owner transfer, AI confirmation writing are all audited.
+
+<a id="102-原则"></a>
+
+### 10.2 Principles
+
+- Auditing and business writing are located in the same database transaction.
+- `before_json` and `after_json` use stable field names and store dollar cent values.
+- Each log records actor, target employee, store, business day, request ID, idempotency key summary, and operation source `web/api/ai/system`.
+- Automatic state fallback uses `actor = system` and records the parent `request_id` that triggered the fallback.
+- The audit table only appends, and the application account does not have UPDATE/DELETE permissions.
+- Mobile phone numbers, Firebase tokens, cookies, MiniMax keys, and complete audio must not be written into the audit.
+
+<a id="103-查看权限"></a>
+
+### 10.3 View permissions
+
+- Owner/Manager can view the complete audit of our store.
+- Employee can see a simplified modification history in the record details that he has permission to view; the historical date only shows his own record history.
+- Cross-store audit queries are rejected by the service layer to enforce store scope, object ownership verification and non-superuser database accounts, and have real PostgreSQL integration tests.
+
+---
+
+<a id="11-ai-工具调用协议"></a>
+
+## 11. AI tool calling protocol
+
+<a id="111-分层"></a>
+
+### 11.1 Layering
 
 ```mermaid
 flowchart LR
-    U["用户中文/英文文字或语音"] --> T["语音转文字，可选"]
-    T --> L["MiniMax：理解意图和参数"]
+    U["User Chinese/English text or voice"] --> T["Speech to text, optional"]
+    T --> L["MiniMax：Understand intent and parameters"]
     U --> L
-    L --> G["受限工具网关"]
-    G --> P["后端鉴权、查询、确定性计算"]
-    P --> V["结构化中文预览"]
-    V --> C{"用户确认"}
-    C -- 否 --> X["放弃，不写库"]
-    C -- 是 --> R["再次鉴权、版本检查、事务写入"]
+    L --> G["Restricted tool gateway"]
+    G --> P["Backend authentication, query, deterministic calculation"]
+    P --> V["Structured Chinese preview"]
+    V --> C{"User confirmation"}
+    C -- no --> X["Give up and don’t write a library"]
+    C -- yes --> R["Re-authentication, version checking, transaction writing"]
 ```
 
-### 11.2 允许工具
+<a id="112-允许工具"></a>
 
-| 工具 | 类型 | 权限与用途 |
+### 11.2 Allowed tools
+
+| Tools | Types | Permissions and Usage |
 |---|---|---|
-| `get_today_work_records` | 读 | 所有有效成员看当日；返回受控字段 |
-| `get_work_record_candidates` | 读 | 根据姓名、时间、项目查找待修改记录 |
-| `prepare_create_work_record` | 预览 | 生成新增草案，不写业务表 |
-| `prepare_update_today_work_record` | 预览 | 只能修改调用者有权修改的今日记录 |
-| `prepare_delete_today_work_record` | 预览 | 删除预览必须包含完整记录和二次确认文案 |
-| `calculate_employee_finance` | 读 | Employee 只能自己；Owner/Manager 本店指定成员 |
-| `calculate_store_finance` | 读 | Owner/Manager 本店 |
-| `get_daily_cash_settlement` | 读 | Employee 只能自己；管理者本店 |
-| `get_payroll_balance` | 读 | Employee 只能自己；管理者本店 |
-| `get_finance_breakdown` | 读 | 为答案提供可追溯组成明细 |
+| `get_today_work_records` | Read | All valid members see the current day; return controlled fields |
+| `get_work_record_candidates` | Read | Find records to be modified based on name, time, and project |
+| `prepare_create_work_record` | Preview | Generate new draft without writing business table |
+| `prepare_update_today_work_record` | Preview | Only today's records that the caller has permission to modify can be modified |
+| `prepare_delete_today_work_record` | Preview | Deletion preview must contain the complete record and secondary confirmation copy |
+| `calculate_employee_finance` | Read | Employee can only be yourself; Owner/Manager is the designated member of this store |
+| `calculate_store_finance` | Read | Owner/Manager Shop |
+| `get_daily_cash_settlement` | Read | Employee can only control himself; manager of this store |
+| `get_payroll_balance` | Read | Employee can only control himself; manager of this store |
+| `get_finance_breakdown` | Read | Provide traceable composition details for answers |
 
-不向模型暴露 `store_id` 选择权。工具网关从已认证会话注入 store、user、membership 和权限上下文。
+Do not expose the `store_id` option to the model. The tool gateway injects store, user, membership, and permission contexts from the authenticated session.
 
-### 11.3 预览格式
+<a id="113-预览格式"></a>
+
+### 11.3 Preview format
 
 ```json
 {
@@ -744,218 +846,268 @@ flowchart LR
 }
 ```
 
-确认时只发送 `previewId` 和明确确认动作；服务器从数据库读取 canonical payload，不接受客户端替换后的 `after`。预览默认 10 分钟过期，执行一次后作废。
+When confirming, only `previewId` and explicit confirmation action are sent; the server reads the canonical payload from the database and does not accept the `after` replaced by the client. The preview expires in 10 minutes by default and becomes invalid after being executed once.
 
-### 11.4 AI 安全边界
+<a id="114-ai-安全边界"></a>
 
-- 无任意 SQL、无任意 URL、无通用文件或代码执行工具。
-- 模型工具参数经过 Zod 严格模式校验，未知字段拒绝。
-- 权限在工具调用和最终确认两个时间点分别检查。
-- 所有金额计算调用领域计算器；模型只解释返回结果。
-- 财务回答必须显示店铺、日期范围、员工范围和口径。
-- 同名或多条记录无法唯一确定时必须追问，不能猜。
-- 删除必须明确说出员工、时间、项目和金额，并进行二次确认。
-- AI 查询、工具参数、脱敏结果和最终状态写入 AI 日志；音频转写成功后立即删除临时音频。
+### 11.4 AI safety boundaries
 
-### 11.5 语音方案
+- No arbitrary SQL, no arbitrary URLs, no universal files or code execution tools.
+- Model tool parameters are verified in Zod strict mode and unknown fields are rejected.
+- Permissions are checked at two points in time: tool invocation and final confirmation.
+- All amount calculations call the domain calculator; the model only interprets the returned results.
+- Financial answers must show store, date range, employee range, and definition.
+- When one or more records with the same name cannot be uniquely determined, you must ask instead of guessing.
+- Deletion must clearly state the employee, time, project and amount, and require secondary confirmation.
+- AI queries, tool parameters, desensitization results, and final status are written to the AI log; temporary audio is deleted immediately after the audio is transcribed successfully.
 
-- 浏览器以 MP4/AAC 录制 6–60 秒、最多 8 MB 的短音频，经 API 发给 `SpeechToTextProvider`；应用不持久化原始音频。
-- 第一实现使用 MiniMax `music-cover` 音频预处理接口内置的 ASR，与文字模型共用 `MINIMAX_API_KEY`；语言候选为普通话和美式英语，转写结果先展示为可编辑文字。
-- 用户必须确认/修改转写文字后才交给 MiniMax 理解。
-- `SpeechToTextProvider` 与 `LanguageModelProvider` 仍保持独立边界，允许未来分别替换模型。
-- 若语音服务未配置或失败，保留文字输入和系统键盘听写作为降级路径。
+<a id="115-语音方案"></a>
+
+### 11.5 Voice solution
+
+- The browser records short audio of 6–60 seconds and up to 8 MB in MP4/AAC and sends it to `SpeechToTextProvider` via API; the application does not persist the original audio.
+- The first implementation uses the built-in ASR of the MiniMax `music-cover` audio preprocessing interface and shares the `MINIMAX_API_KEY` with the text model; the language candidates are Mandarin and American English, and the transliteration results are first displayed as editable text.
+- Users must confirm/modify the transcribed text before submitting it to MiniMax for understanding.
+- `SpeechToTextProvider` and `LanguageModelProvider` still maintain independent boundaries, allowing models to be replaced separately in the future.
+- If the voice service is not configured or fails, text input and system keyboard dictation are retained as downgrade paths.
 
 ---
 
-## 12. 安全与错误处理
+<a id="12-安全与错误处理"></a>
 
-### 12.1 认证
+## 12. Security and error handling
 
-- 只接受标准化 `+1` E.164 手机号。
-- Firebase Web Phone Auth 使用 reCAPTCHA、区域策略和测试号码。
-- Web 登录成功后用 Firebase ID token 换取 `Secure`、`HttpOnly`、`SameSite=Lax` 会话 Cookie。
-- 当前设备退出只清 Cookie；全部设备退出调用 Firebase refresh token 撤销，并更新用户 `tokens_valid_after`。
-- 未来原生应用可使用 Firebase ID token Bearer；两种方式归一为同一 AuthContext。
+<a id="121-认证"></a>
 
-### 12.2 授权与多店隔离
+### 12.1 Certification
 
-每个请求执行：认证用户 → 从 URL 解析 store → 查询有效 membership → 角色策略 → 数据归属检查。Repository API 必须要求 `TenantContext`，不提供无 store 的业务查询方法。
+- Only standardized `+1` E.164 mobile numbers are accepted.
+- Firebase Web Phone Auth uses reCAPTCHA, regional policies, and test numbers.
+- After successful web login, use Firebase ID token in exchange for `Secure`, `HttpOnly`, `SameSite=Lax` session cookies.
+- When the current device exits, only cookies are cleared; when all devices exit, Firebase refresh token is called to revoke it and the user `tokens_valid_after` is updated.
+- In the future, native applications can use Firebase ID token Bearer; both methods are normalized to the same AuthContext.
 
-生产业务连接使用非表拥有者、非超级用户、不可 `BYPASSRLS` 的独立角色；迁移和维护使用不能被 Web 请求调用的管理账号。首版由所有业务查询强制 `storeId`、对象归属检查和跨店集成测试实现租户隔离。没有在 Prisma 连接池上伪造依赖会话变量的 RLS；将来若引入请求级事务 Unit of Work，再把真正的 RLS 作为额外纵深防御。
+<a id="122-授权与多店隔离"></a>
 
-### 12.3 Web 安全
+### 12.2 Authorization and multi-store isolation
 
-- 登录换取会话使用双提交 CSRF token；其余 Cookie 写请求使用 `SameSite=Lax` 与精确 Origin 校验。
-- CSP、HSTS、`X-Content-Type-Options`、严格来源校验。
-- 所有文本按纯文本渲染；备注和 AI 内容不执行 HTML。
-- 登录、加入店铺、AI、导出和敏感修改分别限流。
-- 生产日志不记录 token、Cookie、完整手机号或 AI 密钥。
-- 环境变量分 Web 公开配置与 API 私密配置；密钥只存在服务端。
+Each request performs: Authenticate user → Parse store from URL → Query valid membership → Role policy → Data ownership check. The Repository API must require `TenantContext` and does not provide store-less business query methods.
 
-### 12.4 备份与恢复
+Production business connections use non-table owners, non-superusers, and non-table owners. `BYPASSRLS` Separate role; migration and maintenance use an administrative account that cannot be invoked by web requests. First edition is mandatory for all business inquiries `storeId`, object ownership check and cross-store integration testing to achieve tenant isolation. There is no forged RLS that relies on session variables on the Prisma connection pool; if the request-level transaction Unit of Work is introduced in the future, real RLS will be used as an additional defense in depth.
 
-- PostgreSQL 每日备份和时间点恢复；上线前进行一次恢复演练。
-- 迁移先备份，使用向前兼容的 expand/migrate/contract 策略。
-- 财务审计和历史快照在店铺存续期间长期保留；软删除不会立即物理清除。
+<a id="123-web-安全"></a>
 
-### 12.5 错误分类
+### 12.3 Web security
 
-| HTTP | 代码示例 | 中文提示 |
+- The login exchange session uses double-submit CSRF token; other cookie write requests use `SameSite=Lax` and accurate Origin verification.
+- CSP, HSTS, `X-Content-Type-Options`, strict source verification.
+- All text is rendered as plain text; notes and AI content do not execute HTML.
+- Login, join the store, AI, export and sensitive modifications are limited separately.
+- Production logs do not record tokens, cookies, complete phone numbers, or AI keys.
+- Environment variables are divided into Web public configuration and API private configuration; the key only exists on the server side.
+
+<a id="124-备份与恢复"></a>
+
+### 12.4 Backup and recovery
+
+- PostgreSQL daily backup and point-in-time recovery; conduct a recovery drill before going online.
+- Migrate backup first, using the forward-compatible expand/migrate/contract strategy.
+- Financial audits and historical snapshots are retained for the duration of the store; soft deletion is not immediately physically removed.
+
+<a id="125-错误分类"></a>
+
+### 12.5 Misclassification
+
+| HTTP | Code Example | Chinese Tips |
 |---:|---|---|
-| 400 | `VALIDATION_ERROR` | 请检查标红内容 |
-| 401 | `AUTH_REQUIRED` | 登录已过期，请重新登录 |
-| 403 | `FORBIDDEN` | 你没有权限执行此操作 |
-| 404 | `NOT_FOUND` | 记录不存在或已被删除 |
-| 409 | `VERSION_CONFLICT` | 此记录刚被别人修改，请查看最新内容 |
-| 409 | `DAY_CLOSED` | 此营业日已日结，请先取消日结 |
-| 422 | `PAYMENT_INCOMPLETE` | 请至少填写一种大费和一种小费金额 |
-| 422 | `DISCOUNT_EXCEEDS_GROSS` | 折扣不能超过大费总额 |
-| 429 | `RATE_LIMITED` | 操作太频繁，请稍后再试 |
-| 503 | `AI_PROVIDER_UNAVAILABLE` | AI 暂时不可用，你仍可手动记工 |
+| 400 | `VALIDATION_ERROR` | Please check the red content |
+| 401 | `AUTH_REQUIRED` | Login has expired, please log in again |
+| 403 | `FORBIDDEN` | You do not have permission to perform this operation |
+| 404 | `NOT_FOUND` | The record does not exist or has been deleted |
+| 409 | `VERSION_CONFLICT` | This record has just been modified by someone else, please check the latest content |
+| 409 | `DAY_CLOSED` | This business day is closed, please cancel daily closing first |
+| 422 | `PAYMENT_INCOMPLETE` | Please fill in at least one service fee and one tips amount |
+| 422 | `DISCOUNT_EXCEEDS_GROSS` | The discount cannot exceed the total service fee |
+| 429 | `RATE_LIMITED` | The operation is too frequent, please try again later |
+| 503 | `AI_PROVIDER_UNAVAILABLE` | AI is temporarily unavailable, you can still manually work record |
 
-所有错误带 `requestId`。未知错误不向客户端暴露堆栈、SQL 或内部服务信息。
+All errors with `requestId`. Unknown errors do not expose stack, SQL, or internal service information to the client.
 
 ---
 
-## 13. 测试计划
+<a id="13-测试计划"></a>
 
-### 13.1 测试金字塔
+## 13. Test plan
 
-| 层级 | 工具 | 重点 |
+<a id="131-测试金字塔"></a>
+
+### 13.1 Test Pyramid
+
+| Hierarchy | Tools | Focus |
 |---|---|---|
-| 领域单元测试 | Vitest | 金额、舍入、提成、营业日、权限纯函数 |
-| 数据库集成测试 | Vitest + 独立 PostgreSQL 测试库 | 事务、唯一约束、跨店作用域、软删除、Owner 转移 |
-| API 集成测试 | Supertest | AuthContext、角色、幂等、409、审计、响应契约 |
-| Web 组件测试 | Testing Library | 大按钮、中文错误、表单空白与 0、键盘操作 |
-| 端到端测试 | Playwright | 手机、iPad 横屏、桌面三种视口的核心流程 |
-| 并发测试 | API 并发脚本 | 双击、旧版本覆盖、排序冲突、重复 AI 确认 |
+| Domain unit testing | Vitest | Amount, rounding, commission, business day, permission pure functions |
+| Database integration testing | Vitest + independent PostgreSQL test database | Transactions, unique constraints, cross-store scope, soft deletion, Owner transfer |
+| API integration testing | Supertest | AuthContext, roles, idempotency, 409, auditing, response contracts |
+| Web component testing | Testing Library | Big buttons, Chinese errors, form blanks and 0, keyboard operations |
+| End-to-end testing | Playwright | Core processes for phone, iPad landscape, and desktop viewports |
+| Concurrency testing | API concurrency script | Double-click, old version overwrite, sorting conflict, duplicate AI confirmation |
 
-### 13.2 财务测试矩阵
+<a id="132-财务测试矩阵"></a>
 
-- 单一现金、单一刷卡、混合大费、跨方式小费。
-- 多额外项目、多折扣、免费服务、少收、多收、实收为 0。
-- 每个提成优先级和自定义项目优先级。
-- 每项分别舍入，以及现金/刷卡分摊总和不丢失美分。
-- 折扣不减少工资；现金不足不虚增已取得收入。
-- 现金结算未结清/已结清切换对老板尚欠的影响。
-- 工资部分支付、超付、负调整、删除和恢复。
-- Owner 与 Manager 同时参与记工的不同余额行为。
+### 13.2 Financial Test Matrix
 
-### 13.3 权限与隔离测试
+- Single cash, single card swipe, mixed service fees, cross-mode tips.
+- Lots of extras, lots of discounts, free services, less charge, more charge, actual charge is 0.
+- Per commission priority and custom project priority.
+- Each item is rounded separately, and no cents are lost on the cash/card split total.
+- Discounts do not reduce wages; insufficient cash does not inflate earned income.
+- The impact of cash settlement open/settled switching on what the boss still owes.
+- Salary partial payments, overpayments, negative adjustments, deletions and reinstatements.
+- Owner and Manager participate in different balance behaviors of the work record at the same time.
 
-为每个 API 至少测试 Owner、Manager、Employee、离职成员、无 membership、另一店成员六种身份。特别验证：
+<a id="133-权限与隔离测试"></a>
 
-- Employee 无法读取他人历史财务。
-- 请求体伪造 `store_id` 无效。
-- 跨店资源 ID 返回 404/403，不泄露存在性。
-- Manager 不能转移 Owner 或删除店铺。
-- 日结后 Employee 写入被拒绝。
-- AI 工具和最终确认均执行同样权限检查。
-- 所有跨店 ID 探测均返回拒绝或不可见，且不能修改另一店对象；测试使用真实 PostgreSQL 约束与服务查询。
+### 13.3 Permission and isolation testing
 
-### 13.4 历史与审计测试
+Test at least six identities for each API: Owner, Manager, Employee, resigned member, no membership, and member of another store. Special verification:
 
-- 修改项目模板、价格、简称、提成后旧记录完全不变。
-- 删除/恢复项目和成员不破坏历史。
-- 每个关键写操作与审计同事务成功或回滚。
-- 修改已结算历史会取消日结、回退现金状态并保留工资账本。
-- 同一幂等请求重复 100 次只产生一次业务变化和一次审计。
+- Employee cannot read other people's financial history.
+- The request body forged `store_id` is invalid.
+- Cross-store resource ID returns 404/403 without revealing existence.
+- Manager cannot transfer Owner or delete store.
+- Employee write rejected after daily closing.
+- Both the AI tool and the final confirmation perform the same permission checks.
+- All cross-store ID probes return denied or invisible, and another store object cannot be modified; tested using real PostgreSQL constraints and service queries.
 
-### 13.5 非功能验收
+<a id="134-历史与审计测试"></a>
 
-- 手机常用快速记工不超过 3 步。
-- 主要触控目标至少适合手指点击，支持系统字体放大。
-- 表单错误使用中文并聚焦到首个错误。
-- 今日表格在目标正常数据量下交互流畅；财务长查询有分页和超时。
-- 断网、请求超时、SSE 重连均不会静默丢失或重复写入。
+### 13.4 Historical and audit testing
 
----
+- After modifying the project template, price, abbreviation, and commission, the old records will remain completely unchanged.
+- Deleting/restoring projects and members without destroying history.
+- Each critical write operation is audited with the transaction successful or rolled back.
+- Modifying closed historical days cancels the daily closing, rolls back the cash status, and preserves the payroll ledger.
+- Repeating the same idempotency request 100 times will only produce one business change and one audit.
 
-## 14. 分阶段开发计划
+<a id="135-非功能验收"></a>
 
-每一阶段都必须通过该阶段测试后才能进入下一阶段。不会先做“假财务演示”再补权限或审计。
+### 13.5 Non-functional acceptance
 
-### 阶段 0：工程骨架与契约
-
-- Monorepo、TypeScript、Lint、测试、环境变量模板。
-- PostgreSQL/Redis 本地环境、迁移框架、CI。
-- 金额、提成、营业日、错误和 API 契约包。
-
-退出标准：测试和类型检查可重复运行；没有业务页面。
-
-### 阶段 1：认证、多店和成员
-
-- Firebase 手机登录和后端会话。
-- 创建/加入/审批店铺，角色、参与记工、Owner 原子转移。
-- 多店隔离、独立数据库运行账号、审计基础、中文设置向导。
-
-退出标准：权限矩阵和跨店隔离自动化测试通过。
-
-### 阶段 2：项目、提成、打卡和今日表格
-
-- 三类项目配置和提成优先级。
-- 上下班、每日员工行、隐藏和实时排序。
-- 手机卡片与桌面/iPad 横向表格。
-
-退出标准：多设备能看到打卡和排序同步；并发冲突不覆盖数据。
-
-### 阶段 3：记工、付款和财务引擎
-
-- 快速记工、详情、快照、软删除和恢复。
-- 付款拆分、空白/0、多个额外项目和折扣。
-- 确定性财务计算器和所有边界测试。
-
-退出标准：PRD 财务验收矩阵全部自动化通过。
-
-### 阶段 4：日结、现金结算、工资账本
-
-- 正常/强制/取消/再次日结。
-- 现金不足规则、单人/全部结清、回退。
-- 工资部分支付、超付、负调整和老板尚欠。
-
-退出标准：历史修正链路和余额测试通过，所有写入有审计。
-
-### 阶段 5：财务查询、导出基础和完整实时同步
-
-- 财务筛选、汇总、可点击组成明细。
-- CSV 第一实现；Excel/PDF 接口预留但若 PRD 第一版只要求架构预留则不强行实现。
-- Outbox、SSE、断线游标重同步和并发提示。
-
-退出标准：多设备测试、幂等测试、财务查询权限测试通过。
-
-### 阶段 6：AI 记工和财务助手
-
-- MiniMax Provider、受限工具、结构化预览、确认执行。
-- MiniMax `music-cover` ASR Provider、MP4/AAC 录音转写与文字确认。
-- AI 权限、提示注入、重复确认和日志测试。
-
-退出标准：AI 无法越权、无法跳过预览、无法自行计算或写财务账本。
-
-### 阶段 7：PWA、无障碍、部署与交付
-
-- PWA 安装、中文帮助、老人友好可用性调整。
-- Docker、生产配置、备份恢复、监控和部署说明。
-- Seed 数据、Firebase/MiniMax/STT 配置、API 文档、员工及管理者使用说明。
-
-退出标准：端到端验收、恢复演练和发布清单全部通过。
+- Commonly used quick work records on phones take no more than 3 steps.
+- The main touch targets are at least suitable for finger clicks and support system font amplification.
+- Form errors use Chinese and focus on the first error.
+- Today's table interacts smoothly under the target normal data volume; the chief financial officer's query has paging and timeout.
+- Network disconnection, request timeout, and SSE reconnection will not cause silent loss or repeated writing.
 
 ---
 
-## 15. 编码开始后的完成定义
+<a id="14-分阶段开发计划"></a>
 
-一个功能只有同时满足以下条件才算完成：
+## 14. Phased Development Plan
 
-1. 中文 Web 界面可使用，手机和横屏布局均验证。
-2. 后端权限和 store 隔离已测试，不依赖前端隐藏。
-3. 财务金额由共享领域计算器产生，整数美分且有边界测试。
-4. 关键操作有同事务审计、幂等键和乐观锁。
-5. 历史快照不受配置修改影响。
-6. 实时事件失败不影响已提交业务，重连可恢复一致状态。
-7. API、环境变量和使用说明同步更新。
+Each stage must pass the test before entering the next stage. We will not make “fake financial presentations” first and then apply for permissions or audits.
+
+<a id="阶段-0工程骨架与契约"></a>
+
+### Phase 0: Project Skeleton and Contracts
+
+- Monorepo, TypeScript, Lint, testing, environment variable templates.
+- PostgreSQL/Redis local environment, migration framework, CI.
+- Amount, commission, business day, errors and API contract package.
+
+Exit criteria: Tests and type checks run reproducibly; no business pages.
+
+<a id="阶段-1认证多店和成员"></a>
+
+### Phase 1: Certification, Multi-Store and Membership
+
+- Firebase mobile login and backend sessions.
+- Create/join/approve stores, roles, participate in work records, and owner atomic transfers.
+- Multi-store isolation, independent database running account, audit basics, and Chinese setting wizard.
+
+Exit criteria: Permission matrix and cross-store isolation automated tests passed.
+
+<a id="阶段-2项目提成打卡和今日表格"></a>
+
+### Phase 2: Projects, commissions, punch-ins, and today’s form
+
+- Three types of project configurations and commission priorities.
+- Commuting, daily employee rows, hiding and real-time sorting.
+- Mobile cards and desktop/iPad landscape tables.
+
+Exit criteria: Multiple devices can see punch-in and sorting synchronization; concurrency conflicts do not overwrite data.
+
+<a id="阶段-3记工付款和财务引擎"></a>
+
+### Phase 3: work record, payments and financial engine
+
+- Fast work record, details, snapshots, soft deletion and recovery.
+- Payment splits, blank/0, multiple extras and discounts.
+- Deterministic financial calculator and all boundary testing.
+
+Exit criteria: All PRD financial acceptance matrices are automatically passed.
+
+<a id="阶段-4日结现金结算工资账本"></a>
+
+### Stage 4: daily closing, cash settlement, payroll ledger
+
+- Normal/force/cancel/daily closing again.
+- Insufficient cash rules, single/full settlement, rollback.
+- Partial payment of wages, overpayment, negative adjustments and outstanding wages from the boss.
+
+Exit criteria: The history correction link and balance tests are passed, and all writes are audited.
+
+<a id="阶段-5财务查询导出基础和完整实时同步"></a>
+
+### Stage 5: Financial query, export base and full real-time synchronization
+
+- Financial filtering, summary, and clickable composition details.
+- The first implementation of CSV; the Excel/PDF interface is reserved. However, if the first version of PRD only requires architecture reservation, it will not be implemented compulsorily.
+- Outbox, SSE, disconnected cursor resynchronization and concurrency prompts.
+
+Exit criteria: Pass the multi-device test, idempotency test, and financial query permission test.
+
+<a id="阶段-6ai-记工和财务助手"></a>
+
+### Stage 6: AI work record and financial assistant
+
+- MiniMax Provider, restricted tools, structured preview, confirmed execution.
+- MiniMax `music-cover` ASR Provider, MP4/AAC recording transcription and text confirmation.
+- AI permissions, prompt injection, double confirmation and log testing.
+
+Exit criteria: AI cannot exceed authority, cannot skip previews, cannot calculate by itself or write financial ledgers.
+
+<a id="阶段-7pwa无障碍部署与交付"></a>
+
+### Phase 7: PWA, Accessibility, Deployment and Delivery
+
+- PWA installation, Chinese help, and elderly-friendly usability adjustments.
+- Docker, production configuration, backup recovery, monitoring and deployment instructions.
+- Seed data, Firebase/MiniMax/STT configuration, API documentation, employee and manager usage instructions.
+
+Exit criteria: End-to-end acceptance, recovery drills, and release checklist all passed.
 
 ---
 
-## 16. 实施时参考的官方资料
+<a id="15-编码开始后的完成定义"></a>
+
+## 15. Definition of completion after coding begins
+
+A function is completed only if it meets the following conditions at the same time:
+
+1. The Chinese web interface is available, and both mobile and landscape layouts are verified.
+2. Backend permissions and store isolation are tested and do not rely on frontend hiding.
+3. Financial amounts are generated by the shared field calculator as integer cents with bounds testing.
+4. Key operations include transaction auditing, idempotency keys, and optimistic locking.
+5. Historical snapshots are not affected by configuration modifications.
+6. Failure of real-time events does not affect submitted services, and reconnection can restore a consistent state.
+7. API, environment variables and usage instructions are updated simultaneously.
+
+---
+
+<a id="16-实施时参考的官方资料"></a>
+
+## 16. Official information referenced during implementation
 
 - [Next.js App Router](https://nextjs.org/docs/app)
 - [NestJS Server-Sent Events](https://docs.nestjs.com/techniques/server-sent-events)

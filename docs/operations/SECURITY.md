@@ -1,50 +1,64 @@
-# 安全说明
+<a id="安全说明"></a>
 
-## 已实施控制
+# Safety instructions
 
-- Firebase Phone Auth 验证手机号所有权；密码使用随机盐 `scrypt` 摘要，密码验证成功后由 Admin SDK 签发短期 Custom Token。API 使用 `Secure`、`HttpOnly`、`SameSite=Lax` 会话 Cookie，会话验证包含撤销检查。保留原因：当前会话校验与撤销依赖验证后的账号，明文密码不能作为持久凭据。
-- 生产构建硬性关闭本地开发登录。登录使用双提交 CSRF token；其余 Cookie 写请求要求精确匹配受信任 `Origin`。保留原因：开发入口不提供真实身份验证，Origin/CSRF 阻止第三方页面借用会话写入。
-- 每个业务请求在服务层验证有效店铺成员、角色、对象归属和营业日；跨店隔离、员工财务隔离与角色边界有数据库集成测试。保留原因：角色菜单不能证明对象归属或当前成员有效性。
-- 数据库迁移账号与运行账号分离。运行账号不可 DDL，也不能更新/删除审计、AI 查询日志和实时事件。保留原因：运行进程不需要改结构或改写追溯日志。
-- 金额使用整数美分和数据库约束；关键写入有事务、乐观锁、幂等键、软删除和同事务审计。保留原因：数据库与事务共同防止金额不一致、重放和不可恢复删除。
-- 登录、加入、AI、导出、SSE 和一般写入使用 Redis 分布式限流；Redis 不可用时安全退化为进程内限流。保留原因：外部 Redis 故障不能让接口无限制接受请求。
-- Web 返回 CSP；Web/API 均设置防嵌入、MIME、referrer 和 permissions policy，生产启用 HSTS；用户文本由 React 按纯文本渲染。保留原因：`next.config.ts` 和 API `main.ts` 的实际响应头不同，不能把 Web 的 CSP 声明为 API 已实施控制。
-- Web 不注册 Service Worker，也不持久缓存已登录业务页。详情草稿最多保留七天；普通退出只清除服务端会话，保留本机 Firebase 登录状态和应用偏好，以便同号码免短信恢复。撤销全部会话仍会使可信状态失效。保留原因：持久业务缓存可能泄露资料或展示旧账，设备解绑也不能误用普通退出。
-- AI 无任意 SQL、URL、文件或财务写工具；参数严格校验，canonical 预览保存在服务器，确认时重新鉴权并原子抢占，一次性消费。保留原因：模型输出不能成为未确认且未鉴权的业务写入。
-- LangBot 使用独立 `mnw_` 集成令牌，只能调用只读记工上下文和记工事件接口。模型不持有数据库或普通 API 权限；每次只获得当前群绑定店铺的黑话技能数据，员工、标准项目、可用时长、金额、付款方式和消息幂等性由后端再次校验，任何不明确输入都不写账。保留原因：独立令牌只应访问绑定范围，原文与目录证据防止模型虚构财务事实。
-- 语音在应用侧只以内存方式转发给 MiniMax，有 8 MB/60 秒上限，应用数据库、磁盘和日志均不保存原始音频。保留原因：原始录音不是账目数据，大小和时长限制保护转发资源。
+**English** | **[简体中文](SECURITY.zh-CN.md)**
 
-## 租户隔离说明
+<a id="已实施控制"></a>
 
-当前采用“API 服务层强制 `storeId` 作用域 + 对象归属校验 + 非超级用户数据库账号 + 跨店集成测试”。当前没有启用依赖连接会话变量的 PostgreSQL RLS，因为 Prisma 连接池若未把整个请求绑定到同一事务连接，会产生错误隔离语义。不得用“设置一次连接变量”代替请求级租户隔离。保留原因：现有 Prisma 连接池不能保证后续查询仍使用该连接，服务层才是当前隔离边界。
+## Controls implemented
 
-## 部署责任
+- Firebase Phone Auth verifies the ownership of the phone number; the password uses a random salt `scrypt` digest. After the password verification is successful, the Admin SDK issues a short-term Custom Token. The API uses `Secure`, `HttpOnly`, `SameSite=Lax` session cookies, and session validation includes revocation checking. Reason: Current session verification and revocation rely on the authenticated account, and plain text passwords cannot be used as persistent credentials.
+- Production builds hard turn off local development login. Login uses a double-submit CSRF token; other cookie write requests require an exact match of the trusted `Origin`. Reason: The development portal does not provide real authentication, and Origin/CSRF prevents third-party pages from borrowing session writes.
+- Each business request verifies valid store members, roles, object ownership and business day at the service layer; there are database integration tests for cross-store isolation, employee financial isolation and role boundaries. Reason: The role menu does not demonstrate object ownership or current membership validity.
+- The database migration account is separated from the running account. The running account cannot DDL, nor can it update/delete audits, AI query logs, and real-time events. Reason: There is no need to change the structure or rewrite the traceback log to run the process.
+- Amounts use integer cents and database constraints; key writes have transactions, optimistic locking, idempotency keys, soft deletion and same-transaction auditing. Reason: The database and transactions work together to prevent amount inconsistencies, replays, and irreversible deletions.
+- Login, join, AI, export, SSE and general writes use Redis distributed rate limiting; when Redis is unavailable, it safely degrades to in-process rate limiting. Reason: An external Redis failure cannot allow the interface to accept requests without limit.
+- Web returns CSP; Web/API are set with anti-embedding, MIME, referrer, and permissions policies, and HSTS is enabled for production; user text is rendered as plain text by React. Reason: The actual response headers of `next.config.ts` and API `main.ts` are different, and the CSP of the Web cannot be declared as API implemented control.
+- Web does not register service workers and does not persistently cache logged-in business pages. Draft details are retained for up to seven days; normal exit only clears the server session, retaining the local Firebase login status and application preferences so that the same number can be restored without text messages. Revoking all sessions will still invalidate the trusted status. Reason: The persistent business cache may leak data or display old accounts. You cannot misuse the normal exit when unbinding the device.
+- AI does not have any SQL, URL, file or financial writing tools; parameters are strictly verified, canonical previews are saved on the server, re-authentication and atomic preemption are performed upon confirmation, and consumption is one-time. Reason: Model output cannot become unconfirmed and unauthenticated business writes.
+- LangBot uses a standalone `mnw_` integration token and can only call the read-only work record context and work record event interface. The model does not hold database or ordinary API permissions; each time it only obtains the idiom skill data of the current group-bound store. Employees, standard projects, available time, amount, payment method and message idempotency are re-verified by the backend, and any unclear input will not be recorded. Reason: Standalone tokens should only have access to bound scope, textual and catalog evidence prevents models from fabricating financial facts.
+- Voice is only forwarded to MiniMax in memory on the application side, with an 8 MB/60 second upper limit. The application database, disk, and logs do not save the original audio. Reason: The original recording is not accounting data, and size and duration restrictions protect forwarding resources.
 
-- HTTPS/WAF、主机补丁、Docker 更新、托管数据库 PITR、异地备份、日志留存和告警由部署环境负责。保留原因：这些能力没有内置服务，必须明确部署环境与应用的职责。
-- Web 与 API 应位于同一 registrable domain 下，且 `WEB_ORIGIN` 必须精确；不要使用通配 Origin。保留原因：SameSite 会话及精确 Origin 校验依赖实际访问地址。
-- PostgreSQL、Redis 和应用内部端口只监听私网/loopback。保留原因：数据库和缓存不接受浏览器直接请求。
-- `.env.production` 权限设为 600，不进入镜像、版本库、日志或明文云端备份；[灾难恢复包](DISASTER_RECOVERY.md) 可包含生产配置和必要凭据，但须整体使用 age 加密，私钥独立保存在 Mac 钥匙串，NAS 和 Drive 不保存私钥。保留原因：环境文件不属于发布产物，但主机遗失后的完整恢复需要配置与密钥；加密和独立私钥是必要边界。
-- 公开 GitHub/GHCR 只允许保存源代码、构建产物和 `NEXT_PUBLIC_FIREBASE_*` 浏览器公开配置；Firebase Admin、MiniMax、数据库、Redis、DSM 与 GitHub token 只能存在于本机/NAS 受限环境、系统钥匙串或受控的加密恢复包。恢复包只包含恢复该服务所需凭据，不收集无关账户秘密。保留原因：浏览器公开配置与后端凭据的用途、可见性不同，异地灾难恢复也需要避免扩大凭据范围。
-- 每次发布检查暂存文件并扫描秘密；完整历史扫描用于首次公开或历史重写后，已有有效记录且历史未重写时不重复；秘密曾提交则先撤销/轮换，再清理历史。保留原因：只删当前文件不能使历史秘密失效，扫描范围须与发布证据一致。
-- Firebase 测试号码只用于非生产项目；生产启用短信配额、预算与异常告警。保留原因：测试验证码不能用作生产身份验证，发送费用需由运营者管理。
-- Firebase Phone Auth 短信仅用于认证验证码，不能把验证码接口用于加入申请等业务内容。保留原因：当前实现将 Firebase 用于认证，不存在通用业务短信 API。
-- MiniMax key 使用最小权限并设消费预算；AI 关闭时核心业务仍可用。保留原因：模型解释与确定性记工/财务是独立能力。
+<a id="租户隔离说明"></a>
 
-## 已知边界
+## Tenant isolation instructions
 
-- 这是店铺记工与经营核算工具，不计算工资税、W-2/1099 或报税结果。保留原因：当前领域模型没有税务申报与税额计算。
-- 单机 Docker Compose 不自带 WAF、集中日志或 PostgreSQL 时间点恢复；生产应由反向代理和托管基础设施提供。保留原因：仓库 Compose 只定义应用、数据库和缓存。
-- 浏览器 MP4/AAC 录音能力不可用时，界面会明确降级到文字输入或系统键盘听写。保留原因：转写入口不能在设备不支持录音时阻塞文字记工。
-- 店内共用设备 PIN 模式不属于当前实现。普通退出会保留同号码的本机可信状态，因此共用或公共设备必须使用“撤销全部会话”或浏览器隐私数据清理，不应依赖普通退出实现设备解绑。保留原因：当前可信登录按账号保存，普通退出只清服务器会话。
+Currently, "API service layer enforces `storeId` scope + object ownership verification + non-superuser database account + cross-store integration testing". PostgreSQL RLS that relies on connection session variables is not currently enabled because the Prisma connection pool can create error isolation semantics if it does not bind the entire request to the same transaction connection. Set-once connection variables must not be used in place of request-level tenant isolation. Reason: The existing Prisma connection pool cannot guarantee that subsequent queries will still use the connection, and the service layer is the current isolation boundary.
 
-发现安全问题时，保留请求编号、时间、账号角色和复现步骤，避免复制真实客户/员工数据或任何密钥。保留原因：复现和日志关联不需要暴露业务数据或有效凭据。
+<a id="部署责任"></a>
 
-## Mac“信息”发送代理
+## Deployment responsibilities
 
-- 代理令牌按店铺授权，只在创建时返回明文，服务端仅保存 SHA-256 摘要；轮换或撤销后旧令牌立即失效。保留原因：受限代理身份需要可撤销，数据库无需保存明文。
-- 代理不开放入站端口，只轮询 HTTPS API。发送任务保存接收号码和对应的日结或区间结算数据快照，访问权限与财务日结一致。保留原因：固定 Mac 主动领取任务，发送权限不能由入站控制取得。
-- 附件 App 以 `SQLITE_OPEN_READONLY` 查询本次任务精确附件路径与接收号码匹配的出站发送状态，固定选择 GUID、发出／送达标记、错误码及通道；不读取正文或修改 Messages 数据库，状态不可读时停止确认成功。保留原因：AppleScript 接受指令不代表异步发送成功，失败监控需要受限元数据和失败关闭边界。
-- PNG/JPEG 在 Mac 权限受控的 outbox 中以 `0600` 暂存，交给“信息”后保留 30 分钟供系统异步读取，再由代理自动删除；本地日志仅保存任务 ID、附件类型与非敏感尺寸，不记录工资数据或附件内容。保留原因：系统异步读取需要短期保留，附件与日志都包含潜在敏感信息。
-- 取消日结会取消尚未发送的旧周期任务；未关联日结的逐人发送独立校验，代理发送前重新核对任务状态及权限。保留原因：逐人快照允许在未日结时发送，不能再要求每个任务都有有效日结周期。
+- HTTPS/WAF, host patches, Docker updates, managed database PITR, off-site backups, log retention and alerts are the responsibility of the deployment environment. Reason: There are no built-in services for these capabilities, and the responsibilities of the deployment environment and applications must be clearly defined.
+- Web and API should be under the same registrable domain, and `WEB_ORIGIN` must be precise; do not use wildcard Origin. Reason: SameSite sessions and accurate Origin verification rely on the actual access address.
+- PostgreSQL, Redis and application internal ports only listen on the private network/loopback. Reason: The database and cache do not accept direct requests from the browser.
+- The `.env.production` permission is set to 600 and does not enter the image, repository, log or plain text cloud backup; [Disaster recovery package](DISASTER_RECOVERY.md) can contain production configuration and necessary credentials, but must be encrypted using age as a whole, and the private key is stored independently in the Mac keychain. NAS and Drive do not store the private key. Reason: Environment files are not part of the release, but configuration and keys are required for complete recovery after host loss; encryption and independent private keys are necessary boundaries.
+- Public GitHub/GHCR only allows saving source code, build products, and `NEXT_PUBLIC_FIREBASE_*` browser public configurations; Firebase Admin, MiniMax, databases, Redis, DSM, and GitHub tokens can only exist in local/NAS restricted environments, system keychains, or controlled encrypted recovery packages. The recovery package only contains the credentials needed to restore the service and does not collect extraneous account secrets. Reason: The purpose and visibility of browser public configuration and back-end credentials are different, and off-site disaster recovery also needs to avoid expanding the scope of credentials.
+- Check the temporary file and scan the secret for each release; the complete history scan is used for the first public disclosure or after the history is rewritten, it will not be repeated when there is a valid record and the history has not been rewritten; if the secret has been submitted, it will be revoked/rotated first, and then the history will be cleared. Reason: Simply deleting the current file cannot invalidate the historical secret, and the scanning range must be consistent with the published evidence.
+- Firebase test numbers are only used for non-production projects; SMS quotas, budgets, and exception alerts are enabled for production. Reason: Test verification codes cannot be used for production authentication, and shipping costs are managed by the operator.
+- Firebase Phone Auth SMS is only used to authenticate verification codes, and the verification code interface cannot be used for business content such as joining applications. Reason: The current implementation uses Firebase for authentication and there is no universal business SMS API.
+- MiniMax key uses minimal permissions and sets a consumption budget; core business is still available when AI is turned off. Reason: Model explanation and certainty work record/finance are independent abilities.
 
-安装、文件暂存、发送路由和专项排障见 [`MESSAGES_AGENT.md`](MESSAGES_AGENT.md)。
+<a id="已知边界"></a>
+
+## Known boundaries
+
+- This is a store work record and business accounting tool that does not calculate payroll taxes, W-2/1099 or tax filing results. Reason: The current domain model does not have tax declaration and tax calculation.
+- Standalone Docker Compose does not come with a WAF, centralized logging, or PostgreSQL point-in-time recovery; production should be provided by a reverse proxy and hosting infrastructure. Reason: repository Compose only defines application, database and cache.
+- When browser MP4/AAC recording capabilities are unavailable, the interface explicitly degrades to text input or system keyboard dictation. Reason: The transcription portal cannot block text work record when the device does not support recording.
+- In-store shared device PIN mode is not part of the current implementation. Ordinary exit will retain the local trusted status of the same number, so shared or public devices must use "Revoke All Sessions" or browser private data clearing, and should not rely on ordinary exit to unbind the device. Reason: The current trusted login is saved according to the account, and normal exit only clears the server session.
+
+When a security issue is discovered, retain the request number, time, account role, and remediation steps to avoid duplicating real customer/employee data or any keys. Reason: Reproduction and log correlation do not require exposure of business data or valid credentials.
+
+<a id="mac信息发送代理"></a>
+
+## Mac Messages sending agent
+
+- The proxy token is authorized by the store and only returns plain text when created. The server only saves the SHA-256 digest; the old token becomes invalid immediately after rotation or revocation. Reason: Restricted proxy identities need to be revocable, and the database does not need to store clear text.
+- The proxy does not open inbound ports and only polls the HTTPS API. The sending task saves the receiving number and the corresponding daily closing or interval settlement data snapshot, and the access permissions are consistent with the financial daily closing. Reason: Fixed Mac proactively picking up tasks and sending permissions cannot be obtained by inbound control.
+- The Attachment App uses `SQLITE_OPEN_READONLY` to query the outbound sending status of this task. The exact attachment path matches the receiving number. The GUID, sending/delivery mark, error code and channel are fixed. It does not read the text or modify the Messages database, and stops confirming success when the status is unreadable. Reason: AppleScript's acceptance of instructions does not mean that asynchronous sending is successful. Failure monitoring requires restricted metadata and failure closure boundaries.
+- PNG/JPEG is temporarily stored as `0600` in the outbox of Mac with controlled permissions. After being handed over to Messages, it is kept for 30 minutes for asynchronous reading by the system, and then automatically deleted by the agent. The local log only saves the task ID, attachment type and non-sensitive size, and does not record salary data or attachment content. Reason: The system's asynchronous reading requires short-term retention, and attachments and logs contain potentially sensitive information.
+- Canceling the daily closing will cancel the old cycle tasks that have not been sent yet; the person-by-person sending that is not associated with the daily closing will be independently verified, and the task status and permissions will be rechecked before sending by the agent. Reason: Person-by-person snapshots are allowed to be sent when not closed, and each task can no longer be required to have a valid daily closing period.
+
+For installation, file staging, sending routing and special troubleshooting, see [`MESSAGES_AGENT.md`](MESSAGES_AGENT.md).

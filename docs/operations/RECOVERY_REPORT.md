@@ -1,50 +1,64 @@
-# 恢复验收记录
+<a id="恢复验收记录"></a>
 
-日期：2026-10-18（America/New_York）。工具版本：`1.32.2`。
+# Restoring acceptance records
 
-## 结论
+**English** | **[简体中文](RECOVERY_REPORT.zh-CN.md)**
 
-真实 **NAS → Google Drive → ARM Mac** 完整恢复演练通过，NAS 每天纽约时间 **00:00** 的自动备份已激活。云端目录为账户所有者的私有 [Massage Note Backups/production](https://drive.google.com/drive/folders/1PUMZ8jsVBRXinEhdV21qxU3CvzaELhqp)。平时不运行 Mac 备用服务。
+Date: 2026-10-18 (America/New_York). Tool version: `1.32.2`.
 
-NAS 时区读回为 `Eastern`，规则为 `EST5EDT,M3.2.0,M11.1.0`，支持夏令时。每日任务已启用，下次定时触发为 **2026-10-19 00:00**。本次验收手动运行相同的正式入口；首个定时触发尚未发生。保留原因：任务配置、手动运行结果和实际跨夜触发是不同证据。
+<a id="结论"></a>
 
-## 云端恢复证据
+## In conclusion
 
-本次完整演练使用 `mn-recovery-20261018T005154Z-6425583a.tar.gz.age`，大小 **512,922,422 字节**。数据库快照时间为 **2026-10-17 20:51:09 EDT**；包生成时间与数据库快照时间分别记录。
+Real **NAS → Google Drive → ARM Mac** full recovery walkthrough passed, automatic backup of NAS daily at **00:00 New York time** is activated. The cloud directory is private to the account owner [Massage Note Backups/production](https://drive.google.com/drive/folders/1PUMZ8jsVBRXinEhdV21qxU3CvzaELhqp). Mac backup services are not normally running.
 
-- NAS 从实际生产 `1.31.0` 导出一致性快照，保存业务数据、迁移历史、角色/密码摘要、成员关系与权限；独立、无网络的 PostgreSQL 恢复后核对全部 public 表行数和摘要、约束、索引、数据库授权及关键财务汇总。
-- 实际应用、PostgreSQL、Redis、HTTPS 代理及运行器镜像归档；生产配置、密钥、DSM 反代、独立说明代理及三个页面、备份配置和恢复代码一并整体 age 加密。
-- NAS 上传后完整读回，SHA-256 为 `9edebb531b9f28dd8619cc48d9704c87de7f0ca5606a5a5d71ecb72fa2e40d57`，通过后才提交完成标记。
-- Mac 重新从真实 Drive 下载并核对 SHA-256，仅从独立系统钥匙串读取私钥；校验并执行包内的恢复代码。演练期间不读取 NAS，不从 GitHub/GHCR 拉取镜像。
-- ARM Mac 加载 x86 离线镜像，完成数据库/权限基线比对、Web/API 就绪、三个公开说明页内容回读、Firebase 认证建立登录会话、已有营业日账目查询及隔离 API 测试写入。
-- 仅绑定 `127.0.0.1:8443`，未修改公网 DNS、本机 hosts 或系统证书信任，未触发真实短信或机器人发送；演练结束删除新增容器、数据卷及明文配置，只保留报告。
+The NAS time zone is read back as `Eastern`, the rule is `EST5EDT,M3.2.0,M11.1.0`, and daylight saving time is supported. The daily task has been enabled, and the next scheduled trigger is **2026-10-19 00:00**. This acceptance manually runs the same formal entry; the first timed trigger has not yet occurred. Reason: Task configuration, manual running results and actual overnight triggering are different evidences.
 
-本次测得下载及 SHA-256 核对 **12.91 秒**，恢复和服务核验 **27.56 秒**，包含提取包内工具的完整过程 **45.64 秒**。Docker 已安装并启动；此耗时不包含首次安装 Docker、准备网络或人工处理本机域名与证书。保留原因：这不是所有故障场景的固定恢复时限。
+<a id="云端恢复证据"></a>
 
-## 第二次独立云端演练
+## Cloud recovery evidence
 
-2026-10-18 按账户所有者要求再次演练，直接查询真实 Drive 目录并重新下载最新的 `mn-recovery-20261018T135853Z-c1e548f9.tar.gz.age`，没有使用上一次下载的本地包。数据库快照为 **2026-10-18 09:57:48 EDT**；文件大小 512,914,948 字节，SHA-256 与上文正式任务记录一致。
+This complete walkthrough uses `mn-recovery-20261018T005154Z-6425583a.tar.gz.age`, size **512,922,422 bytes**. The database snapshot time is **2026-10-17 20:51:09 EDT**; the package generation time and database snapshot time are recorded separately.
 
-此次包内包含 32 个清单文件、5 个离线镜像；恢复后 **42 张 public 表、合计 22,201 行记录** 的行数与摘要均与同一生产快照一致。数据库结构、角色/权限、HTTPS Web/API、三份说明页回读、登录会话、已有营业日账目查询和隔离写入再次通过。执行的是本包自带恢复代码，其 SHA-256 为 `e18cce743ebe81fb1273f4700814ad74ff3f92a36284bf2d0b23503197d2e843`。
+- NAS exports consistent snapshots from actual production `1.31.0` to save business data, migration history, role/password summaries, memberships and permissions; after recovery of independent, network-free PostgreSQL, it checks the number and summaries of all public table rows, constraints, indexes, database authorizations and key financial summaries.
+- Actual application, PostgreSQL, Redis, HTTPS proxy and runner image archive; production configuration, key, DSM reverse generation, independent description agent and three pages, backup configuration and recovery code are all age-encrypted.
+- After uploading to the NAS, it is read back completely. The SHA-256 is `9edebb531b9f28dd8619cc48d9704c87de7f0ca5606a5a5d71ecb72fa2e40d57`, and the completion mark is submitted only after passing it.
+- The Mac re-downloads and checks SHA-256 from the real Drive, reading only the private key from the standalone system keychain; verifies and executes the recovery code within the package. The NAS will not be read during the walkthrough, and images will not be pulled from GitHub/GHCR.
+- ARM Mac loads the x86 offline image, completes database/permission baseline comparison, Web/API readiness, content readback of three public description pages, Firebase authentication to establish login session, existing business day account query and isolation API test writing.
+- Only `127.0.0.1:8443` is bound, the public network DNS, local hosts or system certificate trust are not modified, and real SMS or robot sending is not triggered; after the exercise, the newly added containers, data volumes and plain text configurations are deleted, and only the report is retained.
 
-重新下载及校验 **9.13 秒**，恢复和服务核验 **28.31 秒**，完整过程 **48.95 秒**。期间不读取 NAS、不拉取镜像，私钥来自独立 Mac 钥匙串；不修改 DNS、hosts 或系统信任，不发送真实外部消息。结束后再次核对临时容器和卷均为零，解密目录已删除，仅保留非敏感报告。保留原因：重复验证使用更新的云端恢复包，不能用前一次成功记录代替本次实际执行。
+This time, the download and SHA-256 verification took **12.91 seconds**, the recovery and service verification took **27.56 seconds**, and the complete process including extracting the tools in the package took **45.64 seconds**. Docker has been installed and started; this time does not include installing Docker for the first time, preparing the network, or manually processing the local domain name and certificate. Reason: This is not a fixed recovery timeframe for all failure scenarios.
 
-## 权限、通知与失败场景
+<a id="第二次独立云端演练"></a>
 
-- Google Desktop OAuth 已正式发布，仅使用 `openid`、邮箱及 `drive.file`。父目录和 production 目录均核对为本人所有、未共享；与聊天连接器凭据独立。
-- NAS 目录和恢复源码目录为 `0700`，生产配置、Drive 令牌、Gmail 凭据与激活文件为 `0600`，任务入口为 `0700`；Mac 私钥不在 NAS 或 Drive 中。
-- Gmail 配置测试及 NAS 三次失败后的真实通知均已在 `jr24839652@gmail.com` 收件箱确认。NAS 完全断网或遗失时无法主动发出失败邮件。
-- 26 项独立自动化测试覆盖损坏文件、缺失配置、危险归档成员、上传/完成标记中断、空间不足、第四份安全轮换、删除失败及无关文件保留。
-- 4 项真实 Docker 检查覆盖 PostgreSQL 旧 CHECK 表达式的等价重建、真实边界/允许值变化的拒绝、约束验证状态，以及两种恢复路由的 Caddy 配置解析。
-- 初次演练发现恢复代理模板问题，修复后生成新云端包并重新完整演练通过；旧试产包不作为最终可用副本保留。保留原因：NAS 数据库恢复通过不能单独证明完整服务可恢复。
-- 独立 NAS 说明代理已安装，DSM 入口切到 `13100`；其余路径继续转原应用 `3100`。公网 Web/API、三个说明页及内容回读通过，原应用镜像没有随备份安装升级。
+## The second independent cloud exercise
 
-轮换采用新包上传、完整读回、完成标记提交后再删旧包，只保留最近三次成功备份；首次启用时无需凑满三份。专用目录另有恢复说明 `README.txt`，不会触碰 Drive 其他文件。
+2026-10-18 Perform the drill again as requested by the account owner, directly query the real Drive directory and re-download the latest `mn-recovery-20261018T135853Z-c1e548f9.tar.gz.age` without using the last downloaded local package. The database snapshot is **2026-10-18 09:57:48 EDT**; the file size is 512,914,948 bytes, and SHA-256 is consistent with the official task record above.
 
-正式任务入口在 **2026-10-18 09:57:45–10:01:52 EDT** 手动执行成功，最新包为 `mn-recovery-20261018T135853Z-c1e548f9.tar.gz.age`，512,914,948 字节，SHA-256 为 `f06f37388876b0526e766854ba49fd3e10581bd885a3c7ed22917fae42b6a9e6`。本次真实完成第四份提交后轮换最旧包；随后清理另一份未通过完整服务验收的旧试产包，最终留下两份有效备份及说明文件。一轮正常任务和首次完整 Mac 恢复均已通过，后续成功备份会自然累积并稳定保留三份。
+This package contains 32 manifest files and 5 offline images; after recovery, the row number and summary of **42 public tables and a total of 22,201 row records** are consistent with the same production snapshot. Database structure, roles/permissions, HTTPS Web/API, three description page readbacks, login sessions, existing business day account queries and quarantine writes passed again. The recovery code that comes with this package is executed, and its SHA-256 is `e18cce743ebe81fb1273f4700814ad74ff3f92a36284bf2d0b23503197d2e843`.
 
-## 恢复边界
+Re-download and verification took **9.13 seconds**, recovery and service verification took **28.31 seconds**, and the complete process took **48.95 seconds**. During this period, the NAS is not read, the image is not pulled, and the private key comes from an independent Mac keychain; DNS, hosts, or system trust are not modified, and no real external messages are sent. After completion, check again that the temporary containers and volumes are zero, the decryption directory has been deleted, and only non-sensitive reports remain. Reason: Repeat verification using an updated cloud recovery package, and the previous successful record cannot be used to replace this actual execution.
 
-恢复操作见 [灾难恢复手册](DISASTER_RECOVERY.md) 和 [包内独立说明](../../scripts/recovery/BUNDLE_README.md)。真实恢复时先暂停 Mac 信息代理，核对发送日志及快照中的待发送任务，再决定是否接回。
+<a id="权限通知与失败场景"></a>
 
-Firebase、MiniMax、Google 账号和外部网络仍须有效。每日备份可能损失最近成功快照之后约一天的数据；持续失败会使恢复点更早。真实短信送达及浏览器/外部设备效果不在本次命令行/API 验收结论内。不恢复整个 DSM、微信设备登录或 Mac Messages 系统数据库。保留原因：数据库与离线镜像不能复刻外部供应商和硬件状态。
+## Permissions, notifications and failure scenarios
+
+- Google Desktop OAuth has been officially released, using only `openid`, email and `drive.file`. Both the parent directory and the production directory are checked as owned by me and not shared; they are independent of the chat connector credentials.
+- The NAS directory and recovery source code directory are `0700`, the production configuration, Drive token, Gmail credentials and activation file are `0600`, and the task entry is `0700`; the Mac private key is not in the NAS or Drive.
+- The actual notification after the Gmail configuration test and the NAS failed three times has been confirmed in the `jr24839652@gmail.com` inbox. The NAS cannot proactively send out failure emails when it is completely disconnected or lost.
+- 26 independent automated tests cover corrupted files, missing configurations, dangerous archive members, interrupted upload/completion marks, insufficient space, fourth safe rotation, failed deletions, and extraneous file retention.
+- 4 real Docker checks covering equivalent reconstruction of PostgreSQL legacy CHECK expressions, rejection of real bounds/allowed value changes, constraint validation status, and Caddy configuration parsing for both recovery routes.
+- An issue with the recovery agent template was discovered during the initial walkthrough. After repair, a new cloud package was generated and passed through the complete walkthrough again; the old trial production package was not retained as the final usable copy. Reason: NAS database recovery cannot alone prove that full service is recoverable.
+- Independent NAS indicates that the agent has been installed, and the DSM entry is switched to `13100`; the remaining paths continue to the original application `3100`. The public network Web/API, three description pages and content readback passed. The original application image was not upgraded along with the backup installation.
+
+Rotate the new package upload, read it back completely, and then delete the old package after completing the mark submission. Only the last three successful backups are retained; there is no need to collect three copies when it is enabled for the first time. There is a recovery instruction `README.txt` in the dedicated directory, which will not touch other files in Drive.
+
+The official task entry is successfully executed manually at **2026-10-18 09:57:45–10:01:52 EDT**. The latest package is `mn-recovery-20261018T135853Z-c1e548f9.tar.gz.age`, 512,914,948 bytes, and SHA-256 is `f06f37388876b0526e766854ba49fd3e10581bd885a3c7ed22917fae42b6a9e6`. After completing the fourth submission this time, the oldest package was rotated; then another old trial production package that failed to pass the full service acceptance was cleaned up, leaving two valid backups and documentation. After a round of normal tasks and the first full Mac recovery has passed, subsequent successful backups will naturally accumulate and stably retain three copies.
+
+<a id="恢复边界"></a>
+
+## Restore boundaries
+
+For recovery operations, see [Disaster Recovery Manual](DISASTER_RECOVERY.md) and [Independent instructions in the package](../../scripts/recovery/BUNDLE_README.md). During actual recovery, first pause the Mac Information Agent, check the pending tasks in the sending log and snapshot, and then decide whether to accept them back.
+
+Firebase, MiniMax, Google Accounts, and external networks must still be valid. Daily backups may lose about a day's worth of data after the most recent successful snapshot; continued failures will result in an earlier recovery point. Actual SMS delivery and browser/external device effects are not included in this command line/API acceptance conclusion. Does not restore the entire DSM, WeChat device login, or Mac Messages system database. Reason: Databases and offline images cannot replicate external vendors and hardware status.

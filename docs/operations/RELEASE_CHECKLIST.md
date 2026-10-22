@@ -1,32 +1,44 @@
-# 发布检查清单
+<a id="发布检查清单"></a>
 
-发布授权按 [维护规则](../../AGENTS.md)，执行步骤按 [NAS 手册](NAS_DEPLOYMENT.md)；普通 Linux 部署使用 [部署总览](DEPLOYMENT.md)。清单只维护发布证据，业务口径查 [产品规则](../product/PRODUCT.md)。保留原因：发布清单不应再复制容易过时的配色、卡片位置或财务公式。
+# Post a checklist
 
-用户要求“更新部署”时按 [默认更新部署流程](NAS_DEPLOYMENT.md#默认更新部署流程) 执行；本清单用于记录结果，不构成额外一轮本地完整验证或分支测速。保留原因：同一提交的有效证据可以复用，发布入口必须保持一致。
+**English** | **[简体中文](RELEASE_CHECKLIST.zh-CN.md)**
 
-## 构建与数据
+For release authorization, please follow [Maintenance Rules](../../AGENTS.md), and for execution steps, please follow [NAS Manual](NAS_DEPLOYMENT.md); for ordinary Linux deployment, use [Deployment Overview](DEPLOYMENT.md). The list only maintains release evidence, and the business definitions can be found in [Product Rules](../product/PRODUCT.md). Reason: Publishing lists should no longer replicate color schemes, card placements, or financial formulas that easily become outdated.
 
-- [ ] 版本文件、CHANGELOG、文档标记一致，`pnpm version:check`、`pnpm docs:check`、`git diff --check` 通过。保留原因：源码与交付入口必须对应同一个版本。
-- [ ] 本次完整 commit SHA 的 `verify`、`build-nas-image` 与 `publish-nas-image` 均成功，Compose 展开有效；已通过且未受后续改动影响的检查不重复。保留原因：另一提交或仅有分支候选镜像的绿灯不能证明正式产物，完整验证由并行 CI 承担。
-- [ ] 固定版本 GHCR manifest 可匿名读取，平台为 `linux/amd64`。保留原因：NAS 拉取不依赖本机登录，镜像架构须匹配运行环境。
-- [ ] 新迁移已在生产副本演练；发布前备份非空且校验有效，独立恢复演练有记录。保留原因：镜像回滚不能逆转不兼容数据库变化，备份存在不等于能恢复。
-- [ ] 数据库迁移/运行账号分离，原项目及卷名保留。保留原因：权限加固与已有数据不能在更新中被新账号或新卷替换。
+When the user asks for "Update Deployment" press [Default update deployment process](NAS_DEPLOYMENT.md#default-update-deployment-process) Execution; this list is used to record results and does not constitute an additional round of local complete verification or branch benchmarking. Reason: Valid evidence for the same submission can be reused, and the release entry must be consistent.
 
-## 配置与安全
+<a id="构建与数据"></a>
 
-- [ ] HTTPS、精确 Origin、Firebase、内网端口及代理配置符合 [安全说明](SECURITY.md)。保留原因：Cookie、登录与跨店权限依赖完整生产配置。
-- [ ] 生产开发登录关闭，暂存改动完成秘密扫描；完整历史扫描在首次公开或历史重写后执行，已有有效记录时不重复。保留原因：防止开发凭据或生产秘密进入公开源代码和镜像，同时避免无变化的重复扫描。
-- [ ] SSE 不缓冲、保留事件头，录音请求支持现有 8 MB 上限。保留原因：接口返回成功也可能被代理截断或延迟，流式与音频请求须单独配置。
+## Build and data
 
-## 业务与独立交付物
+- [ ] The version file, CHANGELOG, and document tags are consistent, and `pnpm version:check`, `pnpm docs:check`, and `git diff --check` pass. Reason: The source code and delivery entry must correspond to the same version.
+- [ ] The `verify`, `build-nas-image` and `publish-nas-image` of this complete commit SHA are all successful, and the Compose expansion is valid; the checks that have passed and are not affected by subsequent changes are not repeated. Reason: Another commit or the green light of only a branch candidate image does not prove the official product. Full verification is undertaken by parallel CI.
+- [ ] The fixed version of the GHCR manifest can be read anonymously and the platform is `linux/amd64`. Reason: NAS pull does not rely on local login, and the image architecture must match the operating environment.
+- [ ] The new migration has been drilled on the production copy; the backup before release is non-empty and verified to be valid, and the independent recovery drill is recorded. Reason: Mirror rollback cannot reverse incompatible database changes, and the existence of backup does not mean that it can be restored.
+- [ ] The database migration/running account is separated, and the original project and volume name are retained. Reason: Permission hardening and existing data cannot be replaced by new accounts or new volumes during updates.
 
-- [ ] 按本次变化核对角色/跨店隔离、金额快照、失败回滚及冲突，相关自动化测试通过。保留原因：整理不能改变现有授权和账目，业务范围由当前产品文档与测试确定。
-- [ ] 用户完成与本次变化相关的真实业务验收；默认代码、命令行/API 验证，具体要求时才使用浏览器。保留原因：这是用户的验证范围，本地构建不能证明真实设备效果。
-- [ ] 涉及 Mac 代理或 LangBot 时，核对已安装产物及实际运行版本；真实发送结果另行确认。保留原因：NAS 更新不会升级独立进程，AppleScript 接受发送也不证明送达。
+<a id="配置与安全"></a>
 
-## 上线后
+## Configuration and security
 
-- [ ] `app`、`migrate`、`harden` 实际镜像为目标版本；项目 `mn` 与原 PostgreSQL/Redis 卷保留。保留原因：保存 Compose 标签不等于容器已替换，项目名变化会另建数据库卷。
-- [ ] 长期容器健康，一次性任务 exited (0)，Web 与 API 存活/就绪检查通过。保留原因：启动、迁移和依赖可用性需要不同证据。
-- [ ] 记录版本、迁移、时间、执行人及回滚判断，观察错误、磁盘、备份和发送费用。保留原因：故障定位与恢复需对应本次实际发布，而不是历史运行记录。
-- [ ] 按手册分别交接 CI、NAS 与更新部署总耗时，附完整 SHA 与运行链接；未执行/未测量阶段和缓存状态明确标注。保留原因：并行 job 不应相加，分支测速也不能冒充正式部署完成。
+- [ ] HTTPS, accurate Origin, Firebase, intranet port and proxy configuration comply with [Security Instructions](SECURITY.md). Reason: Cookie, login, and cross-store permissions rely on full production configuration.
+- [ ] The production and development login is closed, and the temporary changes are completed to complete the secret scan; the complete history scan is executed after the first disclosure or history rewriting, and will not be repeated when there is a valid record. Reason: Prevent development credentials or production secrets from entering public source code and images while avoiding repeated scans without changes.
+- [ ] SSE does not buffer, retains event headers, and supports the existing 8 MB limit for recording requests. Reason: Successful return from the interface may also be truncated or delayed by the proxy. Streaming and audio requests must be configured separately.
+
+<a id="业务与独立交付物"></a>
+
+## Business and independent deliverables
+
+- [ ] Role/cross-store isolation, amount snapshots, failed rollbacks and conflicts were checked based on this change, and the relevant automated tests passed. Reason: Consolidation cannot change existing authorizations and accounts, and the business scope is determined by current product documentation and testing.
+- [ ] Users complete real business acceptance related to this change; default code, command line/API verification, and use the browser only when specific requirements are required. Reason: This is the scope of user verification, and local builds cannot prove real device effects.
+- [ ] When involving Mac agent or LangBot, check the installed product and actual running version; the actual sending result will be confirmed separately. Reason: NAS updates do not upgrade independent processes, and AppleScript accept delivery does not prove delivery.
+
+<a id="上线后"></a>
+
+## After going online
+
+- [ ] The actual image of `app`, `migrate`, `harden` is the target version; the project `mn` is retained with the original PostgreSQL/Redis volume. Reason: Saving the Compose label does not mean that the container has been replaced. Changes in the project name will create a new database volume.
+- [ ] Long-term container health, one-time tasks exited (0), Web and API liveness/readiness checks passed. Reason: Launch, migration, and dependency availability require different evidence.
+- [ ] Record version, migration, time, executor and rollback judgment, observe errors, disk, backup and delivery costs. Reason: Fault location and recovery need to correspond to this actual release, not historical operating records.
+- [ ] According to the manual, the total time taken to hand over CI, NAS and update deployment respectively, with complete SHA and running links; the unexecuted/unmeasured stage and cache status are clearly marked. Reason: Parallel jobs should not be added together, and branch benchmarking cannot pretend that formal deployment is completed.

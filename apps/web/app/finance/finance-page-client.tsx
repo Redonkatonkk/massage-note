@@ -11,7 +11,7 @@ import { browserStorage } from "../../lib/browser-storage";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LatestRequest } from "../../lib/latest-request";
-import { ApiError, apiBase, apiRequest, errorMessage } from "../../lib/api";
+import { ApiError, apiRequest, errorMessage } from "../../lib/api";
 import { hasBlockingClosingWarnings } from "../../lib/closing";
 import { formatUsd } from "../../lib/money";
 import type {
@@ -46,56 +46,16 @@ import { EmployeeSettlementPanel } from "./employee-settlement-panel";
 import { CashSettlementDetails, ClosingEmployeeTable } from "./closing-employee-table";
 import { PayrollEntryForm } from "./payroll-entry-form";
 import { EmployeeSubtotalSection } from "./employee-subtotal-section";
-import { dateOnly, shiftDate } from "./date-utils";
+import { dateOnly } from "./date-utils";
+import { MonthlySummaryDashboard } from "./monthly-summary-dashboard";
+import { monthlyQuery, monthlyRanges } from "./monthly-summary";
 import { financeNavigationTabs, resolveFinanceTab, type FinanceTab } from "../../lib/app-navigation";
 import { useNavigationTab } from "../use-navigation-tab";
-import {
-  financeSummaryGroups,
-  financeSummaryMetrics,
-  type FinanceSummaryMetricKey,
-} from "./summary-metrics";
-
 type FinanceRangeOverride = { dateFrom?: string; dateTo?: string; memberIds?: string[] };
 
 function money(cents: number | null | undefined): string {
   if (cents === null || cents === undefined) return "—";
   return formatUsd(cents);
-}
-
-function FinanceSummaryCard({
-  label,
-  value,
-  caption,
-  explanation,
-  calculation,
-  onViewDetails,
-}: {
-  label: string;
-  value: string;
-  caption: string;
-  explanation: string;
-  calculation: string;
-  onViewDetails: () => void;
-}) {
-  return (
-    <article className="finance-summary-card">
-      <button className="finance-summary-card__main" type="button" onClick={onViewDetails} aria-label={`${label}：${value}，查看组成明细`}>
-        <span>{label}</span>
-        <strong>{value}</strong>
-        <small>{caption}</small>
-      </button>
-      <details className="finance-summary-info">
-        <summary aria-label={`查看“${label}”的解释和计算方法`}>说明</summary>
-        <div className="finance-summary-tooltip" role="tooltip">
-          <strong>{label}</strong>
-          <span>词条解释</span>
-          <p>{explanation}</p>
-          <span>计算方法</span>
-          <p>{calculation}</p>
-        </div>
-      </details>
-    </article>
-  );
 }
 
 export function FinancePageClient() {
@@ -118,14 +78,11 @@ export function FinancePageClient() {
   const [payroll, setPayroll] = useState<PayrollSettlement[]>([]);
   const [giftCards, setGiftCards] = useState<GiftCardLedgerResponse | null>(null);
   const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [summaryMonth, setSummaryMonth] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryFailed, setSummaryFailed] = useState(false);
   const [cashDate, setCashDate] = useState("");
   const cashData = loadedCash?.storeId === membership?.store.id && loadedCash?.businessDate === cashDate ? loadedCash : null;
-  const [memberIds, setMemberIds] = useState<string[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<FinanceSummaryResponse["filters"]["paymentMethod"]>("ALL");
-  const [amountType, setAmountType] = useState("ALL");
-  const [highlightFilter, setHighlightFilter] = useState<FinanceSummaryResponse["filters"]["highlightFilter"]>("ALL");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useAutoDismissState("");
@@ -134,17 +91,13 @@ export function FinancePageClient() {
   const canManage = membership ? membership.role !== "EMPLOYEE" : false;
 
   const financeParams = useCallback((override: FinanceRangeOverride = {}) => {
-    const params = new URLSearchParams({ paymentMethod, amountType, highlightFilter });
-    const from = override.dateFrom ?? dateFrom;
-    const to = override.dateTo ?? dateTo;
-    const selectedMembers = override.memberIds ?? memberIds;
-    if (from) params.set("dateFrom", from);
-    if (to) params.set("dateTo", to);
-    if (selectedMembers.length > 0) params.set("membershipIds", selectedMembers.join(","));
+    if (!day || !summaryMonth) return new URLSearchParams();
+    const range = monthlyRanges(summaryMonth, day.businessDate);
+    const params = monthlyQuery(override.dateFrom ?? range.dateFrom, override.dateTo ?? range.dateTo);
+    if (override.memberIds?.length) params.set("membershipIds", override.memberIds.join(","));
     return params;
-  }, [paymentMethod, amountType, highlightFilter, dateFrom, dateTo, memberIds]);
+  }, [summaryMonth, day]);
 
-  const appliedFinanceQuery = useRef<string | null>(null);
   const summaryRequests = useRef(new LatestRequest()).current;
   const detailRequests = useRef(new LatestRequest()).current;
   const cashRequests = useRef(new LatestRequest()).current;
@@ -159,27 +112,28 @@ export function FinancePageClient() {
   closingRequests.setScope(currentDayScope);
 
   const loadSummary = useCallback(async (override: FinanceRangeOverride = {}, background = false) => {
-    if (!membership) return;
+    if (!membership || !day || !summaryMonth) return;
     const isCurrent = summaryRequests.begin();
-    const params = background && appliedFinanceQuery.current ? new URLSearchParams(appliedFinanceQuery.current) : financeParams(override);
-    const result = await apiRequest<FinanceSummaryResponse>(
-      `/stores/${membership.store.id}/finance/summary?${params}`,
-    );
-    if (!isCurrent()) return;
-    params.set("dateFrom", result.filters.dateFrom);
-    params.set("dateTo", result.filters.dateTo);
-    appliedFinanceQuery.current = params.toString();
-    setSummary(result);
-    if (!background) setDetails(null);
-    if (!background || !dateFrom || !dateTo) {
-      setDateFrom(result.filters.dateFrom);
-      setDateTo(result.filters.dateTo);
+    setSummaryLoading(true);
+    setSummaryFailed(false);
+    try {
+      const result = await apiRequest<FinanceSummaryResponse>(
+        `/stores/${membership.store.id}/finance/summary?${financeParams(override)}`,
+      );
+      if (!isCurrent()) return;
+      setSummary(result);
+      if (!background) setDetails(null);
+    } catch (caught) {
+      if (!isCurrent()) return;
+      setSummary(null);
+      setSummaryFailed(true);
+      throw caught;
+    } finally {
+      if (isCurrent()) setSummaryLoading(false);
     }
-  }, [membership, financeParams]);
+  }, [membership, day, summaryMonth, financeParams]);
 
-  const currentFinanceParams = useCallback(() => {
-    return new URLSearchParams(appliedFinanceQuery.current ?? financeParams().toString());
-  }, [financeParams, summary]);
+  const currentFinanceParams = useCallback(() => financeParams(), [financeParams]);
 
   const appliedDetailOverride = useRef<FinanceRangeOverride>({});
   const loadDetails = useCallback(async (override: FinanceRangeOverride = {}) => {
@@ -303,6 +257,7 @@ export function FinancePageClient() {
           `/stores/${selected.store.id}/business-days/current`,
         );
         setDay(current);
+        setSummaryMonth(current.businessDate.slice(0, 7));
         const requestedTab = new URL(window.location.href).searchParams.get("tab");
         setTab(resolveFinanceTab(requestedTab, selected.role));
         const requestedDate = new URL(window.location.href).searchParams.get("date");
@@ -352,10 +307,14 @@ export function FinancePageClient() {
 
   useEffect(() => {
     if (!membership) return;
-    void loadSummary().catch((caught) => setError(errorMessage(caught)));
     void loadPayroll().catch((caught) => setError(errorMessage(caught)));
     void loadGiftCards().catch((caught) => setError(errorMessage(caught)));
   }, [membership]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!membership || !summaryMonth) return;
+    void loadSummary().catch(caught => setError(errorMessage(caught)));
+  }, [membership, summaryMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!cashDate || !membership) return;
@@ -436,7 +395,7 @@ export function FinancePageClient() {
 
   const financeTabs = financeNavigationTabs(membership.role);
   const pageDescriptions = {
-    summary: "按日期核对收入、收款构成与员工小计。",
+    summary: "按月查看收入、月度对比与员工小计。",
     analytics: "查看营业趋势、服务时段与每周客流分布。",
     expenses: "按月核对固定支出、周期预算与实际账单。",
     closing: canManage ? "逐项核对记工与员工现金，再完成营业日日结。" : "查看自己的当日收入、现金与服务明细。",
@@ -467,92 +426,21 @@ export function FinancePageClient() {
       {tab === "expenses" && canManage && <ExpensesPanel key={membership.store.id} storeId={membership.store.id} today={day.businessDate} />}
       {tab === "analytics" && canManage && <AnalyticsPanel key={membership.store.id} storeId={membership.store.id} today={day.businessDate} />}
 
-      {tab === "summary" && summary && (
-        <section className="finance-section">
-          <form className="filter-panel" onSubmit={(event) => { event.preventDefault(); void run(loadSummary); }}>
-            <div className="filter-panel__heading"><div><strong>筛选范围</strong><p>选好日期，即可查看收入与结算。</p></div><a className="secondary-action export-link" href={`${apiBase}/stores/${membership.store.id}/finance/export.csv?${currentFinanceParams()}`} download>导出当前结果</a></div>
-            <div className="quick-ranges" aria-label="快捷日期范围"><button type="button" disabled={busy} onClick={() => void run(() => loadSummary({ dateFrom: day.businessDate, dateTo: day.businessDate }))}>今天</button><button type="button" disabled={busy} onClick={() => void run(() => loadSummary({ dateFrom: shiftDate(day.businessDate, -6), dateTo: day.businessDate }))}>最近 7 天</button><button type="button" disabled={busy} onClick={() => void run(() => loadSummary({ dateFrom: `${day.businessDate.slice(0, 8)}01`, dateTo: day.businessDate }))}>本月</button></div>
-            <label>开始日期<input type="date" required max={dateTo || day.businessDate} value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label>
-            <label>结束日期<input type="date" required min={dateFrom} max={day.businessDate} value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label>
-            <details className="finance-advanced-filters">
-              <summary>更多筛选<span>{memberIds.length > 0 || paymentMethod !== "ALL" || amountType !== "ALL" || highlightFilter !== "ALL" ? "已限定条件" : "员工、付款、金额、高亮"}</span></summary>
-              <div className="finance-advanced-filters__body">
-            {canManage && (
-              <fieldset className="finance-member-filter">
-                <legend>选择员工</legend>
-                <div className="finance-member-filter__heading">
-                  <span>{memberIds.length === 0 ? "全部员工" : `已选 ${memberIds.length} 人`}</span>
-                  {memberIds.length > 0 && <button type="button" onClick={() => setMemberIds([])}>清除</button>}
-                </div>
-                <div className="finance-member-filter__options">
-                  <label className="finance-member-filter__all">
-                    <input type="checkbox" checked={memberIds.length === 0} onChange={() => setMemberIds([])} />
-                    <span>全部员工</span>
-                  </label>
-                  {members.filter((member) => !member.deletedAt).map((member) => (
-                    <label key={member.id}>
-                      <input
-                        type="checkbox"
-                        checked={memberIds.includes(member.id)}
-                        onChange={(event) => setMemberIds((current) => event.target.checked
-                          ? [...current, member.id]
-                          : current.filter((id) => id !== member.id))}
-                      />
-                      <span>{member.displayName}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-            <label>付款方式<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as FinanceSummaryResponse["filters"]["paymentMethod"])}><option value="ALL">全部</option><option value="CASH">现金</option><option value="NON_CASH">刷卡＋礼物卡</option></select></label>
-            <label>金额类型<select value={amountType} onChange={(event) => setAmountType(event.target.value)}><option value="ALL">大费＋小费</option><option value="SERVICE">仅大费</option><option value="TIP">仅小费</option></select></label>
-            <label>高亮记工<select value={highlightFilter} onChange={(event) => setHighlightFilter(event.target.value as FinanceSummaryResponse["filters"]["highlightFilter"])}><option value="ALL">查看所有记工</option><option value="ONLY_HIGHLIGHTED">仅查看高亮记工</option><option value="EXCLUDE_HIGHLIGHTED">排除高亮记工</option></select></label>
-              </div>
-            </details>
-            <div className="filter-actions"><button className="primary-action" type="submit" disabled={busy}>查看结果</button></div>
-          </form>
-          <p className="finance-result-scope" role="status">当前结果：{summary.filters.dateFrom} 至 {summary.filters.dateTo}</p>
-          {(() => {
-              const values: Record<FinanceSummaryMetricKey, { value: string; caption: string }> = {
-                averageRevenueCents: { value: summary.totals.averageRevenueCents === null ? "—" : money(summary.totals.averageRevenueCents), caption: summary.totals.averageRevenueDayCount > 0 ? `按 ${summary.totals.averageRevenueDayCount} 个已日结日计算（折扣后）` : "所选范围暂无已日结日期" },
-                itemCount: { value: `${summary.totals.itemCount} 项`, caption: `${summary.totals.recordCount} 条记工＋${summary.totals.giftCardSaleCount} 张礼物卡` },
-                mainServiceAmountCents: { value: money(summary.totals.mainServiceAmountCents), caption: "不含额外项目" },
-                addonTotalCents: { value: money(summary.totals.addonTotalCents), caption: "全部加项金额" },
-                grossFeeBaseCents: { value: money(summary.totals.grossFeeBaseCents), caption: "主要项目＋额外项目" },
-                discountTotalCents: { value: money(summary.totals.discountTotalCents), caption: "不降低员工提成工资" },
-                discountedFeePerformanceCents: { value: money(summary.totals.discountedFeePerformanceCents), caption: "折扣由店铺承担" },
-                totalTurnoverCents: { value: money(summary.totals.totalTurnoverCents), caption: "折后大费＋礼物卡销售－礼物卡核销支出" },
-                actualServiceCollectedCents: { value: money(summary.totals.actualServiceCollectedCents), caption: "现金＋刷卡＋礼物卡大费" },
-                cashServiceCents: { value: money(summary.totals.cashServiceCents), caption: "客人以现金支付的大费" },
-                cardServiceCents: { value: money(summary.totals.cardServiceCents), caption: "客人以刷卡支付的大费" },
-                giftCardServiceCents: { value: money(summary.totals.giftCardServiceCents), caption: "客人以礼物卡支付的大费" },
-                cashTipCents: { value: money(summary.totals.cashTipCents), caption: "客人以现金支付的小费" },
-                cardTipCents: { value: money(summary.totals.cardTipCents), caption: "客人以刷卡支付的小费" },
-                giftCardTipCents: { value: money(summary.totals.giftCardTipCents), caption: "客人以礼物卡支付的小费" },
-                totalTipCents: { value: money(summary.totals.totalTipCents), caption: "现金＋刷卡＋礼物卡小费" },
-                giftCardSaleCashCents: { value: money(summary.totals.giftCardSaleCashCents), caption: "不进入员工现金结算" },
-                giftCardSaleCardCents: { value: money(summary.totals.giftCardSaleCardCents), caption: "卖卡刷卡实收" },
-                giftCardSalesAmountCents: { value: money(summary.totals.giftCardSalesAmountCents), caption: `${summary.totals.giftCardSaleCount} 张，全部计入店铺收入` },
-                giftCardRedemptionCents: { value: money(summary.totals.giftCardRedemptionCents), caption: "礼物卡大费＋礼物卡小费" },
-                storeIncomeCents: { value: money(summary.totals.storeIncomeCents), caption: "卖卡记收入，核销记支出" },
-                ownerWorkerIncomeCents: { value: money(summary.totals.ownerWorkerIncomeCents), caption: "店长作为工人的收入" },
-                managerWorkerIncomeCents: { value: money(summary.totals.managerWorkerIncomeCents), caption: "所有经理作为工人的收入" },
-                giftCardNetIncomeCents: { value: money(summary.totals.giftCardNetIncomeCents), caption: "礼物卡销售－礼物卡核销支出" },
-                creditCardFeeCents: { value: money(summary.totals.creditCardFeeCents), caption: "普通刷卡 2.5%＋高亮刷卡每笔 $3" },
-                totalIncomeCents: { value: money(summary.totals.totalIncomeCents), caption: "店铺总结算收入" },
-              };
-              const metricByKey = new Map(financeSummaryMetrics.map((metric) => [metric.key, metric]));
-              return financeSummaryGroups.map((group) => {
-                const cards = <div className="finance-cards">{group.metricKeys.map((key) => {
-                  const metric = metricByKey.get(key)!;
-                  return <FinanceSummaryCard key={key} label={metric.label} explanation={metric.explanation} calculation={metric.calculation} {...values[key]} onViewDetails={() => void run(async () => { setDetailsTitle(metric.label); setDetails(null); await loadDetails(); })} />;
-                })}</div>;
-                return group.emphasis
-                  ? <section className="finance-metric-group finance-metric-group--emphasis" key={group.key}><header><h2>{group.title}</h2></header>{cards}</section>
-                  : <details className="finance-metric-group finance-metric-disclosure" key={group.key}><summary><strong>{group.title}</strong><span>查看构成</span></summary><p>{group.description}</p>{cards}</details>;
-              });
-            })()}
-          <EmployeeSubtotalSection
+      {tab === "summary" && summaryMonth && (
+        <MonthlySummaryDashboard
+          storeId={membership.store.id}
+          today={day.businessDate}
+          month={summaryMonth}
+          summary={summary}
+          loading={summaryLoading}
+          failed={summaryFailed}
+          busy={busy}
+          canViewStoreTrend={canManage}
+          onMonthChange={(month) => { setSummaryMonth(month); setDetails(null); }}
+          onRetry={() => void run(loadSummary)}
+          onViewDetails={(title) => void run(async () => { setDetailsTitle(title); setDetails(null); await loadDetails(); })}
+        >
+          {summary && <EmployeeSubtotalSection
             storeId={membership.store.id}
             summary={summary}
             ownerPhone={ownerPhone}
@@ -560,8 +448,8 @@ export function FinancePageClient() {
             busy={busy}
             run={run}
             onViewDetails={(selectedMembershipId, label) => void run(async () => { setDetailsTitle(label); setDetails(null); await loadDetails({ memberIds: [selectedMembershipId] }); })}
-          />
-        </section>
+          />}
+        </MonthlySummaryDashboard>
       )}
 
       {tab === "closing" && canManage && closing?.storeId === membership.store.id && closing.businessDate === cashDate && (

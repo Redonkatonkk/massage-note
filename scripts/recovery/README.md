@@ -1,49 +1,57 @@
-# 独立云端恢复包
+<a id="独立云端恢复包"></a>
 
-此目录提供 NAS 每日备份与 Mac 按需恢复工具。首次安装、真实验收结果见 [灾难恢复手册](../../docs/operations/DISASTER_RECOVERY.md)。现有 `backup-database.sh` / `restore-database.sh` 的手动接口保持不变。
+# Standalone cloud recovery package
 
-## 首次 Google 设置（由账号所有者完成）
+**English** | **[简体中文](README.zh-CN.md)**
 
-首次在这台 Mac 准备工具与钥匙串时运行：
+This directory provides NAS daily backup and Mac on-demand recovery tools. For the first installation and actual test results, see [Disaster Recovery Manual](../../docs/operations/DISASTER_RECOVERY.md). The existing manual interfaces to `backup-database.sh` / `restore-database.sh` remain unchanged.
+
+<a id="首次-google-设置由账号所有者完成"></a>
+
+## First time Google setup (to be completed by the account owner)
+
+Run the first time on this Mac to prepare tools and keychains:
 
 ```sh
 python3 scripts/recovery/install_tools.py
 python3 scripts/recovery/setup.py init
 ```
 
-工具下载固定于 `toolchain.json` 中的官方版本与 SHA-256；已有钥匙串私钥会保留。保留原因：运行恢复包不能依赖 NAS 上的解密密钥，工具也不能使用未经校验的下载。
+Tool downloads are fixed to the official version and SHA-256 in `toolchain.json`; existing keychain private keys will be retained. Reason: Running recovery packages cannot rely on decryption keys on the NAS, nor can tools use unverified downloads.
 
-1. 打开 [Google Cloud Console](https://console.cloud.google.com/)，创建免费项目 `Massage Note Backup`；此项目不需要启用付费计算资源。启用 [Google Drive API](https://console.cloud.google.com/apis/library/drive.googleapis.com)。保留原因：NAS 不能复用聊天连接器的令牌，rclone 的共享 OAuth 客户端也不作为长期依赖。
-2. 在 Google Auth Platform 配置 Branding（应用名称 `Massage Note Backups`、支持邮箱 `jr24839652@gmail.com`）、Audience（External），Data Access 只添加 `openid`、邮箱和 `https://www.googleapis.com/auth/drive.file`。将 Audience 的发布状态设为 **In production**，不要停留在 Testing。保留原因：Testing 的离线授权会在七天后失效；`drive.file` 只访问本应用创建的文件。
-3. 在 Clients 创建 **Desktop app**，下载 JSON 到本机，例如项目根目录 `.local-ai/recovery/oauth-client.json`。不要把 JSON、应用密码或令牌发到聊天中，也不要提交 Git。保留原因：客户端配置和离线刷新令牌属于独立凭据。
-4. 在本机终端进入项目根目录并执行以下命令，再亲自打开终端显示的 Google 链接，用 `jr24839652@gmail.com` 授权：
+1. Open [Google Cloud Console](https://console.cloud.google.com/) and create the free project `Massage Note Backup`; this project does not require enabling paid computing resources. Enable [Google Drive API](https://console.cloud.google.com/apis/library/drive.googleapis.com). Reason: NAS cannot reuse chat connector tokens, and rclone's shared OAuth client is not a long-term dependency.
+2. Configure Branding (application name `Massage Note Backups`, support email `jr24839652@gmail.com`), Audience (External) in Google Auth Platform, and Data Access only add `openid`, email and `https://www.googleapis.com/auth/drive.file`. Set Audience's release status to **In production**, don't stop at Testing. Reason: Testing's offline authorization will expire after seven days; `drive.file` only accesses files created by this application.
+3. Create **Desktop app** in Clients and download JSON to the local machine, for example, the project root directory `.local-ai/recovery/oauth-client.json`. Don't send JSON, app passwords, or tokens to chat, and don't commit Git. Reason: Client configuration and offline refresh tokens are separate credentials.
+4. Enter the project root directory in the local terminal and execute the following command, then personally open the Google link displayed on the terminal and authorize it with `jr24839652@gmail.com`:
 
    ```sh
    python3 scripts/recovery/setup.py oauth --client-json .local-ai/recovery/oauth-client.json
    ```
 
-   授权程序只监听 `127.0.0.1:53682`，十分钟超时，不会自动打开浏览器或打印令牌。由这个专用身份创建 `Massage Note Backups/production`，校验所有者和私有权限后绑定文件夹 ID。保留原因：聊天连接器创建的目录对 `drive.file` 身份不可见，不能先用另一个客户端创建同名目录。
-5. 在 [Google 应用密码](https://myaccount.google.com/apppasswords) 为 NAS 新建一个专用密码（须先启用两步验证），在本机终端执行并隐藏输入：
+   The authorization program only listens to `127.0.0.1:53682`. It times out in ten minutes and will not automatically open the browser or print the token. Create `Massage Note Backups/production` from this dedicated identity, verify owner and private permissions and bind the folder ID. Reason: The directory created by the chat connector is not visible to the `drive.file` identity, and the directory with the same name cannot be created first with another client.
+5. Create a new dedicated password for the NAS in [Google App Passwords](https://myaccount.google.com/apppasswords) (two-step verification must be enabled first), execute in the local terminal and hide the input:
 
    ```sh
    python3 scripts/recovery/setup.py mail
    ```
 
-   保留原因：发信和 Drive 上传使用不同凭据，Gmail 普通登录密码不能用于 SMTP。
+   Reason: Different credentials are used for sending emails and uploading to Drive, and the normal Gmail login password cannot be used for SMTP.
 
-   完成后可发送一封明确标为配置测试的邮件：
+   Once complete you can send an email clearly labeled Configuration Test:
 
    ```sh
    python3 scripts/recovery/setup.py test-mail
    ```
 
-## 密钥及恢复
+<a id="密钥及恢复"></a>
 
-独立恢复包中的操作说明见 [BUNDLE_README.md](BUNDLE_README.md)，不依赖仓库外的相对文档链接。云端专用目录另有 `README.txt`，可直接找到这台 Mac 的恢复命令和私钥位置说明；不包含私钥或供应商凭据。
+## Key and recovery
 
-`setup.py init` 在 Mac 系统钥匙串保存 age 私钥，只在磁盘保存公钥；应在 NAS 丢失之前完成。NAS 只有公钥，不能解密历史恢复包。恢复程序默认从系统钥匙串读取私钥；`--identity` 仅供从另一份安全保存的 age 私钥恢复或隔离测试使用。
+The operation instructions in the independent recovery package can be found in [BUNDLE_README.md](BUNDLE_README.md), which does not rely on relative document links outside the repository. There is also a `README.txt` in the cloud-specific directory, which provides direct access to the recovery commands and private key location instructions for this Mac; it does not contain private keys or vendor credentials.
 
-恢复依赖 Mac 上的 Docker、Python 3.9+、age，以及 Google/Firebase/MiniMax 账号仍有效；每个恢复包包含应用、PostgreSQL、Redis 和本地 HTTPS 代理镜像，不需要从镜像仓库重新下载。
+`setup.py init` saves the age private key in the Mac system keychain and only saves the public key on disk; should be completed before the NAS is lost. NAS only has the public key and cannot decrypt historical recovery packages. The recovery program reads the private key from the system keychain by default; `--identity` is only used for recovery or isolation testing from another safely saved age private key.
+
+Recovery dependencies on Docker, Python 3.9+, age on Mac, and Google/Firebase/MiniMax accounts are still valid; each recovery package contains application, PostgreSQL, Redis, and local HTTPS proxy images, and does not need to be re-downloaded from the image repository.
 
 ```sh
 python3 scripts/recovery/restore.py restore \
@@ -52,19 +60,21 @@ python3 scripts/recovery/restore.py restore \
   --root .local-ai/recovery-drill --drill
 ```
 
-省略 `--drill` 才会保持恢复服务运行。每次使用新目录、独立 Docker 项目和数据卷，仅发布 `127.0.0.1:8443`，不开放数据库、Redis 或公网入口。端口被占用时停止，不终止其他进程或自动换端口。演练结束只保留非敏感报告，删除恢复容器、卷、明文生产配置和本地 TLS 私钥。
+Omitting `--drill` will keep the recovery service running. Each time a new directory, independent Docker project and data volume are used, only `127.0.0.1:8443` will be published, and no database, Redis or public network entrance will be opened. Stop when the port is occupied, without terminating other processes or automatically changing ports. Only non-sensitive reports are retained at the end of the walkthrough, and recovery containers, volumes, plaintext production configurations, and local TLS private keys are deleted.
 
-真实恢复后，要使用原域名的本机 HTTPS 入口，须在 Mac 手动安装本次恢复的 `root.crt` 并把原域名仅在本机解析到 `127.0.0.1`；恢复脚本不自动改系统信任、hosts 或公网 DNS。保留原因：演练不能改变正在使用的生产入口，也不能使现有 Mac 发送代理意外连到旧快照。
+After actual recovery, if you want to use the local HTTPS entrance of the original domain name, you must manually install the restored `root.crt` on your Mac and resolve the original domain name to `127.0.0.1` only locally; the recovery script does not automatically change system trust, hosts or public DNS. Reason: The walkthrough cannot change the production portal in use, nor can it cause existing Mac send agents to accidentally connect to old snapshots.
 
-恢复前暂停 Mac 信息代理，核对其本机发送日志及云端快照中的待发送任务，再决定是否重新接入。当前只恢复网站及其运行依赖，不迁移整个 DSM 系统、用户个人文件、微信登录设备状态或 Mac 的 Messages 系统数据库。保留原因：这些属于外部设备状态，备份网站数据库不能复刻硬件或第三方登录会话。
+Before resuming, pause the Mac Information Agent, check its local sending logs and the pending tasks in the cloud snapshot, and then decide whether to reconnect. Currently, only the website and its running dependencies are restored, and the entire DSM system, user personal files, WeChat login device status, or Mac's Messages system database are not migrated. Reason: These are external device states, and backing up website databases cannot replicate hardware or third-party login sessions.
 
-## 命令行接口
+<a id="命令行接口"></a>
 
-- `recovery.py backup --config /protected/config.json`：独占锁、最多三次尝试；失败保留旧备份并通过 Gmail 发信。凭据错误响应与命令 stderr 不写入公开日志。
-- `recovery.py check-payload DIRECTORY`：检查格式、必需文件、文件清单、大小、SHA-256 和成功恢复报告。
-- `restore.py restore --bundle FILE.age --root NEW_DIRECTORY [--identity FILE] [--drill]`：仅从指定恢复包加载镜像和数据；不访问原 NAS，不拉取镜像。
-- `restore.py stop --root DIRECTORY`：只清理状态文件明确标识的恢复项目与其卷。
+## Command line interface
 
-每份成功备份为一个 `mn-recovery-时间戳-随机值.tar.gz.age` 加同名 `.sha256` 完成标记。先上传、完整读回并计算 SHA-256，再上传和读回完成标记，最后按成功时间保留三份；不按天数清理，不使用跨目录同步或整个回收站清空。保留原因：中断上传不能挤掉旧备份，其他 Drive 文件不属于本工具管理范围。
+- `recovery.py backup --config /protected/config.json`: Exclusive lock, up to three attempts; if failed, the old backup will be retained and sent via Gmail. Credential error responses to commands stderr are not written to the public log.
+- `recovery.py check-payload DIRECTORY`: Checks format, required files, file manifest, size, SHA-256 and successful recovery report.
+- `restore.py restore --bundle FILE.age --root NEW_DIRECTORY [--identity FILE] [--drill]`: Only load the image and data from the specified recovery package; do not access the original NAS and do not pull the image.
+- `restore.py stop --root DIRECTORY`: Clean only recovery items and their volumes that are explicitly identified by the status file.
 
-NAS 入口默认要求受限目录存在 `enabled` 激活文件；完整云端验收前不创建。首次仅以 `nas-task.sh --verify-install` 手动执行备份，验收和邮件测试完成后才激活定时执行。保留原因：DSM 中任务被提前勾选，也不能跳过验收直接开始自动备份。
+Each successful backup is one `mn-recovery-时间戳-随机值.tar.gz.age` Add the same name `.sha256` Complete mark. First upload, read back completely and calculate SHA-256, then upload and read back the completion mark, and finally keep three copies according to the success time; do not clean up by days, do not use cross-directory synchronization or empty the entire recycle bin. Reason: Interrupting the upload cannot crowd out the old backup, and other Drive files are not within the management scope of this tool.
+
+The NAS portal requires that the `enabled` activation file exists in the restricted directory by default; it will not be created before full cloud acceptance. For the first time, only use `nas-task.sh --verify-install` to manually execute the backup. The scheduled execution will be activated after the acceptance and email testing are completed. Reason: Tasks in DSM are checked in advance, and automatic backup cannot be started directly without skipping acceptance.

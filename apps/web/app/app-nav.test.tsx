@@ -59,7 +59,7 @@ describe("侧栏目录展开与导航", () => {
 
   it("子目录保留角色权限和带店铺参数的深链接，无下级项仍直接导航", async () => {
     await mount(<AppNav active="today" role="EMPLOYEE" storeId="store /&店" />);
-    expect([...submenu(toggle("财务")).querySelectorAll("a")].map(node => node.textContent)).toEqual(["财务汇总", "我的日结", "工资结算明细"]);
+    expect([...submenu(toggle("财务")).querySelectorAll("a")].map(node => node.textContent)).toEqual(["月度汇总", "我的日结", "工资结算明细"]);
     expect([...submenu(toggle("店铺设置")).querySelectorAll("a")].map(node => node.textContent)).toEqual(["店铺信息", "项目说明"]);
     expect(submenu(toggle("财务")).querySelector("a")?.getAttribute("href")).toBe("/finance?store=store+%2F%26%E5%BA%97&tab=summary");
     expect(container.querySelector('a[aria-label="记工"]')?.getAttribute("href")).toBe("/");

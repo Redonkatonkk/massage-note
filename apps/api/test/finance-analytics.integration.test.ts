@@ -139,4 +139,58 @@ describe.skipIf(!enabled).sequential("经营分析数据库与权限", () => {
       expect(result.weekdayComparison.days[1]).toMatchObject({ highlightedRevenueCents: "4000", nonHighlightedRevenueCents: "0", revenueCents: "4000" });
     }
   });
+  it("顶部趋势独立于起日，以最近日结锚定、只取已日结样本，并与整窗财务扣费汇总一致", async () => {
+    const finance = new FinanceQueriesService(prisma, new StoreAccessService(prisma));
+    const template = await prisma.workRecord.findFirstOrThrow({ where: { storeId, businessDate: date, deletedAt: null, isHighlighted: false } });
+    const record = (businessDate: string, performance: bigint, wage: bigint, card: bigint, employeeMembershipId = memberId, isHighlighted = false) => ({
+      ...template, id: randomUUID(), businessDate: new Date(`${businessDate}T00:00:00Z`), startAt: new Date(`${businessDate}T15:00:00Z`), employeeMembershipId, isHighlighted,
+      mainServiceAmountCents: performance, grossFeeBaseCents: performance, discountedFeePerformanceCents: performance,
+      mainServiceWageCents: wage, totalLargeFeeWageCents: wage, employeeTotalIncomeCents: wage,
+      cashServiceCents: performance - card, cardServiceCents: card, actualServiceCollectedCents: performance, customerTotalPaidCents: performance,
+      cashAllocatedServiceWageCents: wage, cashAcquiredServiceWageCents: wage,
+    });
+    const deleted = { ...record("2024-12-31", 900000n, 100n, 0n), deletedAt: new Date() };
+    const placeholder = { ...record("2024-12-31", 0n, 0n, 0n), status: "PLACEHOLDER" as const,
+      cashServiceCents: null, cardServiceCents: null, giftCardServiceCents: null,
+      cashTipCents: null, cardTipCents: null, giftCardTipCents: null, totalTipCents: null,
+      actualServiceCollectedCents: null, customerTotalPaidCents: null, employeeTotalIncomeCents: null,
+      cashAllocatedServiceWageCents: null, cashAcquiredServiceWageCents: null, cashWageShortfallCents: null,
+    };
+    await prisma.workRecord.createMany({ data: [
+      record("2024-11-30", 10000n, 4000n, 0n, employeeMember),
+      record("2024-12-30", 10000n, 6000n, 20n), record("2024-12-31", 5000n, 2000n, 20n, employeeMember),
+      record("2024-12-31", 1000n, 500n, 1000n, memberId, true), deleted, placeholder,
+    ] });
+    await prisma.businessDayClosing.createMany({ data: ["2024-11-30", "2024-12-30", "2024-12-31"].map(businessDate => ({ storeId, businessDate: new Date(`${businessDate}T00:00:00Z`), status: "CLOSED", closedBy: owner, cycleNo: 1, totalsSnapshotJson: {}, warningSnapshotJson: [] })) });
+    const serial = randomUUID();
+    await prisma.giftCardSale.create({ data: { storeId, businessDate: new Date("2024-12-31T00:00:00Z"), serialNumber: serial, serialNumberNormalized: serial, faceValueCents: 1000n, amountCents: 950n, discountCents: 50n, cashCents: 500n, cardCents: 450n, operatorMembershipId: memberId, createdBy: owner, updatedBy: owner } });
+    for (const [highlightFilter, income] of [["ALL", "14649"], ["ONLY_HIGHLIGHTED", "700"], ["EXCLUDE_HIGHLIGHTED", "13949"]] as const) {
+      const result = await service.analytics(actor(owner), storeId, { dateFrom: "2024-12-31", dateTo: "2024-12-31", highlightFilter });
+      const summary = await finance.summary(actor(owner), storeId, { dateFrom: "2024-12-02", dateTo: "2024-12-31", membershipIds: [], paymentMethod: "ALL", amountType: "ALL", highlightFilter });
+      expect(result.trends).toMatchObject({ asOf: "2024-12-31", income30: {
+        current: { dateFrom: "2024-12-02", dateTo: "2024-12-31", closedDayCount: 2, value: income },
+        previous: { dateFrom: "2024-11-02", dateTo: "2024-12-01", closedDayCount: 1 },
+      } });
+      expect(result.trends!.income30.current.value).toBe(summary.totals.totalIncomeCents.toString());
+      if (highlightFilter === "ALL") {
+        expect(result.trends!.records30).toMatchObject({ current: { value: "1.5" }, previous: { value: "1.0" }, changeTenthsPercent: 500 });
+        expect(result.trends!.revenue30.current.value).toBe("8475");
+        expect(result.trends!.revenue7.status).toBe("NO_BASELINE");
+        expect(result.trends!.income30.previous.value).toBe("6000");
+      }
+    }
+    // Open-day work must affect neither the anchor nor the fixed closed-day windows.
+    await prisma.workRecord.create({ data: record("2024-12-29", 900000n, 0n, 0n) });
+    const openExcluded = await service.analytics(actor(owner), storeId, { dateFrom: "2024-12-31", dateTo: "2025-01-01" });
+    expect(openExcluded.trends!.asOf).toBe("2024-12-31");
+    expect(openExcluded.trends!.income30.current.value).toBe("14649");
+    const historical = await service.analytics(actor(owner), storeId, { dateFrom: "2024-12-29", dateTo: "2024-12-29" });
+    expect(historical.trends!.asOf).toBe("2024-11-30");
+    expect(historical.trends!.records30.current).toMatchObject({ closedDayCount: 1, value: "1.0" });
+    expect((await service.analytics(actor(owner), storeId, { dateFrom: "2024-01-01", dateTo: "2024-01-01" })).trends).toBeNull();
+    await prisma.businessDayClosing.create({ data: { storeId, businessDate: new Date("2024-12-28T00:00:00Z"), status: "CLOSED", closedBy: owner, cycleNo: 1, totalsSnapshotJson: {}, warningSnapshotJson: [] } });
+    const emptyClosed = await service.analytics(actor(owner), storeId, { dateFrom: "2024-12-31", dateTo: "2024-12-31" });
+    expect(emptyClosed.trends!.revenue30.current).toMatchObject({ closedDayCount: 3, value: "5650" });
+    expect(emptyClosed.trends!.records30.current.value).toBe("1.0");
+  });
 });

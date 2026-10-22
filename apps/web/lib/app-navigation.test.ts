@@ -3,7 +3,7 @@ import { financeNavigationTabs, manageNavigationTabs, navigationTabHref, resolve
 
 describe("角色菜单与分区深链接", () => {
   it("员工侧栏只显示原有可用分区，并保留本人日结与工资文案", () => {
-    expect(financeNavigationTabs("EMPLOYEE")).toEqual([["summary", "财务汇总"], ["closing", "我的日结"], ["payroll", "工资结算明细"]]);
+    expect(financeNavigationTabs("EMPLOYEE")).toEqual([["summary", "月度汇总"], ["closing", "我的日结"], ["payroll", "工资结算明细"]]);
     expect(manageNavigationTabs("EMPLOYEE")).toEqual([["store", "店铺信息"], ["catalog", "项目说明"]]);
     expect(resolveFinanceTab("cash", "EMPLOYEE")).toBe("closing");
     expect(resolveFinanceTab("expenses", "EMPLOYEE")).toBe("summary");

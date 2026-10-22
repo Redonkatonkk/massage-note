@@ -1,12 +1,16 @@
-# 第三方代码声明
+<a id="第三方代码声明"></a>
 
-## shadcn/ui
+# Third Party Code Statement
 
-成员工具栏 [`members-toolbar.tsx`](../../apps/web/app/manage/members-toolbar.tsx) 基于 [shadcn/ui 的 DataTableToolbar](https://github.com/shadcn-ui/ui/blob/main/apps/v4/app/%28app%29/examples/tasks/components/data-table-toolbar.tsx) 改写，保留搜索、状态/角色筛选和重置的组合结构，适配本项目原生表单和 CSS。新增与状态确认表单参考 [Sheet](https://github.com/shadcn-ui/ui/blob/main/apps/v4/registry/new-york-v4/ui/sheet.tsx) 的头部、内容及底部操作分区，采用原生 dialog 实现；日常编辑现位于选中员工详情。未引入上游组件依赖。保留原因：改写仍有上游版权归属，MIT 要求随代码保留许可声明。
+**English** | **[简体中文](THIRD_PARTY_NOTICES.zh-CN.md)**
 
-全站布局还研究了 Radix Themes、Cal 和 Twenty 的公开源码，仅借鉴层级与组织原则；具体文件与版本见 [UI 设计](UI_DESIGN.md)。
+## Shadcn/ui
 
-来源核对日期：2026-10-02。上游 [MIT 许可证](https://github.com/shadcn-ui/ui/blob/main/LICENSE.md) 全文如下：
+Members toolbar [`members-toolbar.tsx`](../../apps/web/app/manage/members-toolbar.tsx) based on [shadcn/ui DataTableToolbar](https://github.com/shadcn-ui/ui/blob/main/apps/v4/app/%28app%29/examples/tasks/components/data-table-toolbar.tsx) Rewritten, retaining the combined structure of search, status/role filtering and reset, adapting to the native form and CSS of this project. The header, content and bottom operation partitions of the new status confirmation form reference [Sheet](https://github.com/shadcn-ui/ui/blob/main/apps/v4/registry/new-york-v4/ui/sheet.tsx) are implemented using native dialog; daily editing is now located in the selected employee details. No upstream component dependencies are introduced. Reason: Rewrites still retain upstream copyright, and MIT requires that a license statement be retained with the code.
+
+The full site layout also studied the open source code of Radix Themes, Cal and Twenty, only drawing on the principles of hierarchy and organization; see [UI Design](UI_DESIGN.md) for specific files and versions.
+
+Source verification date: 2026-10-02. The full text of the upstream [MIT License](https://github.com/shadcn-ui/ui/blob/main/LICENSE.md) is as follows:
 
 ```text
 MIT License

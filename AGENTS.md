@@ -1,10 +1,14 @@
-# 项目维护规则
+<a id="项目维护规则"></a>
 
-- 接手先看 Git 状态和 [AI 接管指南](docs/engineering/AI_HANDOFF.md)，保留其他任务的改动。保留原因：工作区可能同时包含尚未提交的用户工作。
-- 修改前端前阅读 [UI 设计与审美准则](docs/engineering/UI_DESIGN.md)，按其中的任务顺序、同级一致性、语义颜色和手机阅读方法作设计判断，并检查低频子页面及数据状态。保留原因：用户要求后续 AI 延续本项目已经形成的审美理解，避免只修局部样式或重新引入不统一的外观。
-- 每次调整同步相关文档、`CHANGELOG.md` 和语义版本；根目录 `VERSION` 是唯一版本来源，同步范围见 [开发指南](docs/engineering/DEVELOPMENT.md)。保留原因：`scripts/check-version.mjs` 和构建流程依赖这些版本一致，文档也随源码交付。
-- 完成前运行 `pnpm version:check`、`git diff --check` 和与修改相称的验证；文档改动检查本地链接。保留原因：类型、行为、版本与文档入口需要各自的验证，不能互相替代。
-- 默认只修改和验证；用户明确要求“更新部署”时，按 [默认更新部署流程](docs/operations/NAS_DEPLOYMENT.md#默认更新部署流程) 完成对应提交的 CI/GHCR、NAS 备份迁移与验收，并报告实际耗时。沿用并行 CI，不在发布前重复完整测试和构建，不额外运行分支测速；必要例外见手册。需要更新 NAS 才生效时在交接中提醒。保留原因：本地、正式镜像、NAS 和独立插件是不同交付物，统一发布入口能保留必要检查并避免重复等待。
-- 完成后重启本地开发服务，固定 Web 3000 端口，通过命令行确认 Web 和 API 就绪（默认不打开浏览器），保持服务运行；先核对进程归属，不停止无关进程或自动换端口。保留原因：这是现有本地验收约定，可确保用户测试的是本次代码；不构成 NAS 发布授权。
+# Project maintenance rules
 
-- 用户说“进行一轮文档整理”或“代码审查（大扫除）”时，扫描全部项目文件，核实并清除死代码和重复逻辑；只做清理、不加功能。删除当前文档中实现已不存在的规则，保留的每条规则说明原因。保留原因：这是用户对全仓大扫除的长期定义，防止后续整理被缩成仅改 Markdown 或借机扩展功能。
+**English** | **[简体中文](AGENTS.zh-CN.md)**
+
+- Documentation must be bilingual, with English as the primary/default language and a corresponding Chinese version. Keep both languages synchronized; paired files must link to each other prominently at the top, and bilingual content in one file must put English first. Reason: the user presents this repository as a job portfolio while retaining access for Chinese readers.
+- Start with Git status and the [AI handoff guide](docs/engineering/AI_HANDOFF.md), and preserve changes from other tasks. Reason: the workspace may contain uncommitted user work.
+- Before changing the frontend, read the [UI design guidelines](docs/engineering/UI_DESIGN.md). Assess task order, consistency between peer modules, semantic colors, mobile reading, less-used pages, and data states. Reason: future AI maintainers must continue the project's established design judgment and avoid inconsistent local fixes.
+- Update related documentation, `CHANGELOG.md`, and the semantic version with every change. Root `VERSION` is the sole version source; synchronization locations are listed in the [development guide](docs/engineering/DEVELOPMENT.md). Reason: `scripts/check-version.mjs` and builds require consistent versions, and documentation ships with the source.
+- Before finishing, run `pnpm version:check`, `git diff --check`, and validation proportionate to the change. Check local links after documentation changes. Reason: types, behavior, versions, and documentation entry points need independent verification.
+- By default, modify and validate locally. When the user explicitly requests `更新部署` (update deployment), complete the [default deployment workflow](docs/operations/NAS_DEPLOYMENT.md#default-update-deployment-process) for the corresponding commit, including CI/GHCR, NAS backup, migration, acceptance checks, and actual elapsed time. Keep parallel CI; do not repeat full tests/builds before release or add branch benchmarks. See the manual for necessary exceptions. Mention when a NAS update is needed for changes to take effect. Reason: local source, release images, NAS, and independent plugins are separate deliverables; one release entry point preserves checks without duplicate waits.
+- After changes, restart this project's local development services, keep Web on port 3000, confirm Web/API readiness through the command line, and leave services running. Check process ownership first; do not stop unrelated processes or switch ports automatically. Do not use a browser unless the user explicitly requests it for the task. Reason: this local acceptance convention ensures the user tests the current code; it does not authorize a NAS release.
+- When the user requests `进行一轮文档整理` (a documentation cleanup) or `代码审查（大扫除）` (a repository cleanup review), scan all project files, verify and remove dead code and duplicate logic, and add no features. Remove documentation rules whose implementations no longer exist, and explain the reason for each retained rule. Reason: this standing definition prevents repository cleanup from being reduced to Markdown edits or expanded into feature work.

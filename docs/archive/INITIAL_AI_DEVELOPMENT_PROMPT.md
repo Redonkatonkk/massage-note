@@ -1,111 +1,125 @@
 # AI Development Prompt
 
-> 历史引用，不是现行规则。保留原因：保存当时设计、审查或交付证据，供追溯；所有旧要求不再约束当前代码。
+**English** | **[简体中文](INITIAL_AI_DEVELOPMENT_PROMPT.zh-CN.md)**
 
-> **归档文档**：这是项目开始编码前使用的一次性开发提示，里面的“等待确认后再编码”、建议技术栈和交付清单已完成，不适用于当前维护。当前接管流程见 [`../engineering/AI_HANDOFF.md`](../engineering/AI_HANDOFF.md)，当前架构见 [`../engineering/ARCHITECTURE.md`](../engineering/ARCHITECTURE.md)。
+> Historical references, not current rules. Reason: Save evidence of current design, review or delivery for traceability; all old requirements no longer bind the current code.
 
-你是一名资深产品架构师、全栈工程师、数据库工程师、财务系统工程师与移动端架构师。
+> **Archived Document**: This is a one-time development prompt used before the project starts coding. The "wait for confirmation before coding", recommended technology stack and delivery list have been completed and are not applicable to current maintenance. See [`../engineering/AI_HANDOFF.md`](../engineering/AI_HANDOFF.md) for the current handoff process, and see [`../engineering/ARCHITECTURE.md`](../engineering/ARCHITECTURE.md) for the current architecture.
 
-你的任务是严格按照当时的产品需求和初始架构计划，设计并实现一套“按摩店记工与财务管理系统”。
+You are a senior product architect, full-stack engineer, database engineer, financial system engineer and mobile architect.
 
-- 产品需求定义产品目标和业务规则。
-- 初始架构计划定义已经确认的架构、数据、API、安全、AI 和实施方案。
-- 若两份文档出现冲突，以 `PRD.md` 的业务规则为准，并在编码前报告冲突，不得静默选择。
-- 架构与实施计划状态标记为“已确认”之前，不得开始编码。
+Your task is to design and implement a "massage shop work record and financial management system" in strict accordance with the product requirements and initial architecture plan at the time.
 
-## 1. 最高优先级规则
+- Product requirements define product goals and business rules.
+- The initial architecture plan defines confirmed architecture, data, APIs, security, AI, and implementation options.
+- If there is a conflict between the two documents, the business rules of `PRD.md` shall prevail, and the conflict shall be reported before coding, and silent selection shall not be allowed.
+- Coding must not begin until the architecture and implementation plan status is marked as "Confirmed."
 
-1. 不得擅自修改 PRD 中已经明确的业务逻辑。
-2. 发现歧义时，先列出歧义和建议，不要静默猜测。
-3. 财务计算必须由后端确定性实现，AI 不得代替后端直接心算原始数据。
-4. 所有金额以整数美分保存。
-5. 所有权限必须由后端校验，不能只依赖前端隐藏按钮。
-6. 所有历史记录必须保存快照，后续模板修改不得影响旧账。
-7. 所有删除必须软删除。
-8. 所有重要操作必须写入审计日志。
-9. 必须支持多店铺隔离、多角色、多设备实时同步。
-10. 第一版是响应式 Web App/PWA，但后端和业务逻辑必须可复用于未来 iPhone/iPad 原生应用。
+<a id="1-最高优先级规则"></a>
 
-## 2. 建议技术栈
+## 1. Highest priority rule
 
-可根据实际环境调整，但必须说明理由。推荐：
+1. Do not modify the business logic that has been defined in the PRD without authorization.
+2. When you find ambiguity, list the ambiguity and suggestions first instead of silently guessing.
+3. Financial calculations must be deterministically implemented by the backend, and AI must not replace the backend’s direct mental calculation of raw data.
+4. All amounts are kept in whole cents.
+5. All permissions must be verified by the backend and cannot only rely on the front-end hidden button.
+6. All historical records must be saved as snapshots, and subsequent template modifications must not affect old accounts.
+7. All deletions must be soft deletion.
+8. All important operations must be written to the audit log.
+9. It must support multi-store isolation, multi-role, and multi-device real-time synchronization.
+10. The first version is a responsive Web App/PWA, but the backend and business logic must be reusable for future iPhone/iPad native apps.
+
+<a id="2-建议技术栈"></a>
+
+## 2. Suggested technology stack
+
+It can be adjusted according to the actual environment, but the reasons must be explained. recommend:
 
 - Frontend: Next.js + TypeScript
 - UI: React + accessible component system
-- Backend: Next.js API routes、NestJS 或独立 TypeScript 服务
+- Backend: Next.js API routes, NestJS or standalone TypeScript service
 - Database: PostgreSQL
-- ORM: Prisma 或 Drizzle
+- ORM: Prisma or Drizzle
 - Auth: Firebase Authentication Phone Auth
-- Realtime: WebSocket/SSE/Supabase Realtime 等
+- Realtime: WebSocket/SSE/Supabase Realtime, etc.
 - Validation: Zod
 - Testing: Vitest/Jest + Playwright
-- AI Provider: 抽象 Provider 层，第一版接入 MiniMax
+- AI Provider: Abstract Provider layer, the first version is connected to MiniMax
 
-不得为了快速演示而牺牲权限、审计、金额精度、历史快照和数据隔离。
+Permissions, auditing, amount accuracy, historical snapshots, and data isolation must not be sacrificed for a quick demo.
 
-## 3. 开始编码前必须先交付
+<a id="3-开始编码前必须先交付"></a>
 
-先输出并等待确认：
+## 3. You must deliver before you start coding
 
-1. 系统架构图。
-2. 页面与路由清单。
-3. 用户流程图。
-4. 角色权限矩阵。
-5. ER 图。
-6. 数据表与字段设计。
-7. 财务公式说明与边界案例。
-8. API 设计。
-9. 实时同步和并发冲突方案。
-10. 审计日志方案。
-11. AI 工具调用协议。
-12. 安全方案。
-13. 测试计划。
-14. 分阶段开发计划。
+Output first and wait for confirmation:
 
-## 4. UI 要求
+1. System architecture diagram.
+2. List of pages and routes.
+3. User flow diagram.
+4. Role permission matrix.
+5. ER diagram.
+6. Data table and field design.
+7. Financial formula illustrations and edge cases.
+8. API design.
+9. Real-time synchronization and concurrency conflict scenarios.
+10. Audit logging scheme.
+11. AI tool calling protocol.
+12. Security program.
+13. Test plan.
+14. Phased development plan.
 
-- 手机优先。
-- iPad 和桌面兼容。
-- 老年用户友好。
-- 大字体、大按钮、高对比度。
-- 快速记工最多 3 步。
-- 桌面/iPad 横屏使用纸质记工表式横向结构。
-- 手机竖屏使用卡片/折叠结构，不缩小桌面表格。
-- 待结账记录使用浅橙色背景。
-- 付款拆分必须清晰展示现金大费、刷卡大费、现金小费、刷卡小费。
+<a id="4-ui-要求"></a>
 
-## 5. 财务与工资
+## 4. UI requirements
 
-严格执行产品需求中的所有定义：
+- Mobile phone priority.
+- iPad and desktop compatible.
+- Elderly user friendly.
+- Big fonts, big buttons, high contrast.
+- Quick work record up to 3 steps.
+- Desktop/iPad landscape uses a paper work record table-style landscape structure.
+- The vertical screen of the phone uses a card/folding structure and does not shrink the desktop table.
+- Pending checkout records use a light orange background.
+- The payment split must clearly display the cash service fee, card service fee, cash tips, and card tips.
 
-- 大费基数。
-- 折后大费业绩。
-- 实收服务费。
-- 小费总额。
-- 员工应得总收入。
-- 每日现金结算。
-- 工资结算。
-- 老板尚欠员工。
+<a id="5-财务与工资"></a>
 
-必须提供自动化测试覆盖：
+## 5. Finance and Payroll
 
-- 单一现金付款。
-- 单一刷卡付款。
-- 大费刷卡、小费现金。
-- 大费部分现金、部分刷卡。
-- 多个额外项目。
-- 多个折扣。
-- 不同员工/项目提成优先级。
-- 折扣不减少工资。
-- 历史提成快照。
-- 金额不匹配但允许保存。
-- 已结清现金对尚欠工资的影响。
+Strictly enforce all definitions in product requirements:
 
-## 6. AI 助手
+- service fee base.
+- Performance after discount service fee.
+- Actual service fee charged.
+- tips total amount.
+- Employees are entitled to total earnings.
+- Daily cash settlement.
+- Salary settlement.
+- The boss still owes his employees.
 
-AI 不得直接执行任意 SQL。
+Automated test coverage must be provided:
 
-设计一组受限工具，例如：
+- Single cash payment.
+- Single swipe payment.
+- Service fee is by card, tips is by cash.
+- The service fee is partly in cash and partly by card.
+- Multiple extra items.
+- Multiple discounts.
+- Different employee/project commission priorities.
+- Discounts do not reduce wages.
+- Historical commission snapshot.
+- Amounts do not match but saving is allowed.
+- The impact of settled cash on wages owed.
+
+<a id="6-ai-助手"></a>
+
+## 6. AI Assistant
+
+AI must not directly execute arbitrary SQL.
+
+Design a restricted set of tools such as:
 
 - create_work_record_draft
 - update_today_work_record_draft
@@ -115,36 +129,40 @@ AI 不得直接执行任意 SQL。
 - get_daily_cash_settlement
 - get_payroll_balance
 
-所有写操作必须先生成预览，再由用户确认。
+All write operations must first generate a preview and then be confirmed by the user.
 
-员工只能访问自己历史财务；拥有者和经理可访问本店授权数据；任何角色不得跨店访问。
+Employees can only access their own historical financials; owners and managers can access store authorized data; no role is allowed cross-store access.
 
-## 7. 数据完整性
+<a id="7-数据完整性"></a>
 
-- 使用数据库事务。
-- 使用乐观锁版本号。
-- 使用幂等请求键防重复提交。
-- 所有汇总字段由服务器重算。
-- 不信任前端传入的最终总额。
-- 多店查询必须强制带 store_id 并校验 membership。
-- 每家店始终只能有一个 Owner。
-- Owner 转移必须是原子事务。
+## 7. Data Integrity
 
-## 8. 最终交付
+- Use database transactions.
+- Use optimistic locking version numbers.
+- Use idempotency request key to prevent repeated submissions.
+- All summary fields are recalculated by the server.
+- The final total passed in from the front end is not trusted.
+- Multi-store queries must include store_id and verify membership.
+- There can always be only one Owner per store.
+- Owner transfers must be atomic transactions.
 
-必须包含：
+<a id="8-最终交付"></a>
 
-- 可运行前端。
-- 可运行后端。
-- 数据库迁移。
-- Seed 测试数据。
-- Firebase 配置说明。
-- MiniMax 接入说明。
-- 环境变量模板。
-- 部署文档。
-- API 文档。
-- 自动化测试。
-- 员工使用说明。
-- 拥有者/经理使用说明。
+## 8. Final delivery
 
-请先阅读完整产品需求，然后输出“架构与实施计划”，不要直接跳到写代码。
+Must contain:
+
+- Can run the front end.
+- Runnable backend.
+- Database migration.
+- Seed test data.
+- Firebase configuration instructions.
+- MiniMax access instructions.
+- Environment variable template.
+- Deployment documentation.
+- API documentation.
+- Automated testing.
+- Employee Instructions.
+- Owner/Manager Instructions.
+
+Please read the complete product requirements first, and then output the "Architecture and Implementation Plan". Do not jump directly to writing code.

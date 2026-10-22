@@ -1,57 +1,67 @@
-# GitHub → GHCR → 群晖部署
+<a id="github--ghcr--群晖部署"></a>
 
-> 当前版本：`1.32.14` · 镜像：`ghcr.io/redonkatonkk/massage-note`
-> 历史版本变化统一查看 [`CHANGELOG.md`](../../CHANGELOG.md)，不在本手册重复累积。
+# GitHub → GHCR → Synology Deployment
 
-标准发布链路：
+**English** | **[简体中文](NAS_DEPLOYMENT.zh-CN.md)**
+
+> Current version: `1.34.1` · Mirror: `ghcr.io/redonkatonkk/massage-note`
+> Historical version changes can be viewed in a unified manner [`CHANGELOG.md`](../../CHANGELOG.md) and will not be accumulated repeatedly in this manual.
+
+Standard release link:
 
 ```text
-本机提交并 push main
-  ├─ verify：完整检查与测试
-  └─ build-nas-image：生产构建、候选镜像与缓存
-                ↓ 两者均成功
-publish-nas-image：为同一 digest 发布正式标签
+Submit locally and push main
+  ├─ verify：Complete inspection and testing
+  └─ build-nas-image：Production builds, candidate images, and caching
+                ↓ Both are successful
+publish-nas-image：for the same digest Release official label
                 ↓
-备份并校验 → NAS 拉取版本 → 迁移/加固 → 更新 mn → 健康验收
+Back up and verify → NAS Pull version → Migrate/harden → renew mn → Health acceptance
 ```
 
-正常升级使用 GHCR；`scripts/build-nas-image.sh` 只在 GHCR 或 NAS 外网不可用时生成离线 tar。保留原因：GHCR 保存对应提交产物，离线 tar 是网络故障备用路径。
+Normal upgrade uses GHCR; `scripts/build-nas-image.sh` only generates offline tar when GHCR or NAS external network is unavailable. Reason: GHCR saves the corresponding submitted products, and offline tar is a backup path for network failures.
 
-## 发布入口
+<a id="发布入口"></a>
 
-发布授权及工作区保留遵循 [维护规则](../../AGENTS.md)，本次证据逐项核对 [发布检查](RELEASE_CHECKLIST.md)，具体执行按下文顺序。保留原因：同一发布政策在多个清单复制会产生不同版本，执行步骤仍需保留以便重复发布。
+## Release entrance
 
-## 默认更新部署流程
+Release authorization and workspace retention follow [Maintenance Rules](../../AGENTS.md). This time the evidence is checked item by item [Release Check](RELEASE_CHECKLIST.md). The specific execution is in the following order. Reason: Copying the same release policy in multiple manifests will produce different versions, and the execution steps still need to be retained for repeated releases.
 
-用户明确要求“更新部署”后，后续 AI 默认按下表连续执行；只要求修改文档、代码或测 CI 时，不据此更新 NAS。保留原因：发布授权与验证范围分别决定是否切换生产环境，已有发布授权不应在 CI 成功后再次停下来等待相同确认。
+<a id="默认更新部署流程"></a>
 
-| 顺序 | 执行与完成依据 |
+## Default update deployment process
+
+After the user explicitly requests "update deployment", subsequent AI will be executed continuously as shown below by default; when the user only requests to modify documents, code or test CI, the NAS will not be updated accordingly. Reason: Release authorization and verification scope respectively determine whether to switch to the production environment. Existing release authorization should not stop again and wait for the same confirmation after CI is successful.
+
+| Sequence | Basis for execution and completion |
 | --- | --- |
-| 1. 确认范围 | 查看 Git 状态、接管指南与 CHANGELOG，保留无关工作；确认本次提交包含当前工作流和 Dockerfile，递增并同步版本。发布分支仍是 `main`。 |
-| 2. 本地预检 | 按下文运行版本、diff、Compose 校验和暂存区秘密扫描；文档有变化时检查本地链接。开发阶段已通过且未受后续改动影响的类型、测试和构建不再全量重跑。 |
-| 3. 提交并 push | 只暂存本次获授权内容，提交并 push `main`，记录完整 SHA；不要用未经核对的 `git add -A`。 |
-| 4. 等待正式 CI | 对该完整 SHA 只保留一个监控进程；`verify` 与 `build-nas-image` 并行，随后 `publish-nas-image` 必须成功。分支实测的绿灯或候选标签不能替代正式发布。 |
-| 5. 核对镜像 | 对正式语义版本做一次匿名 manifest 检查，核对对应 digest 和 `linux/amd64`；不再本机构建或导出 tar。 |
-| 6. 更新 NAS | 运行一次现有 DSM 发布脚本，完成备份及校验、生产配置校验、迁移/加固、实际镜像与原卷核对、容器健康及三个公网 200 检查。只有全部完成才算上线。 |
-| 7. 收尾交接 | 按开发指南重启并保持本项目 Web 3000/API 就绪，默认用命令行/API 验证；报告版本、SHA、CI/NAS 结果、迁移与备份结果及下文规定的耗时。 |
+| 1. Confirm the scope | Check the Git status, handoff guide and CHANGELOG, keep irrelevant work; confirm that this submission contains the current workflow and Dockerfile, increment and synchronize the version. The release branch is still `main`. |
+| 2. Local preflight | Run version, diff, Compose verification and staging area secret scan as follows; check the local link when the document changes. Types, tests, and builds that have passed the development phase and are not affected by subsequent changes will no longer be rerun in full. |
+| 3. Submit and push | Only temporarily store the authorized content this time, submit and push `main`, record the complete SHA; do not use unverified `git add -A`. |
+| 4. Waiting for official CI | Only one monitoring process remains for this full SHA; `verify` is in parallel with `build-nas-image`, and subsequently `publish-nas-image` must succeed. A green light or candidate tag for branch testing is not a substitute for an official release. |
+| 5. Check the image | Do an anonymous manifest check for the official semantic version, check the corresponding digest and `linux/amd64`; no longer build or export tar locally. |
+| 6. Update NAS | Run the existing DSM release script once to complete backup and verification, production configuration verification, migration/reinforcement, verification of actual image and original volume, container health, and three public network 200 checks. Only when everything is completed will it be considered online. |
+| 7. Closing handover | Restart according to the development guide and keep the project Web 3000/API ready. By default, command line/API verification is used; report version, SHA, CI/NAS results, migration and backup results, and the time stipulated below. |
 
-此顺序统一已有步骤，不新增一轮完整本地测试、镜像构建、分支测速或浏览器验收。CI 失败才针对失败项复现；新增迁移须在生产数据副本演练；Dockerfile/依赖打包变化须补充相关镜像验证；GHCR 或 NAS 外网不可用才走离线备用。保留原因：速度来自取消重复工作，备份、迁移、权限加固和健康检查始终保留。
+This sequence unifies the existing steps and does not add a new round of complete local testing, image building, branch benchmarking or browser acceptance. Only when CI fails can the failed items be reproduced; new migrations must be drilled on a copy of the production data; Dockerfile/dependency packaging changes must be supplemented with relevant image verification; only go offline for backup if GHCR or NAS external network is unavailable. Reason: Speed comes from deduplicating work, and backups, migrations, permission hardening and health checks are always retained.
 
-DSM 脚本成功且验收输出完整时，不重复执行 probe 或公网请求；失败、输出缺失或状态异常时才单独诊断。脚本未随仓库分发，新接手机器上若不存在，按本手册相同步骤执行并保留完整证据。保留原因：本机辅助工具不是每台电脑都有，但其缺失不能成为跳过生产检查的理由。
+When the DSM script is successful and the acceptance output is complete, the probe or public network request will not be executed repeatedly; if it fails, the output is missing, or the status is abnormal, it will be diagnosed separately. The script is not distributed with the repository. If it does not exist on the newly acquired machine, follow the same steps in this manual and retain complete evidence. Reason: Native accessibility tools are not available on every computer, but their absence is not a reason to skip production inspections.
 
-## 秘密边界
+<a id="秘密边界"></a>
 
-GitHub 仓库和 GHCR 可以公开，生产秘密不能进入二者。保留原因：公开构建无需服务端秘密，泄露后仅删除文件不能撤销凭据。
+## Secret border
 
-| 配置 | 是否秘密 | 保存位置 | 进入镜像构建 |
+The GitHub repository and GHCR can be made public, production secrets cannot enter either. Reason: Public builds do not require server-side secrets, and credentials cannot be revoked by simply deleting files after a leak.
+
+| Configuration | Secret or not | Save location | Enter image building |
 | --- | --- | --- | --- |
-| `NEXT_PUBLIC_FIREBASE_*` 四项 | 否，浏览器可见 | GitHub Repository Variables、本机 `.env` | 是 |
-| Firebase Admin 私钥/邮箱 | 是 | 本机 `.env`、NAS 环境 | 否 |
-| MiniMax API key | 是 | 本机 `.env`、NAS 环境 | 否 |
-| PostgreSQL/Redis 密码 | 是 | NAS 环境 | 否 |
-| DSM 凭据、GitHub token | 是 | 系统钥匙串 | 否 |
+| `NEXT_PUBLIC_FIREBASE_*` four items | No, visible to the browser | GitHub Repository Variables, native `.env` | Yes |
+| Firebase Admin private key/email | Yes | Local `.env`, NAS environment | No |
+| MiniMax API key | Yes | Native `.env`, NAS environment | No |
+| PostgreSQL/Redis password | Yes | NAS environment | No |
+| DSM credentials, GitHub token | Yes | System keychain | No |
 
-根目录 `.env` 与 `.local-ai/` 必须被 Git 忽略，敏感本地文件权限应为 `0600`。不要把真实值写进 Markdown、脚本、Compose 示例、Actions 日志、Issue 或聊天回复。保留原因：这些文件含本机和生产凭据，不能成为公开源码或日志。
+Root directories `.env` and `.local-ai/` must be ignored by Git, and sensitive local file permissions should be `0600`. Don't write real values into Markdown, scripts, Compose samples, Actions logs, Issues, or chat responses. Reason: These files contain local and production credentials and cannot be made public source or logs.
 
 ```bash
 git check-ignore -v .env .local-ai/DEPLOYMENT_SECRETS.md
@@ -59,20 +69,22 @@ stat -f '%N mode=%Lp' .env .local-ai/DEPLOYMENT_SECRETS.md
 git status --short
 ```
 
-## 一次性 GitHub 设置
+<a id="一次性-github-设置"></a>
+
+## One-time GitHub setup
 
 ### Repository Variables
 
-在 `Settings → Secrets and variables → Actions → Variables` 配置：
+Configure in `Settings → Secrets and variables → Actions → Variables`:
 
 - `NEXT_PUBLIC_FIREBASE_API_KEY`
 - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
 - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
 - `NEXT_PUBLIC_FIREBASE_APP_ID`
 
-这些是浏览器公开配置。不要把 Firebase Admin、MiniMax、数据库或 DSM 凭据放入 GitHub 构建变量。保留原因：浏览器配置本来公开，Admin 与数据库凭据没有构建期用途。
+These are browser public configurations. Don't put Firebase Admin, MiniMax, database, or DSM credentials into GitHub build variables. Reason: The browser configuration is inherently public, and the Admin and database credentials have no build-time use.
 
-CLI 可以从标准输入逐项读取而不把值写进命令行：
+The CLI can read items from standard input without writing the values to the command line:
 
 ```bash
 gh variable set NEXT_PUBLIC_FIREBASE_API_KEY --repo Redonkatonkk/massage-note
@@ -81,11 +93,13 @@ gh variable set NEXT_PUBLIC_FIREBASE_PROJECT_ID --repo Redonkatonkk/massage-note
 gh variable set NEXT_PUBLIC_FIREBASE_APP_ID --repo Redonkatonkk/massage-note
 ```
 
-### GHCR 可见性
+<a id="ghcr-可见性"></a>
 
-仓库公开不等于 Package 公开。首次工作流发布后，在 `Packages → massage-note → Package settings → Change visibility` 把 Package 设为 Public。GitHub REST API 不支持修改 Package visibility，不要尝试用 `PATCH /user/packages/...` 绕过网页确认。保留原因：Package 有独立访问控制，匿名 NAS 拉取需要公开可读。
+### GHCR Visibility
 
-匿名验证使用隔离的 Docker 配置，避免本机登录造成假阳性：
+Repository publicity is not equal to Package publicity. After publishing the workflow for the first time, set Package to Public in `Packages → massage-note → Package settings → Change visibility`. GitHub REST API does not support modifying Package visibility. Do not try to use `PATCH /user/packages/...` to bypass web page confirmation. Reason: Packages have independent access control, and anonymous NAS pulls need to be publicly readable.
+
+Anonymous verification uses an isolated Docker configuration to avoid false positives caused by local login:
 
 ```bash
 release_version=$(tr -d '[:space:]' < VERSION)
@@ -95,13 +109,17 @@ DOCKER_CONFIG="$task_docker_config" \
 rmdir "$task_docker_config"
 ```
 
-如果失败，先修正 Package 可见性；不要把个人访问令牌写入 NAS Compose。保留原因：匿名权限应由 Package 设置解决，NAS 无需长期个人令牌。
+If that fails, fix Package visibility first; do not write personal access tokens to NAS Compose. Reason: Anonymous permissions should be addressed by Package settings, NAS does not require long-term personal tokens.
 
-## 每次发布到 GitHub
+<a id="每次发布到-github"></a>
 
-### 本地检查
+## Every time you publish to GitHub
 
-版本标签是不可变产物。任何准备发布的变化都先递增版本并同步版本文件：保留原因：升级与回滚需定位不可变版本，不能覆盖旧标签。
+<a id="本地检查"></a>
+
+### Local check
+
+Version labels are immutable artifacts. Any changes to be released must first increment the version and synchronize the version file: Reason: Upgrades and rollbacks need to target the immutable version and cannot overwrite old tags.
 
 ```bash
 pnpm version:check
@@ -111,11 +129,11 @@ git status --short
 docker compose --env-file .env.nas.example -f docker-compose.nas.yml config --quiet
 ```
 
-普通更新部署只做以上预检与暂存区秘密扫描，完整类型检查、单元/集成测试和生产构建由 CI 承担。开发阶段仍按改动做必要验证；新增迁移仍须在生产数据副本演练。CI 失败时针对失败项复现；离线发布或 Dockerfile/依赖打包逻辑变化时才额外构建本地镜像。保留原因：对应提交 CI 承担完整验证，迁移和打包变化另需相关本地证据。
+Ordinary update deployment only performs the above pre-check and secret scanning of the staging area, and complete type checking, unit/integration testing and production builds are undertaken by CI. During the development phase, necessary verification is still required for changes; new migrations must still be practiced on the production data copy. Reproduce the failed items when CI fails; additionally build local images when publishing offline or when Dockerfile/dependency packaging logic changes. Reason: Full verification is required for submission to CI, and relevant local evidence is required for migration and packaging changes.
 
-精简流程：预检与提交 → 等待对应完整 SHA 的 CI/GHCR → 一次匿名 Manifest 校验 → 一次 DSM 发布脚本 → 本机收尾。`.local-ai/dsm-release-1.1.1.mjs` 已负责备份验证、生产 Compose 校验、迁移/加固、容器与卷校验、三个公网 200 检查、临时容器清理和退出会话；成功输出完整时不再重复运行 probe 或公网请求。失败、输出缺失或状态异常时才独立诊断。备份、迁移和健康检查始终保留。保留原因：现有本地发布脚本已完成这些检查，成功记录完整时不必重复执行。
+Streamlined process: pre-checking and submission → waiting for CI/GHCR corresponding to the complete SHA → one anonymous manifest verification → one DSM release script → native closing. `.local-ai/dsm-release-1.1.1.mjs` has been responsible for backup verification, production Compose verification, migration/reinforcement, container and volume verification, three public network 200 checks, temporary container cleanup and exiting the session; no more probe or public network requests will be run again when the successful output is complete. Independent diagnosis is made only when there is failure, missing output or abnormal status. Backups, migrations, and health checks are always retained. Reason: The existing local publishing script already completes these checks and does not need to be repeated when successful logging is complete.
 
-暂存后检查文件与秘密扫描，再提交：
+After temporary storage, check the file and secret scan, and then submit:
 
 ```bash
 git diff --cached --name-only
@@ -125,24 +143,26 @@ git commit -m "描述本次变化"
 git push origin main
 ```
 
-不要未经检查使用 `git add -A`，也不要提交 `.env`、`.local-ai/`、`artifacts/` 或用户的临时文件。保留原因：暂存区应只含获授权发布内容，不应夹带其他任务与秘密。
+Don't use `git add -A` without checking, and don't commit `.env`, `.local-ai/`, `artifacts/`, or user's temporary files. Reason: The staging area should only contain authorized content and should not contain other tasks and secrets.
 
-### 等待对应 CI
+<a id="等待对应-ci"></a>
 
-`.github/workflows/ci.yml` 在 `main` 的非 PR 事件中并行运行 `verify` 与 `build-nas-image`；只有两者都成功才运行 `publish-nas-image`，把候选镜像的同一 digest 标为语义版本、`latest` 和提交标签，不重新构建。已有语义版本若指向其他 digest 则拒绝覆盖。保留原因：缩短串行等待，同时保持完整验证、不可变版本和产物追溯。
+### Waiting for corresponding CI
 
-镜像构建承担这类运行的生产构建检查，`verify` 不再重复构建；普通分支 push 与 PR 继续在 `verify` 内执行生产构建。依赖先按锁文件和 workspace 安装配置 `pnpm fetch`，再离线安装；GHCR `buildcache-main` 保存中间层，手动分支实测只写 `buildcache-benchmark`。保留原因：包版本递增不应重复下载依赖，基准测试不能覆盖正式构建缓存。方案依据 [pnpm fetch](https://pnpm.io/cli/fetch) 与 [Docker registry cache](https://docs.docker.com/build/cache/backends/registry/)。
+On non-PR `main` events, `.github/workflows/ci.yml` runs `verify` and `build-nas-image` in parallel. The build creates a commit-specific candidate image; `publish-nas-image` promotes that same digest to release tags only after both jobs succeed. Branch/PR builds retain production-build verification without publishing release tags.
 
-需要在独立分支实测镜像耗时，可手动运行：
+The image build is responsible for the production build check of this type of run, and `verify` will no longer build again; ordinary branch push and PR will continue to perform production builds within `verify`. Depend on the lock file and workspace installation configuration `pnpm fetch` first, and then install it offline; GHCR `buildcache-main` saves the middle layer, and only writes `buildcache-benchmark` for manual branch testing. Reason: Package version increments should not download dependencies repeatedly, and benchmarks cannot override the official build cache. The solution is based on [pnpm fetch](https://pnpm.io/cli/fetch) and [Docker registry cache](https://docs.docker.com/build/cache/backends/registry/).
+
+You need to measure the image build time on an independent branch. You can run it manually:
 
 ```bash
 gh workflow run ci.yml --repo Redonkatonkk/massage-note \
   --ref <branch> -f build_nas_image=true
 ```
 
-分支实测只生成 `ci-<run_id>-<attempt>` 候选镜像，不生成正式标签，也不更新 NAS；完整验证和镜像构建都会执行。每次运行结束后，`report-timing` 在运行摘要记录阶段耗时；端到端时间以运行创建到完成计，首次新缓存与后续复用应分别记录。保留原因：计时必须包含实际检查与缓存开销，不能把热缓存或分支构建冒充完整生产部署。
+The actual branch test only generates `ci-<run_id>-<attempt>` candidate images, does not generate formal labels, and does not update NAS; complete verification and image building will be performed. After each run, `report-timing` takes time in the run summary recording phase; the end-to-end time is calculated from run creation to completion, and the first new cache and subsequent reuse should be recorded separately. Reason: Timings must include actual checking and caching overhead, and hot caching or branched builds cannot be passed off as full production deployments.
 
-以上手动分支实测仅用于验证流水线修改或排查性能，普通发布直接 push `main`，不额外再测一轮。保留原因：常规发布本身已有完整 CI 和阶段耗时，重复测速会增加等待与 CI 消耗。
+The above manual branch measurement is only used to verify the turnover line modification or troubleshooting performance. For ordinary releases, push `main` directly without additional testing. Reason: Regular release itself already has complete CI and stage time consumption. Repeated speed testing will increase waiting and CI consumption.
 
 ```bash
 release_sha=$(git rev-parse HEAD)
@@ -152,15 +172,15 @@ test -n "$run_id"
 gh run watch "$run_id" --repo Redonkatonkk/massage-note --interval 30 --exit-status
 ```
 
-运行记录尚未出现时隔 15–30 秒重试，必须限定 `main` 并使用完整 SHA，避免选中同一提交的分支测速或因短 SHA 查不到记录。保持单个监控进程，避免重复建立轮询；按阶段变化汇报。保留原因：CI 异步创建运行记录，正式分支与完整 SHA 共同定位本次发布。
+If the running record has not yet appeared, try again after 15–30 seconds. You must limit `main` and use the complete SHA to avoid selecting the branch benchmark of the same submission or failing to find the record due to a short SHA. Maintain a single monitoring process to avoid repeatedly establishing polling; report changes according to stages. Reason: CI creates run records asynchronously, and the official branch is co-located with the full SHA for this release.
 
-成功产物包含：
+Successful products include:
 
-- 语义版本标签：正式部署使用。
-- `latest`：仅用于观察，不固定到生产。
-- `sha-xxxxxxx`：精确关联提交和排错。
+- Semantic version tag: For formal deployment.
+- `latest`: For observation only, not pinned to production.
+- `sha-xxxxxxx`: Accurately associate submission and troubleshooting.
 
-一次确认匿名版本 manifest 与平台（替代前面的存在性示例，不重复执行）：
+Confirm the anonymous version manifest and platform once (replacing the previous existence example and not repeating it):
 
 ```bash
 release_version=$(tr -d '[:space:]' < VERSION)
@@ -169,47 +189,59 @@ DOCKER_CONFIG="$task_docker_config" docker manifest inspect --verbose "ghcr.io/r
 rmdir "$task_docker_config"
 ```
 
-目标平台必须是 `linux/amd64`。保留原因：当前群晖镜像目标为 linux/amd64。
+The target platform must be `linux/amd64`. Reason: The current Synology image target is linux/amd64.
 
-### 发布计时与交接
+<a id="发布计时与交接"></a>
 
-从本地发布预检开始记录时间，完成后区分以下范围，不把并行 job 的耗时相加：
+### Release timing and handover
 
-| 指标 | 计时范围 |
+The time is recorded starting from the local release preflight. After completion, the following ranges are distinguished, and the time consuming of parallel jobs is not added up:
+
+| Indicators | Timing Range |
 | --- | --- |
-| CI 总耗时 | 对应完整 SHA 的运行创建至全部 job 完成，含排队、缓存保存、正式标签发布和计时摘要；各 job 时间另从运行摘要读取。 |
-| NAS 耗时 | DSM 发布脚本或等价操作开始至备份、迁移、应用更新及全部线上验收完成。 |
-| 更新部署总耗时 | 本地发布预检开始至 NAS 验收及本机服务收尾全部完成。 |
+| Total CI time | Corresponding to the creation of the complete SHA operation until all jobs are completed, including queuing, cache saving, official label release and timing summary; each job time is also read from the running summary. |
+| NAS time-consuming | DSM release script or equivalent operations start to completion of backup, migration, application update and all online acceptance. |
+| Total time spent on update deployment | From the start of local release pre-inspection to NAS acceptance and local service closing, all are completed. |
 
-交接同时给出版本、完整 SHA、CI 运行链接、正式标签发布状态、NAS 实际版本、迁移/备份与健康结果。未执行或未测量的阶段明确标记，不填估算值；分支测速必须说明未包含正式标签发布和 NAS 更新，并区分首次缓存与缓存复用。保留原因：实测范围必须可追溯，单次 CI 成绩不是整套发布耗时或未来耗时承诺。
+The handover also gives the version, full SHA, CI running link, official label release status, NAS actual version, migration/backup and health results. Stages that have not been executed or measured are clearly marked and do not fill in estimated values; branch speed measurement must indicate that formal label release and NAS updates are not included, and distinguish between first cache and cache reuse. Reason: The actual measurement scope must be traceable, and a single CI result is not a complete release time-consuming or future time-consuming commitment.
 
-## 第一次创建 NAS 项目
+<a id="第一次创建-nas-项目"></a>
 
-1. 在 NAS 的受控目录保存 `docker-compose.nas.yml` 和只存在 NAS 的 `.env`。保留原因：生产配置只保存于受控主机，不来自公开仓库的真实值。
-2. 以 `.env.nas.example` 为模板，填写随机且互不相同的 PostgreSQL、应用账号和 Redis 密码，再填运行时 Firebase/MiniMax 秘密。保留原因：模板展示键名而非生产凭据，运行环境负责服务端秘密。
-3. `MASSAGE_NOTE_IMAGE_TAG` 使用已验证的语义版本；`APP_HTTP_PORT` 默认可设为 `3100`，`WEB_ORIGIN` 填真实 HTTPS Origin。保留原因：版本与实际 HTTPS Origin 分别决定运行产物和会话来源。
-4. Container Manager 新建项目，项目名固定为 `mn`。保留原因：项目名决定 Compose 命名卷，现有生产数据绑定 mn。
-5. 反向代理把 HTTPS 入口转发到 NAS 本机的应用端口；数据库、Redis 和内部 API 不对公网开放。保留原因：外层 TLS 和私网端口组成当前安全入口。
+## Creating a NAS project for the first time
 
-不要新建第二个 Compose 项目名，否则会生成另一套 PostgreSQL/Redis 命名卷，看起来像“数据丢失”。已有生产环境必须保留项目 `mn` 及其卷名。保留原因：新项目会另建数据库卷，不能用它替换原业务数据。
+1. Save `docker-compose.nas.yml` in the controlled directory of the NAS and `.env` that only exists on the NAS. Reason: Production configuration is only saved on the managed host, not the actual values from the public repository.
+2. Use `.env.nas.example` as a template, fill in random and different PostgreSQL, application account and Redis password, and then fill in the runtime Firebase/MiniMax secret. Reason: Templates display key names instead of production credentials, and the runtime environment is responsible for server-side secrets.
+3. `MASSAGE_NOTE_IMAGE_TAG` uses the verified semantic version; `APP_HTTP_PORT` can be set to `3100` by default, and `WEB_ORIGIN` fills in the real HTTPS Origin. Reason: The version and actual HTTPS Origin determine the running product and session origin respectively.
+4. Container Manager creates a new project, and the project name is fixed to `mn`. Reason: The project name determines the Compose naming volume and the existing production data binding mn.
+5. The reverse proxy forwards the HTTPS entry to the local application port of the NAS; the database, Redis and internal API are not open to the public network. Reason: Outer layer TLS and private network port constitute the current security entrance.
 
-### 本地 Mac“信息”代理
+Do not create a second Compose project name, otherwise another set of PostgreSQL/Redis named volumes will be generated, which will look like "data loss". Existing production environments must retain the project `mn` and its volume name. Reason: The new project will create a new database volume, which cannot be used to replace the original business data.
 
-NAS 只保存任务并提供 HTTPS API，不能从容器或浏览器直接控制远端 Mac 的“信息”App。本地 Mac 的 LaunchAgent 使用店铺代理令牌主动访问 `https://<production-domain>/api/v1`、领取任务，再通过本机 `/usr/bin/osascript` 调用“信息”；NAS 无需访问 Mac，也不需要为代理开放入站端口。保留原因：Mac 主动领取，不需要 NAS 获得本机 App 控制权限。
+<a id="本地-mac信息代理"></a>
 
-固定 Mac 的安装、完全磁盘访问权限、附件路由和排障步骤统一见 [`MESSAGES_AGENT.md`](MESSAGES_AGENT.md)。部署 NAS 本身不需要安装任何 macOS 组件。保留原因：代理是独立交付物，具体权限规则只在代理手册维护。
+### Native Mac Messages agent
 
-## 每日异地恢复包
+NAS only saves tasks and provides HTTPS API, and cannot directly control the Messages App on the remote Mac from the container or browser. The local Mac's LaunchAgent uses the store proxy token to actively access `https://<production-domain>/api/v1`, receive tasks, and then call Messages through the local `/usr/bin/osascript`; the NAS does not need to access the Mac, nor does it need to open the inbound port for the agent. Reason: The Mac automatically receives it and does not require the NAS to obtain native App control permissions.
 
-独立 Google Drive 目录、纽约午夜任务、加密密钥和 Mac 按需恢复见 [灾难恢复手册](DISASTER_RECOVERY.md)。备份运行器独立安装，不更新 `mn` 应用镜像；只有真实上传、完整读回和隔离恢复通过后才算启用。保留原因：发布前数据库备份不能替代包含配置与离线镜像的每日灾难恢复包，创建脚本也不是线上运行证据。
+Fixed Mac installation, full disk access, attachment routing, and troubleshooting steps are unified in [`MESSAGES_AGENT.md`](MESSAGES_AGENT.md). Deploying the NAS itself does not require any macOS components to be installed. Reason: Agents are independent deliverables, and specific permission rules are only maintained in the agent manual.
 
-## 每次升级 NAS
+<a id="每日异地恢复包"></a>
 
-本次版本的功能、迁移和验收重点先查 [`CHANGELOG.md`](../../CHANGELOG.md) 顶部；有数据库迁移时同时核对迁移文件与发布清单。
+## Daily off-site recovery package
 
-### 备份
+See standalone Google Drive directories, New York midnight tasks, encryption keys, and Mac on-demand recovery [Disaster Recovery Manual](DISASTER_RECOVERY.md). The backup runner is installed independently and does not update `mn` Application mirroring; it will be enabled only after real upload, complete readback and isolation recovery pass. Reason: Pre-launch database backups are not a substitute for a daily disaster recovery package that includes configuration and offline images, nor are creation scripts proof of availability.
 
-升级前导出 PostgreSQL，并验证文件非空且 gzip 完整。不得删除或重建生产 PostgreSQL 卷。保留原因：迁移可能修改数据，回滚镜像不能替代可用备份。
+<a id="每次升级-nas"></a>
+
+## Upgrade your NAS every time
+
+The functions, migration and acceptance of this version focus on checking the top of [`CHANGELOG.md`](../../CHANGELOG.md) first; when there is database migration, check the migration file and release list at the same time.
+
+<a id="备份"></a>
+
+### Backup
+
+Export PostgreSQL before upgrading and verify that the file is not empty and gzip is complete. Production PostgreSQL volumes must not be deleted or rebuilt. Reason: Migration may modify data, and rollback images cannot replace available backups.
 
 ```bash
 cd /volume1/docker/massage-note-v2
@@ -219,19 +251,21 @@ gzip -t backup-before-upgrade.sql.gz
 sha256sum backup-before-upgrade.sql.gz > backup-before-upgrade.sql.gz.sha256
 ```
 
-通过 DSM Task Scheduler 远程执行备份时，使用一次性“用户定义的脚本”任务，并以 `root` 运行：
+When performing backups remotely via DSM Task Scheduler, use a one-time "user-defined script" task and run as `root`:
 
-1. 任务脚本依次执行 `pg_dump`、非空检查、`gzip -t` 和 SHA-256 生成。保留原因：非空、压缩完整性与校验和分别提供备份证据。
-2. 手动运行后读取任务历史，只有 `exit_type=normal` 且 `exit_code=0` 才算成功。保留原因：任务请求成功不代表 pg_dump 已经执行完成。
-3. 删除一次性任务，但保留 `.sql.gz` 和 `.sha256` 文件。保留原因：临时远程执行权限应清理，恢复产物仍需保留。
+1. The task script sequentially performs `pg_dump`, non-null check, `gzip -t` and SHA-256 generation. Reason: Non-empty, compression integrity and checksum respectively provide backup evidence.
+2. Read the task history after manual operation. Only `exit_type=normal` and `exit_code=0` will be considered successful. Reason: The success of the task request does not mean that pg_dump has been executed.
+3. Remove the one-time tasks but keep the `.sql.gz` and `.sha256` files. Reason: Temporary remote execution permissions should be cleared and the recovery product still needs to be retained.
 
-管理员账号拥有最高权限并不代表任意 API 会话都能创建 root 任务。DSM 7 对管理员从公网新设备登录可能触发 Adaptive MFA：普通 API 登录、项目查询和 `PasswordConfirm` 都可能成功，而 root Task Scheduler 仍返回 `105`。不要关闭安全保护或跳过备份；先在同一台部署电脑的 DSM 页面完成二次验证/设备信任，再重试一次性任务。若仍返回 `105`，停止发布并人工检查 DSM 的登录保护与任务计划权限。保留原因：现有 DSM 登录保护影响任务权限，不能因备份失败绕过保护。
+Just because the administrator account has the highest permissions does not mean that any API session can create root tasks. DSM 7 may trigger Adaptive MFA for administrators logging in from a new device on the public network: normal API login, project query, and `PasswordConfirm` may all succeed, but the root Task Scheduler still returns `105`. Do not turn off security or skip backups; complete 2-step verification/device trust on the same deployment computer's DSM page before retrying the one-time task. If it still returns `105`, stop publishing and manually check DSM's login protection and task scheduling permissions. Reason: Existing DSM login protection affects task permissions and protection cannot be bypassed due to backup failure.
 
-生产还应按 [`OPERATIONS.md`](OPERATIONS.md) 定期执行加密逻辑备份和独立恢复演练；临时升级备份不能代替恢复演练。保留原因：升级前快照不证明独立恢复能力。
+Production should also regularly perform encrypted logical backups and independent recovery drills according to [`OPERATIONS.md`](OPERATIONS.md); temporary upgrade backups cannot replace recovery drills. Reason: Pre-upgrade snapshots do not demonstrate independent recovery capabilities.
 
-### 拉取与更新
+<a id="拉取与更新"></a>
 
-把 NAS `.env` 的 `MASSAGE_NOTE_IMAGE_TAG` 改为已经验证存在的版本。`app`、`migrate`、`harden` 必须引用同一个标签：保留原因：app 与迁移/加固须运行同版代码和数据库结构。
+### Pull and update
+
+Put NAS `.env` of `MASSAGE_NOTE_IMAGE_TAG` Change to a version that has been verified to exist.`app`, `migrate`, `harden` Must reference the same tag: Reason: app and migration/reinforcement must run the same version of code and database structure.
 
 ```bash
 cd /volume1/docker/massage-note-v2
@@ -240,22 +274,24 @@ docker compose --env-file .env -f docker-compose.nas.yml up -d --remove-orphans
 docker compose --env-file .env -f docker-compose.nas.yml ps
 ```
 
-Container Manager UI 的等价操作是打开 `mn` → 编辑 Compose/环境 → 更新版本标签 → 构建/启动。不要选择“删除项目并删除数据”。保留原因：删除项目和数据会破坏已有生产卷，更新只替换应用。
+The equivalent operation for the Container Manager UI is to open `mn` → Edit Compose/Environment → Update Version Tag → Build/Launch. Do not select "Delete items and delete data". Reason: Deleting projects and data will destroy existing production volumes, updates only replace applications.
 
-若通过 DSM API 自动更新：
+If updating automatically via DSM API:
 
-- 每次按项目名 `mn` 查询当前 ID，不永久记录临时 UUID。保留原因：临时 ID 可能变化，固定项目名才是可重复定位入口。
-- 当前 Compose 响应包含生产秘密，只能写入权限 `0600` 的临时文件，禁止完整输出。保留原因：完整响应包含环境秘密，临时保存也须限制权限。
-- 只替换应用镜像标签，不用仓库示例覆盖生产密码、域名、卷或环境。保留原因：示例配置不能覆盖真实域名、凭据及原卷。
-- `Project.update` 可能只保存 Compose，不会自动替换正在运行的容器；update 成功后必须调用项目 build，并等待 build stream 到明确成功或失败。保留原因：保存配置不代表运行容器已被替换，build stream 才确认执行结果。
-- Compose 文本显示目标标签不等于部署完成；从项目容器详情读取 `Config.Image`，确认 `app`、`migrate`、`harden` 的实际镜像均为目标版本。保留原因：运行容器的 Config.Image 才证明实际使用的产物。
-- 无论结果如何都退出 API 会话并清理临时文件。保留原因：会话和含秘密临时文件不应留在部署结束后。
+- Each time the current ID is queried according to the project name `mn`, the temporary UUID is not permanently recorded. Reason: The temporary ID may change, and the fixed project name is the repositionable entry.
+- The current Compose response contains production secrets and can only write to temporary files with permissions `0600`, disabling full output. Reason: The complete response contains the environment secret, and temporary storage also requires restricted permissions.
+- Only replace the application image tag, do not overwrite production passwords, domains, volumes or environments with repository examples. Reason: The sample configuration cannot cover the real domain name, credentials, and original volume.
+- `Project.update` may only save Compose and will not automatically replace the running container; after the update is successful, you must call the project build and wait for the build stream to clearly succeed or fail. Reason: Saving the configuration does not mean that the running container has been replaced, and the execution result is confirmed by the build stream.
+- The Compose text shows that the target label does not mean that the deployment is completed; read `Config.Image` from the project container details and confirm that the actual images of `app`, `migrate`, and `harden` are all target versions. Reason: Running the Config.Image of the container proves the actual product used.
+- Regardless of the result, exit the API session and clean up temporary files. Reason: Sessions and temporary files containing secrets should not be left behind after deployment ends.
 
-诊断输出使用字段白名单，只允许输出项目/服务名、镜像标签、状态、健康状态、退出码和环境变量键名。生产 Compose 的 `environment`、`command`、healthcheck、URL 和 API 异常响应都可能携带秘密；禁止输出完整 Compose 后再依赖正则遮盖。临时 Compose 与响应文件权限设为 `0600`，完成后立即删除，剪贴板中的凭据也要清空。保留原因：错误对象和完整配置可能携带秘密，事后遮盖不能保证不泄露。
+Diagnostic output uses a field whitelist that only allows output of project/service names, image labels, status, health status, exit codes, and environment variable key names. The `environment`, `command`, healthcheck, URL and API exception response of the produced Compose may carry secrets; it is forbidden to rely on regular masking after outputting the complete Compose. Temporarily set Compose and response file permissions to `0600`, delete them immediately after completion, and clear the credentials in the clipboard. Reason: Wrong objects and complete configurations may carry secrets, and covering them up afterward cannot guarantee that they will not be leaked.
 
-正常状态：`postgres`、`redis`、`app` 为 running/healthy；`migrate`、`harden` 为 exited (0)。Container Manager 可能把一次性容器正常退出汇总成 WARNING，应以退出码和长期容器健康为准。
+Normal status: `postgres`, `redis`, `app` are running/healthy; `migrate`, `harden` are exited (0). Container Manager may summarize the normal exit of a one-time container into a WARNING, which should be based on the exit code and long-term container health.
 
-### 上线验收
+<a id="上线验收"></a>
+
+### Online acceptance
 
 ```bash
 curl --fail 'https://<production-domain>/'
@@ -263,17 +299,19 @@ curl --fail 'https://<production-domain>/api/v1/health'
 curl --fail 'https://<production-domain>/api/v1/health/ready'
 ```
 
-还要确认：
+Also confirm:
 
-- `app`、`migrate`、`harden` 实际镜像都是目标版本。保留原因：应用与一次性服务均须对应同一目标版本。
-- 原 PostgreSQL/Redis 卷名未变化。保留原因：卷名决定实际数据位置，换卷会丢失业务可见性。
-- 三个长期容器健康，两个一次性任务退出码为 0。保留原因：一次性任务正常退出与长期服务健康使用不同判定。
-- 用户自行完成与本版本变化相关的业务验收；自动部署默认仅做命令行/API 检查，明确要求时才使用浏览器。保留原因：真实业务与外部设备效果由用户核对，默认不做浏览器验证。
-- 浏览器若仍显示旧界面，先强制刷新并清理该站点的旧缓存，不要盲目重跑迁移。保留原因：旧客户端缓存不代表数据库迁移失败。
+- The actual images of `app`, `migrate` and `harden` are all target versions. Reason: Both the application and the one-time service must correspond to the same target version.
+- The original PostgreSQL/Redis volume name remains unchanged. Reason: The volume name determines the actual data location. Changing the volume will lose business visibility.
+- Three long-term containers are healthy, and two one-time tasks have exit codes of 0. Reason: The normal exit of a one-time task is different from the healthy use of long-term services.
+- Users complete the business acceptance related to changes in this version by themselves; automatic deployment only performs command line/API checks by default, and uses the browser only when explicitly required. Reason: The actual business and external device effects are verified by the user, and browser verification is not performed by default.
+- If the browser still displays the old interface, force refresh and clear the old cache of the site first, and do not blindly rerun the migration. Reason: The old client cache does not mean that the database migration failed.
 
-## 回滚
+<a id="回滚"></a>
 
-应用回滚只修改镜像标签，不删除卷：保留原因：回滚应用不能删除持久业务数据。
+## Rollback
+
+Application rollback only modifies the mirror label and does not delete the volume: Reason: Rolling back the application cannot delete persistent business data.
 
 ```bash
 # 手工把 .env 中 MASSAGE_NOTE_IMAGE_TAG 改为已知正常的旧版本后：
@@ -281,9 +319,11 @@ docker compose --env-file .env -f docker-compose.nas.yml pull app migrate harden
 docker compose --env-file .env -f docker-compose.nas.yml up -d --remove-orphans
 ```
 
-若新版本执行了不向后兼容的迁移，不能盲目回滚应用。按迁移设计恢复兼容版本，或先在独立数据库验证备份恢复；禁止删除迁移记录或生产卷。保留原因：不兼容迁移需恢复兼容 schema 或已验证备份，不能删历史掩盖变化。
+If the new version performs backward-incompatible migrations, the application cannot be rolled back blindly. Restore a compatible version according to the migration design, or verify the backup recovery on an independent database first; deleting migration records or production volumes is prohibited. Reason: Incompatible migration requires restoring compatible schema or verified backup, and history cannot be deleted to cover up changes.
 
-## 公开前秘密扫描
+<a id="公开前秘密扫描"></a>
+
+## Secret scan before publication
 
 ```bash
 docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
@@ -294,11 +334,13 @@ git ls-files | rg '(^|/)\.env($|\.)' || true
 git status --short
 ```
 
-如果秘密曾进入 Git 历史，必须先撤销/轮换，再清理历史；只删除当前文件不够。保留原因：已发布秘密必须撤销，当前文件删除不能清掉 Git 历史。
+If the secret has ever entered Git history, it must be undone/rotated first, and then the history is cleared; deleting the current file is not enough. Reason: Published secrets must be revoked, and deleting the current file cannot clear Git history.
 
-## 离线备用
+<a id="离线备用"></a>
 
-只有 GHCR 或 NAS 外网不可用时：保留原因：本地离线构建不是普通发布的额外重复步骤。
+## Offline backup
+
+When only GHCR or NAS external network is unavailable: Reason: Local offline build is not an extra repetitive step for normal release.
 
 ```bash
 pnpm version:check
@@ -307,24 +349,28 @@ release_version=$(tr -d '[:space:]' < VERSION)
 shasum -a 256 -c "artifacts/massage-note-$release_version-linux-amd64.tar.sha256"
 ```
 
-在 Container Manager 的“映像 → 新增 → 从文件新增”导入。恢复网络后回到 GHCR 流程。
+Import in Container Manager's "Image → New → New from File". Return to the GHCR process after restoring the network.
 
-## 常见问题
+<a id="常见问题"></a>
 
-| 现象 | 处理 |
+## FAQ
+
+| Phenomenon | Treatment |
 | --- | --- |
-| 仓库公开但匿名 pull 仍 unauthorized | GHCR Package 仍是 private，单独修改 Package visibility |
-| 空 `DOCKER_CONFIG` 找不到 `buildx` | 匿名检查使用 `docker manifest inspect` |
-| CI 本机通过、GitHub 失败 | 干净 runner 缺生成物或环境；修复 pre-hook/service，不上传 `.env` |
-| Container Manager 显示 WARNING | 先确认 `migrate`/`harden` 是否 exited (0) |
-| root Task Scheduler 返回 105 | 管理员公网新设备会话可能被 Adaptive MFA 限制；先在 DSM 页面完成二次验证/设备信任，再重试，不要跳过备份 |
-| 更新请求返回但线上仍旧版 | `Project.update` 可能只保存 Compose；继续执行 build、等待 stream，并核对容器 `Config.Image` |
-| 上线后像数据丢失 | 先核对项目名与卷名；不要删除任何卷 |
+| repository is public but anonymous pull is still unauthorized | GHCR Package is still private, modify it separately Package visibility |
+| Empty `DOCKER_CONFIG` not found `buildx` | Anonymous inspection using `docker manifest inspect` |
+| CI local machine passed, GitHub failed | Clean runner is missing the generated creature or environment; fix pre-hook/service, do not upload `.env` |
+| Container Manager displays WARNING | First confirm whether `migrate`/`harden` is exited (0) |
+| root Task Scheduler returns 105 | The administrator's new device session on the public network may be restricted by Adaptive MFA; first complete the secondary verification/device trust on the DSM page, then try again, and do not skip the backup |
+| The update request returns but the version is still online | `Project.update` may only save Compose; continue to execute build, wait for stream, and check the container `Config.Image` |
+| Like data loss after going online | Check the project name and volume name first; do not delete any volumes |
 
-## 多设备同步与 SSE 排查
+<a id="多设备同步与-sse-排查"></a>
 
-正式入口必须持续透传 `/api/v1/stores/:storeId/events` 的 `text/event-stream` 响应，不能缓存、聚合或等待请求结束才转发。API 已返回 `X-Accel-Buffering: no` 与禁缓存/转换指令；需要确认群晖及外层代理没有忽略这些头。若管理自有 Nginx，对 SSE 路由关闭 `proxy_buffering`、`proxy_cache`，读取超时至少 75 秒，并避免对流做压缩聚合；不要把配置示例直接覆盖到群晖自动生成文件。保留原因：SSE 事件要求持续转发，代理缓存会让多设备一直读到旧状态。
+## Multi-device synchronization and SSE troubleshooting
 
-排查时用同账号两台设备登录同店，两边保持前台。在开发者工具 Network 中检查 events 请求为 200、类型为 text/event-stream，约每 2 秒收到 heartbeat。请求长时间 pending 属正常；HTTP 已建立但没有持续事件则需分别对比内部 API 与 HTTPS 入口，定位代理缓冲/超时或 API 查询问题。勿复制登录 Cookie 或 token 到日志、文档或工单。保留原因：响应打开但没持续事件不能证明同步，真实多设备检查应由用户执行。
+The official entrance must continue to be transparently transmitted `/api/v1/stores/:storeId/events` of `text/event-stream` Responses cannot be cached, aggregated, or wait for the request to complete before forwarding. API has returned `X-Accel-Buffering: no` and disable caching/conversion instructions; you need to confirm that Synology and external proxies do not ignore these headers. If you manage your own Nginx, turn off SSE routing. `proxy_buffering`, `proxy_cache`, read timeout is at least 75 seconds, and avoid compression and aggregation of streams; do not directly overwrite configuration examples into Synology automatically generated files. Reason: SSE events require continuous forwarding, and proxy caching will keep multiple devices reading the old state.
 
-分别验证新增、编辑、删除与恢复能在另一设备约 2–3 秒加请求耗时更新，再验证锁屏、切换应用和网络恢复。前端会在 10 秒无消息后重连，异常期间低频补读，但这不能替代修复代理链路。数据库晚提交的 30 秒兜底同步仍保留。默认以命令行/API 检查本地事件流与健康状态，多设备页面效果由用户核对；只有具体要求时才使用浏览器。发布授权按维护规则。保留原因：前端重试是故障恢复措施，不能代替修复代理链路。
+During the investigation, use two devices with the same account to log in to the same store, and both parties stay at the front desk. Checking the events request in the developer tool Network is 200, the type is text/event-stream, and a heartbeat is received about every 2 seconds. It is normal for requests to be pending for a long time; if HTTP has been established but there are no persistent events, you need to compare the internal API and HTTPS entries respectively to locate proxy buffering/timeout or API query issues. Do not copy login cookies or tokens to logs, documents, or tickets. Reason: Responding to open but not persisted events does not prove synchronization, true multi-device checking should be performed by the user.
+
+Verify that adding, editing, deleting and restoring can request time-consuming updates in about 2-3 seconds on another device, and then verify locking the screen, switching applications and network recovery. The front end will reconnect after 10 seconds of no messages, and low-frequency supplementary reading will be performed during the abnormal period, but this cannot replace the repair of the proxy link. The 30-second back-up sync for late database commits is still retained. By default, the command line/API is used to check the local event stream and health status, and the effect of multi-device pages is checked by the user; only use the browser when required. Release authorization is subject to maintenance rules. Reason: Front-end retry is a failure recovery measure and cannot replace repairing the proxy link.

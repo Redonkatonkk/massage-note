@@ -1,48 +1,58 @@
-# 生产部署总览
+<a id="生产部署总览"></a>
 
-本文说明普通 Linux 主机上的 Docker Compose 部署。群晖使用 GHCR 单镜像与固定项目 `mn`，请直接阅读 [`NAS_DEPLOYMENT.md`](NAS_DEPLOYMENT.md)。
+# Production deployment overview
 
-| 场景 | 使用文件 | 应用形态 |
+**English** | **[简体中文](DEPLOYMENT.zh-CN.md)**
+
+This article explains Docker Compose deployment on a common Linux host. Synology uses GHCR single image and fixed project `mn`, please read [`NAS_DEPLOYMENT.md`](NAS_DEPLOYMENT.md) directly.
+
+| Scenario | Usage file | Application form |
 | --- | --- | --- |
-| 本地开发 | `docker-compose.yml` | 只启动 PostgreSQL/Redis，Web/API 由 pnpm 启动 |
-| 普通 Linux 生产 | `docker-compose.prod.yml` | 独立 Web/API 容器，主机本地构建 |
-| 群晖生产 | `docker-compose.nas.yml` | GHCR 单应用镜像，Container Manager 管理 |
+| Local development | `docker-compose.yml` | Only start PostgreSQL/Redis, Web/API is started by pnpm |
+| Normal Linux production | `docker-compose.prod.yml` | Standalone Web/API container, built locally on the host |
+| Synology production | `docker-compose.nas.yml` | GHCR single application image, Container Manager management |
 
-以下内容只适用于普通 Linux 生产。外部托管数据库、PITR 与 Redis 不在当前 Compose 配置中，需按所选环境调整连接和启动依赖。保留原因：仓库实现是本机服务，不能承诺换供应商无需改配置。
+The following applies only to normal Linux production. Externally hosted databases, PITR and Redis are not in the current Compose configuration, and the connection and startup dependencies need to be adjusted according to the selected environment. Reason: The repository implementation is a native service and cannot promise that no configuration changes will be required when changing suppliers.
 
-## 1. 前置条件
+<a id="1-前置条件"></a>
 
-- 一台支持 Docker Engine 与 Compose v2 的 Linux 主机。保留原因：当前部署入口使用 Docker Compose，需可运行容器与依赖服务。
-- 两个同一主域下的 HTTPS 地址，例如 `https://massage-note.example.com` 与 `https://api.massage-note.example.com`。同一站点是安全会话 Cookie 正常工作的必要条件。保留原因：SameSite 会话须在实际同站点访问地址下工作。
-- 反向代理或负载均衡器负责 TLS、证书续期，并把 Web/API 分别代理到本机 `127.0.0.1:3000` 和 `127.0.0.1:4000`。保留原因：应用端口只监听本机，HTTPS 与证书由外层提供。
-- Firebase 项目已启用 Phone 登录，并把 Web 域名加入 Authorized domains。保留原因：真实手机号验证依赖供应商启用状态及来源域名。
-- 每个数据库、Redis 密码都使用不同的随机值；URL 中的密码若含保留字符必须百分号编码。保留原因：凭据应隔离，URL 保留字符需要编码才能正确连接。
+## 1. Preconditions
 
-## 2. 生产变量
+- A Linux host supporting Docker Engine and Compose v2. Reason: The current deployment portal uses Docker Compose, which needs to be able to run containers and dependent services.
+- Two HTTPS addresses under the same primary domain, such as `https://massage-note.example.com` and `https://api.massage-note.example.com`. Same site is required for secure session cookies to work properly. Reason: SameSite sessions must work under the actual same site access address.
+- The reverse proxy or load balancer is responsible for TLS, certificate renewal, and proxying Web/API to the local machine `127.0.0.1:3000` and `127.0.0.1:4000` respectively. Reason: The application port only listens to the local machine, and HTTPS and certificates are provided by the external layer.
+- The Firebase project has enabled phone login and added the web domain name to Authorized domains. Reason: Real phone number verification depends on the supplier's activation status and source domain name.
+- Each database and Redis password use different random values; if the password in the URL contains reserved characters, it must be percent-encoded. Reason: Credentials should be isolated and URL reserved characters need to be encoded for proper connection.
 
-复制模板并只保存在服务器：
+<a id="2-生产变量"></a>
+
+## 2. Production variables
+
+Copy the template and save it on the server only:
 
 ```bash
 cp .env.production.example .env.production
 chmod 600 .env.production
 ```
 
-必须填写：
+Required:
 
-- `WEB_ORIGIN`：浏览器实际访问的 Web Origin，不能带路径或尾部斜杠。保留原因：Cookie 写请求按完整 Origin 精确校验。
-- `PUBLIC_API_BASE_URL`：公网 API 地址，必须以 `/api/v1` 结尾；它会在 Web 构建时写入前端包。保留原因：浏览器包内的请求地址由构建期值确定。
-- PostgreSQL 管理与应用密码、两个连接 URL、Redis 密码。保留原因：迁移、在线请求及限流使用不同连接身份。
-- Firebase Web 四项公开配置和 Admin 三项私密配置。`FIREBASE_PRIVATE_KEY` 中的换行写为 `\n`。保留原因：公开配置与 Admin 私钥使用不同环境边界。
+- `WEB_ORIGIN`: The Web Origin actually accessed by the browser, which cannot contain paths or trailing slashes. Reason: Cookie write requests are accurately verified based on the complete Origin.
+- `PUBLIC_API_BASE_URL`: The public API address must end with `/api/v1`; it will be written into the front-end package when the Web is built. Reason: The request address within the browser package is determined by the build period value.
+- PostgreSQL admin and application passwords, two connection URLs, Redis passwords. Reason: Migration, online requests and rate limiting use different connection identities.
+- Firebase Web four public configurations and Admin three private configurations. Newlines in `FIREBASE_PRIVATE_KEY` are written as `\n`. Reason: Public configuration and Admin private key use different environment boundaries.
 
-可选填写：
+Optional:
 
-- `MINIMAX_API_KEY`、`MINIMAX_MODEL` 与 `MINIMAX_TRANSCRIPTION_MODEL`：复杂自然语言记工、AI 财务解释和短录音转写；文字与语音共用同一个 API key，文本模型默认 `MiniMax-M3`，转写模型默认 `music-cover`。保留原因：文本和转写共用 Provider 配置，未配置不阻塞核心业务。
+- `MINIMAX_API_KEY`, `MINIMAX_MODEL` and `MINIMAX_TRANSCRIPTION_MODEL`: complex natural language work record, AI financial explanation and short recording transcription; text and voice share the same API key, the text model defaults to `MiniMax-M3`, and the transcription model defaults to `music-cover`. Reason: Text and transliteration share the Provider configuration. If not configured, the core business will not be blocked.
 
-任何生产环境都不得设置 `DEV_AUTH_ENABLED=true` 或把开发登录编译进 Web。保留原因：开发入口不提供真实认证，生产构建须关闭它。
+Any production environment must not set `DEV_AUTH_ENABLED=true` or compile development logins into the web. Reason: The development portal does not provide real authentication, production builds must turn it off.
 
-## 3. 构建和启动
+<a id="3-构建和启动"></a>
 
-先验证变量展开，再启动：
+## 3. Build and launch
+
+Verify variable expansion first, then start:
 
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml config --quiet
@@ -50,9 +60,9 @@ docker compose --env-file .env.production -f docker-compose.prod.yml up -d --bui
 docker compose --env-file .env.production -f docker-compose.prod.yml ps
 ```
 
-启动顺序是 PostgreSQL → 数据库迁移 → 权限加固 → API → Web。应用容器使用非 root 用户；数据库应用账号只能读写业务表，不能更新或删除审计、AI 查询日志和实时 outbox。保留原因：迁移与加固完成后才能以受限账号访问当前 schema。
+The startup sequence is PostgreSQL → Database Migration → Permission Hardening → API → Web. The application container uses a non-root user; the database application account can only read and write business tables, and cannot update or delete audits, AI query logs, and real-time outboxes. Reason: The current schema can only be accessed with a restricted account after migration and hardening are completed.
 
-检查：
+examine:
 
 ```bash
 curl --fail https://api.massage-note.example.com/api/v1/health
@@ -60,19 +70,25 @@ curl --fail https://api.massage-note.example.com/api/v1/health/ready
 curl --fail https://massage-note.example.com/login
 ```
 
-## 4. 反向代理要求
+<a id="4-反向代理要求"></a>
 
-- 只公开 443；不要将 PostgreSQL、Redis、3000 或 4000 直接暴露到公网。保留原因：浏览器不应直接连接数据库、缓存或内部服务。
-- API 代理必须保留 `Host`、`Origin`、`X-Forwarded-For`、`X-Forwarded-Proto` 和 `Last-Event-ID`。保留原因：来源、限流及事件续传依赖原始请求头。
-- SSE 路径 `/api/v1/stores/*/events` 关闭代理缓冲、允许长连接，并将读取超时设为至少 75 秒。保留原因：流式事件不能等待代理缓冲后才到达客户端。
-- 请求体限制至少 9 MB，以容纳上限 8 MB 的短录音；其他接口可使用更低限制。保留原因：录音上传有现有大小上限，代理不能提前截断。
-- Web 和 API 均不得被第三方页面嵌入；应用本身已经返回 CSP 与 `X-Frame-Options: DENY`。保留原因：当前响应头禁止嵌入，代理不应削弱它。
+## 4. Reverse proxy requirements
 
-## 5. 首次上线验收
+- Only expose 443; do not expose PostgreSQL, Redis, 3000, or 4000 directly to the public network. Reason: Browsers should not connect directly to databases, caches, or internal services.
+- API proxies must preserve `Host`, `Origin`, `X-Forwarded-For`, `X-Forwarded-Proto` and `Last-Event-ID`. Reason: Source, current limit and event resumption depend on the original request header.
+- SSE path `/api/v1/stores/*/events` Turn off proxy buffering, allow long connections, and set read timeout to at least 75 seconds. Reason: Streaming events cannot wait for the proxy to buffer before reaching the client.
+- Request body limit is at least 9 MB to accommodate short recordings up to 8 MB; other interfaces may use lower limits. Reason: There is an existing size limit for recording uploads, and the proxy cannot truncate it in advance.
+- Neither the Web nor the API may be embedded in third-party pages; the application itself already returns CSP with `X-Frame-Options: DENY`. Reason: Embedding of response headers is currently prohibited and proxies should not weaken it.
 
-使用 [发布检查清单](RELEASE_CHECKLIST.md) 核对本次发布证据，由用户完成真实手机号、多设备和业务验收；默认仅命令行/API 验证。保留原因：自动化不能证明外部登录和发送送达，旧的结算布局与财务公式不应在部署页重复维护。
+<a id="5-首次上线验收"></a>
 
-## 6. 升级
+## 5. First online acceptance
+
+Use the [Release Checklist](RELEASE_CHECKLIST.md) to check the evidence of this release, and the user will complete the real phone number, multiple devices and business acceptance; the default is only command line/API verification. Reason: Automation cannot prove external login and send delivery, and the old settlement layout and financial formula should not be maintained repeatedly on the deployment page.
+
+<a id="6-升级"></a>
+
+## 6. Upgrade
 
 ```bash
 # 先备份并验证校验和
@@ -80,6 +96,6 @@ docker compose --env-file .env.production -f docker-compose.prod.yml build
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d
 ```
 
-迁移服务会在新 API 启动前执行 `prisma migrate deploy`。涉及删除列或不可逆数据变换时，必须拆成“先扩展、再迁移数据、最后收缩”的多次发布，不要在同一次升级中让旧、新容器读到不兼容 schema。保留原因：旧、新容器不能同时访问不兼容 schema，应用回滚也不能逆转数据变换。
+The migration service will execute `prisma migrate deploy` before starting the new API. When deleting columns or irreversible data transformation is involved, it must be split into multiple releases of "first expand, then migrate data, and finally shrink". Do not let the old and new containers read incompatible schema in the same upgrade. Reason: Old and new containers cannot access incompatible schemas at the same time, and application rollback cannot reverse data transformations.
 
-群晖生产环境不使用本节的本机构建命令，而使用 GitHub Actions 发布到 GHCR 的单镜像；见 [NAS_DEPLOYMENT.md](NAS_DEPLOYMENT.md)。GHCR 只保存应用镜像和浏览器公开配置，所有 Admin 私钥、AI/语音密钥与数据库密码均在 NAS 运行时注入。保留原因：NAS 使用 CI 单镜像，与普通 Linux 本机构建是不同链路。
+The Synology production environment does not use the native build commands in this section, but uses GitHub Actions to publish a single image to GHCR; see [NAS_DEPLOYMENT.md](NAS_DEPLOYMENT.md). GHCR only saves application images and browser public configurations, and all Admin private keys, AI/voice keys, and database passwords are injected when the NAS is running. Reason: NAS uses CI single image, which is a different link from ordinary Linux local build.

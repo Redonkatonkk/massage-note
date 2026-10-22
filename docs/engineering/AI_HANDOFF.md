@@ -1,27 +1,37 @@
-# AI 接管指南
+<a id="ai-接管指南"></a>
 
-> 最后核对：2026-10-20（America/New_York） · 当前版本：`1.32.14`
+# AI Maintainer Handoff
 
-## 接手
+**English** | **[简体中文](AI_HANDOFF.zh-CN.md)**
 
-1. 查看 `git status --short --branch`，遵循根目录 [维护规则](../../AGENTS.md)，保留其他任务的改动。保留原因：工作区可能包含未提交工作，维护要求只在一个入口定义。
-2. 从 [文档索引](../README.md) 选择任务文档，再用 `rg` 核对当前源码、契约和测试。保留原因：文档与归档只能引导定位，不能证明实现仍然存在。
-3. 业务口径查 [产品规则](../product/PRODUCT.md)，模块/事务查 [架构](ARCHITECTURE.md)，接口查 [API](API.md)，验证查 [开发指南](DEVELOPMENT.md)，视觉维护查 [UI 设计](UI_DESIGN.md)。保留原因：不在接管页复制财务、缓存、排工和样式规则，避免修正一处后其他入口仍过时。
-4. 修改前端前，先读 [UI 设计与审美准则](UI_DESIGN.md) 的审美目标、判断方法、已暴露的问题与 AI 工作顺序，再查对应页面布局和源码。保留原因：用户要求延续审美理解；变量一致之外还要检查任务顺序、手机阅读和低频页面。
+> Last verified: 2026-10-22 (America/New_York) · Current version: `1.34.1`
 
-## 独立交付物
+<a id="接手"></a>
 
-| 范围 | 维护入口 | 保留原因 |
+## Taking over
+
+1. Read `git status --short --branch`, follow the root [maintenance rules](../../AGENTS.md), and preserve other work. Reason: the workspace may contain uncommitted changes; maintenance requirements have one canonical entry point.
+2. Select the relevant manual from the [documentation index](../README.md), then use `rg` to verify current source, contracts, and tests. Reason: manuals and archives guide navigation but cannot prove an implementation still exists.
+3. Use [product rules](../product/PRODUCT.md) for business definitions, [architecture](ARCHITECTURE.md) for modules/transactions, [API](API.md) for interfaces, [development](DEVELOPMENT.md) for validation, and [UI design](UI_DESIGN.md) for visual maintenance. Reason: duplicating financial, caching, scheduling, and styling rules here would create inconsistent entry points.
+4. Before frontend changes, read the UI guide's aesthetic goals, decision methods, known problems, and AI work sequence, then inspect the relevant layout and source. Reason: consistent variables alone do not preserve task order, mobile reading, or less-used pages.
+
+<a id="独立交付物"></a>
+
+## Independent deliverables
+
+| Scope | Maintenance entry points | Reason |
 | --- | --- | --- |
-| Web/API 与数据库迁移 | [NAS 部署](../operations/NAS_DEPLOYMENT.md)、[发布检查](../operations/RELEASE_CHECKLIST.md) | 本地源码和开发服务不代表 NAS 已升级，已发布迁移仍须向前应用。 |
-| LangBot 插件 | [插件开发指南](../../integrations/langbot-plugin/DEVELOPMENT.md)、[机器人手册](../operations/LANGBOT_WORK_BOT.md) | manifest/YAML 动态注册入口，插件版本与应用独立，安装副本不是源码。 |
-| Mac“信息”代理 | [代理手册](../operations/MESSAGES_AGENT.md) | 已安装代理和权限 App 独立运行，NAS 发布不会更新其附件模板。 |
-| 安全及备份恢复 | [安全说明](../operations/SECURITY.md)、[运维手册](../operations/OPERATIONS.md) | 凭据、数据库和发送状态需要各自的验证与恢复边界。 |
-| Oracle 免费实例申请监控 | [NAS 监控手册](../operations/ORACLE_MONITOR.md) | 只允许 2 OCPU / 12GB，不得降配；独立运行器、OCI 签名身份、持久重试令牌和通知状态须单独核对，应用发布不代表监控已启用。 |
+| Web/API and database migrations | [NAS deployment](../operations/NAS_DEPLOYMENT.md), [release checklist](../operations/RELEASE_CHECKLIST.md) | Local source and development servers do not prove a NAS upgrade; published migrations must remain forward-only. |
+| LangBot plugin | [Plugin development](../../integrations/langbot-plugin/DEVELOPMENT.md), [bot manual](../operations/LANGBOT_WORK_BOT.md) | Manifest/YAML dynamically register entry points; plugin versions are independent of the app, and installed copies are not source. |
+| Mac Messages agent | [Agent manual](../operations/MESSAGES_AGENT.md) | The installed agent and permission-bearing app run independently; NAS releases do not update attachment templates. |
+| Security, backup, and recovery | [Security](../operations/SECURITY.md), [operations](../operations/OPERATIONS.md) | Credentials, databases, and sending state require separate verification and recovery boundaries. |
+| Oracle free-instance monitor | [NAS monitor manual](../operations/ORACLE_MONITOR.md) | Only 2 OCPU / 12GB is authorized, without downsizing. Check the independent runner, OCI signing identity, persistent retry tokens, and notifications separately; an app release does not enable monitoring. |
 
-## 交接
+<a id="交接"></a>
 
-- 报告实际修改和验证，明确外部依赖、必要迁移及独立产物更新；本地服务收尾按 [开发指南](DEVELOPMENT.md)。保留原因：代码测试不能证明微信/短信送达、NAS 或已安装插件版本。
-- 用户明确要求“更新部署”时，直接按 [默认更新部署流程](../operations/NAS_DEPLOYMENT.md#默认更新部署流程) 执行到 NAS 验收和本机收尾完成，报告完整 SHA、正式版本、CI/NAS 结果和实际耗时；不要只完成本地修改或分支测速就结束。保留原因：已有发布授权覆盖完整链路，候选镜像不能证明正式标签或 NAS 已升级。
-- 发布时由 CI 并行完成完整验证和镜像构建，本地只做手册规定的发布预检；已通过且未受后续改动影响的验证、匿名 manifest 检查及部署脚本验收不重复。完整验证的开发命令不作为每次发布的串行前置步骤；失败、迁移或打包变化按手册补充对应证据。保留原因：后续 AI 必须沿用已优化的分工，不能因接管而重新堆叠全量测试、本地镜像或重复探测。
-- “进行一轮文档整理”和“代码审查（大扫除）”的固定含义见 [维护规则](../../AGENTS.md)。保留原因：全仓清理及逐条解释规则是重复使用的用户要求，不是本次临时记录。
+## Handover
+
+- Report actual changes and validation, external dependencies, required migrations, and independent artifact updates; follow the [development guide](DEVELOPMENT.md) for local services. Reason: code tests cannot prove WeChat/SMS delivery, NAS state, or installed plugin versions.
+- On an explicit `更新部署` (update deployment) request, complete the [default deployment workflow](../operations/NAS_DEPLOYMENT.md#default-update-deployment-process) through NAS acceptance and local service restart. Report the full SHA, release version, CI/NAS results, and actual elapsed time. Reason: release authorization covers the whole chain; a candidate image does not prove release tags or a NAS upgrade.
+- Let CI run full verification and image building in parallel; locally perform only the manual's release prechecks. Reuse passed, unaffected checks, anonymous manifest verification, and deployment-script acceptance. Development full-check commands are not a serial release prerequisite; add evidence for failures, migrations, or packaging changes as specified. Reason: future maintainers must preserve this division of work rather than reintroduce duplicate full tests, local image builds, or probes.
+- The standing meaning of documentation cleanup and repository cleanup review is defined in the [maintenance rules](../../AGENTS.md). Reason: these are reusable user requirements, not a temporary task record.

@@ -11,6 +11,7 @@ import type { FinanceDetailsResponse, FinanceSummaryResponse } from "../../lib/t
 import { useLanguage } from "../language-provider";
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 import { AnalyticsRevenueCalendar } from "./analytics-revenue-calendar";
+import { AnalyticsAverageRevenue } from "./analytics-average-revenue";
 import type { AnalyticsIncomeData } from "./analytics-income-bars";
 import { FinanceDetailsDialog } from "./finance-details-dialog";
 
@@ -94,13 +95,15 @@ export function AnalyticsDailyReport({ storeId, data, highlightFilter, children 
   const days = result?.scope === scope ? result.days : [];
   const viewDetails = (date: string, label: string) => setTarget({ scope, date, label });
   const amount = (date: string, cents: number, label: string) => <button className="amount-link" type="button" disabled={detailLoading} aria-label={`${date} ${label} · ${t("查看组成明细", "View breakdown")}`} onClick={() => viewDetails(date, `${date} ${label}`)}>{formatUsd(cents, locale)}</button>;
+  const income: AnalyticsIncomeData = { days, loading, failed, error, retry: () => void queue.current?.request() };
   return <>
-    <div className="analytics-grid">
+    <div className="analytics-hero">
+      {data.hasData && <AnalyticsAverageRevenue data={data} />}
       <AnalyticsRevenueCalendar key={scope} data={data} disabled={detailLoading} onDate={date => viewDetails(date, `${date} ${t("营业额", "Revenue")}`)} />
-      {children?.({ days, loading, failed, error, retry: () => void queue.current?.request() })}
     </div>
     {detailLoading && <p role="status">{t("正在读取当天明细…", "Loading daily details…")}</p>}
     {detailFailed && <p role={detailError ? "alert" : "status"} className={detailError ? "form-error" : undefined}>{detailError} <button type="button" className="secondary-action" onClick={() => void detailQueue.current?.request()}>{t("重试", "Retry")}</button></p>}
+    <div className="analytics-grid">{children?.(income)}</div>
     <section className="finance-report-section" aria-busy={loading}>
       <div className="finance-report-heading">
         <div><h2>{t("每日小计", "Daily subtotals")}</h2><p>{t("按当前日期与高光筛选，点击金额查看当天明细；过去30天平均营业额为全店参考。", "Follows the selected dates and highlight filter. Select an amount for details; the trailing 30-day average is a store-wide reference.")}</p></div>

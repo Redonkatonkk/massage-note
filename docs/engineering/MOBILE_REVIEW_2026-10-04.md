@@ -1,39 +1,47 @@
-# 手机阅读与操作复核
+<a id="手机阅读与操作复核"></a>
 
-日期：2026-10-04（America/New_York） · 版本：`1.18.6`
+# Mobile phone reading and operation review
 
-本轮覆盖全部 8 个路由及其分区，重点检查低频页面的阅读顺序、字段对应、长内容和操作位置。按用户约定只检查源码、真实 React 组件的 DOM、CSS 层叠和自动化交互，不打开浏览器。此记录不能代替真实设备上的视觉、软键盘或用户可用性测试。
+**English** | **[简体中文](MOBILE_REVIEW_2026-10-04.zh-CN.md)**
 
-## 页面逐项记录
+Date: 2026-10-04 (America/New_York) · Version: `1.18.6`
 
-| 入口 | 手机阅读与操作结构 | 本轮结果 |
+This round covers all 8 routes and their partitions, focusing on checking the reading order, field correspondence, long content and operation location of low-frequency pages. According to user agreement, only the source code, DOM, CSS cascading and automated interaction of real React components are checked without opening the browser. This recording is not a substitute for visual, soft keyboard, or user usability testing on a real device.
+
+<a id="页面逐项记录"></a>
+
+## Page itemized records
+
+| Entrance | Mobile reading and operation structure | Results of this round |
 | --- | --- | --- |
-| 今日记工、历史记工 | 日期 → 汇总 → 员工及记工 → 辅助操作；高亮保持统一灰绿色。 | 复核空状态、卖卡/跑客四种组合、记工编辑、员工选择和每周排工。排工矩阵保留独立横滑及提示。 |
-| 财务汇总 | 筛选 → 关键汇总 → 每日对比 → 员工小计。 | 跨日对比表保留横滑及固定首列；组成明细原 21 列改为手机纵向记录，先显示客人付款、所选员工收入和混合付款提示，再展开金额组成。 |
-| 经营分析 | 范围 → 图例与趋势 → 时段 → 每周分布。 | 手机图表文字与热力表文字改为 14px，热力单元触控区至少 44×44px，星期标签固定。图表在各自容器横滑。 |
-| 支出 | 月份 → 月总额/预算 → 当月费用 → 项目规则。 | 明细改为纵向记录，明确区分本月分摊与整期金额，预算性质和覆盖日期持续可见；周期编辑操作及撤销确认保留，长编辑表单顶部关闭入口固定。 |
-| 日结及现金 | 营业日 → 异常 → 员工工资/现金 → 结清操作。 | 原 12 列检查表改为手机记录，先显示员工、应得工资、待结账和应交/保留金额；其他组成按需展开。现金继续按员工 ID 匹配现金结算接口，缺失数据时禁用操作。 |
-| 日结短信队列 | 员工 → 日结次数/类型 → 状态/号码 → 失败原因 → 操作。 | 原 10 列表改为手机记录；错误不藏在展开项，尝试次数和时间次级展开。只有排队任务可取消，确认及忙碌禁用保留。 |
-| 礼物卡账本 | 序列号 → 销售日期/状态 → 收款 → 同卡使用记录。 | 手机纵向记录替代宽表，老卡使用记录与销售卡仍按序列号排序，全部核销明细保留。 |
-| 工资结算与账本 | 员工 → 日期及来源 → 未结/抵扣/实付 → 支付；账本按员工及区间读取。 | 全部来源汇总不再挤成约 11px 四列，改为大费/小费两组带标签的金额；保留美分和合计。逐日卡片宽度适配窄屏；账本先显示实付工资、范围、来源和历史修改提示，已删除状态明确。 |
-| 工资短信发送记录 | 员工及区间 → 附件进度 → 接收号码/错误 → 操作。 | 原 8 列表改为手机记录，取消、重试和重发继续由原状态决定。 |
-| 店铺设置 | 基本资料 → 营业规则 → 发送设备 → 权限及高风险操作。 | 复核输入字号、字段单列和分组；危险操作维持独立区域。 |
-| 成员管理 | 名册 → 选中档案 → 分类编辑 → 保存。 | 复核手机目录/详情切换、返回入口及长姓名；既有草稿、角色、停用、版本冲突测试继续覆盖。 |
-| 项目与提成 | 主要项目/加项/折扣 → 摘要 → 展开编辑。 | 复核长名称、多个时长档位和按钮换行；沿用分隔线分组及单列编辑。 |
-| 记工机器人 | 用语 → 群 → 成员身份/工作状态 → 数据访问/解除 → 操作动态。 | 身份、状态和操作分行，长 ID/原消息完整换行；委托身份不可开启访问，仍在记工时不可解除。 |
-| 业务回收站 | 员工或卡号 → 营业日/项目 → 金额/删除时间/原因 → 恢复。 | 原 8/7 列宽表改为手机记录；删除原因在恢复按钮前完整显示。原确认、版本、幂等及日结规则保留。 |
-| 审计记录 | 筛选 → 操作人/时间/动作 → 修改前后 → 完整数据。 | 已知字段改为中文标签、美元/百分比和明确布尔值；修改前后在手机纵排。ID、请求编号及完整 JSON 默认折叠，未知/嵌套字段仍完整保留。 |
-| 个人资料 | 账号摘要 → 姓名 → 工作区 → 密码/退出。 | 复核单列、号码/语言控件对齐及密码字段。 |
-| AI 助手及浮动助手 | 例句 → 消息 → 预览 → 确认 → 输入。 | 复核单列、长文本换行、输入字号及语音/发送按钮；写入仍通过原确认流程。 |
-| 登录、初始化、离线 | 当前任务说明 → 表单/选择 → 主操作。 | 复核手机单列、号码前缀同高、初始项目编辑和返回入口。 |
-| 使用帮助 | 常用记工在前 → 主题 → 分步骤说明/金额定义。 | 主题点击会打开并聚焦对应说明，正文在手机使用 16px 与 1.75 行高；保留原生折叠操作。 |
+| Today's work record, historical work record | Date → Summary → Employees and work record → Auxiliary operations; highlight remains uniform gray-green. | Review the empty status, the four combinations of selling cards/walkouts, editing work records, employee selection and weekly work scheduling. The scheduling matrix retains independent cross slides and prompts. |
+| Financial Summary | Filter → Key Summary → Daily Comparison → Employee Subtotal. | The cross-day comparison table retains the horizontal sliding and fixed first columns; the original 21 columns of the composition details are changed to vertical records on the phone. Guest payments, selected employee income and mixed payment prompts are first displayed, and then the amount composition is expanded. |
+| Operational Analysis | Scope → Legend and Trends → Period → Weekly Distribution. | The phone chart text and heat table text are changed to 14px, the touch area of the heat unit is at least 44×44px, and the day of the week label is fixed. Charts slide across their respective containers. |
+| Expenses | Month → Monthly total/budget → Expenses for the month → Project rules. | The details are changed to vertical records, clearly distinguishing this month's apportionment from the entire period's amount, the nature of the budget and the coverage date are continuously visible; periodic editing operations and cancellation confirmations are retained, and the closed entry at the top of the long editing form is fixed. |
+| daily closing and cash | business day → exception → employee salary/cash → closing operation. | The original 12-column checklist is changed to a phone record, which first displays employees, wages due, accounts to be settled, and amounts due/reserved; other components are expanded as needed. Cash continues to match the cash settlement interface by employee ID, with operations disabled when data is missing. |
+| daily closing SMS queue | Employee → daily closing times/type → status/number → failure reason → operation. | The original 10 list is changed to phone records; errors are not hidden in the expansion items, and the number of attempts and time are expanded sub-level. Only queued tasks can be canceled, confirmation and busy disable retention. |
+| gift card account book | serial number → sales date/status → payment → same card usage record. | Mobile phone vertical records replace wide tables, old card usage records and sales cards are still sorted by serial number, and all write-off details are retained. |
+| Salary settlement and ledger | Employee → Date and source → Outstanding/deducted/actual payment → Payment; the ledger is read by employee and interval. | The summary of all sources is no longer squeezed into four columns of about 11px, and is changed to two sets of labeled amounts for service fee / tips; cents and totals are retained. The daily card width is adapted to the narrow screen; the account book first displays actual wages, scope, source and historical modification prompts, and the deleted status is clear. |
+| Salary SMS sending record | Employee and section → Attachment progress → Receive number/error → Operation. | The original 8 list is changed to phone records, and cancellation, retry and resending continue to be determined by the original status. |
+| Store Settings | Basic Information → Business Rules → Sending Equipment → Permissions and High-Risk Operations. | Review input font size, single column and grouping of fields; maintain separate areas for dangerous operations. |
+| Member Management | Roster → Select File → Category Edit → Save. | Review the mobile directory/detail switching, return entrance and long name; existing draft, role, deactivation and version conflict tests continue to be covered. |
+| Projects and commissions | Main projects/add-on/discounts → Summary → Expand to edit. | Review long names, multiple duration slots, and button wrapping; use separators to group and single-column editing. |
+| work record robot | Terminology → Group → Membership/Work Status → Data Access/Removal → Operational Dynamics. | Identity, status and operation branches, long ID/original message is completely wrapped; delegated identity cannot be opened for access, and cannot be released while the work record is still in progress. |
+| Business recycle bin | Employee or card number → business day/item → amount/deletion time/reason → recovery. | The original 8/7 column width table is changed to phone records; the reason for deletion is fully displayed before the restore button. The original confirmation, version, idempotency and daily closing rules are retained. |
+| Audit records | Filter → Operator/time/action → Before and after modification → Complete data. | Known fields are changed to Chinese labels, US dollars/percentage and clear Boolean values; before and after modification, in phone column. ID, request number, and full JSON are collapsed by default, and unknown/nested fields remain intact. |
+| Profile | Account Summary → Name → Workspace → Password/Logout. | Review single columns, number/language control alignment, and password fields. |
+| AI Assistant and Floating Assistant | Example → Message → Preview → Confirm → Enter. | Review the single column, line wrapping of long text, input font size and voice/send button; writing still goes through the original confirmation process. |
+| Login, initialization, offline | Current task description → Form/Selection → Main operation. | Review the single column of phones, the same height of number prefixes, initial project editing and return entry. |
+| Help | Commonly used work record first → Topic → Step-by-step instructions/amount definition. | Clicking on the topic will open and focus the corresponding description. The text uses 16px and 1.75 line height on phones; the native folding operation is retained. |
 
-## 验证依据与边界
+<a id="验证依据与边界"></a>
 
-- [手机样式检查器](../../scripts/check-mobile-ui.mjs) 检查全部路由、29 组代表性结构（2026-10-06 追加快速占位及整卡 X／删除弹层）及 320/360/390/414/480/600/760px 的层叠规则；同步了机器人、回收站和热力表样例。
-- [真实组件阅读及操作回归](../../apps/web/app/ui/mobile-reading.test.tsx) 使用真实组件输出，覆盖恢复确认/版本、工资美分及权限、发送失败及取消限制、审计零值/布尔值/完整数据、混合付款、老卡核销、机器人限制、现金接口匹配、周期费用编辑和帮助主题。真实 DOM 的样式还检查 900px 手机横屏与 1200px 桌面展示切换。
-- [成员流程测试](../../apps/web/app/manage/members-panel.test.tsx) 和 [日结现金测试](../../apps/web/app/finance/closing-employee-table.test.tsx) 继续验证原有保护。Web 全量测试、构建及版本、文档链接、样式检查构成本轮代码验收。
+## Verification basis and boundaries
 
-CSS 在 900px 及以下选择纵向记录，桌面选择对比表，隐藏的一份不参与阅读和键盘操作。两种展示共用数据及操作处理函数。保留原因：手机逐条核对与桌面跨列比较有不同的信息排列需求，财务来源和业务保护必须一致。
+- [Mobile style checker](../../scripts/check-mobile-ui.mjs) checks all routes, 29 representative structures (including quick placeholders and full-card X/delete dialogs added on 2026-10-06), and cascading rules at 320/360/390/414/480/600/760px. Bot, recycle-bin, and heatmap examples are synchronized.
+- [Real component reading and operation regression](../../apps/web/app/ui/mobile-reading.test.tsx) Use real component output, covering recovery confirmation/version, salary cents and permissions, send failure and cancellation restrictions, auditing zero/boolean/full data, mixed payments, old card write-off, robot restrictions, cash interface matching, cycle fee editing and help topics. The style of the real DOM also checks the switching between 900px mobile landscape and 1200px desktop display.
+- [Member Process Test](../../apps/web/app/manage/members-panel.test.tsx) and [daily closing cash test](../../apps/web/app/finance/closing-employee-table.test.tsx) continue to verify legacy protections. Full web testing, build and version, document linking, and style checking constitute this round of code acceptance.
 
-DOM/CSS 检查能验证结构、层叠规则和交互保护，不能测出最终像素宽度、实际文字裁切、容器查询尺寸、设备安全区或软键盘行为。页面是否易用仍需使用者在真实设备上评价，不能据此声称已经完成视觉实测。
+CSS selects vertical records at 900px and below, and selects comparison tables on the desktop. The hidden copy does not participate in reading and keyboard operations. Both displays share data and operation processing functions. Reason: The item-by-item verification on the phone and the cross-column comparison on the desktop have different information arrangement requirements, and financial sources and business protection must be consistent.
+
+DOM/CSS inspection verifies structure, cascading rules, and interaction protections, but cannot measure final pixel width, actual text cropping, container query sizes, device safe areas, or soft keyboard behavior. Whether the page is easy to use still needs to be evaluated by users on real devices, and it cannot be claimed that visual testing has been completed based on this.

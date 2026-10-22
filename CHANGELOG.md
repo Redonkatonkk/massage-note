@@ -1,1621 +1,1672 @@
 # Changelog
 
-版本维护规则见 [AGENTS.md](AGENTS.md)。保留原因：本页保存已发生的变化，版本政策在统一维护入口定义。下方条目是历史变化记录。保留原因：版本追溯和回滚需要完整历史，旧版本的行为说明不作为当前规则。
+**English** | **[简体中文](CHANGELOG.zh-CN.md)**
 
+For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
+
+## 1.34.1 — 2026-10-22
+
+- Complete English-first bilingual documentation across current manuals, maintenance instructions, recovery tools, plugin instructions, changelog history, and archived records. Preserve technical examples and historical facts; add matching Chinese editions, reciprocal language links, localized navigation, and compatibility anchors.
+- Extend `pnpm docs:check` with paired-language, heading, prose, and executable-example checks, and validate current version markers in both editions. Document the guard’s semantic-review limits.
+- Generate backup overview, privacy, and terms pages with English followed by Chinese; retain section routing and HTML escaping with regression coverage. Documentation and tooling only; no database or business behavior changes. Published documentation requires its separate publication process.
+
+## 1.34.0 — 2026-10-22
+
+- Replace the four Business analytics overview totals with 7/30-day average revenue changes, 30-day average daily service count change, and 30-day total income change after card fees. Lead with percentages, preserve current values, cents, one-decimal counts, arrows and direction text, both periods and sample counts.
+- Anchor fixed calendar-day windows to the latest closed day at or before the selected end; ignore the selected start, follow highlights, include empty closings as zero, and exclude open/missing dates and deleted/placeholder work. Explain missing history and zero/negative baselines without misleading percentages.
+- Extend the existing analytics contract and RepeatableRead query with narrow 60-day projections; reuse finance domain functions and round fees once per window. Top cards load independently of daily subtotals, preserving realtime refresh and stale-response isolation. All lower charts/details remain. No new HTTP calls or database migrations; NAS requires a Web/API update.
+- Add domain, API integration and bilingual component regressions, plus responsive code checks. Sync bilingual product, API, architecture, design and help documentation.
+
+## 1.33.1 — 2026-10-22
+
+- Rename Finance Summary to Monthly Summary. Show monthly turnover, monthly store income, monthly total income, and service record count in that order.
+- Replace daily turnover/earnings trends with current/prior-month daily trailing 30-day average revenue using server analytics, preserving cross-month samples, cents and open-day gaps; store-wide analytics remain manager-only.
+- Remove the employee earnings comparison panel, expand monthly metrics to a full-width three-month comparison with explicit periods and isolated retries, and retain employee subtotals below. Sync bilingual help, navigation and responsive code checks. No API or database changes; NAS requires a Web update.
+
+## 1.33.0 — 2026-10-22
+
+- Rebuild Finance Summary as a monthly dashboard with four key results, daily current/prior-month trends, service payment shares, employee wage/tip comparisons, and a monthly comparison table. Keep employee subtotals and their details/SMS controls at the bottom.
+- Compare month-to-date with the previous month through the same calendar day, capped at month end; completed months compare full months. Reuse server financial totals, preserve cents and negative values, distinguish missing data from zero, and retain monthly exports and detail links.
+- Add bilingual help and responsive code checks; remove the obsolete 26-card configuration. No API or database changes. NAS requires a Web update.
+
+## 1.32.19 — 2026-10-22
+
+- Show each day's actual revenue alongside selected averages when hovering, focusing, or selecting an average-curve date, preserving cents, zero, and open-day gaps without affecting the average-only scale.
+- Size the desktop weekday/income row from the weekday panel and scroll the income panel internally. Keep every period, amount, data table, and keyboard entry point; mobile remains naturally expanded.
+
+## 1.32.18 — 2026-10-22
+
+- Scale average revenue curves from the lowest to highest visible value, ignoring missing samples; mark the maximum with its amount, date, and series. Handle zero, negative, constant, and empty data without changing other charts or financial calculations.
+
+## 1.32.17 — 2026-10-22
+
+- Add a four-metric business overview using existing daily subtotals and analytics responses, preserving cents, negative values, and loading/error states without new requests or financial formulas.
+- Promote average revenue curves and the calendar into a 3:2 main area. Keep the original daily revenue trend and all other charts, tables, details, and daily subtotals below. Update mobile reading order, bilingual help, and code regression coverage; no API or database changes. NAS requires a Web update.
+
+## 1.32.16 — 2026-10-22
+
+- Record English-first bilingual documentation as a standing maintenance rule: synchronize English and Chinese, use English as the default entry point, and keep language-switch links prominent.
+
+## 1.32.15 — 2026-10-22
+
+- Make English the default project README for portfolio review, with a prominent Chinese README link and matching bilingual coverage of the product, architecture, implementation references, local setup, and verification.
+- Add both README versions to version consistency checks and document their maintenance entry points; no application behavior or database changes.
 
 ## 1.32.14 — 2026-10-20
 
-- Mac 发送代理在指令被接受后只读观察本次任务的发送状态元数据，明确失败进入既有有上限重试；未确认、数据库不可读或旧尝试的回执不再记为成功，不读取聊天正文或改写 Messages 数据库。
-- 正常任务结束后间隔 2 分钟，失败后至少 5 分钟，持久保存下次领取时间；重启恢复观察及退避，心跳独立运行。保持原发送路由，无 API 契约或数据库迁移。
-- 日结、区间结算及员工小计的历史 SENT 统一显示“已提交·未确认送达”，改用待核对颜色并说明真实送达来源；增加异步失败、状态隔离、只读元数据、等待重试与手机状态回归。代理需独立更新，网页文案需更新 NAS。
+- The Mac sending agent only reads and observes the sending status metadata of this task after the command is accepted. If it fails, it will enter the existing upper limit and retry; unconfirmed, database unreadable or old attempt receipts will no longer be recorded as successful, and the chat text will not be read or the Messages database will be rewritten.
+- There will be an interval of 2 minutes after the end of a normal task, and at least 5 minutes after a failure, the next collection time will be persisted; restart to resume observation and retreat, and the heartbeat will run independently. Keep the original sending route, no API contracts or database migrations.
+- The history of daily closing, interval settlement and employee subtotal SENT uniformly displays "Submitted·Unconfirmed Delivery", changes to the color to be verified and explains the true delivery source; adds asynchronous failure, status isolation, read-only metadata, waiting for retry and phone status return. The agent needs to be updated independently, and the web copy needs to be updated on the NAS.
 
 ## 1.32.13 — 2026-10-20
 
-- 修复 Mac 代理暂存与发送使用不同权限身份导致的附件 Access denied：同一受限 App 负责暂存、读文件及执行随包 AppleScript；诊断覆盖实际读文件和 Messages 自动化，不发送测试短信。
-- 发送错误提取实际原因并限制在 1000 字符内，修复失败回写与心跳被 400 拒绝；日结及结算保存发送开始/接受检查点，回执中断后不重复发送。
-- 安装先停止旧进程再替换运行文件，增加只更新验证的 --no-start 模式，更新权限与故障手册及回归；无 API 契约或数据库迁移，仅更新独立 Mac 代理即可生效。
+- Fix Access denied when Mac agent temporarily saves and sends attachments using different permission identities: the same restricted App is responsible for temporary storage, reading files, and executing the included AppleScript; the diagnosis covers the actual reading of files and Messages automation, and no test text messages are sent.
+- Extract the actual cause of the sending error and limit it to 1000 characters. Repair failed writeback and heartbeat rejection with 400; daily closing and settlement save the sending start/acceptance checkpoint, and do not send repeatedly after the receipt is interrupted.
+- The installation first stops the old process and then replaces the running file, adds the --no-start mode that only updates verification, updates permissions and troubleshooting manuals and regressions; there is no API contract or database migration, only updating the independent Mac agent will take effect.
 
 ## 1.32.12 — 2026-10-20
 
-- 经营分析的星期平均营业额与流水收入图改为星期／日期从上到下排列、每组三条横向柱，金额横向对齐，保留完整美分、负值、零值、无样本、键盘操作及明细。
-- 两图调整到第三、第四位，1100px 起并排各占半宽，窄屏按顺序单列，长日期向下浏览。同步中英文帮助、产品与设计规则及代码回归，无 API 或数据库变化；NAS 生效需更新 Web。
+- The weekly average revenue and turnover revenue graph of the business analysis is changed to a day/date arrangement from top to bottom, with three horizontal columns in each group, and the amounts are horizontally aligned, retaining complete cents, negative values, zero values, no samples, keyboard operations, and details.
+- The two pictures are adjusted to the third and fourth positions, starting from 1100px and occupying half width side by side. The narrow screen is arranged in a single column in order, and the long date is browsed downwards. Synchronized Chinese and English help, product and design rules, and code regression, with no API or database changes; the Web needs to be updated for NAS to take effect.
 
 ## 1.32.11 — 2026-10-19
 
-- Oracle A1 监控只查询和申请用户指定的 2 OCPU / 12GB，移除 1 OCPU / 6GB 降配；旧状态中的低配请求暂停处理，不复用它创建低配实例。
-- 增加低配库存、遗留低配请求及已存在低配实例的回归，保持通知、免费额度和防重复创建保护。独立更新 NAS 监控，不更新业务应用。
+- Oracle A1 monitoring only queries and applies for the user-specified 2 OCPU / 12GB, and removes 1 OCPU / 6GB for downgrading; processing of low-configuration requests in the old state is suspended, and it is not reused to create low-configuration instances.
+- Added the return of low-configuration inventory, legacy low-configuration requests, and existing low-configuration instances, and maintained notifications, free quota, and anti-duplicate creation protection. Update NAS monitoring independently and do not update business applications.
 
 ## 1.32.10 — 2026-10-19
 
-- 新增独立 NAS Oracle A1 免费实例申请运行器：固定机型及区域、每五分钟容量检查、全租户免费额度核对、持久重试令牌、成功后停止申请和 Gmail 通知；无库存保持安静，不修改现有业务或备份。
-- 增加超时与重启防重复创建、额度、磁盘、邮件失败及故障退避回归和独立安装手册。真实身份与 NAS 启用状态以运行手册为准，无数据库迁移。
-- 已完成独立 OCI 身份、预建网络、NAS 运行器和测试邮件验收；容器身份与现有 SMTP 密码所有者一致，以最小文件权限读取凭据。后台等待 A1 库存，现有业务保持在 NAS。
+- New independent NAS Oracle A1 free instance application runner: fixed model and region, capacity check every five minutes, free quota check for all tenants, persistent retry token, stop application after success and Gmail notification; keep quiet without inventory and do not modify existing business or backup.
+- Add timeout and restart to prevent repeated creation, quota, disk, email failure and failback regression and independent installation manual. The real identity and NAS activation status are subject to the operation manual, and there is no database migration.
+- Standalone OCI identity, pre-built network, NAS runner, and test email acceptance completed; container identity consistent with existing SMTP password owner, credentials read with minimal file permissions. The backend is waiting for A1 inventory, and existing business remains in NAS.
 
 ## 1.32.9 — 2026-10-18
 
-- 将优化后的更新部署流程固化到维护规则、AI 接管、部署手册、发布清单与文档入口：本地预检后使用并行 CI，正式标签成功后一次完成 NAS 备份、迁移及验收，复用已有有效检查。
-- 明确分支测速与正式发布的区别，以及 CI、NAS、整套部署的计时范围；接管时不重复全量本地测试、构建或另开测速。仅文档与版本同步，无业务或数据库变化，未执行生产发布。
+- Solidify the optimized update deployment process into maintenance rules, AI handoff, deployment manual, release list and document entry: use parallel CI after local pre-checking, complete NAS backup, migration and acceptance in one go after the official label is successful, and reuse existing effective checks.
+- Clarify the difference between branch benchmarking and official release, as well as the timing range of CI, NAS, and the entire deployment; do not repeat full local testing, build, or open new speed testing during handoff. Only documents and versions are synchronized, there are no business or database changes, and no production release is performed.
 
 ## 1.32.8 — 2026-10-18
 
-- 发布流水线并行运行完整验证与 NAS 候选镜像构建；两者成功后按同一 digest 发布正式标签，拒绝覆盖不同产物的既有版本。普通分支与 PR 保留原生产构建检查。
-- Docker 按锁文件预取依赖并离线安装，应用版本变化复用下载缓存；构建缓存改存 GHCR，主分支与基准测试缓存隔离。增加分支手动构建和每次运行的阶段计时摘要，无业务或数据库变化。
+- The release turnover line runs the complete verification and NAS candidate image construction in parallel; after both are successful, the official label is released according to the same digest, and existing versions of different products are refused to be overwritten. Normal branches and PRs retain original production build checks.
+- Docker prefetches dependencies according to the lock file and installs them offline. Application version changes reuse the download cache; the build cache is changed to GHCR, and the main branch is isolated from the benchmark cache. Added branched manual builds and stage timing summary for each run, with no business or database changes.
 
 ## 1.32.7 — 2026-10-18
 
-- 经营分析同一行的图表按本行最高内容自动等高，随月份、说明和明细展开／收起自适应；窄屏单列继续按各自内容自然增长，不固定高度或裁切内容。同步产品与设计规则及样式检查，无 API 或数据库变化；NAS 生效需更新 Web。
+- Charts in the same row of business analysis are automatically equal in height according to the highest content in the row, and expand/collapse adaptively with the month, description and details; narrow screen single columns continue to grow naturally according to their respective contents, without fixing the height or cutting the content. Synchronize product and design rules and style checks without API or database changes; the Web needs to be updated for NAS to take effect.
 
 ## 1.32.6 — 2026-10-18
 
-- 流水与收入柱状图按日／周／月采用紧凑分组，缩短日期及组内三柱间距；金额过长时纵向标注，保留完整金额、美分、零值与负收入，长日期范围继续只在图内滚动。
-- 复用星期图的标注布局，同步中英文帮助、产品与设计文档及分组宽度回归。无 API 或数据库变化；NAS 生效需更新 Web。
+- The turnover and income histogram adopts compact grouping by day/week/month, shortening the date and the distance between the three columns in the group; when the amount is too long, it is marked vertically, retaining the complete amount, cents, zero values and negative income; long date ranges continue to only scroll within the chart.
+- Reuse the annotation layout of the weekly chart, and synchronize the return of Chinese and English help, product and design documents, and grouping width. No API or database changes; a web update is required for NAS to take effect.
 
 ## 1.32.5 — 2026-10-18
 
-- 经营分析调整为每日营业额日历、每日营业额趋势、星期平均营业额开头，平均曲线及其他图表顺延。星期平均营业额独占整行，七天平铺在容器宽度内，无需左右滑动。
-- 星期图保留三组对比、完整金额及美分，窄处纵向标注，极窄处错开序列标注；零值、负值、无样本、键盘选择及逐日明细保持可查。同步中英文帮助、产品与设计文档及代码回归，无 API 或数据库变化；NAS 生效需更新 Web。
+- The business analysis is adjusted to the daily revenue calendar, daily revenue trend, weekly average revenue, average curve and other charts are extended. Weekly average revenue occupies the entire row, and the seven days are laid out within the width of the container, without the need to slide left or right.
+- The weekly chart retains three sets of comparisons, complete amounts and cents, with vertical markings in narrow areas and staggered sequence markings in extremely narrow areas; zero values, negative values, no samples, keyboard selections and daily details remain available for review. Synchronized Chinese and English help, product and design documents, and code regression, without API or database changes; the Web needs to be updated for NAS to take effect.
 
 ## 1.32.4 — 2026-10-18
 
-- 今日页总收入恢复为店铺收入＋店长收入＋经理收入，移除本月平均每日支出扣除及看板对支出数据的读取；支出页面继续独立计算和管理。
-- 同步桌面／手机中英文说明、产品／API／UI 文档及回归，验证周期与一次性支出的新增、修改、删除恢复不影响看板总收入。无数据库迁移；NAS 生效需更新 Web/API。
+- The total income of today's page is restored to store income + store manager income + manager income, and the average daily expenditure deduction for this month and the reading of expenditure data by the dashboard are removed; the expenditure page continues to be independently calculated and managed.
+- Synchronize desktop/mobile Chinese and English descriptions, product/API/UI documents and regressions. The verification cycle and the addition, modification, deletion and recovery of one-time expenditures will not affect the total revenue of the billboard. No database migration; Web/API needs to be updated for NAS to take effect.
 
 ## 1.32.3 — 2026-10-18
 
-- 修正礼物卡营业额重复计算：卖卡按实收计入，使用时排除礼卡支付的服务金额；同步今日看板、日历、经营分析与全部平均营业额。
-- 保留流水、店铺收入、工资和礼卡小费的既有金额，避免新营业额下重复扣除核销；负营业额及均值完整保留，图表支持负值。
-- 更新中英文金额说明与回归测试。无需数据库迁移，历史查询直接使用新口径，已保存日结/发送快照不重写；NAS 生效需更新 Web/API。
+- Corrected the double calculation of gift card revenue: card sales are included in actual revenue, and the service amount paid by gift card is excluded when used; synchronize today's dashboard, calendar, business analysis and all average revenue.
+- The existing amounts of turnover, store revenue, wages and gift card tips are retained to avoid repeated deductions and write-offs under new revenue; negative revenue and mean values are completely retained, and the chart supports negative values.
+- Updated Chinese and English amount descriptions and regression testing. No database migration is required, historical queries directly use the new definition, and saved daily closing/sent snapshots are not rewritten; the Web/API needs to be updated for NAS to take effect.
 
 ## 1.32.2 — 2026-10-17
 
-- 新增 NAS 完整云端恢复包与 Mac 按需恢复工具：同一数据库快照、角色/权限与全表摘要校验、离线运行镜像、age 加密、Google Drive 独立目录及三次成功备份轮换。旧的手动数据库备份/恢复接口保持兼容。
-- 新增独立的 NAS 回环静态代理，为 Google OAuth 提供公开说明、隐私政策和使用条款，其他请求继续转原应用；代理配置及页面随加密包归档。
-- 新增隔离恢复演练、故障/损坏/空间不足测试、官方工具校验锁定和安全设置说明；覆盖 PostgreSQL 旧 CHECK 表达式的等价重建和真实 Caddy 配置校验。2026-10-18 完成两份真实云端包的 NAS → Drive → ARM Mac 独立恢复验收并激活 NAS 午夜任务；恢复报告记录实际耗时及外部依赖，不常驻本地备用服务。
+- Added NAS complete cloud recovery package and Mac on-demand recovery tool: same database snapshot, role/permission and full table summary verification, offline running image, age encryption, Google Drive independent directory and three successful backup rotations. The old manual database backup/restore interface remains compatible.
+- A new independent NAS loopback static proxy is added to provide public instructions, privacy policies and terms of use for Google OAuth. Other requests continue to be forwarded to the original application; the proxy configuration and page are archived with the encryption package.
+- Added isolation recovery drills, failure/corruption/out of space tests, official tool verification locking and security setup instructions; covers equivalent reconstruction of PostgreSQL old CHECK expressions and real Caddy configuration verification. 2026-10-18 Completed the NAS → Drive → ARM Mac independent recovery acceptance of two real cloud packages and activated the NAS midnight task; the recovery report records the actual time consumption and external dependencies, and no local backup services are resident.
 
 ## 1.32.1 — 2026-10-17
 
-- 本地网页测试数据改用已校验的线上备份快照，导入前验证独立恢复库并保留原开发库及备份作为恢复点；保留固定免短信测试登录，只在本地映射店主身份并撤销复制的发送代理授权，不修改线上数据。
-- 开发文档明确网页开发库与独立自动化测试库的用途，默认保留业务快照，固定演示种子仅在明确需要合成场景时运行；业务快照与恢复记录保留在 Git 忽略的受限目录。无应用功能或数据库迁移变化。
+- The local web page test data is replaced with verified online backup snapshots, and the independent recovery library is verified before importing and the original development database and backup are retained as recovery points; the fixed SMS-free test login is retained, only the store owner identity is mapped locally and the copied sending agent authorization is revoked, and the online data is not modified.
+- The development documents clarify the purpose of the web development database and the independent automated testing library. Business snapshots are retained by default, and fixed demo seeds are only run when a synthetic scenario is clearly needed; business snapshots and recovery records are retained in a restricted directory that is ignored by Git. No application functionality or database migration changes.
 
 ## 1.32.0 — 2026-10-17
 
-- 经营分析全部柱状图直接标注金额或数量：金额保留实际美分，零值显示零、无样本保留破折号，负收入标在负柱尾部；每日数量分别展示记工笔数和跑客人数。密集柱图按完整数字预留宽度，仅在图表内部横向滚动。
-- 星期平均营业额始终并排对比高光、非高光、全部，沿用所选日期并使用相同已日结样本，不受顶部高光筛选隐藏；空日结计零，卖卡实收沿用现有口径进入非高光及全部。点击星期可查看三组逐日金额。
-- API 同一读取事务返回独立的星期对比聚合，不新增请求或数据库迁移；其他图表和每日小计继续沿用高光筛选。同步中英文说明、产品／API／架构／UI 文档及计算、权限、柱顶数字与手机阅读回归；NAS 生效需升级 Web/API。
+- All histograms in the business analysis directly mark the amount or quantity: the actual cents are retained for the amount, zero values are displayed as zero, dashes are retained for no samples, and negative income is marked at the end of the negative column; the daily quantity displays the number of work records and the number of customers respectively. Dense column charts reserve width by the full number and only scroll horizontally within the chart.
+- Weekly average revenue is always compared side by side with highlight, non-highlight, and all. The selected date is used and the same closed sample is used, and it is not hidden by the top highlight filter. Empty daily closing counts as zero, and the actual revenue from card sales continues to use the existing definition to enter non-highlight and all. Click on the week to view three groups of daily amounts.
+- The same API read transaction returns an independent week comparison aggregation without new requests or database migrations; other charts and daily subtotals continue to use highlight filtering. Synchronized Chinese and English descriptions, product/API/architecture/UI documents and calculations, permissions, column top numbers and phone reading return; NAS needs to upgrade Web/API to take effect.
 
 ## 1.31.1 — 2026-10-17
 
-- 修复电脑端快速记工切换时长时，隐藏单选框的焦点可能推动外层弹窗、导致顶部被裁切且无法滚回的问题；项目与时长的原生焦点框统一限制在各自选项内，保留键盘选择、顶部关闭入口和表单独立滚动。同步样式检查与设计说明，无 API 或数据库变化；NAS 生效需升级 Web。
+- Fixed an issue where the focus of a hidden radio button might push the outer pop-up window when switching durations in a fast work record on the computer, causing the top to be cropped and unable to be scrolled back; the native focus boxes for items and durations are uniformly limited to their respective options, retaining keyboard selection, top closing entry, and independent scrolling of the form. Synchronized style checking and design instructions, no API or database changes; the Web needs to be upgraded for NAS to take effect.
 
 ## 1.31.0 — 2026-10-17
 
-- 今日页总收入在原店铺收入＋店长收入＋经理收入基础上，减去所选日期所在月份的平均每日支出，服务端复用支出页整月分摊和日均结果，只扣一次，保留美分及负数。
-- 日均包含周期费用与当月一次性支出，沿用未录入排除、真实零和删除恢复；支出变化自动刷新看板。员工不读取店铺成本；同步中英文说明、产品／API／UI 文档及计算、跨月／闰月、权限和页面回归。无新增数据库迁移；NAS 生效需升级 Web/API。
+- The total income of today's page is based on the original store income + store manager income + manager income, minus the average daily expenditure in the month of the selected date. The server reuses the monthly amortization and daily average results of the expenditure page, deducting only once, and retaining cents and negative numbers.
+- The daily average includes periodic expenses and one-time expenses for the month, and the unentry exclusion, true zero, and deletion recovery are used; changes in expenses automatically refresh the dashboard. Employees do not read store costs; synchronize Chinese and English descriptions, product/API/UI documents and calculations, cross-month/leap months, permissions and page returns. There is no new database migration; the Web/API needs to be upgraded for NAS to take effect.
 
 ## 1.30.0 — 2026-10-17
 
-- 支出页统一四项月度指标：总支出、全部周期费用的当月分摊、整月日均、一次性；桌面四列、平板与手机两列、极窄屏单列。合并为上方一次性、下方固定支出，每个项目只出现一次，周期展开各期金额，详情集中管理备注、历史及停止／重新开始，保留折叠项目与删除恢复入口。
-- 删除预算选项、来源标签和预算汇总，周期统一常用金额自动沿用及整期单次修改；接口拒绝 `BUDGET`、兼容旧 `FIXED`，服务端返回周期／一次性合计、项目合计及未录入期数，空金额区别于真实零。
-- 新增前向迁移 `20261017010000_expense_usual_amount`：固定规则沿用原开始日，旧预算规则按升级时店铺当地月首向上对齐首个合法周期；保留旧金额、规则 ID、账单和审计，此前无账单的完整周期不计总额。同步中英文与产品／API／UI 文档及金额、迁移、交互回归；NAS 生效需升级 Web/API 并应用迁移。
+- The expenditure page unifies four monthly indicators: total expenditure, monthly amortization of all cycle costs, daily average for the whole month, and one-time; four columns for desktop, two columns for tablets and phones, and a single column for extremely narrow screens. Combined into one-time expenses at the top and fixed expenses at the bottom, each item only appears once, the period is expanded to the amount of each period, the details are centralized to manage notes, history and stop/restart, and the collapsed items and deleted recovery entries are retained.
+- Delete budget options, source tags and budget summaries, and the period-unified common amounts are automatically inherited and modified once for the entire period; the interface rejects `BUDGET` and is compatible with the old `FIXED`. The server returns period/one-time totals, project totals and unentered periods. Empty amounts are different from real zeros.
+- Added forward migration `20261017010000_expense_usual_amount`: the fixed rule will use the original start date, and the old budget rule will be aligned upwards with the first legal period based on the local month of the store at the time of upgrade; the old amount, rule ID, bill and audit will be retained, and the complete period without a bill before will not be counted in the total. Synchronize Chinese and English with product/API/UI documents and amounts, migration, and interactive regression; for NAS to take effect, you need to upgrade the Web/API and apply migration.
 
 ## 1.29.0 — 2026-10-17
 
-- 经营分析第四位新增“流水与收入柱状图”，默认每周，可切换每天／每月；总流水、店铺收入和总收入始终并排显示，其余图表顺延。
-- 新图复用每日小计的同一财务汇总响应，沿用日期与高光条件；自然周按周一至周日、自然月按月首至月末，首尾只合计所选日期，保留美分、零值、负收入、读取失败重试及固定图宽。总收入沿用每日小计的手续费前口径，不重算财务公式。
-- 同步中英文帮助、产品、API 与设计文档，补充跨年／闰日分组、三序列展示与筛选刷新回归。无 API 或数据库变更；NAS 生效需升级 Web。
+- The fourth section of business analysis has added "turnover and revenue bar chart", which defaults to weekly and can be switched to daily/monthly; total turnover, store revenue and total revenue are always displayed side by side, and the remaining charts are postponed.
+- The new graph reuses the same financial summary response of the daily subtotal, using the date and highlight conditions; the natural week is based on Monday to Sunday, the natural month is based on the first to the end of the month, only the selected date is totaled from the beginning to the end, and cents, zero values, negative revenue, read failure retries, and fixed graph width are retained. The total income follows the daily subtotal before fees, and the financial formula is not recalculated.
+- Synchronize Chinese and English help, product, API and design documents, supplement New Year's Eve/leap day grouping, three-sequence display and filter refresh return. No API or database changes; Web upgrade required for NAS to take effect.
 
 ## 1.28.0 — 2026-10-17
 
-- 经营分析前三位依次为每日营业额日历、星期平均营业额、平均营业额曲线，其余图表按原顺序后移，每日小计保留在热力图后。
-- 新曲线默认显示最近30天平均，可同时勾选全日期累计平均与最近7天平均；累计口径从所选起日到当天，滚动窗口补读起日前29天／6天，沿用当前高光筛选和已日结样本，并保留零值、缺口与样本数。
-- 全部折线图采用平滑曲线，横轴适配固定图表宽度，日期曲线范围跟随上方日期选择；同步中英文帮助、API、产品和设计文档及回归。无需数据库迁移；NAS 生效需升级 Web/API。
+- The top three items in business analysis are daily revenue calendar, weekly average revenue, and average revenue curve. The remaining charts are moved back in the original order, and the daily subtotals are retained after the heat map.
+- The new curve displays the average of the last 30 days by default, and you can check both the cumulative average of all dates and the average of the last 7 days. The cumulative definition is from the selected starting date to the current day, and the rolling window reads 29 days/6 days before the starting date. The current highlight filtering and closed samples are used, and zero values, gaps, and sample numbers are retained.
+- All line charts use smooth curves, the horizontal axis adapts to the fixed chart width, and the date curve range follows the date selection above; Chinese and English help, API, product and design documents and regressions are synchronized. No database migration is required; Web/API upgrade is required for NAS to take effect.
 
 ## 1.27.0 — 2026-10-15
 
-- 记录卖卡在序列号右侧新增“网上卖卡”按钮，切换后输入任意用户名（含纯数字及前导零）；同一用户名可重复购买，不占用实体卡自动序列号。
-- 礼物卡付款新增“使用用户名”，直接保存用户名和使用金额，不查询账号或销售登记；编辑、草稿、付款快照、审计与 AI 修改保留用户名模式。
-- 台账分别按实体卡和用户名展示购买与使用，重复购买的核销只合计一次；财务明细、CSV 与回收站同步标注用户名。新增向前数据库迁移，NAS 生效需升级 Web/API 并应用迁移。
+- When recording card sales, a new "Sell Card Online" button is added to the right of the serial number. After switching, enter any username (including pure numbers and leading zeros); the same username can be purchased repeatedly and does not occupy the automatic serial number of the physical card.
+- Gift card payment adds "Use username", which directly saves the username and amount used, without querying the account number or sales registration; editing, draft, payment snapshot, audit and AI modification retain the username mode.
+- The ledger displays purchases and uses by physical card and user name respectively, and write-offs for repeated purchases are only totaled once; financial details, CSV and recycle bin are marked with user names simultaneously. Added forward database migration. For NAS to take effect, you need to upgrade the Web/API and apply the migration.
 
 ## 1.26.0 — 2026-10-13
 
-- 历史记工允许店主/经理隐藏及恢复员工出勤，已日结历史也可操作；历史空行和班次保留，记工、财务、现金与日结快照不变。
-- 隐藏日期视为未上班，后续轮转跳过该日并重新计算当日可见位置；今日初次自动生成、主动重新生成与未来自动排工采用相同历史依据，保留未来人工顺序保护。
-- 更早出勤变化同步刷新其他设备正在查看的后续日期；更新历史只读提示、中英文帮助、产品与 API 说明，补充历史权限/版本/重放、财务保留及两类生成顺序回归。无需数据库迁移；NAS 生效需升级 Web/API。
+- The historical work record allows store owners/managers to hide and restore employee attendance, and the closed historical days is also operable; historical blank lines and shifts are retained, and the work record, finance, cash, and daily closing snapshots remain unchanged.
+- Hidden dates are regarded as not working, and subsequent rotations will skip that day and recalculate visible positions on that day; today's initial automatic generation, active regeneration, and future automatic scheduling use the same historical basis, retaining future manual sequence protection.
+- Earlier attendance changes synchronously refresh the subsequent dates being viewed by other devices; update historical read-only prompts, Chinese and English help, product and API descriptions, and supplement historical permissions/versions/replays, financial retention, and two types of generation order regression. No database migration is required; Web/API upgrade is required for NAS to take effect.
 
 ## 1.25.1 — 2026-10-12
 
-- 全仓大扫除：移除仅旧测试引用的工资登记匹配、导航、排工标签和时间联动 helper，删除对应过时测试及八个未使用契约类型别名，保留现有工资 revision 确认、深链接解析与服务端时间兼容。
-- 个人日结与区间结算共用 Web SVG 转 PNG、画布容量限制和临时 URL 回收；短信接收号码校验与发送失败重试状态集中维护，保持原权限、租约和事务边界。
-- 删除没有对应构建／启动产物的 `WEB_STATIC_EXPORT` 旧分支；Web 统一使用现有 standalone 交付链路。
-- 纠正自动日结接收人及 Web/API 响应头说明，同步架构、开发和审查记录。无新功能或数据库迁移，NAS 生效需升级 Web/API。
+- Repository-wide cleaning: Remove the salary registration matching, navigation, scheduling tags and time linkage helpers that are only referenced by old tests, delete the corresponding obsolete tests and eight unused contract type aliases, and retain the existing salary revision confirmation, deep link resolution and server-side time compatibility.
+- Individual daily statement and interval settlement share Web SVG conversion, canvas capacity limit and temporary URL recycling; SMS receiving number verification and sending failure retry status are maintained centrally, maintaining original permissions, leases and transaction boundaries.
+- Remove the old `WEB_STATIC_EXPORT` branch that has no corresponding build/launch product; Web unified uses the existing standalone delivery link.
+- Correct automatic daily closing recipients and Web/API response header descriptions, sync architecture, development and review records. There are no new features or database migrations, and the Web/API needs to be upgraded for NAS to take effect.
 
 ## 1.25.0 — 2026-10-12
 
-- 个人日结页面、Web 生成 PNG 和短信 PNG 统一为记工卡模板：顶部突出已确认收入与现金／刷卡＋礼卡来源，下面两列按时间展示记工。
-- 卡片保留折前大费、精确实收拆分、小费和本笔收入；现金无框、刷卡加框、礼卡带文字，高亮、折扣和加项同步展示，待结账明确排除汇总。
-- API 个人预览及新短信快照补充高亮与折扣字段；旧快照缺少字段时仍可渲染。保留现金交接、生成／分享与发送操作，预览更新后清除旧图片。
-- 更新中英文内容与文档，补充页面、手机层叠、SVG 边界与 Mac PNG 转换回归。无需数据库迁移；NAS 生效需升级 Web/API，短信附件需另行更新已安装 Mac 代理。
+- The individual daily statement page, Web-generated PNG and SMS PNG are unified into a work record card template: the top highlights the source of confirmed income and cash/card + gift card, and the two columns below display the work record by time.
+- The card retains the pre-discount service fee, accurate receipt split, tips and current income; cash has no frame, card swiping has a frame, gift card has text, highlights, discounts and add-on are displayed simultaneously, and summary is explicitly excluded after checkout.
+- API personal preview and new SMS snapshots add highlight and discount fields; old snapshots can still be rendered if they are missing fields. Keep cash handover, generation/sharing and sending operations, and clear old images after preview update.
+- Updated Chinese and English content and documentation, supplementary pages, mobile overlays, SVG borders and Mac PNG conversion returns. No database migration is required; the Web/API needs to be upgraded for NAS to take effect, and SMS attachments need to be updated separately to have the Mac agent installed.
 
 ## 1.24.1 — 2026-10-12
 
-- 快速记工恰有三个时长选项时，桌面和手机均排成一行，每格上下显示时长与价格。
-- 打开快速记工及切换项目时优先默认 60 分钟，无该档位则选目录第一档；详情切换项目采用相同规则，同步价格和结束时间，保留已保存记录的原时长及手动选择。
-- 同步中英文帮助、产品和设计说明，补充组件交互与手机样式回归。无 API 或数据库变化，NAS 生效需升级 Web。
+- When the quick work record has exactly three duration options, both the desktop and the phone are lined up in a row, and the duration and price are displayed up and down in each grid.
+- When opening a quick work record and switching projects, the default is 60 minutes. If there is no such gear, the first gear in the directory is selected. The same rules are used for detailed switching projects, synchronizing prices and end times, and retaining the original duration of saved records and manual selection.
+- Synchronize Chinese and English help, product and design instructions, supplement component interaction and return to phone style. There are no API or database changes, and a web upgrade is required for NAS to take effect.
 
 ## 1.24.0 — 2026-10-09
 
-- 记工详情在高亮左侧新增“不算排工”，快速记工在占位与高亮之间新增同一按钮；标记独立保存、支持取消与详情草稿恢复，占位模式禁用该按钮。
-- 标记记录与高亮记录按时间混排在右侧，沿用普通小卡样式；不自动高亮，不改变记工数、自动折扣、财务筛选、手续费或工资口径。
-- 新增兼容旧记录的布尔字段与前向数据库迁移，沿用版本冲突、权限、幂等和审计。NAS 生效需升级 Web/API 并应用迁移。
+- The details of work record are added to the left side of highlight, and the same button is added between quick work record and highlight. Marks are saved independently and support cancellation and details draft recovery. This button is disabled in placeholder mode.
+- Mark records and highlight records are mixed and arranged on the right side according to time, and the ordinary small card style is used; there is no automatic highlight, and the number of work records, automatic discounts, financial screening, handling fees or salary definitions are not changed.
+- Added Boolean fields compatible with old records and forward database migration, inheriting version conflicts, permissions, idempotency and auditing. For NAS to take effect, you need to upgrade the Web/API and apply migration.
 
 ## 1.23.0 — 2026-10-08
 
-- 经营分析的星期平均营业额支持点击星期或按 Enter／空格，自动展开数据表并列出当前范围内该星期各日期的营业额；切换星期更新明细，保留美分、已日结零值与未日结破折号，切换日期／店铺／高光条件后清除旧选择。
-- 每日小计移至星期 × 小时热力图下方，营业额日历放在小计之后，使用与其他图表相同的网格：桌面占半宽，窄屏单列；小计、日历与当天明细继续采用同一日期及高光条件。
-- 同步中英文帮助、产品与设计文档，补充 React/jsdom 交互及布局回归。无 API 或数据库变化，NAS 生效需升级 Web。
+- The weekly average revenue of business analysis supports clicking the week or pressing Enter/space to automatically expand the data table and list the revenue of each date of the week within the current range; switch the week update details, retain cents, closed zero values and not closed dashes, and clear the old selection after switching date/store/highlight conditions.
+- The daily subtotal is moved below the week × hour heat map, the revenue calendar is placed after the subtotal, and the same grid as other charts is used: the desktop occupies half width, and the narrow screen has a single column; the subtotal, calendar, and today's details continue to use the same date and highlight conditions.
+- Synchronize Chinese and English help, product and design documents, and supplement React/jsdom interaction and layout regression. There are no API or database changes, and a web upgrade is required for NAS to take effect.
 
 ## 1.22.1 — 2026-10-08
 
-- 桌面左侧导航的财务与店铺设置子目录默认收起，点击父项展开，再次点击收起；两组目录可独立切换，父项只控制展开，点击子项进入页面。
-- 保留侧栏悬停/键盘展开、角色权限、店铺深链接和当前分区切换；手机底部导航继续直接进入页面。补充 React/jsdom 交互与断点样式回归，无 API 或数据库变化，NAS 生效需升级 Web。
+- The Finance and Store Settings subdirectories in the left navigation of the desktop are collapsed by default. Click the parent item to expand it and click it again to collapse it. The two groups of directories can be switched independently. The parent item only controls expansion. Click the child item to enter the page.
+- Retain sidebar hover/keyboard expansion, role permissions, store deep links and current section switching; the bottom navigation of the phone continues to enter the page directly. Supplemented React/jsdom interaction and breakpoint style regression, no API or database changes, NAS needs to be upgraded to take effect.
 
 ## 1.22.0 — 2026-10-07
 
-- 每日小计从财务汇总移至经营分析，跟随分析页独立日期与“仅高光 / 排除高光 / 全部”条件；保留星期、流水、全店近30天平均参考、主要金额/全部列切换和金额组成明细。
-- 经营分析新增与今日记工同样的月历，日期下显示当前筛选的已日结营业额，保留美分；未日结显示破折号、空日结显示零，范围外不显示金额且不可点击，月份切换限于所选范围。点击日期查看同一条件的当天明细。
-- 复用已有分析、财务汇总与明细接口及实时刷新，切换店铺/范围/高光条件后旧响应失效；补充中英文、手机样式及 React/jsdom 回归。无 API 契约或数据库变化，NAS 生效需升级 Web。
+- Daily subtotals are moved from financial summary to operating analysis, following the analysis page independent date and "highlight only / exclude highlight / all" conditions; retain weekday, turnover, average reference of the whole store in the past 30 days, main amount/all column switching and amount composition details.
+- Business analysis adds a monthly calendar that is the same as today's work record. The currently filtered closed revenue is displayed under the date and cents are retained; not closed displays dashes and empty daily closing displays zero. The amount is not displayed outside the range and cannot be clicked. Month switching is limited to the selected range. Click on a date to see today's details for the same condition.
+- Reuse existing analysis, financial summary and detail interfaces and real-time refresh. Old responses will become invalid after switching store/scope/highlight conditions; Chinese and English, mobile styles and React/jsdom returns will be added. There are no API contracts or database changes, and the Web needs to be upgraded for NAS to take effect.
 
 ## 1.21.0 — 2026-10-07
 
-- 经营分析新增“仅高光 / 排除高光 / 全部”筛选，默认全部，切换立即刷新并保留独立日期范围；全部图表及小时明细使用同一条件，旧请求和选中明细随筛选切换失效。
-- 高亮条件统一作用于记工数量、营业额和均线窗口；仅高光排除礼物卡销售，其他模式保留卖卡实收，跑客人数及日结样本不变。沿用权限与占位/删除排除规则，无数据库迁移；NAS 生效需更新 Web/API。
-- 同步中英文筛选、桌面/平板/手机表单布局及产品、API、架构文档，补充契约、API 集成和 React/jsdom 回归。
+- Business analysis has added the "highlight only/exclude highlight/all" filter, which defaults to all. The switch refreshes immediately and retains independent date ranges; all charts and hourly details use the same conditions, and old requests and selected details become invalid with the filter switch.
+- The highlight condition applies uniformly to the work record quantity, revenue, and moving average windows; only highlight excludes gift card sales, and other modes retain the actual receipts from card sales, and the number of runners and daily closing samples remain unchanged. Permissions and placeholder/deletion exclusion rules are inherited, without database migration; the Web/API needs to be updated for NAS to take effect.
+- Synchronize Chinese and English filtering, desktop/tablet/mobile form layout and product, API, architecture documents, supplementary contracts, API integration and React/jsdom regression.
 
 ## 1.20.1 — 2026-10-06
 
-- 补齐跑客 Walk-in 功能的 React/jsdom 回归，覆盖新建与编辑保存、取消草稿、只读标记、重复提交保护和版本冲突刷新。无生产逻辑或数据库变化。
+- Completing the React/jsdom return of Walkout Walk-in function, covering new creation, editing and saving, draft cancellation, read-only mark, duplicate submission protection and version conflict refresh. No production logic or database changes.
 
 ## 1.20.0 — 2026-10-06
 
-- 跑客录入和编辑新增 `Walk-in` 切换按钮，保存后在该条卡片右上角显示步行小图标；刷新和只读历史保留来源，编辑可取消，旧记录默认无标记。
-- 来源通过独立布尔字段保存，创建默认关闭、修改省略保留，纳入列表和审计快照；沿用营业日锁、版本、幂等与实时刷新，人数及财务统计不变。
-- 新增前向数据库迁移，补充契约、API 集成及 React/jsdom 回归，更新中英文帮助与设计说明。NAS 生效需要升级 Web/API 并应用迁移。
+- A new `Walk-in` switch button is added to Walkout entry and editing. After saving, a small walking icon will be displayed in the upper right corner of the card; refresh and read-only history retain the source, editing can be canceled, and old records are unmarked by default.
+- The source is saved through an independent Boolean field, the creation is closed by default, the modification is omitted and retained, and is included in the list and audit snapshot; the business day lock, version, idempotency and real-time refresh are used, and the number of people and financial statistics remain unchanged.
+- Added forward database migration, supplemented contracts, API integration and React/jsdom regression, updated Chinese and English help and design instructions. For NAS to take effect, you need to upgrade the Web/API and apply migration.
 
 ## 1.19.1 — 2026-10-06
 
-- 占位小卡顶部显示保存时选择的时间，沿用记工页时间格式和当前时区；保留整卡角到角 X，对角线位于时间文字下方，白底保证时间可读。
-- 同步占位帮助和设计说明、React/jsdom 回归及手机样式样例；不改变占位数据、排序、工数、财务或删除恢复规则。本次时间展示更新仅需升级 NAS Web。
+- The top of the placeholder card displays the time selected when saving, following the time format and current time zone of the work record page; the entire card is retained from corner to corner X, with the diagonal line below the time text, and the white background ensures that the time is readable.
+- Synchronize placeholder help and design instructions, React/jsdom regression and mobile style samples; do not change placeholder data, sorting, work, finance or delete recovery rules. This time display update only requires upgrading the NAS Web.
 
 ## 1.19.0 — 2026-10-06
 
-- 快速记工在高亮左侧新增占位模式，保留时间选择用于日期归属及排序，无需项目；主界面占位小卡由两条铺满卡片、连接四角的对角线组成 X，点击后只提供删除确认。
-- 占位使用独立 `PLACEHOLDER` 状态，不创建项目、折扣或付款明细，不计入记工数、收入、工资、日结异常、现金结算、经营分析和机器人工作占用；创建、删除及恢复不会回退现金结清。沿用权限、营业日锁、版本、幂等、审计和多设备同步，回收站可恢复。
-- 新增占位状态及业务字段约束的前向数据库迁移，补充契约、数据库、API 和 React/jsdom 回归；同步产品、API、架构、设计与中英文帮助。NAS 生效需要升级 Web/API 并应用迁移。
+- Quick work record adds a placeholder mode on the left side of the highlight. The retention time selection is used for date attribution and sorting, without a project. The placeholder card on the main interface consists of two diagonal lines covering the card and connecting the four corners. X, which only provides deletion confirmation after clicking.
+- The placeholder uses an independent `PLACEHOLDER` state, does not create projects, discounts or payment details, and is not included in the number of work records, income, wages, daily closing exceptions, cash settlement, business analysis and robot work occupation; creation, deletion and recovery will not roll back cash settlement. Inherit permissions, business day locks, versions, idempotency, auditing and multi-device synchronization, and recycle bin recovery.
+- Added forward database migration of placeholder status and business field constraints, supplemented contract, database, API and React/jsdom regression; synchronized product, API, architecture, design and Chinese and English help. For NAS to take effect, you need to upgrade the Web/API and apply migration.
 
 ## 1.18.10 — 2026-10-05
 
-- 工资区间图片按店铺、日期范围、员工和工资来源建立阅读上下文，再展示收入汇总、每日总结和时间顺序明细；Web PNG 与 Mac 短信 JPEG 继续共用模板。
-- 个人日结 Web 导出与短信 PNG 改为共享 SVG：先看已确认总收入，再按大费／小费纵向核对现金、非现金（刷卡＋礼卡）及合计，最后逐笔查看时间、项目、员工收入、折前金额与客人付款来源。待结账明确未计入汇总，未知值与零值区分，金额保留美分，长内容完整换行；调整阅读层级和字段对应，不只更换颜色。
-- 同步个人日结及工资图片设计规则、维护入口、产品和代理说明；无接口或数据库变化，NAS Web 与已安装 Mac 代理需分别更新，本地修改不代表上线，历史已发送附件不变。
+- Salary range images establish reading context by store, date range, employee, and salary source, then display earnings summary, daily summary, and chronological breakdown; Web PNG and Mac SMS JPEG continue to share templates.
+- Individual daily statement Web export and text message PNG changed to share SVG: first look at the confirmed total income, then vertically check cash, non-cash (swipe card + gift card) and total by service fee / tips, and finally check time, project, employee income, pre-discount amount and guest payment source one by one. It is clear that pending checkout is not included in the summary, unknown values are distinguished from zero values, the amount is kept in cents, and long content is completely wrapped in new lines; the reading level and field correspondence are adjusted, not only the color is changed.
+- Synchronize individual daily statement and salary picture design rules, maintenance portal, product and agent description; no interface or database changes, NAS Web and installed Mac agent need to be updated separately, local modification does not mean online, historical sent attachments remain unchanged.
 
 ## 1.18.9 — 2026-10-05
 
-- 工资结算 Web PNG 与 Mac 短信 JPEG 共用模板去除暖色渐变、红棕大底色、阴影和过重字重，改用项目既有的石灰白背景、白色表面、墨色文字、深绿重点、细边线及统一圆角。
-- 汇总按工资来源标注大费、小费与合计，金额保留美分；长店名、姓名、付款拆分和金额完整换行，头部和卡片随内容增高。保留每天总结最左、逐笔按时间排列、2～4 列及单张长图容量边界。
-- 同步图片设计规范、产品与代理手册及渲染回归；无业务接口或数据库迁移，NAS Web 与已安装 Mac 代理需分别更新才能生效。
+- The payroll settlement Web PNG and Mac SMS JPEG share a template that removes warm gradients, red-brown backgrounds, shadows, and excessive font weight, and instead uses the project's existing lime-white background, white surface, ink text, dark green accents, thin edges, and unified rounded corners.
+- The summary is marked with service fee, tips and total according to the salary source, and the amount is kept in cents; the long store name, name, payment split and amount are completely wrapped in new lines, and the header and card increase with the content. Keep the leftmost summary of each day, arrangement of each transaction by time, 2 to 4 columns, and the capacity boundary of a single long picture.
+- Synchronized image design specifications, product and agent manuals, and rendering regressions; no business interface or database migration, NAS Web and installed Mac agents need to be updated separately to take effect.
 
 ## 1.18.8 — 2026-10-04
 
-- 今日记工移除退出按钮，普通退出统一使用“我的”页面既有的退出账号区域；单店铺不再占用空账号操作区，多店铺仍可直接切换。
-- 稍微放大营业日日历，宽屏月历由 288px 增至 336px、日期行由 28px 增至至少 36px，中等桌面宽度与窄屏弹出月历同步调整；每日营业额由 9px 增至 12px，长金额换行而不缩成小字。保留日期选择、缓存、权限与原有金额口径，无数据库迁移，更新 NAS Web 后生效。
+- Today's work record removes the exit button, and normal exits use the existing exit account area on the "My" page; a single store no longer occupies an empty account operation area, and multiple stores can still be switched directly.
+- Slightly enlarge the business day calendar, the wide-screen calendar increases from 288px to 336px, the date line increases from 28px to at least 36px, the medium desktop width and narrow-screen pop-up calendar are adjusted simultaneously; the daily revenue increases from 9px to 12px, and long amounts are wrapped without shrinking into small characters. Date selection, cache, permissions and original amount are retained, without database migration, and will take effect after updating NAS Web.
 
 ## 1.18.7 — 2026-10-04
 
-- 将本项目的审美目标、信息层级、同级模块一致性、语义颜色、手机阅读、已暴露问题及设计判断方法写入 UI 设计文档，解释每条准则的用途与原因。
-- 在维护规则、AI 接管、根 README 和文档索引加入学习入口，要求后续前端修改延续共同规范并覆盖低频页面与数据状态。本次仅文档及必要版本同步，无界面、业务或数据库变化。
+- Write the project's aesthetic goals, information level, module consistency at the same level, semantic color, mobile reading, exposed issues and design judgment methods into the UI design document, explaining the purpose and reason of each criterion.
+- Add learning portals to maintenance rules, AI handoff, root README and document index, requiring subsequent front-end modifications to continue common specifications and cover low-frequency pages and data status. This time only documents and necessary versions are synchronized, with no interface, business or database changes.
 
 ## 1.18.6 — 2026-10-04
 
-- 按手机阅读任务重排回收站、日结检查/短信队列、礼物卡账本、工资账本/发送记录、支出和财务组成明细；900px 及以下使用带字段名称的纵向记录，关键金额、状态、删除原因和发送失败先于操作，次要明细按需展开，桌面保留对比表。
-- 工资全部来源汇总改为可读的分组金额，保留美分与合计；适配窄屏逐日卡片，机器人身份/状态/操作分行，审计已知字段使用金额、比例与中文标签，完整 JSON 仍保留在展开项。
-- 手机经营分析增大图表文字及热力触控区并固定星期标签；帮助页常用记工在前，主题点击直接展开对应说明，正文增大字号和行高；长财务/支出/工资编辑弹层保持顶部关闭入口可用。
-- 增加真实 React 组件的手机阅读、样式及操作回归，覆盖宽度 320–900px 和桌面切换、权限、确认、版本、美分、混合付款和现金接口匹配；同步全页面复核记录。按用户约定仅代码验证，无浏览器视觉实测、接口或数据库迁移。更新 NAS Web 后生效。
+- Rearrange the recycle bin, daily closing check/SMS queue, gift card ledger, payroll ledger/send record, expenditure and financial composition details according to phone reading tasks; vertical records with field names are used for 900px and below, key amounts, status, deletion reasons and sending failures precede operations, secondary details are expanded on demand, and a comparison table is retained on the desktop.
+- The summary of all salary sources is changed to readable group amounts, retaining cents and totals; adapting to narrow-screen daily cards, robot identity/status/operation branches, auditing known fields using amounts, ratios, and Chinese labels, and the complete JSON is still retained in the expanded item.
+- For mobile business analysis, the chart text and thermal touch area are enlarged and the week label is fixed; frequently used work records are placed in the front of the help page, and the corresponding description is directly expanded by clicking on the topic. The font size and line height of the main text are increased; the long finance/expense/salary editing pop-up layer keeps the top closed entrance available.
+- Added mobile reading, style and operation regression of real React components, covering width 320–900px and matching desktop switching, permissions, confirmation, version, cents, mixed payment and cash interfaces; synchronizing full page review records. Only code verification is performed according to user agreement, without browser visual testing, interface or database migration. Effective after updating NAS Web.
 
 ## 1.18.5 — 2026-10-04
 
-- 修复手机卖卡/跑客一边为空时被高优先级规则恢复两列的问题，覆盖四种空/有记录组合；更多汇总改为稳定的两列分隔，奇数尾项占满整行。
-- 手机工资结算的金额与支付字段统一单列、恢复可读字号及 44px 操作高度；店铺、成员、审计等输入控件统一 16px，登录号码前缀与输入框保持同高。
-- 分页标签保留下划线和直角边线，移除公共按钮圆角覆盖；手机日结发送区单列、筛选标题可换行，补齐助手、员工小计发送与详情操作的触控高度。
-- 新增 `pnpm ui:mobile`，以实际 CSS 加载顺序检查 8 个路由、27 组页面/分区及常用弹层在 320/360/390/414/480/600/760px 的层叠样式，加入布局/控件退化样例并接入 CI。仅代码与 DOM 样式验证，不代表浏览器视觉实测；无业务接口或数据库迁移。NAS 需更新 Web 才能应用本次改动。
+- Fixed the problem of two columns being restored by high-priority rules when the mobile card seller/runner side is empty, covering four empty/recorded combinations; more summaries are changed to stable two-column separation, and odd-numbered tail items occupy the entire row.
+- The amount and payment fields of mobile salary settlement are unified into single columns, and the readable font size and operation height are restored to 44px; input controls such as stores, members, and audits are unified to 16px, and the login number prefix and input box remain at the same height.
+- Pagination labels retain underlines and right-angled edges, and public button rounded corners are removed; the daily closing sending area on phones has a single column, filter titles can be wrapped, and the touch height of the assistant, employee subtotal sending and detail operations is completed.
+- Added `pnpm ui:mobile` to check 8 routes, 27 groups of pages/sections and the cascading styles of common elastic layers at 320/360/390/414/480/600/760px in the actual CSS loading order, add layout/control degradation samples and connect to CI. Only code and DOM style verification, does not represent actual browser visual testing; no business interface or database migration. The NAS needs to update the web to apply this change.
 
 ## 1.18.4 — 2026-10-04
 
-- 扫描全部 481 个项目文件，移除没有业务调用者的财务计算适配器及其注册/转发自测；合并礼物卡新卡与老卡使用明细的序列化，以及 Web/消息代理的 XML、金额和时间图片格式化。
-- 清除 23 个不再被页面使用的旧样式类及跨断点规则，保留动态拼接的付款方式、发送状态和目录类型样式。
-- 整理产品、开发、接管、UI、API、部署和安全文档，删除旧配色/侧栏、禁止自动日结、全站金额一律取整、旧成员流程、结算总结最右列及临时相册诊断等过时规则；保留规则逐条说明原因，发布检查不再复制整套业务口径。
-- 固化“进行一轮文档整理”的全仓清理含义；保留已有未提交工作、已发布迁移、兼容入口、历史记录与许可证。本轮不加功能，无数据库迁移。应用清理需更新 NAS；共享图片格式化还需单独更新已安装 Mac 代理。
+- Scan all 481 project files, remove financial calculation adapters without business callers and their registration/forwarding self-tests; merge gift card serialization of new and old card usage details, and XML, amount and time image formatting for Web/message brokers.
+- Clear 23 old style classes and cross-breakpoint rules that are no longer used by the page, and retain the dynamically spliced payment method, delivery status, and catalog type styles.
+- Organize the product, development, handoff, UI, API, deployment and security documents, delete the old color matching/sidebar, prohibit automatic daily closing, round all site amounts, old member processes, the rightmost column of the settlement summary and temporary album diagnosis and other outdated rules; retain the rules to explain the reasons one by one, and no longer copy the entire set of business definitionss for release inspection.
+- Solidify the repository-wide cleanup meaning of "carrying out a round of documentation"; retain existing uncommitted work, published migrations, compatibility portals, history records and licenses. No functions will be added in this round, and there will be no database migration. Application cleaning requires updating the NAS; formatting of shared images requires a separate update of the installed Mac agent.
 
 ## 1.18.3 — 2026-10-04
 
-- 统一记工空状态、员工排工操作、礼物卡销售与跑客记录的白色表面、实线边框和圆角，移除旧响应式样式中的覆盖；员工添加与排工入口移到员工表格旁，手机辅助模块改为单列。
-- 高亮记工改为柔和灰绿色，记工卡、详情按钮及财务明细沿用同一语义颜色，悬停和只读时保持稳定；清理全站残留的独立暖色、紫色付款标签、大圆角、装饰阴影与过重字重，不改变高亮对应的折扣和手续费规则。
-- 原生月份/日期等控件补齐统一基线；支出筛选、项目按钮和编辑弹层同步公共控件。成员表单增加独立内容分组，收紧空白并修复短信号码与图片语言的控件对齐；其他资料、工资和筛选表单也避免辅助说明撑高旁边的字段。
-- 增加 `pnpm ui:check` 与样式规则回归，禁止断点重新引入独立颜色、大圆角或覆盖记工面板表面；同步中英文帮助和设计维护记录。无需数据库迁移，更新 NAS Web 后生效。
+- Unify the white surface, solid border and rounded corners of the work record empty state, employee scheduling operation, gift card sales and customer records, and remove the overlay in the old responsive style; the employee addition and scheduling entrance is moved to the side of the employee table, and the mobile auxiliary module is changed to a single column.
+- The highlight work record is changed to a soft gray green. The work record card, detail button and financial details continue to use the same semantic color, which remains stable when hovering and read-only. The remaining independent warm colors, purple payment labels, large rounded corners, decorative shadows and excessive font weights of the entire site are cleaned up, and the discount and fee rules corresponding to highlight are not changed.
+- Native month/date and other controls complete the unified baseline; expenditure filtering, project buttons and editing pop-ups are synchronized with common controls. The member form adds independent content grouping, tightens the white space and fixes the alignment of SMS number and picture language controls; other information, salary and filter forms also avoid auxiliary descriptions from elevating the fields next to them.
+- Added `pnpm ui:check` and style rule regression, prohibiting breakpoints from reintroducing independent colors, large rounded corners or covering the work record panel surface; synchronizing Chinese and English help and design maintenance records. No database migration is required and it will take effect after updating NAS Web.
 
 ## 1.18.2 — 2026-10-04
 
-- 桌面导航默认收为 64px 图标栏，鼠标移入或键盘聚焦时展开，移开后自动收回；保留当前视觉风格、子页面入口与图标的可访问名称。
-- 展开侧栏覆盖内容，主区域仅预留图标栏宽度并取消桌面最大宽度限制，避免操作时挤动布局；同步 AI 弹层位置，小屏底部导航继续沿用原布局。无需数据库迁移，更新 NAS Web 后生效。
+- Desktop navigation is reduced to a 64px icon bar by default. It expands when the mouse is moved or the keyboard is focused, and is automatically retracted when moved away; the current visual style, sub-page entry and accessible name of the icon are retained.
+- Expand the sidebar to cover the content, reserve only the width of the icon bar in the main area and cancel the maximum width limit on the desktop to avoid squeezing the layout during operation; synchronize the position of the AI pop-up layer, and continue to use the original layout for the bottom navigation of small screens. No database migration is required and it will take effect after updating NAS Web.
 
 ## 1.18.1 — 2026-10-04
 
-- 修复未来记工页上移、下移后被加载时自动排位覆盖的问题；手动顺序在刷新、实时同步和之前出勤变化后保留，每周模板仍更新名单，新员工追加到末尾。
-- 主动重新生成顺序后恢复自动排位更新；首次模板初始化也保护手动排序，使用审计版本区分同毫秒操作，保留权限、幂等与版本冲突保护。
-- 同步中英文帮助及产品/API/架构说明，补充数据库集成回归。无需新增数据库迁移，NAS 更新 API 与 Web 后生效。
+- Fixed the problem of automatic ranking overwriting when the future work record page is moved up or down when loaded; the manual order is retained after refresh, real-time synchronization and previous attendance changes, the weekly template still updates the list, and new employees are appended to the end.
+- Automatic ranking updates are restored after proactively regenerating the order; the first template initialization also protects manual sorting, uses audit versions to distinguish operations within the same millisecond, and retains permissions, idempotency and version conflict protection.
+- Synchronize Chinese and English help and product/API/architecture descriptions, and supplement database integration regression. No new database migration is required, it will take effect after the NAS updates the API and Web.
 
 ## 1.18.0 — 2026-10-02
 
-- 全站前端改为石灰白、墨色与深绿的门店工作台，统一字号、边线、圆角、状态颜色和金额排版；移除装饰渐变、卡片浮起及大面积阴影，桌面使用固定完整侧栏与常驻当前分区导航。
-- 成员管理整体改为“选择已有员工 → 档案详情 → 保存修改”。集中维护资料、工资和短信，项目专属提成、账号与状态分区管理；窄屏采用目录/详情两步布局，保留未保存提醒、版本冲突草稿、重复提交保护和店主权限边界。
-- 分别整理记工页头与概览、财务各子页、店铺规则与设备、项目分类、机器人、个人资料、登录、离线与帮助的层级；帮助增加主题入口与可展开指南，分析图表同步语义颜色，减少动态效果时关闭助手平滑滚动。
-- 补充成员流程的 React/jsdom 自动化验证与中英文文案，记录实际 GitHub 参考源码及维护边界。无需数据库迁移，更新 NAS Web 后生效。
+- The front end of the entire site has been changed to a lime white, ink and dark green store workbench, with unified font sizes, edges, rounded corners, status colors and amount layouts; decorative gradients, card floats and large area shadows have been removed, and the desktop uses a fixed full sidebar and permanent navigation in the current partition.
+- The overall member management has been changed to "select existing employees → profile details → save changes". Centrally maintain information, wages and text messages, project exclusive commissions, account and status partition management; the narrow screen adopts a two-step directory/details layout, retaining unsaved reminders, version conflict drafts, duplicate submission protection and store owner permission boundaries.
+- Organize the work record header and overview, financial sub-pages, store rules and equipment, project categories, robots, personal information, login, offline and help levels respectively; help add topic entrances and expandable guides, synchronize semantic colors for analysis charts, and turn off the assistant to smooth scrolling when reducing dynamic effects.
+- Supplement the React/jsdom automated verification and Chinese and English copywriting of the member process, and record the actual GitHub reference source code and maintenance boundaries. No database migration is required and it will take effect after updating NAS Web.
 
 ## 1.17.4 — 2026-10-02
 
-- 主页自动同步（含记工、日结通知及重新联网）仅刷新表格等业务数据，不再清空月份日历缓存或重新获取已读日历；手动刷新、本机业务操作及跨日仍可刷新，首次查看未缓存月份正常读取。
-- 保留既有日期范围同步、请求合并与旧响应隔离。无需数据库迁移，NAS 更新 Web 后生效。
+- The automatic synchronization of the homepage (including work record, daily closing notification and reconnection) only refreshes business data such as tables, and no longer clears the monthly calendar cache or re-obtains the read calendar; manual refresh, local business operations and cross-day refreshes can still be refreshed, and uncached months can be read normally when viewed for the first time.
+- Keep existing date range synchronization, request merging and isolation of old responses. No database migration is required, it will take effect after the NAS updates the web.
 
 ## 1.17.3 — 2026-10-02
 
-- 主页经营概览卡片的标题、图标与金额统一居中显示，适用于宽屏、窄屏及展开汇总。无需数据库迁移，NAS 更新 Web 后生效。
+- The title, icon and amount of the business overview card on the homepage are uniformly displayed in the center and are suitable for wide screen, narrow screen and expanded summary. No database migration is required, it will take effect after the NAS updates the web.
 
 ## 1.17.2 — 2026-10-02
 
-- 主页日历按店铺和月份使用页面内缓存，切换日期、返回已读月份、窄屏重新展开与表格重挂载不再重复获取；合并同月在途请求，切日期复用目录和成员资料。
-- 手动刷新、记工/卖卡/日结变更、跨日与重新联网仍更新日历，保留刷新期间同月标记；其他日期的变更也使日历缓存失效，旧响应不能覆盖新缓存。子面板重新订阅实时连接只初始化自身，避免触发整个主页重读。
-- 补充缓存、请求竞态及实时订阅回归测试。无需数据库迁移，NAS 更新 Web 后生效。
+- The home page calendar uses in-page caching by store and month. Switching dates, returning to read months, narrow screen re-expansion and table re-mounting no longer obtain repeated acquisitions; merge requests in transit for the same month, and reuse directories and member information across dates.
+- Manual refresh, work record/sell card/daily closing changes, cross-day and reconnection will still update the calendar, retaining the same month mark during the refresh period; changes in other dates will also invalidate the calendar cache, and old responses cannot overwrite the new cache. Sub-panels re-subscribe to live connections only initialize themselves to avoid triggering a re-read of the entire home page.
+- Supplement caching, request race conditions and real-time subscription regression testing. No database migration is required, it will take effect after the NAS updates the web.
 
 ## 1.17.1 — 2026-10-02
 
-- 成员管理改为团队概况、搜索与状态/角色筛选、紧凑成员表格；新增员工、资料编辑、项目提成、加入审批及停用恢复分别使用右侧抽屉，窄屏使用全屏表单。
-- 资料按权限、工资提成和日结短信分组，提供弹窗内错误、未保存提醒、重复提交保护和版本冲突核对；实时刷新保留正在编辑的草稿。
-- 保存仅提交变化字段对应的接口，避免未修改提成时重复重算；保留注册手机号回退，支持恢复时调整重名员工的显示名。
-- 工具栏适配 GitHub shadcn/ui 的 MIT 源码，补充来源和许可证说明；同步中英文与维护文档。无需数据库迁移，NAS 更新 Web 后生效。
+- Member management is changed to team profile, search and status/role filtering, and compact member form; adding employees, data editing, project commissions, joining approval, and deactivation recovery use the right drawer respectively, and the narrow screen uses a full-screen form.
+- Data is grouped by permissions, salary commissions, and daily closing text messages. It provides pop-up windows for errors, unsaved reminders, duplicate submission protection, and version conflict checks; it refreshes in real time to retain the draft being edited.
+- Save only the interface corresponding to the submitted changed field to avoid repeated recalculation when the commission is not modified; retain the registered phone number for rollback, and support the adjustment of the display name of employees with the same name during recovery.
+- The toolbar is adapted to the MIT source code of GitHub shadcn/ui, supplementing source and license instructions; synchronizing Chinese and English with maintenance documents. No database migration is required, it will take effect after the NAS updates the web.
 
 ## 1.17.0 · 2026-10-02
 
-- 财务增加独立支出页面，店主和经理可管理固定周期、预算浮动和一次性费用，支持历史与未来月份。
-- 按自然月汇总成本并计算平均每日支出；月周期均分，天周期按覆盖日期分摊，美分余数保留。
-- 支持单期实际金额覆盖（含零）、撤销覆盖、按周期生效的规则历史、停止与重新开始，以及删除恢复；不改变收入、工资及日结公式。
-- 新增支出前向迁移、权限、幂等、版本控制、审计和实时刷新，保持已日结月份可补录。
+- Finance adds an independent expense page, so store owners and managers can manage fixed periods, budgetary floating and one-time expenses, supporting historical and future months.
+- Costs are summarized by calendar month and average daily expenses are calculated; monthly periods are divided evenly, and daily periods are amortized by date covered, with cents retained.
+- Supports single-period actual amount coverage (including zero), cancellation coverage, rule history effective by period, stop and restart, and deletion recovery; the income, salary and daily closing formulas will not be changed.
+- Added forward expenditure migration, permissions, idempotency, version control, auditing and real-time refresh, and closed months can be re-recorded.
 
 ## 1.16.0 — 2026-10-02
 
-- 成员管理及新员工建档增加非必填“是否每日结清”，默认否。启用后个人日结现金交接显示全部付款来源的大费提成与刷卡/礼物卡小费之和，不含客人直接给员工的现金小费。
-- “已结”在每日结算保存完整工资快照，工资结算日历标记当天全部结清并排除重复支付，余额包含新增已发工资；取消、取消全店日结或修改记工沿用自动回退。历史结清不受后来成员设置影响；未结账记工和已有工资结清确认阻止重复全额发放。
-- 新增前向迁移 `20261002020000_daily_full_settlement`；NAS 需部署新版本并应用迁移后生效。
+- Member management and new employee profile creation add the optional "whether to clear every daily closing", the default is no. After enabling, individual daily statement cash handover displays the sum of service fee commissions and credit card/gift card tips from all payment sources, excluding cash tips directly given by guests to employees.
+- "Settled" saves a complete salary snapshot at each daily closing. The salary settlement calendar marks all settlements on the day and excludes repeated payments. The balance includes newly added wages; canceling or canceling the daily closing of the whole store or modifying the work record will continue to use automatic rollback. Historical settlement is not affected by subsequent member settings; unsettled work records and existing salary settlement confirmations prevent repeated full payment.
+- Added forward migration `20261002020000_daily_full_settlement`; the NAS needs to deploy the new version and apply the migration to take effect.
 
 ## 1.15.9 — 2026-10-02
 
-- 员工姓名下方移除“下工时间”前缀，预计结束时间加大加粗并保持 AM/PM 同行，保留绿色状态点与原有工作状态计算。无需新增数据库迁移；NAS 更新 Web 后生效。
+- Remove the "end of work time" prefix below the employee's name, make the expected end time bold and keep AM/PM aligned, and retain the green status point calculated with the original work status. No new database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.15.8 — 2026-10-02
 
-- 财务现金结算合入日结员工检查表，显示应提交、应保留、结清状态及逐人操作，现金明细按行展开并保留一键结清；员工仅查看本人现金。旧现金链接进入同店同日的日结。现金未结清或加载失败不影响正常日结，日结后仍可结清；沿用记工异常检查与取消日结回退。无需新增数据库迁移；NAS 更新 Web 后生效。
+- The financial cash settlement is integrated into the daily closing employee checklist, which displays what should be submitted, what should be retained, settlement status, and person-by-person operations. Cash details are expanded by row and retained for one-click settlement; employees only view their own cash. Old Cash Link goes into same store same day daily closing. Unsettled cash or failed loading will not affect normal daily closing, and can still be settled after daily closing; continue to use work record exception check and cancel daily closing fallback. No new database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.15.7 — 2026-10-02
 
-- 工资结算汇总在“短信发送长图”左侧增加“生成图片”，复用短信长图的汇总与按日记工排版，在页面下方预览并保存 PNG；切换员工、范围、来源或语言及刷新结算单后清除旧图片，生成中防止重复点击并回收临时图片资源。无需新增数据库迁移；NAS 更新 Web 后生效。
+- The salary settlement summary adds "Generate Image" to the left of "Send SMS Long Image", reuse the summary of SMS long image and daily work record layout, preview and save PNG at the bottom of the page; switch employees, scopes, sources or languages and clear old images after refreshing the settlement form, prevent repeated clicks during generation and recycle temporary image resources. No new database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.15.6 — 2026-10-02
 
-- 工资页宽屏员工操作、日历与结算汇总统一等高，生成和结算操作靠底排列；超过 6 名可查看成员时员工栏自动拓宽并排为两列，十人显示为五行，更多成员保留列表滚动。平板保留单列员工，手机保留横向滚动。无需新增数据库迁移；NAS 更新 Web 后生效。
+- On the salary page, the widescreen employee operations, calendar and settlement summary are unified to the same height, and the generation and settlement operations are arranged at the bottom; when there are more than 6 viewable members, the employee column is automatically widened and arranged into two columns, and ten people are displayed in five rows. For more members, the list is reserved for scrolling. Tablets retain a single column of employees, and phones retain horizontal scrolling. No new database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.15.5 — 2026-10-02
 
-- 工资结算单生成后取消选择区的总宽度上限，汇总填满日历右侧剩余空间；根据汇总自身宽度增大金额、字号与间距，日历仍保持紧凑尺寸，窄屏继续上下排列。无需新增数据库迁移；NAS 更新 Web 后生效。
+- After the salary settlement form is generated, cancel the upper limit of the total width of the selection area, and the summary fills the remaining space on the right side of the calendar; increase the amount, font size, and spacing according to the width of the summary itself, and the calendar will still maintain a compact size, and the narrow screen will continue to be arranged up and down. No new database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.15.4 — 2026-10-02
 
-- 工资结算单生成后，员工信息、完整收入汇总、未结/抵扣/实付金额及付款、短信、发送记录按钮浓缩为日历右侧的第三列；抵扣说明可展开，逐日记工明细继续位于下方。平板与手机自动回到上下排列，金额保留美分，付款及长图内容不变。无需新增数据库迁移；NAS 更新 Web 后生效。
+- After the salary settlement form is generated, employee information, complete income summary, outstanding/deducted/actually paid amounts and payments, text messages, and send record buttons are condensed into the third column on the right side of the calendar; the deduction instructions can be expanded, and the daily work record details continue to be located below. Tablets and phones automatically return to the top and bottom arrangement, the amount remains in cents, and the payment and long picture content remain unchanged. No new database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.15.3 — 2026-10-02
 
-- 工资结算页将工资来源和“生成结算单”按钮移至左侧员工列表下方，右侧仅保留日历；选择框与按钮适配窄列及中英文，窄屏仍采用上下布局。无需新增数据库迁移；NAS 更新 Web 后生效。
+- On the salary settlement page, the salary source and "Generate Settlement Statement" button are moved to the left below the employee list, and only the calendar is retained on the right; the selection boxes and buttons are adapted to narrow columns and Chinese and English, and the narrow screen still uses a top-down layout. No new database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.15.2 — 2026-10-02
 
-- 工资结算入口改为左侧纵向员工按钮、右侧紧凑日历，工资来源和生成按钮放在日历下方；员工较多时列表独立滚动。窄屏保留员工按钮在上方横向滚动、日历在下方。无需新增数据库迁移；NAS 更新 Web 后生效。
+- The salary settlement entrance is changed to a vertical employee button on the left and a compact calendar on the right. The salary source and generation buttons are placed under the calendar; when there are more employees, the list scrolls independently. Narrow screens retain employee buttons with horizontal scrolling at the top and calendar at the bottom. No new database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.15.1 — 2026-10-02
 
-- 工资结算月历限制为最多 360px 宽、日期格压缩到 44px，收紧标题、图例与范围说明的间距，窄屏维持紧凑尺寸；日期选择、结清标记与付款逻辑保持原有行为。无需新增数据库迁移；NAS 更新 Web 后生效。
+- The salary settlement monthly calendar is limited to a maximum width of 360px, the date grid is compressed to 44px, the spacing between the title, legend and range description is tightened, and the narrow screen maintains a compact size; date selection, settlement mark and payment logic maintain the original behavior. No new database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.15.0 — 2026-10-02
 
-- 工资结算页改为员工按钮与可跨月选择首尾日期的月历；黄色/绿色对号分别表示现金与刷卡＋礼物卡已结，现金状态兼容每日现金结清。完整结算单及短信长图不排除已结日期。
-- 新增独立的结清确认和手工抵扣：服务端计算未结金额，仅登记扣除抵扣后的实付，零实付也可确认；结清记录关联工资账本，修改、删除和恢复同步日历状态。历史与手工付款不猜测结清范围；保留既有账本与长图发送。使用事务、营业日锁、幂等和预览修订校验防止重复或过期付款。
-- 新增 `20261002010000_payroll_settlement_confirmations` 数据库迁移；NAS 生效需应用迁移并更新 API、Web，无需更新 Mac 信息代理。
+- The salary settlement page is changed to an employee button and a monthly calendar that allows you to select the first and last dates across months; the yellow/green check marks indicate cash and credit card + gift card settlement respectively, and the cash status is compatible with daily cash settlement. The complete settlement statement and long text message image do not exclude the settlement date.
+- Added independent settlement confirmation and manual deduction: the server calculates the outstanding amount and only registers the actual payment after deduction. Zero actual payment can also be confirmed; the settlement record is associated with the payroll ledger to modify, delete and restore the synchronized calendar status. There is no need to guess the settlement range for historical and manual payments; keep the existing ledger and send long drawings. Prevent duplicate or expired payments using transactions, business day locks, idempotency, and preview revision verification.
+- Added `20261002010000_payroll_settlement_confirmations` database migration; for NAS to take effect, you need to apply the migration and update the API and Web. There is no need to update the Mac information agent.
 
 ## 1.14.23 — 2026-10-02
 
-- 所有 Web 操作成功、失败、保存、发送及表单校验提示统一在 3 秒后自动消失，涵盖每周排工应用失败；重复触发同一提示重新计时，卸载时清理计时。财务短信排队与成员短信号码提示改为页面内反馈，加载失败提示消失后保留重试与原有操作限制。无需数据库迁移；NAS 更新 Web 后生效。
+- The prompts for success, failure, saving, sending and form verification of all web operations will automatically disappear after 3 seconds, covering weekly scheduling application failures; the same prompt will be re-timed if the same prompt is triggered repeatedly, and the timer will be cleared when uninstalling. The financial SMS queuing and member SMS number prompts are changed to on-page feedback, and the retry and original operation restrictions are retained after the loading failure prompt disappears. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.22 — 2026-10-01
 
-- 宽屏记工页的记工标题、日期与同步状态、账号操作改为以第一行店铺信息为基准左对齐。无需数据库迁移；NAS 更新 Web 后生效。
+- On the widescreen work record page, the work record title, date, synchronization status, and account operations are changed to be left aligned based on the first row of store information. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.21 — 2026-09-30
 
-- 宽屏记工页日历移至最左侧，刷新、日结等操作放在日历右侧，店铺代码、记工标题、日期及账号操作靠页面右侧显示；中英文切换移入左侧导航栏底部、使用帮助上方，窄屏保留顶部语言入口与原日期工具栏。无需数据库迁移；NAS 更新 Web 后生效。
+- The widescreen work record page calendar has been moved to the far left, and operations such as refresh and daily closing are placed on the right side of the calendar. Store codes, work record titles, dates, and account operations are displayed on the right side of the page; Chinese and English switching has been moved to the bottom of the left navigation bar and above the usage help. The language entry and original date toolbar at the top are retained in narrow screens. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.20 — 2026-09-30
 
-- 生成工资结算单后新增“已结算”按钮，自动提取员工、日期范围、所选工资来源和总额登记已付工资；保存后刷新账本及尚欠余额，阻止重复点击并在重试时复用幂等键。手动登记、修改与账本统一为员工、日期范围、金额、工资来源四项，金额保留美分；历史记录不推断工资来源。新增工资来源字段迁移；NAS 更新前须应用迁移并更新 API 与 Web。
+- A "Settled" button is added after generating the salary settlement form, which automatically extracts the employee, date range, selected salary source and total amount to register paid wages; refreshes the account book and outstanding balance after saving, prevents repeated clicks and reuses the idempotency key when retrying. Manual registration, modification and ledger are unified into four items: employee, date range, amount, and salary source. The amount is kept in cents; historical records do not infer the salary source. Added salary source field migration; migration must be applied and API and Web updated before NAS update.
 
 ## 1.14.19 — 2026-09-30
 
-- 工资结算单每天的独立“当日总结”固定放在当天最前面，页面预览与短信长图同步调整；长图总结占当日第一行最左列，后续记工按时间排列，移除末尾补空位逻辑。无需数据库迁移；NAS 更新 Web 及重新安装 Mac 信息代理后生效。
+- The independent "summary of the day" for each day of the salary settlement form is fixed at the front of the day, and the page preview is adjusted synchronously with the long text message image; the long image digest occupies the leftmost column of the first row of the day, and subsequent work records are arranged by time, and the logic of filling gaps at the end is removed. No database migration is required; it will take effect after the NAS updates the web and reinstalls the Mac Information Agent.
 
 ## 1.14.18 — 2026-09-30
 
-- 高亮记工自动排除周一至周四自动折扣：新建、编辑及机器人高亮操作统一生效，详情预览立即移除折扣；保留手动折扣及手动停用状态，取消高亮后按当前店铺规则重新判断。历史记录不批量改写，无需数据库迁移；NAS 更新 API 与 Web 后生效。
+- Highlight work record automatically excludes automatic discounts from Monday to Thursday: new, edit, and robot highlight operations take effect uniformly, and discounts are immediately removed from detailed preview; manual discounts and manual deactivation status are retained, and re-judged according to current store rules after canceling highlight. Historical records are not rewritten in batches and no database migration is required; it will take effect after the NAS updates the API and Web.
 
 ## 1.14.17 — 2026-09-30
 
-- 固定导航子菜单不再固定侧栏宽度：鼠标移出整个导航栏后自动缩回图标栏，再次移入时恢复已固定的子菜单；保留键盘聚焦展开。无需数据库迁移；NAS 更新 Web 后生效。
+- The fixed navigation submenu no longer fixes the sidebar width: the icon bar automatically retracts after the mouse moves out of the entire navigation bar, and the fixed submenu is restored when the mouse is moved in again; keyboard focus expansion is retained. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.16 — 2026-09-30
 
-- 记工与财务 AI 助手由右下角气泡移入导航栏，作为固定入口；桌面侧栏收缩时只显示图标，展开时显示“AI 助手”，小屏在底部导航显示。对话面板通过 body portal 展示，避免导航裁切，关闭后焦点返回入口。无需数据库迁移；NAS 更新 Web 后生效。
+- The work record and financial AI assistant are moved from the bubble in the lower right corner to the navigation bar as a fixed entrance; when the desktop sidebar is contracted, only the icons are displayed, and when expanded, the "AI Assistant" is displayed, and the small screen is displayed at the bottom navigation. The dialogue panel is displayed through the body portal to avoid navigation clipping, and the focus returns to the portal after closing. No database migration is required; it will take effect after the NAS updates the web.
 
 
 ## 1.14.15 — 2026-09-30
 
-- 桌面导航点击财务或店铺设置名称时固定展开子菜单，通过子项进入页面；移出侧栏后保持展开，重复点击或 Escape 解除固定，点击另一分组切换固定项。小屏底栏保留直接导航。无需数据库迁移；NAS 更新 Web 后生效。
+- When clicking on the name of finance or store settings in the desktop navigation, the submenu will be fixed to expand, and the page will be entered through the subitems; after moving out of the sidebar, it will remain expanded, click repeatedly or Escape to unpin it, and click another group to switch to the fixed item. The bottom bar of small screens retains direct navigation. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.14 — 2026-09-30
 
-- 工资结算页默认日期范围改为本月 1 日至当前营业日；登记已付工资的覆盖开始日期同步默认本月 1 日，仍可手动调整。已有结算修改保留原日期。无需数据库迁移；NAS 更新 Web 后生效。
+- The default date range of the salary settlement page is changed to the 1st of this month to the current business day; the coverage start date for registering paid wages is synchronized and defaults to the 1st of this month, which can still be adjusted manually. Existing settlement modifications retain the original date. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.13 — 2026-09-30
 
-- 移除桌面财务与店铺设置导航右侧的箭头按钮，统一四个主选项的宽度；展开侧栏由 256px 缩窄到 224px，保留悬停与键盘聚焦展开子菜单。无需数据库迁移；NAS 更新 Web 后生效。
+- The arrow buttons on the right side of the desktop financial and store settings navigation are removed, and the width of the four main options is unified; the expanded sidebar is narrowed from 256px to 224px, and hover and keyboard focus are retained to expand the submenu. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.12 — 2026-09-30
 
-- 删除宽屏记工页独立的营业日日期与状态说明区域；“返回今天”移到“取消日结”右侧，未日结或员工查看非今天时仍可返回。窄屏按钮随次要操作放入“更多操作”，保留日期选择器。无需数据库迁移；NAS 更新 Web 后生效。
+- Delete the independent business day date and status description area on the widescreen work record page; "Return to today" is moved to the right of "Cancel daily closing". It is not closed or employees can still return when viewing something other than today. The narrow screen button is put into "More Actions" along with the secondary actions, retaining the date picker. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.11 — 2026-09-30
 
-- 修复快速记工滚动后关闭按钮消失的问题：标题和关闭操作固定在弹窗顶部，仅表单内容滚动；弹窗通过 body portal 定位，避免父容器影响。桌面与小屏均保留可见关闭入口。无需数据库迁移；NAS 更新 Web 后生效。
+- Fixed the problem of the close button disappearing after scrolling the fast work record: the title and close operation are fixed at the top of the pop-up window, and only the form content scrolls; the pop-up window is positioned through the body portal to avoid the influence of the parent container. The closed entry remains visible on both desktop and small screens. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.10 — 2026-09-30
 
-- 桌面导航栏与主内容间距调整为 12px，主内容右侧留白调整为 18px，顶部语言入口与内容边缘同步对齐。无需数据库迁移；NAS 更新 Web 后生效。
+- The distance between the desktop navigation bar and the main content is adjusted to 12px, the margin on the right side of the main content is adjusted to 18px, and the top language entry is aligned with the edge of the content. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.9 — 2026-09-30
 
-- 记工页查看今天时，营业日文案合并为“当前营业日：日期”，去掉“查看营业日”和重复提示；历史与未来日期保留原说明，同步英文文案。无需数据库迁移；NAS 更新 Web 后生效。
+- When viewing today on the work record page, the business day copy is merged into "Current business day: date", and "View business day" and repeated prompts are removed; historical and future dates retain the original description, and the English copy is synchronized. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.8 — 2026-09-30
 
-- 宽屏记工页拆开营业日、日历和操作按钮，取消包裹它们的大卡片；紧凑常驻日历放在语言切换左侧，日期行高从 44px 降为 28px，缩减月份导航和网格留白。复用语言切换组件，账号操作放在其下方；低于 1200px 继续自动恢复原布局与日期弹窗。无需数据库迁移；NAS 更新 Web 后生效。
+- The widescreen work record page separates the business day, calendar and action buttons, and cancels the large cards that wrap them; the compact resident calendar is placed on the left side of the language switch, the date line height is reduced from 44px to 28px, and the month navigation and grid space are reduced. The language switching component is reused, and the account operation is placed below it; below 1200px, the original layout and date pop-up window will continue to be automatically restored. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.7 — 2026-09-30
 
-- 记工页的新页头布局、常驻日历、直接操作和数字徽标仅在浏览器宽度达到 1200px 时启用；低于该宽度自动恢复原来的标题下方工具栏、日历弹窗、“更多操作”、已发送文字及日历说明。窗口缩放即时切换并保留所选营业日；财务日历恢复原说明。无需数据库迁移；NAS 更新 Web 后生效。
+- The new header layout, resident calendar, direct actions and digital logo of the work record page are only enabled when the browser width reaches 1200px; below this width, the original toolbar below the title, calendar pop-up, "more actions", sent text and calendar description are automatically restored. Window zoom switches instantly and retains the selected business day; the financial calendar returns to its original description. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.6 — 2026-09-30
 
-- 记工页营业日信息和操作区移到页头店铺代码右侧，日历常驻显示，切月、选日和刷新后继续展示；窄屏自动换行和纵向排列。财务日结页保留点击展开日历。
-- 移除记工页“更多操作”外层菜单，短信队列及已日结后的发送小结、取消日结直接显示；已发送数量改为小数字徽标，删除日历底部“有记工但未日结”说明。无需数据库迁移；NAS 更新 Web 后生效。
+- The business day information and operation area of the work record page are moved to the right side of the store code at the top of the page. The calendar is permanently displayed and will continue to be displayed after month cutting, day selection and refresh; narrow screen automatically wraps lines and arranges vertically. The financial daily closing page retains the click-to-expand calendar.
+- Remove the outer menu of "More Operations" on the work record page, display the SMS queue and closed sending summary, and cancel the daily closing directly; the sent quantity is changed to a small number logo, and the "There is a work record but not closed" description at the bottom of the calendar is deleted. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.5 — 2026-09-30
 
-- 桌面图标侧栏由 76px 缩至 56px，距窗口左侧 4px；主内容紧贴侧栏，仅保留 2px 间隔和 4px 右侧留白，取消桌面主内容宽度上限，为横向记工小卡释放更多空间。导航点击区域仍至少 44px 宽，保留悬停展开和子菜单动画。无需数据库迁移；NAS 更新 Web 后生效。
+- The desktop icon sidebar has been reduced from 76px to 56px, 4px from the left side of the window; the main content is close to the sidebar, leaving only a 2px gap and a 4px margin on the right side. The upper limit on the width of the desktop main content has been cancelled, freeing up more space for the horizontal work record card. The navigation click area is still at least 44px wide, retaining hover expansion and submenu animations. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.4 — 2026-09-30
 
-- 高亮记工卡片在鼠标移入、移出和按下时保持同一黄色底色、金色边框与阴影，取消其悬停变色、浮起、缩放和过渡，避免闪烁；待结账与只读高亮卡片沿用相同规则。无需数据库迁移；NAS 更新 Web 后生效。
+- The highlight work record card maintains the same yellow background, golden border and shadow when the mouse is moved in, out and pressed, and its hover discoloration, floating, scaling and transition are canceled to avoid flickering; the checkout pending and read-only highlight cards follow the same rules. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.3 — 2026-09-30
 
-- 恢复同步状态的原有浅绿背景和离线红色提示，以及成功/已日结提示的绿色文字。
-- 修复新版普通卡片底色覆盖高亮状态的问题；高亮记工在常态、悬停、待结账及已日结只读状态下均持续显示黄色背景和金色边框。无需数据库迁移；NAS 更新 Web 后生效。
+- Restore the original light green background and offline red prompt of the synchronization status, as well as the green text of the success/closed prompt.
+- Fixed the problem that the background color of the new version of ordinary cards covers the highlight state; the highlight work record continues to display a yellow background and a golden border in the normal, hover, pending checkout and closed read-only states. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.2 — 2026-09-30
 
-- 桌面侧栏鼠标移入财务或店铺设置时自动展开对应子菜单，直接移入子项即可选择；移到其他主导航时切换展开分组，离开侧栏后收起，保留短动画和键盘展开按钮。无需数据库迁移；NAS 更新 Web 后生效。
+- When the mouse is moved into Finance or Store Settings in the desktop sidebar, the corresponding submenu will automatically expand. Move directly into the sub-item to select; when moving to other main navigations, switch to expand the group, and collapse after leaving the sidebar, retaining the short animation and keyboard expansion button. No database migration is required; it will take effect after the NAS updates the web.
 
 ## 1.14.1 — 2026-09-30
 
-- 按用户要求恢复原有暖米色、砖红品牌色及经营分析图表配色，保留新版按钮、卡片和布局。
-- 桌面侧栏默认收起为图标，鼠标移入或键盘聚焦时平滑展开，离开后自动收起；展开浮于内容上方，避免表格宽度跳动。财务和店铺设置支持直接展开子菜单，展开/收起与箭头均有短动画，并响应减少动态效果设置。
-- 侧栏与页面分区共用角色菜单配置；分区切换同步 URL 和选中状态，刷新或跨页直达保留目标分区，员工继续只显示原有可用入口。无新增依赖或数据库迁移；NAS 更新 Web 后生效。
+- Restore the original warm beige, brick red brand colors and business analysis chart colors according to user requirements, and retain the new version of buttons, cards and layouts.
+- The desktop sidebar collapses into an icon by default, expands smoothly when the mouse is moved in or the keyboard is focused, and automatically collapses after leaving it; the expansion floats above the content to avoid table width jumps. Financial and store settings support direct expansion of submenus, expansion/collapse and arrows have short animations, and respond to reduce dynamic effect settings.
+- The sidebar and page partition share the role menu configuration; partition switching synchronizes the URL and selected status, refreshes or cross-pages to directly reach the reserved target partition, and employees continue to display only the original available entrance. There are no new dependencies or database migrations; it will take effect after the NAS updates the web.
 
 ## 1.14.0 — 2026-09-30
 
-- Web 全面更新为墨绿与暖白的店铺工作台：1200px 起使用品牌侧栏，小屏使用图标浮动底栏；今日指标拆成独立卡片，记工、财务、设置、个人与登录统一按钮、表单、卡片层次和图标。
-- 添加按钮按压、卡片悬停、弹窗/详情入场反馈，尊重减少动态效果设置；保留待结账、高亮、付款异常与历史只读状态，补齐新增中英文文案。经营分析图表配色同步主题。
-- 参考 shadcn/ui、Magic UI、Motion 与 React Bits 的设计思路，以现有 React/CSS 自行实现，无新增依赖。维护与参考记录见 `docs/engineering/UI_DESIGN.md`。业务接口、财务计算与权限不变，无需数据库迁移；NAS 更新 Web 后生效。
+- The web has been fully updated to a dark green and warm white shop workbench: branded sidebars starting from 1200px, and icon floating bottom bars for small screens; today’s indicators are split into independent cards, and work record, finance, settings, personal and login unified buttons, forms, card levels and icons.
+- Add button press, card hover, pop-up window/details entry feedback, respect the reduction of dynamic effect settings; retain pending checkout, highlight, payment exception and historical read-only status, and complete the new Chinese and English copywriting. Business analysis chart color synchronization theme.
+- Refer to the design ideas of shadcn/ui, Magic UI, Motion and React Bits, and implement it by yourself with existing React/CSS without any new dependencies. Maintenance and reference records are found in `docs/engineering/UI_DESIGN.md`. The business interface, financial calculations and permissions remain unchanged, and no database migration is required; it will take effect after the NAS updates the Web.
 
 ## 1.13.7 — 2026-09-29
 
-- 仅整理代码与文档：复用 Web API 基址和共享类型，合并日结/区间结算代理鉴权，去掉跑客快照的重复包装；现有功能、响应、财务公式和权限保持不变。
-- 契约经营分析测试移到 `test/`，领域与契约构建排除测试；启用未使用变量/参数检查，补充 Docker 对 Python 缓存与插件包等生成文件的排除规则。
-- 增加 `pnpm docs:check` 与仓库工具测试并接入 CI，完善仓库结构、插件入口、架构与验证说明；全仓检查清单保存在 `docs/archive/CODE_CLEANUP_2026-09-29.md`。无需数据库迁移，未部署 NAS 或重新安装插件。
+- Only organize code and documentation: reuse Web API base address and share type, merge daily closing/interval settlement agent authentication, remove duplicate packaging of Walkout snapshots; existing functions, responses, financial formulas and permissions remain unchanged.
+- The contract operation analysis test is moved to `test/`, domain and contract construction exclude tests; unused variable/parameter check is enabled, and Docker’s exclusion rules for generated files such as Python cache and plug-in packages are supplemented.
+- Add `pnpm docs:check` and repository tool testing and connect to CI, improve the repository structure, plug-in entry, architecture and verification instructions; the repository-wide checklist is saved in `docs/archive/CODE_CLEANUP_2026-09-29.md`. No database migration, NAS deployment or plug-in reinstallation required.
 
 ## 1.13.6 — 2026-09-29
 
-- 每周排工弹窗底部“取消”改为“应用”，使用当前勾选覆盖正在查看日期的排工，不保存每周模板；该日期已有记工（含待结账和删除历史）或已日结时失败并保留原名单。无需数据库迁移，NAS 更新 API、Web 后生效。
+- "Cancel" at the bottom of the weekly schedule pop-up window is changed to "Apply", and the current check is used to overwrite the schedule of the date being viewed, and the weekly template is not saved; if there is already a work record (including pending settlement and deletion history) or closed on that date, it fails and the original list is retained. No database migration is required, and it will take effect after the NAS updates the API and Web.
 
 ## 1.13.5 — 2026-09-29
 
-- 修复自动排工后从明天记工移除员工，刷新时又被每周模板加回的问题；单日移除和隐藏空行移除会持续保留，支持手动重新添加，其他日期不受影响。无需数据库迁移，NAS 更新 API 后生效。
+- Fixed the issue where employees were removed from tomorrow’s work record after automatic scheduling and then added back by the weekly template when refreshing; single-day removal and hidden blank row removal will continue to be retained, and manual re-adding is supported. Other dates will not be affected. No database migration is required, it will take effect after the NAS updates the API.
 
 ## 1.13.4 — 2026-09-29
 
-- 记工详情备注栏点击或聚焦时不再自动全选，保留原生光标定位和文字选择；其他输入框维持现有全选行为。无需数据库迁移，NAS 更新 Web 后生效。
+- The work record details note column will no longer automatically select all when clicked or focused, retaining the native cursor positioning and text selection; other input boxes maintain the existing select all behavior. No database migration is required, it will take effect after the NAS updates the web.
 
 ## 1.13.3 — 2026-09-29
 
-- 有非空备注的首页记工卡片右下角显示小备注图标，与待结账、付款差额提示并排，避免遮挡金额；空白备注不显示。无需数据库迁移，NAS 更新 Web 后生效。
+- A small note icon is displayed in the lower right corner of the work record card on the home page with non-empty notes, side by side with the pending settlement and payment difference prompts to avoid blocking the amount; blank notes are not displayed. No database migration is required, it will take effect after the NAS updates the web.
 
 ## 1.13.2 — 2026-09-29
 
-- 精简普通部署：本地轻量预检，完整验证交由对应提交的 CI；不再重复本地镜像构建或脚本已完成的上线检查，保留备份、迁移和健康检查。
-- CI 共享包准备由三次减为一次，API 单元测试随集成测试执行一次；使用完整 SHA 等待运行，默认仅命令行验收。无需数据库迁移。
+- Streamlined ordinary deployment: local lightweight pre-checking, complete verification is handed over to the corresponding submitted CI; local image build or script completed online check is no longer repeated, backup, migration and health check are retained.
+- CI shared package preparation is reduced from three times to once, and API unit tests are executed once along with integration tests; full SHA is used to wait for running, and only command line acceptance is performed by default. No database migration required.
 
 ## 1.13.1 — 2026-09-28
 
-- 每周排工保存立即生效，店主/经理今天即可通过营业日日历查看明天；未来日期按最新模板和截至当前的出勤顺序自动更新，不再被首次打开时的结果固定。无变化的刷新不写入新版本。
-- 未来日期仅移除模板自动加入且已取消安排、没有记工或班次的人员，保留手动添加；今天已安排的人员、历史和已日结日期保持不变。无需新增迁移，NAS 更新 API、Web 后生效。
+- The weekly work schedule is saved and takes effect immediately. The store owner/manager can check tomorrow through the business day calendar today; future dates are automatically updated according to the latest template and the current attendance sequence, and are no longer fixed by the results when first opened. A refresh without changes does not write a new version.
+- Only the people who were automatically added by the template and have been canceled or have no work records or shifts will be removed from future dates, and will remain manually added; the people who have been scheduled today, their history, and their closed date will remain unchanged. No new migration is required, it will take effect after the NAS updates the API and Web.
 
 ## 1.13.0 — 2026-09-28
 
-- 今日页新增每周排工设置，按周一至周日配置上班人员；每日自动加入当日预设人员并使用现有排工规则生成顺序。
-- 财务礼物卡台账补充没有售卡登记的老卡使用记录，单次使用直接显示详情，多次使用合并后可展开；不新增销售收入或推算未知余额。
-- 店铺预设折扣支持百分比，与固定金额折扣并存；记工沿用折前项目及加项合计计算、整数美分舍入和历史快照规则。
-- 包含数据库前向迁移；NAS 需更新 API、Web 并应用迁移后生效。
+- A new weekly schedule setting is added to the Today page, and workers are configured from Monday to Sunday; the default workers for the day are automatically added every day and the existing schedule rules are used to generate the order.
+- The financial gift card ledger supplements the usage records of old cards without card sales registration. The details are directly displayed for a single use and can be expanded after multiple uses are combined; no new sales revenue or unknown balances are calculated.
+- Store preset discounts support percentages and coexist with fixed amount discounts; the work record follows the pre-discount items and add-on total calculations, integer cent rounding, and historical snapshot rules.
+- Contains database forward migration; NAS needs to update API, Web and apply migration to take effect.
 
 ## 1.12.7 — 2026-09-27
 
-- 记工页礼物卡销售与跑客记录并排时始终等高；任一栏有记录、另一栏为空时，空栏也随较高的卡片拉伸。保留现有宽度分配和窄屏布局。无需数据库迁移，NAS 更新 Web 后生效。
+- On the work record page, gift card sales and customer records are always of the same height when placed side by side; when there is a record in any column and the other column is empty, the empty column will also stretch with the taller card. Preserve existing width allocations and narrow screen layouts. No database migration is required, it will take effect after the NAS updates the web.
 
 ## 1.12.6 — 2026-09-27
 
-- 新增记工卡片恢复紧挨左侧普通记工，高亮组仍靠右排列，不再把新增入口一起推到右侧。
-- 横向溢出时，自动归位在新增入口右侧露出 1.5 张高亮；仅一张高亮时显示该卡并补半张空白，没有高亮时留半张空白。空间不足的窄屏优先完整显示新增入口；未溢出时不额外留白，继续保留 10 秒停止操作归位和拖动保护。无需数据库迁移，NAS 更新 Web 后生效。
+- The new work record card is restored to the normal work record on the left, and the highlight group is still arranged on the right, and the new entry is no longer pushed to the right.
+- When overflowing horizontally, it will automatically return to the right side of the new entrance to reveal 1.5 highlights; when there is only one highlight, the card will be displayed and half of the blank will be filled; if there is no highlight, half of the card will be left blank. Narrow screens with insufficient space will give priority to fully displaying the new entrance; if it does not overflow, no additional white space will be left, and it will remain for 10 seconds to stop operations and drag protection. No database migration is required, it will take effect after the NAS updates the web.
 
 ## 1.12.5 — 2026-09-27
 
-- 员工记工卡片按普通记工、新增入口、高亮记工排列；高亮集中在右侧，并按时间从右向左排列。记录不足一屏时，新增入口与高亮组靠右。
-- 列表溢出时可向左右滑动；未日结时停止操作约 10 秒后以新增入口为锚点归位，保证新增卡片完整显示在可视区域靠右侧；保持拖动保护与减少动态效果偏好。无需数据库迁移，NAS 更新 Web 后生效。
+- Employee work record cards are arranged according to ordinary work record, new entry, and highlight work record; highlights are concentrated on the right side and arranged from right to left according to time. When the record is less than one screen, the new entrance and highlight group are placed to the right.
+- When the list overflows, you can slide left and right; when it is not closed, stop the operation for about 10 seconds and then return to the new entry as the anchor point to ensure that the new card is completely displayed on the right side of the visible area; maintain drag protection and reduce dynamic effects. No database migration is required, it will take effect after the NAS updates the web.
 
 ## 1.12.4 — 2026-09-25
 
-- 排序依据弹窗增加“保存图片”，在浏览器本地导出包含日期、当前/生成名次、变更提示及逐人完整原因的 PNG；支持中英文，长内容自动换行，超长内容分为编号图片。
-- 无排序快照时禁用导出，生成中防止重复点击并显示失败重试提示；无需数据库迁移，NAS 更新 Web 后生效。
+- Add "Save Image" to the pop-up window for sorting, and export a PNG containing date, current/generated ranking, change prompt and complete reason for eviction locally in the browser; supports Chinese and English, automatic line wrapping of long content, and divided long content into numbered images.
+- Disable export when there is no sorted snapshot, prevent repeated clicks during generation and display a failed retry prompt; no database migration is required, and it will take effect after the NAS updates the Web.
 
 ## 1.12.3 — 2026-09-25
 
-- 按用户要求回退至本版本，撤回未发布的桌面手风琴浓缩卡改造，恢复完整记工卡及原有员工行布局。
+- Roll back to this version as requested by users, withdraw the unreleased desktop accordion condensed card transformation, and restore the complete work record card and original employee row layout.
 
-- 个人日结逐笔明细与网页 PNG 改为紧凑记工卡，显示项目时间、折前大费基数和小费总额；刷卡金额加框并提供无障碍说明，礼卡小字标识，仅保留待结账状态，移除付款拆分和本笔工资。
+- The individual daily statement and web page PNG are changed to a compact work record card, which displays the project time, the service fee base before discounts and the total tips; the card amount is framed and accessibility instructions are provided, and the gift card is marked with small characters. Only the pending checkout status is retained, and the payment split and current salary are removed.
 
 ## 1.12.2 — 2026-09-24
 
-- 调整礼物卡销售小卡：“序列号”标签与号码同行；未启用自动折扣时隐藏折扣百分比；合并重复的实收与刷卡金额展示，刷卡金额框即表示刷卡；卡片高度与普通记工小卡一致。
+- Adjust the gift card sales card: the "serial number" label goes with the number; the discount percentage is hidden when automatic discount is not enabled; the repeated actual receipts and card swipe amounts are merged, and the card swipe amount box indicates that the card has been swiped; the card height is consistent with the ordinary work record card.
 
 ## 1.12.1 — 2026-09-23
 
-- 精简礼物卡区域，移除说明、收入汇总和店铺项目标签；成功提示 3 秒后消失。销售展示按实收推导的实际折扣，刷卡金额加框，零元付款项隐藏。
+- Streamline the gift card area and remove the description, income summary and store item labels; the success prompt will disappear after 3 seconds. The sales display shows the actual discount derived based on actual receipts, the card amount is framed, and the zero-yuan payment is hidden.
 
 ## 1.12.0 — 2026-09-23
 
-- 跑客记录新增可编辑客人数（默认 1 位，1–999 整数），卡片、标题汇总和经营分析按实际人数统计；历史记录通过向前迁移保留为 1 位。
+- The guest record adds an editable number of guests (default is 1 digit, 1–999 integer), and cards, title summaries, and business analysis are based on the actual number of guests; historical records are retained as 1 digit through forward migration.
 
 ## 1.11.4 — 2026-09-23
 
-- 礼物卡销售允许实收低于或高于折后应付；新增和修改仅在保存时提醒确认，页面不显示差异颜色或标记，店铺收入仍按现金与刷卡实收合计计算。新增数据库前向迁移解除实收必须等于应付的约束，NAS 更新时需应用迁移。
+- Gift card sales allow the actual receipt to be lower or higher than the payable after discount; new additions and modifications are only prompted for confirmation when saving, and the page does not display different colors or marks. Store income is still calculated based on the total of cash and card payment. The new database forward migration removes the constraint that the actual revenue must be equal to the payable, and the migration needs to be applied when the NAS is updated.
 
 ## 1.11.3 — 2026-09-23
 
-- 礼物卡销售与跑客记录始终同行：仅一栏有记录时让该栏占主要宽度，空栏保持紧凑；两栏均有记录或均为空时各占一半。
+- Gift card sales and customer records always go hand in hand: when there are records in only one column, let that column occupy the main width, and keep the empty columns compact; when both columns have records or are empty, each takes half.
 
 ## 1.11.2 — 2026-09-23
 
-- 跑客人数说明移到标题后同一行，窄屏空间不足时自动换行。
+- The description of the number of customers has been moved to the same line after the title, and will automatically wrap when there is insufficient space on a narrow screen.
 
 ## 1.11.1 — 2026-09-23
 
-- 礼物卡和跑客记录均为空时并排等高，任意一栏有记录时上下排列；去掉跑客空状态文案，保存和删除成功提示 3 秒后自动消失。
+- When the gift card and Walkout records are both empty, they are side by side and of the same height. When there are records in any column, they are arranged one above the other. Remove the copy of the Pauke empty status, and the save and delete success prompts will automatically disappear after 3 seconds.
 
 ## 1.11.0 — 2026-09-23
 
-- 跑客记录移到礼物卡销售下方，独立占据整行。新增可选备注（最多 500 字符），支持填写、修改和清空，并在记录卡片展示；历史记录默认空备注，新增向前迁移。
+- The runner record is moved below the gift card sales and occupies the entire row independently. Added optional notes (up to 500 characters), which support filling, modifying and clearing, and are displayed on the record card; historical records default empty notes, and forward migration is added.
 
 ## 1.10.0 — 2026-09-23
 
-- 记工页礼物卡销售和跑客记录并排展示；新增每日跑客人数记录，支持按营业日和发生时间维护，并遵循权限、日结锁、幂等、版本与审计规则。
-- 经营分析每日记工数量图在记工数上方叠加跑客数，跑客为零时不显示该段，跑客独有日期仍显示；跑客不影响财务。新增跑客数据表与迁移，NAS 更新 API/Web 并执行迁移后生效。
+- On the work record page, gift card sales and customer records are displayed side by side; a new daily customer number record is added, which supports maintenance by business day and occurrence time, and follows permissions, daily closing lock, idempotency, version and audit rules.
+- In the daily work record quantity chart of business analysis, the number of runners is superimposed on the number of work records. When the number of runners is zero, the segment is not displayed, and the unique date of runners is still displayed; runners do not affect finances. Added Walkout data table and migration, it will take effect after NAS updates API/Web and performs migration.
 
 ## 1.9.4 — 2026-09-22
 
-- 经营分析的小时记工明细仅显示图表选中的时段，切换时段同步更新每日笔数；未选择时提示选择，继续隐藏零笔日期。
+- The hourly work record details of the business analysis only display the period selected in the chart, and the daily number of transactions is updated simultaneously when the period is switched; when no selection is made, a selection prompt is displayed, and zero transaction dates continue to be hidden.
 
 ## 1.9.3 — 2026-09-22
 
-- 店长或经理可为未来日期生成或重新生成员工顺序，保留过去日期、日结、权限和版本保护。
-- 未来日期按钮与排序依据明确对应所选日期；按所选日期之前已保存的最近可见顺序轮转，之前名单变化后需手动重新生成。
-- 新增未来日期生成、重生成和历史依据回归验证；无需新增数据库迁移，NAS 需更新 API/Web 后生效。
+- A store manager or manager can generate or regenerate employee sequences for future dates, preserving past dates, daily closing, permissions, and version protection.
+- The future date button and sorting basis clearly correspond to the selected date; rotation is based on the most recent visible order saved before the selected date, and the previous list needs to be manually regenerated after changes.
+- Added future date generation, regeneration and historical basis regression verification; no new database migration is required, and the NAS needs to update the API/Web to take effect.
 
 ## 1.9.2 — 2026-09-22
 
-- 清理重复实现：财务页面共用日期辅助模块，机器人金额与时间解析/显示从服务中分离，Mac 附件渲染共用转义、金额和时间格式化，移除未使用参数。
-- Mac 信息代理心跳版本读取随包版本，移除过时的硬编码版本号。
-- 精简文档重复说明与索引，修正 CI 测试说明、依赖图、模块清单和重复 API 条目；保留历史设计、已发布迁移及旧快照兼容逻辑。
-- 不增加业务功能或改变接口、页面交互；无需数据库迁移。NAS 应用和已安装 Mac 代理需分别更新才会使用本次整理后的代码。
+- Clean up duplicate implementation: Financial pages share the date auxiliary module, robot amount and time parsing/display are separated from the service, Mac attachment rendering shares escaping, amount and time formatting, and unused parameters are removed.
+- The Mac Information Agent heartbeat version reads the package version and removes obsolete hard-coded version numbers.
+- Streamline document duplicate descriptions and indexes, correct CI test descriptions, dependency graphs, module lists, and duplicate API entries; retain historical designs, published migrations, and old snapshot compatibility logic.
+- No business functions are added or interfaces or page interactions are changed; no database migration is required. The NAS application and the installed Mac agent need to be updated separately to use the code compiled this time.
 
 ## 1.9.1 — 2026-09-21
 
-- 店主和经理可从记工日历进入未来日期并提前添加员工，支持切换后续月份，页面数据刷新保持所选日期。
-- 增加未来营业日中英文提示；普通员工日期范围及财务日结、现金结算限制保持不变。
-- 无需数据库迁移；NAS 需更新 Web 应用后生效。
+- Store owners and managers can enter future dates from the work record calendar and add employees in advance, support switching to subsequent months, and page data refresh to maintain the selected date.
+- Added Chinese and English prompts for future business day; date range for ordinary employees and financial daily closing and cash settlement restrictions remain unchanged.
+- No database migration is required; the NAS needs to update the web application to take effect.
 
 ## 1.9.0 — 2026-09-21
 
-- 保留底部生成顺序按钮位置，右侧增加问号，可逐人查看最近出勤、轮转和同位比较依据，支持中英文。
-- 生成顺序时事务保存解释快照；手动调整、新增、隐藏或移除后区分当前位置与生成时名次，旧版本缺少快照时明确提示。
-- 解释仅向店长和经理开放，不引入 AI；新增 `daily_boards.ranking_explanation` 可空字段，NAS 需执行迁移并更新 API/Web 后生效。
+- Keep the position of the generate order button at the bottom, and add a question mark on the right side. You can view the latest attendance, rotation and comparison basis for the same position one by one. It supports Chinese and English.
+- When generating the sequence, the transaction saves the interpretation snapshot; after manual adjustment, addition, hiding or removal, the current position and the ranking at the time of generation are distinguished. If the old version lacks a snapshot, it will be clearly prompted.
+- The explanation is only open to store managers and managers, and does not introduce AI; a new `daily_boards.ranking_explanation` nullable field is added, and the NAS needs to be migrated and the API/Web is updated to take effect.
 
 ## 1.8.8 — 2026-09-21
 
-- 将生成／重新生成今日顺序按钮移至添加员工按钮右侧；全部员工已加入时仍保留排位入口，窄屏允许按钮换行。
-- 无需数据库迁移；NAS 需更新 Web 应用后生效。
+- Move the Generate/Regenerate Today's Order button to the right side of the Add Employee button; the ranking entry will still be retained when all employees have joined, and the narrow screen allows the button to wrap.
+- No database migration is required; the NAS needs to update the web application to take effect.
 
 ## 1.8.7 — 2026-09-21
 
-- 每日开门排位取消当天加入名册时间的优先级；历史轮换、全职优先和最近出勤日期规则保留，完全同位时按固定成员 ID 稳定排序。
-- 覆盖新员工和历史员工的加入时间与输入顺序无关性回归验证；无需数据库迁移，NAS 需更新 API 应用后生效。
+- The daily opening ranking cancels the priority of the day's roster entry time; the historical rotation, full-time priority and latest attendance date rules are retained, and stable sorting is based on fixed member IDs when the players are in the same position.
+- Covers the regression verification that the joining time of new employees and historical employees is independent of the input order; no database migration is required, and the NAS needs to update the API application to take effect.
 
 ## 1.8.6 — 2026-09-21
 
-- 今日员工卡片移除姓名前的数字名次圆标，保留自动排位和手动上移、下移功能。
-- 无需数据库迁移；NAS 需更新 Web 应用后生效。
+- Today's employee card removes the numerical ranking circle in front of the name, retaining the automatic ranking and manual moving up and down functions.
+- No database migration is required; the NAS needs to update the web application to take effect.
 
 ## 1.8.5 — 2026-09-20
 
-- 重排按小时上工日期明细：时段与合计分层，日期和笔数以自适应网格成对显示，隐藏零笔日期。
-- 经营分析卡片独立按内容高度排列，避免展开明细拉长相邻图表。
+- Rearrange work date details by hour: time period and total stratification, date and number of transactions are displayed in pairs in an adaptive grid, and zero transaction dates are hidden.
+- Business analysis cards are arranged independently according to content height to avoid expanding the details and stretching adjacent charts.
 
 ## 1.8.4 — 2026-09-20
 
-- 记工详情的操作报错浮在窗口顶部，显示一秒后自动淡出，不再藏在滚动区域底部。
-- 修改开始/结束时间的 AM/PM、项目或加项时长时，联动只调整时钟，服务日期仅由日期选择器修改；跨午夜导致结束早于开始时提示纠正，所有保存路径统一校验。
-- 无需数据库迁移；NAS 需更新 Web 应用后生效。
+- The operation error report of the work record details floats at the top of the window, automatically fades out after one second, and is no longer hidden at the bottom of the scroll area.
+- When modifying the AM/PM, project or add-on duration of the start/end time, the linkage only adjusts the clock, and the service date is only modified by the date picker; if crossing midnight causes the end to be earlier than the start, a correction prompt will be prompted, and all save paths will be uniformly verified.
+- No database migration is required; the NAS needs to update the web application to take effect.
 
 ## 1.8.3 — 2026-09-20
 
-- 经营分析：按小时上工数量的数据表逐日显示各时间段的笔数，无记工日期显示零，保留时间段合计。
-- 分析接口补充每天24小时的数量，沿用保存的营业日和时区快照；无需数据库迁移。
+- Business analysis: The data table of hourly work quantity displays the number of transactions in each time period day by day. If there is no work record, the date will display zero, and the total time period will be retained.
+- The analysis interface supplements the 24-hour number per day, inheriting the saved business day and time zone snapshot; no database migration is required.
 
 ## 1.8.2 — 2026-09-20
 
-- 修复短信队列弹窗在“更多操作”展开 10 秒后消失并锁住页面的问题：弹窗独立挂载，不受菜单自动收起影响，仍支持关闭按钮、Esc 和点击背景关闭。无需数据库迁移，NAS 需更新应用后生效。
+- Fixed the problem of the SMS queue pop-up window disappearing and locking the page 10 seconds after "More Actions" is expanded: the pop-up window is mounted independently and is not affected by the automatic collapse of the menu. It still supports the close button, Esc and clicking on the background to close. No database migration is required, the NAS needs to be updated to take effect.
 
 ## 1.8.1 — 2026-09-19
 
-- 小时上工折线和星期×小时热力图只显示所选日期范围内实际最早至最晚上工小时，中间空小时保留为零；无记工时提示空状态。
+- The hourly work line and week × hour heat map only display the actual earliest to latest work hours in the selected date range, and empty hours in the middle are kept as zero; when there is no work record, an empty status is displayed.
 
 ## 1.8.0 — 2026-09-19
 
-- 财务新增店主/经理专用经营分析：小时上工折线、每日记工柱状、星期平均营业额、每日营业额与7日均线、星期×小时热力图。
-- 分析默认全部历史，独立日期筛选；数量包含待结账，营业额仅按已日结日统计，小时使用历史时区快照。
-- 新增只读经营分析接口、共享契约及统计与权限测试；无需数据库迁移。
+- Finance has added special business analysis for store owners/managers: hourly work line, daily work record bar, weekly average revenue, daily revenue and 7-day moving average, week × hour heat map.
+- The analysis defaults to all history, independent date filtering; the quantity includes pending settlement, revenue is only counted based on the closed day, and the historical time zone snapshot is used for the hour.
+- Added read-only business analysis interface, sharing contract, statistics and permission test; no database migration required.
 
 ## 1.7.7 — 2026-09-19
 
-- 记工页“员工操作”和“更多操作”每次展开后 10 秒自动收起；底部导航“今日”更名为“记工”，同步英文名称。无需数据库迁移，NAS 需更新后生效。
+- The "Employee Operations" and "More Operations" on the work record page will automatically collapse 10 seconds after each expansion; the bottom navigation "Today" is renamed to "work record", synchronizing the English name. No database migration is required, the NAS needs to be updated to take effect.
 
 ## 1.7.6 — 2026-09-19
 
-- 日结与区间结算的可重试失败统一等待 60 秒，最多额外重试 3 次（共 4 次尝试）；保留发送结果不明确时人工核对的保护。
+- The retryable failures of daily closing and interval settlement will be waited for 60 seconds, with a maximum of 3 additional retries (4 attempts in total); the protection of manual verification when the sending result is unclear is retained.
 
 ## 1.7.5 — 2026-09-19
 
-- 首次日结自动短信仅排队给当天有未删除记工的员工，保留接收开关、号码校验及幂等保护；空营业日仍可日结。
-- Mac 信息代理在日结及区间结算任务结束后统一冷却 60 秒，失败也等待，避免密集发送；不自动重发结果不明的短信。筛选需更新 NAS，发送节奏需单独升级 Mac 代理，无数据库迁移。
+- The first daily closing automatic text message will only be queued to employees who have undeleted work records on that day, and the receiving switch, number verification and idempotency protection will be retained; an empty business day can still be used for daily closing.
+- The Mac message agent cools down for 60 seconds after the daily closing and interval settlement tasks. It will wait even if it fails to avoid intensive sending; it will not automatically resend text messages with unknown results. Filtering requires updating the NAS, sending rhythm requires upgrading the Mac agent separately, and no database migration is required.
 
 ## 1.7.4 — 2026-09-17
 
-- 记工小卡的“实收”区域移除外边框，避免现金与刷卡混淆；保留刷卡金额细框与待结账“应收”框。
+- The outer border of the "Actual Receipt" area of the work record small card is removed to avoid confusion between cash and credit card; the thin frame of the amount of card swiping and the "receivable" frame of pending settlement are retained.
 
 ## 1.7.3 — 2026-09-17
 
-- 明确短信个人日结 PNG 固定原有 1170 像素宽度，增加实际 PNG 尺寸及中英文多笔换行回归验证；沿用浅底醒目总收入、右侧付款明细与移除现金交接汇总的紧凑模板。
-- 补充短信代理独立安装版本的排查说明：网页或 NAS 更新不会自动更新本机已安装的图片模板。
+- Clear text message individual daily statement PNG fixed the original width of 1170 pixels, increased the actual PNG size and multiple line breaks regression verification in Chinese and English; continue to use the compact template with shallow bottom and eye-catching total income, payment details on the right and cash handover summary removed.
+- Supplementary troubleshooting instructions for the independently installed version of SMS Agent: Web page or NAS updates will not automatically update image templates installed on the machine.
 
 ## 1.7.2 — 2026-09-17
 
-- 每日小结将“应提交现金”改为“现金大费”，显示店里应付员工的现金大费工资，使用已确认记工的折前提成及现金付款分配，不再显示店铺四成。
-- 明确折扣由店里承担、现金小费由员工自行收取，同步现金发放状态、中英文说明和帮助文档。保留旧 API 字段及财务现金结算兼容口径，无数据库迁移。
+- The daily summary changes "cash to be submitted" to "cash service fee", displays the cash service commission payable to employees in the store, uses the discount commission and cash payment allocation of the confirmed work record, and no longer displays the store's 40%.
+- Make it clear that discounts will be borne by the store, cash tips will be collected by employees themselves, and cash disbursement status, Chinese and English instructions and help documents will be synchronized. The old API fields and financial cash settlement compatibility standards are retained without database migration.
 
 ## 1.7.1 — 2026-09-17
 
-- 仅清理：删除未引用的日期时间组件及样式、默认语言常量、未使用的导入/依赖/参数和无效的角色传递；保留 HTTP 入参校验及已发布兼容字段。
-- 网页记工和机器人复用同一自动折扣实现；插件 1.4.1 合并员工名称与原文片段校验，不改变意图、金额或权限语义。
-- 文档删除旧插件版本安装要求和逐人发送必须已日结的旧说法；收拢重复接管/维护规则，保留规则附原因，历史审查归档。无数据库迁移，无新增功能。
+- Cleanup only: Remove unreferenced date and time components and styles, default language constants, unused imports/dependencies/parameters, and invalid role passes; retain HTTP input parameter validation and published compatible fields.
+- Web work record and robot reuse the same automatic discount implementation; plug-in 1.4.1 merges employee name and original text fragment verification without changing the intent, amount or permission semantics.
+- The document deletes the old plug-in version installation requirements and the old statement that person-by-person sending must be closed; collects duplicate handoff/maintenance rules, retains the rules with reasons, and archives historical reviews. No database migration, no new features.
 
 ## 1.7.0 — 2026-09-17
 
-- LangBot 插件 1.4.0 支持同一句指令明确指定多名员工：如“Ling Jessie 上工 大力”，分别为两人记工；完整姓名按员工目录匹配。
-- 新增 BATCH 协议，支持上工、下工和调整，每人保留原文证据；整条操作同事务执行，失败全部回滚，重复微信消息不会重复记工。
-- 修复确定性上工解析丢失动作前员工姓名；多人金额分配不清时仍需澄清。
-- 无数据库迁移；生效需要升级 NAS API 并安装新插件。
+- LangBot plug-in 1.4.0 supports the same command to clearly specify multiple employees: for example, "Ling Jessie goes to work vigorously", which is the work record of two people respectively; the complete names are matched according to the employee directory.
+- The new BATCH protocol supports start-up, shutdown and adjustment, and each person retains the original text evidence; the entire operation is executed with the same transaction, and all operations are rolled back if it fails. Repeated WeChat messages will not duplicate the work record.
+- Fixed the problem of missing the name of the employee before the action was lost in the deterministic start-up analysis; when the amount distribution among multiple people is unclear, it still needs to be clarified.
+- No database migration; taking effect requires upgrading the NAS API and installing new plug-ins.
 
 ## 1.6.0 — 2026-09-17
 
-- LangBot 插件 1.3.0：遇到歧义或理解纠正时提出猜测并询问，确认后持久保存个人语言经验供后续理解参考。
-- 学习按配置、店铺、机器人、群、发送者隔离；包含去重、确认过期、纠正替换及存储失败提示。
-- work-context 增加稳定 storeId，无数据库迁移；需要升级 API 并安装新插件才生效。
+- LangBot plug-in 1.3.0: When encountering ambiguity or understanding correction, make guesses and ask, and after confirmation, personal language experience is persisted for reference for subsequent understanding.
+- Learn to isolate by configuration, store, robot, group, and sender; including deduplication, expiration confirmation, correction replacement, and storage failure prompts.
+- Work-context adds stable storeId without database migration; it will take effect after upgrading the API and installing new plug-ins.
 
 ## 1.5.3 — 2026-09-17
 
-- 今日记工卡片大费主数字显示含加项的原价，后方小框显示实收付款拆分；待结账的小框显示折后应收金额。
-- 同步中英文帮助说明，保留折扣、付款方式、小费和异常标记；无数据库迁移。
+- The main number of today's work record card service fee shows the original price including add-on, and the small box behind shows the actual payment split; the small box waiting for checkout shows the amount receivable after discounts.
+- Synchronize Chinese and English help instructions, retain discounts, payment methods, tips and exception flags; no database migration.
 
 ## 1.5.2 — 2026-09-17
 
-- 完善同账号多设备记工同步：同店共享 SSE 事件查询，连接按设备独立广播并持续校验各自权限。
-- 增加心跳超时重连、切回前台/恢复联网补同步及异常时低频重试；读取成功后才显示已同步，后台关闭实时连接。
-- 合并连续刷新并按实体与营业日减少无关读取，保留编辑草稿、日期及滚动位置；SSE 显式禁代理缓冲并补充 NAS 排查说明。
-- 新增多订阅、真实记工事务、静默断线、后台恢复、慢请求及失败重试回归测试；无新增数据库迁移。
+- Improved work record synchronization for multiple devices under the same account: SSE event query shared by the same store, independent broadcast of connections by device, and continuous verification of respective permissions.
+- Added heartbeat timeout reconnection, switching back to the foreground/restoring the network to supplement synchronization, and low-frequency retries in case of exceptions; synchronization will be displayed only after successful reading, and the real-time connection will be closed in the background.
+- Merge continuous refresh and reduce irrelevant reads by entity and business day, retain the editing draft, date and scroll position; SSE explicitly disables proxy buffering and adds NAS troubleshooting instructions.
+- Added multi-subscription, real work record transactions, silent disconnection, background recovery, slow request and failed retry regression tests; no new database migration.
 
 ## 1.5.1 — 2026-09-17
 
-- 个人日结网页 PNG 与短信 PNG 移除大费基数和应提交现金汇总栏，总收入使用浅色背景和更醒目的深色大字。
-- 逐笔记工改为左右紧凑布局，左侧项目、时间和收入，右侧大费实收与小费；长内容自动换行，图片高度随内容计算，减少空白。
+- Individual daily statement web page PNG and text message PNG remove the service fee base and the cash summary column that should be submitted, and use a light background and more eye-catching dark large fonts for the total income.
+- The work record of each transaction is changed to a compact layout on the left and right, with projects, time and income on the left, and service fees and tips on the right; long content is automatically wrapped, and the height of the picture is calculated according to the content to reduce white space.
 
 ## 1.5.0 — 2026-09-17
 
-- 新增 API 内置定时任务：按各店铺时区每天 23:30 检查，只有无任何日结异常时自动日结；已日结或取消过日结的日期不自动重结。
-- 每个营业日首次日结（手动、强制或自动）在同一事务中自动创建员工小结发送任务，限开启接收且号码有效的在职成员；当天已发送、排队或发送中的小结不重复创建。
-- 沿用 Mac“信息”代理发送与失败处理；新增时区、异常拦截、并发幂等及首次日结发送验证。
+- Added API built-in scheduled tasks: Check every day at 23:30 in each store's time zone. Daily closing will be automatically performed only if there are no daily closing exceptions; closed or canceled daily closing dates will not be automatically re-closed.
+- At the first daily closing of each business day (manual, forced or automatic), an employee summary sending task is automatically created in the same transaction, and is limited to active members who have enabled reception and have valid numbers; summaries that have been sent, queued or being sent on the day will not be created repeatedly.
+- Mac Messages agent sending and failure handling are still used; time zone, exception interception, concurrency idempotency and first daily closing sending verification are added.
 
 ## 1.4.48 — 2026-09-16
 
-- 工资结算“按日记工”小卡移除大费实收，集中排列项目与时间，对齐大费基数和小费明细。
-- 收入组成改为两列，合计独占一行；收紧当日总结卡间距，保留原有工资计算。
+- The "Daily Work Record" card for salary settlement removes the actual collection of service fees, centrally arranges items and time, and aligns the service fee base and tips details.
+- The income composition is changed to two columns, with the total occupying one row; the spacing between the day's summary cards is tightened, and the original salary calculation is retained.
 
 ## 1.4.47 — 2026-09-16
 
-- 开放店主自己的店内显示名与默认提成编辑，保留店主身份转移限制。
-- 成员与财务短信号码使用美国 10 位输入和显示，保存时自动补齐 +1；无绑定号码时留空，移除示例号码占位。
-- 补充号码格式转换与无号码验证。
+- Open the store owner's own in-store display name and default commission editing, and retain the store owner identity transfer restrictions.
+- Member and financial SMS numbers are input and displayed using US 10 digits, and +1 is automatically added when saving; if there is no bound number, leave it blank and remove the sample number placeholder.
+- Supplementary number format conversion and no-number verification.
 
 ## 1.4.46 — 2026-09-16
 
-- 记工详情折扣支持金额或百分比输入，百分比按主要项目与全部加项合计计算；比例及减免金额持久保存，编辑金额后自动重算。
-- 右上角 off 标记继续显示实际减免金额，保留固定金额、自动折扣与员工工资规则。
-- 新增可空 rate_bps 快照字段及范围约束；旧记录继续按固定金额处理。补充解析、契约及数据库集成验证。
+- The detailed discount of work record supports the input of amount or percentage. The percentage is calculated based on the total of the main items and all add-ons. The proportion and reduction amount are saved persistently and are automatically recalculated after editing the amount.
+- The off mark in the upper right corner continues to display the actual deduction amount, retaining the fixed amount, automatic discount and employee salary rules.
+- Added a new nullable rate_bps snapshot field and range constraints; old records continue to be processed as a fixed amount. Supplementary parsing, contract and database integration verification.
 
 ## 1.4.45 · 2026-09-16
 
-- 将“待结账”标记从记工卡片右上角移到右下角，与仅在已确认记录出现的付款异常“！”复用位置；右上角只保留加项和折扣标记，减少窄卡片拥堵。
+- Move the "pending checkout" mark from the upper right corner of the work record card to the lower right corner, and reuse the location with the payment exception "!" that only occurs in confirmed records; only add-on and discount marks are retained in the upper right corner to reduce narrow card congestion.
 
 ## 1.4.44 · 2026-09-16
 
-- 记工小卡与新增入口固定宽度再收窄 5px 至 177px，左右内边距调整为 6px，为最长时间范围保留约 163px 净宽度；继续保持时间单行完整显示。
+- The fixed width of the work record card and the new entrance is further narrowed by 5px to 177px, and the left and right inner margins are adjusted to 6px, leaving a net width of about 163px for the longest time range; the time continues to be displayed in a single line in full.
 
 ## 1.4.43 · 2026-09-16
 
-- 记工小卡与新增入口固定宽度再收窄 10px 至 182px，左右内边距同步缩为 9px；保留 0.95rem 时间字号，并验证最长时间范围仍可完整单行显示。
+- The fixed width of the work record card and the new entrance is further narrowed by 10px to 182px, and the left and right inner margins are simultaneously reduced to 9px; the time font size of 0.95rem is retained, and it is verified that the maximum time range can still be displayed in a complete single line.
 
 ## 1.4.42 · 2026-09-16
 
-- 记工小卡与新增入口固定宽度由 208px 收窄为 192px，左右内边距缩为 10px；保持时间字号，时间范围完整单行显示，不换行、不省略。
+- The fixed width of the work record card and the new entrance is narrowed from 208px to 192px, and the left and right inner margins are reduced to 10px; the time font size is maintained, and the time range is displayed in a single line without line breaks or omissions.
 
 ## 1.4.41 · 2026-09-16
 
-- 调整记工小卡的纵向排版：项目、时间和金额组均匀分布，金额组贴近底部内边距，大费与小费间距增至 6px，消除卡片拉伸后底部的大块留白。
+- Adjust the vertical layout of the work record card: the project, time and amount groups are evenly distributed, the amount group is close to the bottom inner margin, the distance between service fee and tips is increased to 6px, and the large blank space at the bottom after the card is stretched is eliminated.
 
 ## 1.4.40 · 2026-09-16
 
-- 记工轨道随员工卡片可用高度拉伸，桌面上下留白缩至 6px，小卡与新增入口高度一致。
-- 记工时间字号从 0.85rem 增至 0.95rem，提高可读性，保留紧凑金额布局。
+- The work record track is stretched according to the available height of the employee card, the upper and lower margins on the desktop are reduced to 6px, and the small card is at the same height as the new entrance.
+- The work record time font size has been increased from 0.85rem to 0.95rem to improve readability and retain a compact amount layout.
 
 ## 1.4.39 · 2026-09-16
 
-- 修正紧凑记工卡片的大费显示口径：已确认记录显示实际刷卡、现金及礼卡金额拆分，刷卡金额加框，混合付款用加号连接；保留 off 折扣标记，不重复显示折前金额。
-- 待结账暂保留折前大费，小费及紧凑布局不变；同步中英文帮助和产品说明。
+- Corrected the service fee display definition of the compact work record card: the confirmed record displays the actual credit card, cash and gift card amounts split, the card amount is framed, mixed payments are connected with a plus sign; the off discount mark is retained, and the pre-discount amount is not repeatedly displayed.
+- The pre-discount service fee, tips and compact layout will remain unchanged pending checkout; Chinese and English help and product descriptions will be synchronized.
 
 ## 1.4.38 · 2026-09-15
 
-- 今日记工卡片合并大费、小费和付款方式，移除重复实收数字；折前大费保留，含刷卡付款加框，折扣沿用 off 标记，小费保留付款方式拆分。
-- 缩小记工卡片高度和内边距，同步中英文帮助与产品说明；实际付款数据和财务计算不变。
+- Today's work record card merges service fee, tips and payment methods, and removes duplicate paid figures; the service fee before discount is retained, including a frame for payment by card, the discount continues to use the off mark, and tips is retained and split by the payment method.
+- Reduce the work record card height and padding, synchronize Chinese and English help and product descriptions; actual payment data and financial calculations remain unchanged.
 
 ## 1.4.37 · 2026-09-15
 
-- 修正机器人上工回复将全店在职员工当成今日排工的问题：空闲及最早下工名单仅包含店铺当地今日排工中未隐藏、未移除的员工。
-- 增加未排工、昨日排工、已移除排工、跨时区日期及空名单回归验证；保持紧凑回复。
+- Corrected the problem that the robot's work response treats all active employees in the store as today's work schedule: the idle and earliest dismissal lists only include employees who are not hidden or removed from today's local work schedule in the store.
+- Added unscheduled, yesterday's scheduled, removed scheduled, cross-time zone date and empty list regression verification; maintain compact reply.
 
 ## 1.4.36 · 2026-09-15
 
-- 记工页将刷新、日结（已日结时为现金结算）和更多操作移到营业日栏右侧，统一放在汇总卡片上方；窄屏自动换行，保留原有权限与操作行为。
+- On the work record page, refresh, daily closing (cash settlement when closed) and more operations are moved to the right side of the business day column and placed above the summary card; the narrow screen automatically wraps lines, retaining the original permissions and operation behaviors.
 
 ## 1.4.35 · 2026-09-14
 
-- 记工页刷新改为串行合并队列，突发实时通知与手动刷新只保留一次后续读取，避免并发刷新堆积；员工列表与表格、目录和店铺详情并行读取，减少一次网络等待。
-- 增加并发通知、切店取消与失败重试回归测试；不改变认证、业务数据和数据库结构。
+- The work record page refresh is changed to a serial merge queue. Sudden real-time notifications and manual refreshes only retain one subsequent read to avoid accumulation of concurrent refreshes. The employee list, table, catalog and store details are read in parallel, reducing network waiting.
+- Add concurrent notifications, store cut cancellation and failed retry regression testing; authentication, business data and database structure will not be changed.
 
 ## 1.4.34 · 2026-09-14
 
-- 财务每日小计在今日流水后显示过去30天平均营业额，沿用记工页全店已日结口径，并收紧日期和星期列；同步中英文及接口说明。
+- The financial daily subtotal displays the average revenue of the past 30 days after today's turnover. It follows the closed definition of the entire store on the work record page, and tightens the date and week columns; synchronizes Chinese, English and interface descriptions.
 
 ## 1.4.33 · 2026-09-14
 
-- 员工卡片工作状态下方不再显示排工类型；彻底删除员工拖动排序入口、状态、事件及样式，只保留上移、下移，同步帮助说明。
+- The scheduling type is no longer displayed under the working status of the employee card; the employee drag sorting entry, status, event and style are completely deleted, and only the move up, move down, and synchronization help instructions are retained.
 
 ## 1.4.32 · 2026-09-14
 
-- 固化项目维护要求：每次改动完成后重新启动本地开发测试服务，打开固定 3000 端口页面，检查 Web/API 就绪并保持服务运行。
+- Solid project maintenance requirements: Restart the local development and test service after each change is completed, open the fixed 3000 port page, check the Web/API readiness and keep the service running.
 
 ## 1.4.31 · 2026-09-14
 
-- 财务现金结算点击“标记全部结清”直接提交，不再弹出备注输入框；删除记工保留删除确认，确认后直接删除，不再询问理由。沿用现有可选字段契约、权限、版本和审计机制。
+- For financial cash settlement, click "Mark All Settled" to submit directly, and the remark input box will no longer pop up; delete the work record and retain the deletion confirmation. After confirmation, it will be deleted directly without asking for the reason. Inherit existing optional field contracts, permissions, versions and auditing mechanisms.
 
 ## 1.4.30 · 2026-09-14
 
-- 本地演示种子扩充为 5 个主要项目、店主及 4 位员工，当天每人 3–6 笔、共 22 笔记工；保留历史演示场景，提成快照按员工默认比例生成。同步本地登录与刷新说明。
+- The local demo seeds were expanded to 5 main projects, shop owners and 4 employees. Each person made 3-6 transactions on the day, with a total of 22 work records; historical demonstration scenes were retained, and commission snapshots were generated according to the default ratio of employees. Synchronize local login and refresh instructions.
 
 ## 1.4.29 · 2026-09-14
 
-- 展开的员工记工卡片在平板与桌面使用紧凑左侧员工信息栏，集中姓名、状态、员工操作、记工数和个人日结；右侧金额栏缩窄至 156px，给记工列表留出更多空间。手机继续换行，收起状态保留横向摘要。
+- The expanded employee work record card uses a compact left employee information bar on tablets and desktops to concentrate name, status, employee operations, work record number and individual daily statement; the right amount column is narrowed to 156px, leaving more space for the work record list. The phone continues to wrap lines, and the collapsed state retains the horizontal summary.
 
 ## 1.4.28 · 2026-09-14
 
-- 电脑端（宽度大于 900px）恢复今日/历史记工的完整单行汇总，按原顺序展示全部金额，不再显示“更多汇总”；手机和平板窄屏保留折叠布局。
+- On the computer side (width greater than 900px), the complete single-line summary of today's/historical work records is restored, the entire amount is displayed in the original order, and "more summaries" are no longer displayed; the narrow screens of phones and tablets retain the folded layout.
 
 ## 1.4.27 · 2026-09-14
 
-- 完成全站响应式验收，修复 320px 英文日期和“更多操作”挤压、审计日期与设置下拉框样式；收紧记工详情底部操作区，平板 AI 入口也随内容排列。
+- Complete the site-wide responsive acceptance, fix the 320px English date and "More Operations" extrusion, audit date and set drop-down box style; tighten the bottom operation area of work record details, and the tablet AI entrance is also arranged according to the content.
 
 ## 1.4.26 · 2026-09-14
 
-- 店铺收入统一按“营业额（已含卖卡实收）＋小费－员工应得－礼物卡核销”计算，复用营业额领域函数，保持金额结果不变且卖卡只计一次。
-- 同步记工页提示、财务公式、中英文帮助与项目文档，补充卖卡和核销回归验证。
+- The store's revenue is uniformly calculated according to "revenue (including actual receipts from card sales) + tips - employees' dues - gift card write-off". The revenue field function is reused to keep the amount result unchanged and the card sales are only counted once.
+- Synchronize work record page prompts, financial formulas, Chinese and English help and project documents, and supplement card sales and write-off regression verification.
 
 ## 1.4.25 · 2026-09-14
 
-- 全站统一手机、平板与桌面的字号、页头、表单、标签导航和卡片间距；语言切换使用正常文档流，修复标题、退出按钮、日期与长文本挤压。
-- 今日与历史记工优先显示营业额和总收入，其余统计放在“更多汇总”；日结/现金结算保留主入口，短信队列、补发和取消日结放在“更多操作”。
-- 整理财务五个分区、设置六个分区、个人资料、登录、帮助、离线及 AI 页面；手机 AI 按钮随内容排列，底部导航继续按实际高度留白。
-- 统一记工、日期、员工选择和结算弹窗的窄屏布局；恢复浏览器缩放，并补齐主导航当前页与设置标签选中状态。
+- The entire site unifies the font size, page header, form, tab navigation, and card spacing for phones, tablets, and desktops; uses normal document flow for language switching, and fixes the extrusion of titles, exit buttons, dates, and long text.
+- Today's and historical work records are given priority to display revenue and total income, and the remaining statistics are placed in "More Summary"; daily closing/cash settlement retains the main entrance, and SMS queue, reissue and cancellation of daily closing are placed in "More Operations".
+- Organize five financial sections, set up six sections, personal information, login, help, offline and AI pages; the mobile AI buttons are arranged according to the content, and the bottom navigation continues to be blank according to the actual height.
+- Unify the narrow screen layout of work record, date, employee selection and settlement pop-up windows; restore browser zoom, and complete the selected state of the current page of the main navigation and the settings label.
 
 ## 1.4.24 · 2026-09-14
 
-- 新增记工及共用时间输入的小时、分钟框点击或聚焦时选中原内容，直接输入替换；未输入时保留原时间。
+- When the hour and minute boxes for inputting new work records and shared time are clicked or focused, the original content is selected and replaced directly; if not input, the original time is retained.
 
 ## 1.4.23 · 2026-09-14
 
-- 记工详情额外项目增加金额（美元）、加时（分钟）与提成标签，避免数字含义混淆。
-- 修复预设额外项目的本单加时被目录默认值覆盖；保存后保留修改、零分钟和留空。
-- 记工详情文字、金额、时长与备注输入框点击或聚焦时选中原内容，直接输入即可替换，仅点击不清空。
+- Work record details additional items with added amount (dollars), extra time (minutes) and commission labels to avoid confusion about the meaning of the numbers.
+- Fixed the problem that the extra time of this order of preset extra items is overwritten by the directory default value; the modification, zero minutes and blank are retained after saving.
+- When the work record details text, amount, duration and remarks input box are clicked or focused, the original content is selected and can be replaced by directly typing it in. Simply clicking will not clear it.
 
 ## 1.4.22 · 2026-09-13
 
-- 个人日结的生成图片、保存/分享、短信发送及成功或失败提示移至卡片内员工姓名右侧；窄屏自动换行。
-- 保留原有图片生成、发送权限与队列流程，图片预览仍位于逐笔记工下方。
+- The individual daily statement's image generation, saving/sharing, text message sending, and success or failure prompts are moved to the right side of the employee's name in the card; narrow screens automatically wrap lines.
+- The original image generation, sending permissions and queue process are retained, and the image preview is still located below the work record one by one.
 
 ## 1.4.21 · 2026-09-13
 
-- 营业日改按设备本地日期、午夜换日，不再由关门或截止时间提前切到次日；同步今日、权限及新记工日期规则。
-- 移除建店、设置和今日页的营业日截止控件；晚间录入不再倒退到前一天，跨午夜自动刷新今日。
-- 保留历史记录营业日和兼容字段；增加截止边界、跨年和设备时区上下文回归验证。
+- The business day is changed to the device's local date and midnight, and it no longer switches from closing or closing time to the next day in advance; today, permissions and new work record date rules are synchronized.
+- Removed the business day cutoff controls for store creation, settings, and today pages; evening entries no longer go back to the previous day, and today is automatically refreshed across midnight.
+- Preserve historical business day and compatible fields; add cutoff boundary, cross-year and device time zone context regression validation.
 
 ## 1.4.20 · 2026-09-13
 
-- 修正财务总结算重复加减礼物卡净收入：卖卡实收加一次，礼物卡大费与小费核销减一次，复用记工页总收入公式后扣刷卡手续费。
-- 同步记工页提示、财务指标、中英文帮助说明与示例；增加两页及每日小计礼物卡收支回归验证，保留负数收入。
+- Corrected the repeated addition and subtraction of gift card net income in the financial summary: the actual charge from selling cards is added once, the write-off of gift card service fees and tips is reduced once, and the card processing fees are deducted after reusing the total income formula on the work record page.
+- Synchronize work record page prompts, financial indicators, Chinese and English help instructions and examples; add two pages and daily subtotals, gift card income and expenditure regression verification, and retain negative income.
 
 ## 1.4.19 · 2026-09-13
 
-- 营业额改为折后服务业绩加礼物卡销售实际收款；同步日历和已日结平均营业额，按原有筛选和权限限制卖卡范围。
-- 新增服务端 `revenueCents`，保留折后服务业绩字段及店铺收入、总收入、流水、工资和核销公式，避免重复计入卖卡。
+- Revenue is changed to post-discount service performance plus actual receipts from gift card sales; the calendar and closed average revenue are synchronized, and the scope of card sales is limited according to the original filtering and permissions.
+- Added server `revenueCents`, retaining the post-discount service performance field and store revenue, total revenue, turnover, salary and write-off formula to avoid repeated counting of selling cards.
 
 ## 1.4.18 — 2026-09-13
 
-- 记工详情的每条额外项目新增“加时分钟”输入，预设项目会带入配置值，也可为本单留空、填 0 或改为实际增加的分钟数。
-- 调整额外项目加时分钟后，结束时间立即按主要项目与所有加项的总时长重算；保存时仍作为当前记录的时长快照。
-- 同步产品文档、版本和回归测试；无数据库迁移，未部署 NAS。
+- A new "Additional minutes" input is added to each additional item in the work record details. The default item will bring the configuration value. You can also leave this item blank, fill in 0, or change it to the actual number of added minutes.
+- After adjusting the additional project minutes, the end time is immediately recalculated based on the total duration of the main project and all add-ons; it is still used as a snapshot of the currently recorded duration when saved.
+- Synchronized product documentation, versions, and regression testing; no database migration, no NAS deployed.
 
 ## 1.4.17 — 2026-09-13
 
-- 修正记工详情反复改项目分钟数时结束时间按历史差值累计偏移的问题；每次均按当前开始时间与项目、额外项目总时长重新计算。
-- 结束时间改为可编辑的小时、分钟与 AM/PM 输入；手动修改后系统按当前总时长反算开始时间，并保留同日与先后顺序校验。
-- 同步产品与工程文档、版本和回归测试；无数据库迁移，未部署 NAS。
+- Fixed the issue where the end time is cumulatively offset by the historical difference when the work record details are repeatedly changed to project minutes; each time it is recalculated based on the current start time and the total duration of the project and additional projects.
+- The end time is changed to editable hours, minutes and AM/PM input; after manual modification, the system back-calculates the start time based on the current total duration, and retains the same day and sequence verification.
+- Synchronize product and engineering documents, versions and regression testing; no database migration, no NAS deployed.
 
 ## 1.4.16 — 2026-09-13
 
-- 修正平均业绩分母：窗口为当日加过去29个自然日，仅将实际已日结日期的折后业绩与天数纳入，当日只计一次；缺失或未日结日期排除，零业绩已日结日期保留，不向窗口外补足。
-- 保留当日已日结才显示；补充只有当日、完整30天及中间缺少日结的回归测试，同步文档与版本；无数据库迁移，未部署 NAS。
+- Modified average performance denominator: The window is the current day plus the past 29 natural days, only the discounted performance and number of days on the actual closed date are included, and the current day is only counted once; missing or not closed dates are excluded, zero performance closed dates are retained, and are not added outside the window.
+- Keep the closed date on the current day to be displayed; add only the regression tests for the current day, the complete 30 days and the lack of daily closing in between, and synchronize the documents and versions; there is no database migration, and no NAS is deployed.
 
 ## 1.4.15 — 2026-09-13
 
-- 更正记工30天平均业绩为“已日结当日 + 之前29个自然日”的折后业绩合计除以30；历史不再筛选已日结日期，空日期按零计算。
-- 保留当日已日结才显示的条件，同步文档、版本与回归测试；无数据库迁移，未部署 NAS。
+- Correct the 30-day average performance of the work record to be the total discounted performance of the "closed day + the previous 29 natural days" divided by 30; history no longer filters the closed date, and empty dates are calculated as zero.
+- Keep the conditions that are displayed only when it is closed on the current day, synchronize documents, versions and regression tests; there is no database migration and no NAS is deployed.
 
 ## 1.4.14 — 2026-09-12
 
-- 记工顶部过去 N 天平均营业额明确计入所选已日结当日的营业额与天数，金额直接取当日看板汇总且只计一次；仍仅在当日已日结时显示，之前29天只纳入已日结日期。
-- 同步产品、API 文档与版本，补充未日结、零营业额及防重复计入测试；无数据库迁移，未部署 NAS。
+- The average revenue of the past N days at the top of the work record is clearly included in the revenue and number of days on the selected closed day. The amount is directly summarized from the dashboard of the day and is only counted once; it is still only displayed when the day is closed, and the previous 29 days are only included in the closed date.
+- Synchronize products, API documents and versions, add not closed, zero revenue and anti-double counting tests; no database migration, no NAS deployed.
 
 ## 1.4.13 — 2026-09-12
 
-- “已隐藏员工”管理区移至礼物卡销售下方。
-- 隐藏当天没有任何记工的员工时，原子移除当天员工行和上班记录；有记工（含已删除历史）继续保留并支持恢复显示。
-- 同步接口、产品文档、中英文提示与版本，补充移除、幂等、权限及冲突集成测试；无数据库迁移，未部署 NAS。
+- The "Hidden Employees" admin area has been moved below gift card sales.
+- When hiding employees who do not have any work records on that day, atomically remove the employee rows and work records for that day; existing work records (including deleted history) will continue to be retained and support recovery display.
+- Synchronization interface, product documentation, Chinese and English prompts and versions, supplementary removal, idempotency, permissions and conflict integration tests; no database migration, no NAS deployed.
 
 ## 1.4.12 — 2026-09-12
 
-- 今日上班员工为空时，“请选择员工”打开多选弹窗，显示勾选序号，一键按点击顺序添加所选员工；取消后重选排到最后。
-- 已有员工时保留单人添加；批量添加防重复提交，中途失败保留未完成选择并刷新已保存员工。
-- 同步中英文、产品文档及版本，补充选择顺序与顺序提交测试；无数据库迁移，未部署 NAS。
+- When the number of employees working today is empty, "Please select an employee" will open a multi-select pop-up window that displays the check number. You can add the selected employees in the order of clicks with one click; after canceling, reselect to the end.
+- If there are already employees, the single-person addition will be retained; batch addition will prevent repeated submissions. If it fails midway, the unfinished selection will be retained and the saved employees will be refreshed.
+- Synchronize Chinese and English, product documents and versions, supplement the selection sequence and sequential submission test; no database migration, no NAS deployed.
 
 ## 1.4.11 — 2026-09-12
 
-- 未日结记工列表默认停在最右侧，方便新增记工；手动查看前面记录后，停止操作约 10 秒自动回到末尾，持续操作或按住拖动时不会强制回位。
-- 已日结不自动回位，保留已有“跳到最后”按钮；同步产品文档、版本和滚动行为测试，无数据库迁移，未部署 NAS。
+- The not closed work record list stops at the far right by default, making it easier to add new work records; after manually viewing the previous record, it will automatically return to the end after stopping the operation for about 10 seconds. It will not be forced to return when the operation is continued or when dragging.
+- closed does not return automatically, retaining the existing "skip to last" button; synchronizing product documents, versions and scrolling behavior testing, no database migration, and no NAS deployed.
 
 ## 1.4.10 — 2026-09-12
 
-- 已日结记工详情的保存和删除按钮置灰禁用，店主/经理可在保存左侧取消日结，刷新后保留当前填写内容继续保存。
-- 顶部过去 N 天平均营业额移动至营业额（折扣后）之后，计算口径不变。
-- 桌面记工卡区域最右侧新增悬停显示的“跳到最后”按钮；无溢出或已到末尾时隐藏，手机不显示。
-- 同步中英文、产品文档及版本，无数据库迁移，未部署 NAS。
+- The save and delete buttons of the closed work record details are grayed out and disabled. The shop owner/manager can cancel the daily closing on the left side of the save. After refreshing, the currently filled content will be retained and continued to be saved.
+- After the average revenue of the past N days at the top is moved to revenue (after discount), the calculation definition remains unchanged.
+- A hover-displayed "Skip to the end" button is added to the far right of the desktop work record card area; it is hidden when there is no overflow or the end is reached, and is not displayed on phones.
+- Synchronization of Chinese and English, product documents and versions, no database migration, no NAS deployment.
 
 ## 1.4.9 — 2026-09-12
 
-- 已日结记工页在“取消日结”前新增深棕色“现金结算”入口，跳转财务现金结算并保留店铺及所选营业日。
-- 短信队列详情收进“发送员工小结”后的浅色按钮，常显已发送条数，弹窗保留任务状态和取消排队操作；未日结时也保留队列入口。
-- 同步中英文、产品文档和版本，无数据库迁移，未部署 NAS。
+- On the closed work record page, a dark brown "cash settlement" entry is added before "Cancel daily closing", which jumps to financial cash settlement and retains the store and selected business day.
+- The SMS queue details are included in the light-colored button after "Send Employee Summary", which always displays the number of messages sent. The pop-up window retains the task status and cancels the queuing operation; the queue entry is also retained when it is not closed.
+- Synchronize Chinese and English, product documents and versions, no database migration, no NAS deployed.
 
 ## 1.4.8 — 2026-09-12
 
-- 财务汇总“关键结果”新增平均营业额，按所选区间内已日结日期的折后业绩计算，显示实际日结天数，沿用当前筛选。
-- 未日结日期排除，空日结按零计入；无日结日期显示破折号。同步中英文说明、卡片布局、产品和接口文档，无数据库迁移，未部署 NAS。
+- Added average revenue to the "Key Result" of the financial summary, calculated based on the discounted performance of the closed date in the selected range, showing the actual number of daily closing days, using the current filter.
+- Not closed dates are excluded, empty daily closing dates are counted as zero; dashes are displayed for no daily closing dates. Synchronized Chinese and English instructions, card layout, product and interface documents, no database migration, no NAS deployment.
 
 ## 1.4.7 — 2026-09-12
 
-- 已日结记工页面在总收入后显示“过去N天平均营业额”，以所选日（含当天）往前30个自然日内实际已日结天数计算折后营业额平均值。
-- 排除未日结日期，保留零营业额日结；支持仅1天，取消日结后重新计算，员工不返回全店指标；同步中英文和手机布局。
-- 更新产品、接口文档和版本，无数据库迁移，未部署 NAS。
+- The closed work record page displays "average revenue over the past N days" after the total revenue. The discounted average revenue is calculated based on the actual number of closed days in the 30 natural days preceding the selected day (including the current day).
+- Exclude not closed dates and keep zero revenue daily closing; support only 1 day, recalculate after canceling daily closing, employees will not return to the whole store indicators; synchronize Chinese, English and mobile layouts.
+- Updated product, interface documentation and versions, no database migration, no NAS deployed.
 
 ## 1.4.6 — 2026-09-12
 
-- 财务汇总的每日小计末列新增“总收入”，按店铺收入＋店长收入＋经理收入计算，默认及展开全部列时均可见。
-- 移除财务汇总页面的累计余额区块，保留工资结算账本和后端余额计算。
-- 同步接口、产品文档及版本，无数据库迁移，未部署 NAS。
+- "Total revenue" is added to the last column of the daily subtotal of the financial summary, which is calculated based on store revenue + store manager revenue + manager revenue. It is visible by default and when all columns are expanded.
+- Remove the cumulative balance block from the financial summary page and retain the salary settlement ledger and back-end balance calculations.
+- Synchronization of interfaces, product documents and versions, no database migration, and no NAS deployed.
 
 ## 1.4.5 — 2026-09-12
 
-- 营业日日历在已日结日号下以小字显示折后营业额，仅显示金额数字；未日结日期继续使用橙色圆点。
-- 后端按营业日汇总未删除记工折后金额，员工仅可见本人金额；取消日结后移除金额。翻月、切店及重新打开时清理旧标记，避免请求竞态显示旧金额。
-- 同步接口、产品文档及版本，无数据库迁移，未部署 NAS。
+- The business day calendar displays the discounted revenue in small fonts under the closed day number, and only displays the amount; the not closed date continues to use orange dots.
+- The backend summarizes the discounted amount of undeleted work records by business day, and employees can only see their own amounts; the amount is removed after canceling daily closing. Clean up the old marks when turning over the month, cutting stores, and reopening to avoid request racing to display the old amount.
+- Synchronization of interfaces, product documents and versions, no database migration, and no NAS deployed.
 
 ## 1.4.4 — 2026-09-12
 
-- 当所选营业日没有卖卡记录时，礼物卡区域自动收为员工折叠栏高度的紧凑窄条，保留零张/收入和可编辑时的记录卖卡入口。
-- 首笔销售保存后恢复完整卡片，删除最后一笔后自动缩略；手机窄屏允许换行，日结只读权限保持不变。
-- 同步产品文档及版本，无数据库迁移，未部署 NAS。
+- When there is no card sales record for the selected business day, the gift card area is automatically reduced to a compact narrow strip at the height of the employee's folding column, leaving a zero card/revenue and editable record card sales entry.
+- The complete card will be restored after saving the first sale, and it will be automatically abbreviated after deleting the last one; the narrow screen of the phone allows line wrapping, and the daily closing read-only permission remains unchanged.
+- Product documents and versions are synchronized, no database migration is required, and NAS is not deployed.
 
 ## 1.4.3 — 2026-09-12
 
-- 今日/历史看板顶部改为营业额（折扣后）、折扣总额、礼物卡总额、店铺收入和总收入。
-- 顶部总收入由后端按店铺收入加店长与所有经理的大费工资、小费计算，包含隐藏行，不重复叠加礼物卡收支；礼物卡总额显示卖卡实际收款。
-- 同步中英文和金额口径文档，新增领域计算测试；保留前版紧凑员工栏，无数据库迁移，未部署 NAS。
+- The top of the today/history board is changed to revenue (after discount), total discount, total gift card, store revenue and total revenue.
+- The total income at the top is calculated by the back end based on the store income plus the service commission and tips of the store manager and all managers. It contains hidden rows and does not overlap gift card income and expenditure; the total gift card amount shows the actual payment received from selling cards.
+- Synchronize documents in Chinese, English and monetary terms, and add new field calculation tests; retain the compact employee column of the previous version, no database migration, and no NAS deployed.
 
 ## 1.4.2 — 2026-09-12
 
-- 员工卡片宽屏将员工操作与个人日结移到姓名栏，窄屏自动换行，手机保留两行布局并允许长姓名折行。
-- 个人日结前新增记工数图标，显示所选营业日未删除的记工条数（含待结账），折叠后仍可查看。
-- 无数据库迁移；仅修改与验证，未部署 NAS。
+- The wide screen of employee cards moves employee operations and individual daily statements to the name column, and the narrow screen automatically wraps lines. Mobile phones retain the two-line layout and allow long names to wrap.
+- A new work record number icon is added before the individual daily statement to display the number of undeleted work records (including pending settlement) for the selected business day. It can still be viewed after being folded.
+- No database migration; only modification and verification, no NAS deployed.
 
 ## 1.4.1 — 2026-09-12
 
-- 记工时间的时段统一使用 AM/PM 选择框，无需手动输入。
-- 记工详情结束时间改为只读显示，随开始时间和项目时长实时联动；缺失结束时间按项目及加项时长补算，保留已有实际时长。
-- 保留同日时间校验，同步中英文提示；无数据库迁移，未部署 NAS。
+- The work record time period uses the AM/PM selection box uniformly, without manual input.
+- The end time of the work record details is changed to read-only display, which is linked in real time with the start time and project duration; the missing end time is calculated based on the project and add-on duration, and the actual duration is retained.
+- Same-day time verification is retained, and Chinese and English prompts are synchronized; there is no database migration, and no NAS is deployed.
 
 ## 1.4.0 — 2026-09-12
 
-- LangBot 插件升级至 1.2.0：每次 AI 理解附带同一机器人、群和发送者最近 5 轮用户消息及实际回复；空闲 30 分钟过期，重启清空，仅保留内存缓存。
-- 历史按实时店铺上下文和插件配置隔离；相同发送者的并发请求依次处理，重复消息不重复加入历史，限制缓存会话数与单条长度。
-- 历史仅辅助理解，不替代本条原文证据、实时查询或后端权限与记账校验。新增历史传递、隔离、去重、失败回复和容量/过期回归测试。
-- 本轮仅修改与验证源码，未安装插件或部署 NAS；兼容 API 1.3.7 及以上的协议 2，无数据库迁移。
+- LangBot plug-in upgraded to 1.2.0: Each AI understanding comes with the last 5 rounds of user messages and actual replies from the same robot, group and sender; it expires after 30 minutes of idle time, is cleared upon restart, and only the memory cache is retained.
+- The history is isolated according to the real-time store context and plug-in configuration; concurrent requests from the same sender are processed in sequence, duplicate messages are not added to the history repeatedly, and the number of cached sessions and the length of a single message are limited.
+- History only assists understanding and does not replace the original evidence of this article, real-time query, or back-end authority and accounting verification. Added historical delivery, isolation, deduplication, failure recovery and capacity/expiration regression testing.
+- This round only modified and verified the source code, without installing plug-ins or deploying NAS; it is compatible with protocol 2 of API 1.3.7 and above, and there is no database migration.
 
 ## 1.3.10 — 2026-09-11
 
-- 财务统计每日小计默认显示日期旁的星期列，无需点击“显示全部列”；沿用营业日期及中英文星期格式。
+- The daily subtotal of financial statistics displays the week column next to the date by default. There is no need to click "Show all columns"; the business day period and Chinese and English week formats are used.
 
 ## 1.3.9 — 2026-09-11
 
-- 上工成功回复追加空闲员工；全员忙碌时显示最早预计下工人员与店铺当地时间，并列人员一并列出。
-- 状态包含机器人及网页记工，沿用网页服务时间口径；跨日标注日期，未知结束时间不猜测。回复仍为紧凑两行，重复消息保留原回复。
+- Successfully reply to add idle employees; when all employees are busy, the earliest expected off-duty employees and the store's local time will be displayed, and the employees will be listed together.
+- The status includes robot and web page work records, which follow the web service time definition; dates are marked across days, and unknown end times are not guessed. The reply is still a compact two lines, and the original reply is retained for repeated messages.
 
 ## 1.3.8 — 2026-09-11
 
-- 整理工作区导航与 LangBot 插件开发入口，明确插件源码、上游运行环境、安装包和持久化数据的边界。
-- 将早期跨项目实施记录移入历史归档；本地 9 个旧插件包移至 `integrations/langbot-plugin/dist/archive/` 并记录 SHA-256，保留回退材料。
-- 插件文档版本更新为 1.1.5，统一中英文配置说明，完整业务与部署规则集中在机器人手册；插件执行代码不变。
-- 补齐 Python 缓存和插件安装包忽略规则；本轮仅整理本地文件，未构建或安装新插件、未部署服务。
+- Organize the workspace navigation and LangBot plug-in development entrance, and clarify the boundaries of plug-in source code, upstream operating environment, installation package and persistent data.
+- Move early cross-project implementation records to the history archive; move the local 9 old plugin packages to `integrations/langbot-plugin/dist/archive/` and record SHA-256, retain the fallback material.
+- The plug-in document version has been updated to 1.1.5, the Chinese and English configuration instructions are unified, and the complete business and deployment rules are concentrated in the robot manual; the plug-in execution code remains unchanged.
+- Complete the Python cache and plug-in installation package ignoring rules; this round only organizes local files, no new plug-ins are built or installed, and no services are deployed.
 
 ## 1.3.7 — 2026-09-10
 
-- 修正记工插件上工提示词的默认时长与可选字段冲突，明确项目 ID、员工和店铺默认时长的完整示例。
-- 插件 1.1.4 对带店铺说明的 HELP 或不合格解析最多复核一次；持续协议错误明确报错，不再静默转换为帮助。
-- 后端保留 @ 员工的原文证据；证据校验失败返回独立结果和未记账说明。
-- 增加截图上工、默认60分钟、指定员工、重复消息与校验拒绝的回归覆盖。
-- 更新旧的提示注入回归断言，确保原文证据拒绝不会被误报成普通帮助。
+- Correct the conflict between the default duration of the work record plug-in work prompt and the optional field, and clarify the complete example of the default duration of project ID, employee and store.
+- Plug-in 1.1.4 will review HELP with store description or unqualified parsing at most once; persistent protocol errors will be reported explicitly and will no longer be converted to help silently.
+- The backend retains the original evidence of @ employee; if the evidence verification fails, an independent result and an unaccounted statement will be returned.
+- Added regression coverage for screenshot start-up, default 60 minutes, designated employees, duplicate messages and verification rejection.
+- Updated old hint injection regression assertions to ensure that original evidence rejections are not falsely reported as normal help.
 
 ## 1.3.5 — 2026-09-10
 
-- 记工详情共用一个服务日期，起止时间成组排列，项目与金额独立分区；收紧标题和字段间距。
-- 修改日期同步起止日期，保留时间输入和时长联动；跨日或结束早于开始的详情阻止保存并提示调整，结束时间仍可留空。
+- Work record details share a service date, start and end times are arranged in groups, and projects and amounts are partitioned independently; title and field spacing is tightened.
+- Modify the date to synchronize the start and end dates, and link the retention time input and duration; details that span days or end earlier than the start are prevented from being saved and prompted for adjustment, and the end time can still be left blank.
 
 ## 1.3.4 — 2026-09-10
 
-- 将记工时间的小时、分钟和上午/下午改为三个直接输入框，去掉下拉选择；保留无说明文字的简洁布局。
-- 数字栏支持手机数字键盘，时段支持中文或 AM/PM，校验不完整及越界输入；保留结束时间留空和时长联动。
+- Change the hours, minutes and morning/afternoon of the work record time into three direct input boxes and remove the drop-down selection; retain the simple layout without explanatory text.
+- The number field supports the phone numeric keyboard, the time period supports Chinese or AM/PM, and the verification is incomplete and out-of-bounds input; the end time is left blank and the duration is linked.
 
 ## 1.3.3 — 2026-09-10
 
-- 补齐机器人单独高亮/取消高亮指令解析，支持员工姓名或完整记录编号；加强 LangBot 模型的操作示例及下工合并高亮说明。
-- 统一校验取消、去掉、移除、关闭和不高亮，防止模型截断否定词后执行相反操作；新增解析与数据库往返、幂等验证。
-- LangBot 插件版本更新为 1.1.2。
+- Complete the robot's separate highlight/cancel highlight command parsing to support employee names or complete record numbers; strengthen the LangBot model's operation examples and merge highlight instructions at the end of the work.
+- Unified verification of canceling, removing, removing, closing and not highlighting prevents the model from performing the opposite operation after truncating negative words; new parsing and database round-trips and idempotency verification are added.
+- LangBot plug-in version updated to 1.1.2.
 
 ## 1.3.2 — 2026-09-10
 
-- 记工开始与结束时间改为小时、分钟、上午/下午三个独立选择项，移除时间推断与格式说明。
-- 保留结束时间留空、日期选择和项目时长联动，支持中英文。
+- The work record start and end time are changed to three independent options: hour, minute, am/pm, and time inference and format description are removed.
+- Leave the end time blank, link the date selection and project duration, and support Chinese and English.
 
 ## 1.3.1 — 2026-09-10
 
-- 修复底部导航遮挡最后一行内容：各业务页面按导航实际高度留位，并随文字换行、窗口尺寸和设备安全区变化更新。
-- 移除桌面仅预留 32px 的冲突规则，统一保留导航上方 16px 间距。
+- Fix the bottom navigation blocking the last line of content: each business page will leave space according to the actual height of the navigation, and will be updated with changes in text wrapping, window size, and device safety zone.
+- Remove the conflicting rule that only reserves 32px on the desktop, and uniformly retain the 16px spacing above the navigation.
 
 ## 1.3.0 — 2026-09-09
 
-- 个人日结无论是否已完成全店日结，都可由店主或经理逐人发送短信；任务保存当时快照，未日结任务可正常查看、取消和由 Mac 代理发送。
-- 个人日结新增“已结现金”和“取消已结现金”，沿用每日现金结算状态，表示当日现金大费、小费已结清；员工可查看，管理者可操作。
-- 取消日结不再要求填写原因，保留权限、幂等、版本校验、审计及现金状态回退。
-- 新增短信任务营业日回填迁移，允许任务不关联日结周期；未日结图片不再显示虚构周期。
+- Individual daily statement No matter whether the daily closing of the whole store has been completed, the store owner or manager can send text messages one by one; the task saves a snapshot at the time, and the not closed task can be viewed, canceled and sent by Mac agent normally.
+- The individual daily statement adds "cash settled" and "cancel cash settled", and follows the daily cash settlement status, indicating that the cash service fee and tips of the day have been settled; employees can view it and managers can operate it.
+- Canceling daily closing no longer requires filling in the reason, and retains permissions, idempotency, version verification, auditing and cash status rollback.
+- Added SMS task business day backfill migration, allowing tasks not to be associated with the daily closing cycle; the not closed picture no longer displays the fictitious cycle.
 
 ## 1.2.0 · 2026-09-09
 
-- 记工员工行将排序、移除和隐藏收进“员工操作”，保留直接个人日结入口。
-- 全站采用更大正文和辅助文字、更清晰的对比度与触控按钮；收紧页头、面板和卡片间距，统一简洁暖色界面。
-- 财务首页优先展示流水、店铺收入和总收入；全部指标和计算说明保留，详细构成及高级筛选按需展开。
-- 每日小计默认只展示日期与主要金额，可切换全部列；导出使用已展示结果的筛选范围。
-- 调整现金结算、工资预览、员工小计和窄屏导航布局；已付工资登记按需展开，手机悬浮入口减少遮挡，增强键盘焦点及减少动态效果支持。
+- Work record employee rows will be sorted, removed and hidden into "employee operations", and direct individual daily statement entries will be retained.
+- The entire site adopts larger main text and auxiliary text, clearer contrast and touch buttons; the spacing between page headers, panels and cards is tightened, and the simple and warm color interface is unified.
+- The financial homepage gives priority to displaying turnover, store revenue and total revenue; all indicators and calculation instructions are retained, and detailed composition and advanced filtering are expanded as needed.
+- By default, the daily subtotal only displays the date and main amount, and all columns can be switched; the export uses the filter range of the displayed results.
+- Adjust the layout of cash settlement, salary preview, employee subtotal and narrow screen navigation; paid salary registration is expanded as needed, phone floating entrance reduces occlusion, keyboard focus is enhanced and dynamic effect support is reduced.
 
 ## 1.1.8 — 2026-09-09
 
-- 固化维护约定：每次修改同步项目文档、CHANGELOG 和版本号；默认不部署，需要更新 NAS 才能生效时提醒用户，仅在用户明确要求部署后发布。
+- Solid maintenance agreement: synchronize the project document, CHANGELOG and version number every time there is a modification; it is not deployed by default, and the user is reminded when the NAS needs to be updated to take effect, and is only released after the user explicitly requests deployment.
 
 ## 1.1.7 — 2026-09-09
 
-- 下工回复隐藏未添加的高亮状态；项目金额等于实收时隐藏项目金额。应收（项目金额＋加项－折扣）与实收不一致时，标明应收和少收/多收差额，不包含小费。
+- The off-work reply hides the unadded highlight status; the project amount is equal to the hidden project amount when the actual receipt is received. When receivables (project amount + add-on - discount) are inconsistent with actual receipts, indicate the difference between receivables and undercharges/overcharges, excluding tips.
 
 ## 1.1.6 — 2026-09-09
 
-- 精简机器人下工回复：无加项或折扣时隐藏对应金额和名称，移除编号及折后大费；保留项目金额、实收、小费和高亮状态。
+- Streamlined robot shutdown reply: Hide the corresponding amount and name when there is no add-on or discount, remove the number and post-discount service fee; retain the project amount, actual receipts, tips and highlight status.
 
 ## 1.1.5 — 2026-09-09
 
-- 记工卡片、快速新增及详情编辑统一使用 12 小时制；裸钟点 9–11 默认 AM，12、1–8 默认 PM，支持显式 AM/PM 覆盖并实时预览。
-- 保留历史实际时段、店铺时区、营业日归属及下工时间联动；无效时间阻止保存。
-- 新增钟点推断、时段覆盖、无效输入、全天显示往返及营业日转换回归测试。
-- 验证：Web 99 项测试、类型检查和生产构建通过；版本一致性、Markdown 本地链接及 diff 检查通过。
+- Work record cards, quick additions, and detail editing all use the 12-hour clock; bare hours 9–11 default AM, 12 and 1–8 default PM, and support explicit AM/PM overlay and real-time preview.
+- The actual historical time period, store time zone, business day ownership and off-duty time linkage are retained; invalid time prevents saving.
+- Added hour extrapolation, period coverage, invalid input, all-day display round trip and business day conversion regression tests.
+- Validation: Web 99 tests, type checks, and production builds pass; version consistency, Markdown native links, and diff checks pass.
 
 ## 1.1.4 — 2026-09-09
 
-- 修复微信群上工忽略正文开始时间：API 按店铺时区直接解析钟点，未注明上午/下午的 1–12 点采用最近 12 小时内已发生的时间，明确时段/24 小时制采用最近 24 小时。
-- 支持半点、中文小时与全角时间；多时间、无效时间、不支持的历史/相对时间及夏令时歧义返回提示，不写账。未写钟点保持消息时间。
-- LangBot 上工提示明确区分开始钟点与服务时长。
-- 验证：API 248 项测试（含数据库集成）和数据库 7 项测试通过，LangBot 10 项测试通过；API 类型、版本一致性、文档链接及 diff 检查通过。
+- Fixed the problem of ignoring the start time of the text during WeChat group work: the API directly parses the clock according to the store time zone. If 1-12 o'clock in the morning or afternoon is not specified, the time that has occurred in the last 12 hours will be used. If the time period/24-hour format is specified, the last 24 hours will be used.
+- Supports half o'clock, Chinese hours and full-width time; multiple times, invalid times, unsupported historical/relative time and daylight saving time ambiguity return prompts without writing accounts. Unwritten hours keep the message time.
+- LangBot's onboarding reminder clearly distinguishes between start time and service duration.
+- Verification: API 248 tests (including database integration) and 7 database tests passed, and LangBot 10 tests passed; API type, version consistency, document link and diff check passed.
 
 ## 1.1.3 — 2026-09-09
 
-- 修复 AI 助手只发送当前消息的问题：按同一会话顺序传入历史提问、已保存回复、查询结果和变更预览，工具查询后继续保留历史。
-- 财务追问先结合历史解析日期、员工和付款/金额范围，再查询后端确定性统计；权限范围变化后不重放原权限下的历史数据。
-- 旧日志未保存的完整回复无法恢复；保留可用的旧提问并提示模型重新查询业务数据。历史预览不代表已执行，也不替代新的确认。
-- 将每次修改同步项目文档、CHANGELOG 和版本号的要求写入根目录 AGENTS.md，并更新开发及接管规则。
-- 验证：API 类型检查通过；API 测试 141 项通过、89 项数据库集成测试跳过；新增会话延续、工具循环、会话隔离、角色变化和财务追问回归覆盖。
+- Fixed the issue where the AI assistant only sends the current message: historical questions, saved replies, query results, and change previews are passed in in the same conversation order, and the tool continues to retain the history after querying.
+- Financial inquiry first combines the historical analysis date, employee and payment/amount range, and then queries the back-end deterministic statistics; historical data under the original authority will not be replayed after the authority range is changed.
+- Complete replies that are not saved in old logs cannot be recovered; available old questions are retained and the model is prompted to requery business data. Historical previews do not represent execution and do not replace new confirmations.
+- Write the requirements for synchronizing project documents, CHANGELOG and version numbers for each modification to the root directory AGENTS.md, and update development and handoff rules.
+- Verification: API type check passed; 141 API tests passed, 89 database integration tests were skipped; new session continuation, tool loop, session isolation, role change and financial inquiry regression coverage was added.
 
 ## 1.1.2 — 2026-09-09
 
-- AI 模型回复遇到输出长度限制时自动重试更大的预算；仍未完整生成时明确返回可重试错误，不再接受截断文本或工具参数。
+- The AI model replies to automatically retry with a larger budget when output length limits are encountered; explicitly returns a retryable error when the build is incomplete, and no longer accepts truncated text or tool parameters.
 
 ## 1.1.1 — 2026-09-09
 
-- AI 记工助手可在权限范围内读取本店全部历史业务数据，并通过确定性财务查询回答跨日期统计。
-- 历史读取支持分页、日期范围和员工权限隔离；记工写入仍需生成预览并确认。
+- The AI work record assistant can read all historical business data of the store within the scope of authority and answer cross-date statistics through deterministic financial queries.
+- Historical reading supports paging, date range and employee permission isolation; work record writing still needs to generate a preview and confirm.
 
-## LangBot 插件 1.1.1 — 2026-09-09
+<a id="langbot-插件-111--2026-09-09"></a>
 
-- 单独发布插件修复，兼容 API 1.1.0 / 协议 2。店铺自然语言说明用于下工简写和默认付款方式，不再强制要求简写包含“下工”或“卡”；显式付款方式优先，金额来自本次消息。
-- 将旧版插件和后端升级到兼容版本，修复旧插件丢掉下工指定员工、导致查询发消息者而非目标员工的问题。新增网页手动开始后按指定员工简写收款的数据库回归测试，确认不会误收发消息者的待付款记录。
-- 使用实际配置模型验证姓名、金额、零小费、现金覆盖、收款结账及无默认约定共六种场景。
+## LangBot plugin 1.1.1 — 2026-09-09
+
+- Separate release of plugin fixes, compatible with API 1.1.0 / Protocol 2. The store's natural language description is used for the abbreviation of "off work" and the default payment method. The abbreviation is no longer required to include "off work" or "card"; explicit payment methods are preferred, and the amount comes from this message.
+- Upgrade the old plug-in and backend to a compatible version, and fix the issue where the old plug-in loses the designated employee, causing the message sender to be queried instead of the target employee. Added a database regression test for collecting payments according to the abbreviation of a specified employee after the web page is manually started to confirm that the pending payment record of the person receiving the message will not be mistakenly sent.
+- Use the actual configuration model to verify six scenarios: name, amount, zero tips, cash coverage, collection and settlement, and no default agreement.
 
 ## 1.1.0 — 2026-09-08
 
-- 扩展 LangBot 微信记工：折扣/加项添加和移除、高亮开关、按编号编辑已付款记录、混合付款和礼物卡、补录、自定义项目、备注、删除与恢复。复杂修改复用网页 WorkRecordsService 的事务、营业日锁、版本检查、审计和财务重算。
-- 下工金额表示服务实收，保留项目原价，避免折扣/加项混入原价；折后大费与实收分别回复。
-- 增加按营业日、员工、付款状态、高亮筛选的数据库查询，以及逐笔、按日、按员工汇总。最近 N 天包含当前营业日，最多 366 天，20 条一页，合计覆盖整个范围；长回复按消息分段，金额以整数美分格式化。
-- 管理页增加微信身份核实和数据访问开关。只有核实身份后允许历史财务查询；员工限本人，经理/店主可查全店。未核实角色按普通员工处理，重新绑定身份取消核实，重放查询重新鉴权。
-- 数据库增加绑定 verified_at 字段，并将机器人回复扩为 TEXT；须先迁移和部署 API，再安装插件 1.1.0。
+- Extended LangBot WeChat work record: discount/add-on addition and removal, highlight switch, editing paid records by number, mixed payment and gift card, supplementary recording, custom items, notes, deletion and recovery. Complex modifications to reuse web WorkRecordsService transactions, business day locks, version checks, audits and financial recalculations.
+- The off-work amount represents the actual receipt of the service, and the original price of the project is retained to avoid mixing discounts/add-ons into the original price; after discounts, the service fee and actual receipts are returned separately.
+- Added database queries filtered by business day, employee, payment status, highlight, and summary by transaction, day, and employee. The last N days include the current business day, up to 366 days, 20 items per page, covering the entire range in total; long replies are segmented by message, and the amount is formatted in integer cents.
+- The management page adds WeChat identity verification and data access switches. Historical financial inquiries are only allowed after identity verification; employees are limited to themselves, managers/store owners can inquire the entire store. Unverified roles are treated as ordinary employees, rebind the identity to cancel verification, and replay the query to re-authenticate.
+- The database adds a binding verified_at field and expands the robot reply to TEXT; the API must be migrated and deployed first, and then the plug-in 1.1.0 can be installed.
 
 ## 1.0.7 - 2026-09-08
 
-- AI 确认和网页详情/付款保存改为原子事务；修复部分付款修改清零、并发确认等待及冲突后覆盖他人修改的问题。
-- 创建、跨日移动和恢复记工时补齐看板行；网页确认/删除/改派机器人记录会解除上工占用。新增仅修复关联元数据的历史迁移。
-- 强化机器人金额、时长、停用成员及店铺校验；保留自然语言店铺说明、指定员工下工及待付款记录折扣/加项功能，补齐未结账状态处理。
-- 财务筛选去重，累计金额保持 BigInt 到安全范围校验；跨营业日写入按固定顺序加锁，员工小计发送幂等校验涵盖全部筛选条件。
-- 发送队列与审计原子入库，发送回写检查有效租约；Mac 在发送前复核资格，日志原子保存，结果不确定时不自动换通道重发。
-- SSE 持续复核权限、兼容慢轮询和延迟提交；前端重连刷新、财务过期响应保护、不可用浏览器存储降级及夏令时输入校验。
-- 修复密码并发覆盖、无效登录请求、未认领账号接管店主、语音 Strict Mode 清理、CSV 前导空白公式防护及 LangBot 时间/URL 校验。
-- 失效可信登录回退到正常登录，支持粘贴带 +1 的号码；AI 确认预览保留美分、使用店铺时区并正确显示清空字段。
-- 发送任务取消/重试与审计同事务，避免状态与审计不一致；LangBot 回归测试可由本地命令运行。
-- 增加事务回滚、并发、租约、幂等、迁移和浏览器边界回归测试。
+- AI confirmation and web page details/payment saving are changed to atomic transactions; fix the problems of clearing some payment modifications, waiting for concurrent confirmations, and overwriting other people's modifications after conflicts.
+- Complete the Kanban rows when creating, moving across days, and restoring work records; confirming/deleting/reassigning robot records on the web page will release the work occupation. Added historical migration that only repairs associated metadata.
+- Strengthen robot amount, duration, deactivated members and store verification; retain natural language store descriptions, designated employee off-duty and pending payment record discount/add-on functions, and complete the processing of unchecked status.
+- Financial filtering removes duplication, and the cumulative amount is kept as BigInt to a safe range for verification; cross-business day writes are locked in a fixed order, and employee subtotals are sent for idempotency verification to cover all filtering conditions.
+- The send queue and audit are atomically stored in the database, and the send writeback checks the valid lease; Mac checks the qualification before sending, and the log is saved atomically. When the result is uncertain, it will not automatically change channels and resend.
+- SSE continuously reviews permissions, is compatible with slow polling and delayed submission; front-end reconnection refresh, financial expired response protection, unavailable browser storage downgrade and daylight saving time input verification.
+- Fixes for concurrent password overwriting, invalid login requests, unclaimed account handoff from store owners, voice Strict Mode cleanup, CSV leading whitespace formula protection and LangBot time/URL validation.
+- Failed trusted logins fall back to normal logins and support pasting of numbers with +1; AI confirmation preview retains cents, uses the store time zone and correctly displays cleared fields.
+- Send task cancellation/retry and audit the same transaction to avoid inconsistency between status and audit; LangBot regression testing can be run by local commands.
+- Added transaction rollback, concurrency, leases, idempotency, migration and browser boundary regression testing.
 
 ## 1.0.6 - 2026-09-07
 
-- 微信记工机器人改为每条消息都由配置模型理解，不再用固定语法绕过 AI；未配置模型或模型调用失败时明确停止，不提交不确定账目。
-- 新增受令牌保护的实时记工技能接口：每次向模型提供当前群绑定店铺的启用黑话、项目含义、默认/可用时长、在职员工和发送者身份。
-- 模型现在可把未逐字登记的口语、英文、缩写和近义词映射到唯一合理的标准黑话，并提交原文证据；标准黑话、员工、项目、价格档和最终账目仍由 Massage Note 后端校验。
+- The WeChat work record robot changes each message to be understood by the configuration model, and no longer uses fixed syntax to bypass AI; it stops explicitly when the model is not configured or the model call fails, and no uncertain accounts are submitted.
+- Added a new token-protected real-time work record skill interface: providing the model with the enabled slang, project meaning, default/available duration, active employee and sender identity of the current group-bound store each time.
+- Models can now map colloquial, English, abbreviations and synonyms that are not registered verbatim to the only reasonable standard vernacular and submit proof of the original text; standard vernacular, employees, projects, price files and final accounts are still verified by the Massage Note backend.
 
 ## 1.0.5 - 2026-09-07
 
-- 已绑定群员现在可直接用“Jessie 脚 30”为唯一匹配的在职员工代记上工，不再要求目标员工预先绑定微信；系统用内部占位绑定安全追踪进行中记录，目标员工以后绑定时会自动接管。
-- 修复消息显式覆盖默认时长时，记工主记录的实际时长仍保存黑话默认值的问题；项目快照、预计结束时间和实际时长现在一致使用消息中的有效价格档时长。
+- Bound group members can now directly use "Jessie Pin 30" to record work for the only matching current employee, and the target employee is no longer required to bind WeChat in advance; the system uses internal placeholder binding to securely track ongoing records, and the target employee will automatically take over when bound in the future.
+- Fixed an issue where the actual duration of the work record master record still retains the blacklist default value when the message explicitly overrides the default duration; project snapshots, estimated end times, and actual durations now consistently use the effective price slot duration in the message.
 
 ## 1.0.4 - 2026-09-06
 
-- 微信群记工支持省略“上工”前缀的紧凑说法：`大力 90` 使用“大力”黑话对应项目的 90 分钟价格档，`Jessie 脚 30` 可由已绑定群员为同群已绑定的 Jessie 开始 30 分钟足疗。
-- 黑话仍由 Owner/Manager 明确映射到真实项目，并保留配置时长作为默认值；消息中的显式时长只能选择该项目已有价格档，AI 只做后备结构化解析，不能猜项目、价格、员工或时长。
+- WeChat group work record supports a compact statement that omits the "shanggong" prefix:`大力 90` Use the 90-minute price range of the project corresponding to the "Dali" slang,`Jessie 脚 30` A 30-minute foot massage can be started by a bound group member for Jessie who is bound to the same group.
+- The idiom is still clearly mapped to the real project by the Owner/Manager, and the configured duration is retained as the default value; the explicit duration in the message can only select the existing price range of the project, and the AI only performs backup structured analysis and cannot guess the project, price, employees or duration.
 
 ## 1.0.3 - 2026-09-06
 
-- 补充群晖部署经验：Adaptive MFA 对 root Task Scheduler 的影响、一次性数据库备份任务的退出码与校验文件验收，以及 `Project.update` 后必须继续 build 并核对容器实际镜像。
-- 补充记工机器人无写入联通探针、后端先上线而插件最后绑定的启用顺序，以及生产诊断输出的秘密保护要求。
-- 修复 LangBot 隔离插件进程不继承 Runtime 自定义环境变量导致的记工令牌缺失；插件 1.0.3 改为强制通过受遮蔽的插件配置保存令牌和专用机器人，并为出站请求设置明确的客户端标识以避免 Cloudflare 1010 拦截。
+- Supplementary Synology deployment experience: the impact of Adaptive MFA on the root Task Scheduler, the exit code and verification file acceptance of the one-time database backup task, and the need to continue building and verify the actual container image after `Project.update`.
+- Supplement the work record robot's no-write connection probe, the activation sequence of the backend going online first and the plug-in being bound last, and the secret protection requirements for production diagnostic output.
+- Fix for missing work record tokens caused by LangBot isolation plugin process not inheriting Runtime custom environment variables; plugin 1.0.3 instead forces saving of tokens and dedicated bots through a shadowed plugin configuration, and sets an explicit client identity for outbound requests to avoid Cloudflare 1010 interception.
 
 ## 1.0.2 - 2026-09-06
 
-- 新增“记工助手”LangBot 对接：群成员可通过绑定、上工、下工指令写入受限记工接口。
-- 新增店铺/微信员工绑定、项目黑话别名、操作审计、幂等与进行中记工唯一约束，所有账目更新在单一事务内完成。
-- 新增受限集成密钥和生产部署配置，DeepSeek 仅负责解析结构化意图，后端负责身份、项目、金额、权限和财务校验。
-- 发布 LangBot 插件 1.0.2，支持微信消息时间、自然语言黑话、现金/刷卡下工及异常回滚提示，并屏蔽 `<think>` 输出。
+- Added "work record assistant" LangBot docking: group members can write to the restricted work record interface through binding, work on, and off work instructions.
+- Added store/WeChat employee binding, project slang alias, operation audit, idempotency and ongoing work record unique constraints, and all account updates are completed within a single transaction.
+- Added new restricted integration keys and production deployment configurations, DeepSeek is only responsible for parsing structured intent, and the backend is responsible for identity, project, amount, permission and financial verification.
+- Released LangBot plug-in 1.0.2, which supports WeChat message time, natural language slang, cash/card swipe shutdown and abnormal rollback prompts, and blocks `<think>` output.
 
 ## 1.0.1 - 2026-09-04
 
-- 将自动排工收缩为每日开门排位：店长或经理可按全职/兼职及最近一次实际出勤的最终顺序生成、重新生成或手动调整当天员工排名。
-- 移除下一位、普通/点名/店方指定、跳过、画叉、欠位和派工意向；记工、AI 记工、删除恢复与日结不再读写排位状态。
-- 新增向前迁移清理逐工表与字段，保留实际记工、付款、成员类型、每日排名和审计数据；补齐成员类型生命周期约束及日结后员工行写入保护。
-- 修复生产依赖 `qs` 的两个拒绝服务漏洞，并补充历史轮转、隐藏出勤、权限、幂等、并发和记工解耦测试。
+- Shrink automatic scheduling to daily opening ranking: The store manager or manager can generate, regenerate or manually adjust the employee rankings for the day according to the final order of full-time/part-time and the latest actual attendance.
+- Remove next position, normal/roll call/store designation, skip, cross, missing position and work dispatch intention; work record, AI work record, deletion recovery and daily closing will no longer read and write the ranking status.
+- Added forward migration to clean up work-by-work tables and fields, retaining actual work records, payments, member types, daily rankings and audit data; completing member type life cycle constraints and employee row write protection after daily closing.
+- Fixed two denial of service vulnerabilities in production dependencies on `qs`, and added tests for history rotation, hidden attendance, permissions, idempotency, concurrency and work record decoupling.
 
 ## 1.0.0 - 2026-09-04
 
-- 新增按店铺启用的自动排工：支持全职/兼职跨天轮转、自动排位、普通客下一位、客人点名、店里指定、画叉、忙碌跳过和可累计欠位。
-- 今日记工表显示实时排工状态和操作记录；误加且无活动的员工可移除，隐藏员工会暂停排工并在恢复后保留状态。
-- 记工与派工记录独立关联，高亮和财务含义不变；删除普通或点名记工会退回一次轮次，日结时未补轮次清零。
-- 自动排工默认关闭，升级后需先为服务人员设置全职或兼职，再由店长开启并检查最近历史顺序。
+- Added automatic job scheduling enabled by store: supports full-time/part-time cross-day rotation, automatic ranking, next regular customer, guest roll call, store designation, cross, busy skip and accumulation of short positions.
+- Today's work record table displays real-time work scheduling status and operation records; employees who are added by mistake and have no activity can be removed, and hidden employees will suspend work scheduling and retain their status after recovery.
+- The work record is independently associated with the work dispatch record, and the highlight and financial meanings remain unchanged; deleting the ordinary or named work record will return one round, and the unfilled rounds will be cleared at the daily closing.
+- Automatic work scheduling is turned off by default. After upgrading, you need to set full-time or part-time for service staff first, and then the store manager can turn it on and check the recent historical order.
 
 ## 0.12.48 - 2026-09-02
 
-- 员工小计不再用筛选后的工资反推“综合分成比例”，改为直接显示员工当前默认提成；存在不同的项目专属提成时明确提示，网页和短信长图保持一致。
-- 店铺总结算新增信用卡手续费：未高亮记工按刷卡大费与刷卡小费合计的 2.5% 计算，含刷卡付款的高亮记工每笔固定 $3；总收入改为前四项收入之和扣除该手续费。
+- The employee subtotal no longer uses the filtered salary to infer the "comprehensive share ratio", but instead directly displays the employee's current default commission; when there are different project-specific commissions, a clear prompt is made, and the long image on the web page and SMS are consistent.
+- The new credit card handling fee for the store's total settlement: without highlight work record, it is calculated as 2.5% of the total of card swiping service fee and card swiping tips. Highlight work record including card swiping payment is fixed at $3 for each transaction; the total income is changed to the sum of the first four incomes to deduct the handling fee.
 
 ## 0.12.47 - 2026-09-02
 
-- 财务汇总员工小计改为卡片布局，兼容小数金额并明确展示大费基数、分成工资和阶段总收入的计算关系。
-- 员工小计隐藏折扣与折后大费，新增默认店主号码的短信发送入口、号码编辑和发送记录查看。
-- 新增员工摘要短信队列、摘要长图渲染与数据库迁移，消息代理同步支持 `EMPLOYEE_SUMMARY` 文档类型。
+- The financial summary employee subtotal is changed to a card layout, which is compatible with decimal amounts and clearly displays the calculation relationship between the service fee base, divided wages and total stage income.
+- The employee subtotal hides discounts and post-discount service fees, and adds a new SMS sending entrance for the default store owner number, number editing, and sending record viewing.
+- Added employee summary SMS queue, summary long image rendering and database migration, message agent synchronization supports `EMPLOYEE_SUMMARY` document type.
 
 ## 0.12.46 - 2026-09-02
 
-- 工资结算页改用精确到美分的金额格式，小数收费和工资不再被显示层四舍五入为整美元；底层整数美分账本和确定性计算保持不变。
-- 将短信发送记录移动到“短信发送长图”按钮旁，以弹窗展示发送进度、错误、取消、重试和重发操作，空记录与读取中状态也有明确反馈。
-- 结算长图的“当日总结”固定到当日最后一行最右列；两列布局遇到双数笔记工时在左侧留空，三列和四列布局也自动补位右对齐，并新增位置回归测试。
-- 记录“更新部署”的固定协作流程：整理项目文档、push Git、部署 NAS，业务验收由用户自行完成。
+- The payroll settlement page changes to an amount format accurate to cents, and decimal charges and wages are no longer rounded to whole dollars by the display layer; the underlying integer cent ledger and deterministic calculations remain unchanged.
+- Move the SMS sending record next to the "SMS sending long image" button, and use a pop-up window to display the sending progress, errors, cancellation, retry and resend operations. There is also clear feedback on empty records and loading status.
+- The "summary of the day" for the settlement long chart is fixed to the rightmost column of the last row of the day; when the two-column layout encounters an even number of work records, it is left blank on the left side. The three-column and four-column layouts are also automatically filled with right alignment, and a new position regression test is added.
+- Record the fixed collaboration process of "update deployment": organize project documents, push Git, deploy NAS, and business acceptance is completed by the user.
 
 ## 0.12.45 - 2026-09-02
 
-- 财务“工资结算”不再使用逐笔表格：按营业日分组展示与今日记工一致的记录卡片，每天最后追加“当日总结”，汇总当天笔数、大费基数、现金、非现金和总收入。
-- 短信结算长图同步改为按日卡片布局；同一天记录过多时自动换行，项目名称、付款拆分和混合付款提示自动折行，不再用省略号隐藏内容。
-- 长图会按总天数和记录密度自动选择 1080～1680 像素源画布与 2～4 列布局，在 32,760 像素高、4 MB 内生成单张 JPEG；新增单日 18 笔以及 31 天、每天 12 笔的容量回归测试。
-- 使用固定本地演示店和号码 `+1 (770) 575-0450` 完成真实 Messages 验收：单张长图进入现有 iMessage 会话，首次发送前失败不会产生重复消息。
-- 新增幂等的 `pnpm demo:seed` 本地演示数据脚本和开发文档，统一后续财务、工资与结算单测试数据。
+- The financial "salary settlement" no longer uses a transaction-by-transaction table: the record cards consistent with today's work record are displayed in groups by business day, and a "summary of the day" is added at the end of each day to summarize the number of transactions for the day, service fee base, cash, non-cash and total income.
+- The text message settlement long picture synchronization is changed to a daily card layout; when there are too many records on the same day, the lines are automatically wrapped, and the project name, payment split and mixed payment prompts are automatically wrapped, and the content is no longer hidden with ellipses.
+- For long images, a source canvas of 1080 to 1680 pixels and a layout of 2 to 4 columns will be automatically selected based on the total number of days and recording density, and a single JPEG will be generated at 32,760 pixels high and within 4 MB; a new capacity regression test of 18 transactions per day and 12 transactions per day for 31 days has been added.
+- Complete real Messages acceptance using fixed local demo store and number `+1 (770) 575-0450`: a single long image goes into an existing iMessage session, and failure before the first send will not generate duplicate messages.
+- Added idempotency's `pnpm demo:seed` local demo data script and development document to unify subsequent financial, salary and settlement document test data.
 
 ## 0.12.44 - 2026-08-31
 
-- 将结算长图的三个右侧金额列整体左移 80 像素，画布宽度同步从 615 像素缩至 535 像素，并继续保留 10 像素右边距。
+- Move the three right amount columns of the long settlement chart 80 pixels to the left as a whole, shrink the canvas width from 615 pixels to 535 pixels, and continue to retain the 10 pixels right margin.
 
 ## 0.12.43 - 2026-08-31
 
-- 将结算长图画布从 640 像素裁至 615 像素并把左右安全边距缩为 10 像素；最右侧“本笔收入”保持原横坐标不动。
+- Crop the long settlement chart canvas from 640 pixels to 615 pixels and reduce the left and right safety margins to 10 pixels; the "Income" on the far right remains unchanged at the original abscissa.
 
 ## 0.12.42 - 2026-08-31
 
-- 将员工结算长图画布从 720 像素缩至 640 像素，左右统一保留 35 像素安全边距，并同步压缩每行日期、项目和金额列之间的空隙。
+- Shrink the employee settlement long chart canvas from 720 pixels to 640 pixels, retain 35 pixels of safe margins on the left and right, and simultaneously compress the gaps between the date, project, and amount columns of each row.
 
 ## 0.12.41 - 2026-08-31
 
-- 将结算长图的三个金额列间距从约 100 像素继续收紧至 85 像素，并把“本笔收入”右侧安全边距扩大到约 50 像素。
+- Continue to tighten the spacing between the three amount columns in the long settlement chart from about 100 pixels to 85 pixels, and expand the safety margin on the right side of "This Income" to about 50 pixels.
 
 ## 0.12.40 - 2026-08-31
 
-- 将“刷卡大费分红”“刷卡小费”“本笔收入”三个金额列改为约 100 像素等距紧凑排列，并为最右侧收入列保留约 30 像素安全边距。
+- Change the three amount columns of "Card Service Fee Dividends", "Card Card Tips" and "This Income" to be closely arranged with equal spacing of about 100 pixels, and reserve a safe margin of about 30 pixels for the rightmost income column.
 
 ## 0.12.39 - 2026-08-31
 
-- 员工结算长图从 900 像素改为 720 像素窄版，保持原字号，使手机消息气泡内的文字显示更大。
-- 逐笔表格删除大费基数列并压窄日期时间栏；非现金汇总卡和明细列统一改称“刷卡大费分红”和“刷卡小费”。
+- The long image of employee settlement has been changed from 900 pixels to a narrow version of 720 pixels, maintaining the original font size to make the text in the mobile message bubble appear larger.
+- The service fee base column is deleted in the transaction-by-transaction form and the date and time column is narrowed; the non-cash summary card and detail columns are renamed "card service fee dividends" and "card swiping tips".
 
 ## 0.12.38 - 2026-08-31
 
-- 确认员工结算 PDF 在 Messages 中会出现“已接受”但最终以未注册或载体不支持错误失败，而同一号码的图片可通过 RCS 实际送达；区间结算因此彻底移除 PDF 和独立摘要图，只发送一张 JPEG 长图。
-- 长图改为独立连续排版：顶部紧凑保留员工信息与三张工资汇总卡，随后直接进入唯一表头和全部逐笔记录，不含封面、分页页眉、页码或页脚，也不拼接旧 PDF 页面。
-- 长图按记录量自动在舒展行与紧凑行之间切换，并在 32,760 像素、4 MB 内自适应压缩；回归验证 999 条可生成单图，现有会话优先路由已实测通过 RCS 投递。
-- Mac 代理安装在生产依赖部署后自动恢复工作区开发依赖，避免安装流程清除 TypeScript 与测试工具链接。
-- 单张长图送达后兼容回写旧 API 的两个历史检查点，确保服务器与 Mac 代理无论先更新哪一端，都不会重新发送独立摘要图。
+- Confirm that the employee settlement PDF will appear "Accepted" in Messages but ultimately fail with an unregistered or carrier not supported error, while the image with the same number can actually be delivered through RCS; interval settlement therefore completely removes the PDF and independent summary image, and only sends a JPEG long image.
+- The long image is changed to independent continuous typesetting: employee information and three salary summary cards are kept compactly at the top, and then directly enters the unique header and all record-by-record, without cover, pagination header, page number or footer, and no splicing of old PDF pages.
+- Long images automatically switch between stretched rows and compact rows according to the record amount, and are adaptively compressed within 32,760 pixels and 4 MB; regression verification can generate a single image with 999 items, and the existing session priority routing has been tested and delivered through RCS.
+- Mac agent installation automatically restores workspace development dependencies after production dependencies are deployed, preventing the installation process from clearing TypeScript and test tool links.
+- After a single long image is delivered, it is compatible with writing back two historical checkpoints of the old API, ensuring that the server and the Mac agent will not resend the independent summary image no matter which end is updated first.
 
 ## 0.12.37 - 2026-08-30
 
-- 员工区间结算逐笔列表明确显示实际用于计算的大费基数，移除重复的所选付款实收列和冗余说明。
-- 发送短信摘要后立即显示排队、成功或失败反馈，并在 PDF 发送时正确复用本次已发送的摘要检查点。
-- Messages 发送 PDF 时逐个尝试可用的 iMessage/RCS 账户，避免单个账户无法寻址导致后续数据通道无法回退。
+- The employee interval settlement transaction-by-transaction list clearly shows the actual service fee base used in the calculation, removing duplicate selected payment receipt columns and redundant instructions.
+- Queue, success or failure feedback will be displayed immediately after sending the SMS summary, and the summary checkpoint sent this time will be correctly reused when the PDF is sent.
+- When sending PDF, Messages tries available iMessage/RCS accounts one by one to avoid being unable to address a single account and causing the subsequent data channel to be unable to fall back.
 
 ## 0.12.36 - 2026-08-30
 
-- 重整文档入口和文件位置，将当前文档归入 `docs/product`、`docs/engineering`、`docs/operations`，保留 `docs/archive` 作为历史区，并补充按任务查找表与长篇产品规则阅读导航。
-- 将固定 Mac“信息”代理从通用运维手册拆为独立安装与排障手册，收拢权限、附件暂存、路由、重试和卸载说明。
-- 统一发送口径：个人日结只发一张 PNG，员工区间结算发送摘要 PNG 与逐笔 PDF，并明确 PDF 只走 iMessage 或 RCS。
-- 自定义额外项目改为真正的空白输入并使用占位提示，避免每次创建后手动删除默认名称和金额。
-- 修复英文员工日结图片中较长的服务费标签与金额重叠，重新分配英文版标签和值的布局空间。
+- Reorganize the document entry and file location, classify the current document into `docs/product`, `docs/engineering`, `docs/operations`, retain `docs/archive` as the history area, and add task search table and long product rule reading navigation.
+- Separated the fixed Mac Messages agent from the general operation and maintenance manual into a separate installation and troubleshooting manual, gathering permissions, attachment staging, routing, retrying, and uninstallation instructions.
+- Unified sending standards: send only one PNG for individual daily statement, send summary PNG and transaction-by-transaction PDF for employee interval settlement, and make it clear that PDF only uses iMessage or RCS.
+- Custom extras are changed to true blank inputs and use placeholder prompts to avoid manually deleting the default name and amount after each creation.
+- Fixed the long service fee label overlapping the amount in the English employee daily closing image, and redistributed the layout space of the English version label and value.
 
 ## 0.12.35 - 2026-08-30
 
-- 统一工资结算和财务汇总的付款来源计算：现金、刷卡＋礼物卡、全部三种来源按对应份额计算员工大费工资与小费。
-- 混合付款逐笔展示现金、刷卡和礼物卡拆分，并在网页、CSV 与员工 PDF 中明确标记当前只计所选来源。
-- 员工短信队列状态与详情入口合并为单一可展开控件，减少重复操作区域。
+- Unify the calculation of payment sources for salary settlement and financial summary: cash, credit card + gift card, all three sources calculate employee service commission and tips according to the corresponding share.
+- Blended Payments shows cash, swipe and gift card splits on a transaction-by-transaction basis, with clear marking on web, CSV and employee PDFs that only selected sources are currently counted.
+- The employee SMS queue status and details entry are merged into a single expandable control to reduce repeated operation areas.
 
 ## 0.12.34 - 2026-08-29
 
-- 修复“仅重发 PDF”时同一不可变快照重新生成的文档元数据不同，触发附件暂存冲突的问题；PDF 生成时间固定取自快照，重复渲染字节一致。
-- 对旧版本已经暂存的 PDF，重试时只复用该任务原先校验过的 Messages 附件，不覆盖也不替换受保护目录中的文件，使历史失败任务也能安全切换到 iMessage/RCS 重发。
+- Fixed the problem of document metadata regenerated from the same immutable snapshot being different when "resend PDF only", triggering temporary attachment conflicts; the PDF generation time is fixed from the snapshot, and the bytes are consistent for repeated renderings.
+- For PDFs that have been temporarily saved in old versions, only the Messages attachments that were originally verified by the task will be reused when retrying, and files in the protected directory will not be overwritten or replaced, so that historical failed tasks can safely switch to iMessage/RCS for resending.
 
 ## 0.12.33 - 2026-08-29
 
-- 修复员工区间结算 PDF 被优先交给 SMS/MMS 后，macOS 已接受发送指令但运营商异步拒绝文档附件、页面仍误显示“全部完成”的问题；图片继续优先短信，PDF 改为仅使用 iMessage 或 RCS 数据通道。
-- 发送日志记录每个结算附件实际采用的 Messages 服务，便于区分“系统已接受”与运营商最终投递问题。
-- 已完成或部分失败的结算记录新增“仅重发 PDF”恢复操作，保留摘要完成时间与原始快照，不重复发送摘要图，并写入审计记录。
+- Fixed an issue where after the employee interval settlement PDF was given priority to SMS/MMS, macOS accepted the sending command but the operator asynchronously rejected the document attachment, and the page still incorrectly displayed "All Completed"; pictures continued to be given priority over text messages, and PDF was changed to use only iMessage or RCS data channels.
+- The delivery log records the actual Messages service used by each settlement attachment, making it easy to distinguish "system accepted" from final delivery issues by the operator.
+- A new "resend PDF only" recovery operation is added for completed or partially failed settlement records, which retains the summary completion time and original snapshot, does not send summary images repeatedly, and writes audit records.
 
 ## 0.12.32 - 2026-08-29
 
-- 修复员工区间结算发送记录的 Prisma 字段映射与数据库 `last_error` 列不一致，导致发送记录列表、短信入队及 Mac 代理领取任务统一返回 500 的问题。
-- 员工区间结算对象扩展为所有在职店铺成员，店主、经理和员工均可生成并发送区间结算资料；该资料仍不写入工资账本，也不改变老板尚欠。
-- 增加数据库字段映射和店主/经理区间结算回归测试，防止同类运行时列名错误再次进入生产。
+- Fixed an issue where the Prisma field mapping of employee interval settlement sending records was inconsistent with the `last_error` column of the database, resulting in a uniform return of 500 in the sending record list, SMS enqueue and Mac agent collection tasks.
+- The employee interval settlement object is extended to all working store members. Store owners, managers and employees can generate and send interval settlement data; this data is still not written to the payroll ledger, nor does it change the boss's outstanding balance.
+- Add database field mapping and store owner/manager interval settlement regression tests to prevent similar runtime listing errors from entering production again.
 
 ## 0.12.31 - 2026-08-29
 
-- 财务页工资结算标签新增 Owner/Manager 专用“员工结算区”：按员工、日期区间和现金／刷卡＋礼物卡／全部生成区间预览，纳入已确认记工但不写入工资账本、不改变老板尚欠。
-- 区间工资沿用个人日结的现金比例分摊口径，混合付款逐笔拆分现金与非现金；页面按选择切换总结结构，并用内部滚动的紧凑表格支持最多 999 笔，第 1000 笔才明确要求缩短区间。
-- 新增独立的区间结算短信快照与队列。Mac“信息”代理先发送精美摘要 PNG，再发送自动分页、重复表头和页码的逐笔 PDF；两个附件分别回写完成检查点，失败重试跳过已经成功的附件。
-- 附件暂存 App 扩展为严格验证任务 UUID、固定 PNG/PDF 文件名和文件头；代理安装改用生产依赖部署，确保 PDF 运行库随 LaunchAgent 一起安装。
-- 今日记工和财务日结统一改用营业日日历；有有效记工但尚未日结的日期以橙色圆点标记，Owner/Manager 按全店显示，员工只看到自己的待日结日期。
+- A new Owner/Manager dedicated "employee settlement area" has been added to the salary settlement tab on the financial page: generate a preview of the interval by employee, date range and cash/swipe card + gift card/all, include confirmed work records but do not write to the payroll ledger, and do not change the boss's outstanding debt.
+- The interval salary follows the cash proportion apportionment definition of the individual daily statement, and the mixed payment is divided into cash and non-cash one by one; the page switches the summary structure according to the selection, and uses an internal scrolling compact table to support up to 999 transactions, and the interval is clearly required to be shortened only after the 1000th transaction.
+- Added independent interval settlement SMS snapshots and queues. The Mac Messages agent first sends a beautiful summary PNG, and then sends a step-by-step PDF with automatic pagination and repeated headers and page numbers; the two attachments are written back to complete the checkpoint respectively, and the successful attachment is skipped when it fails and is retried.
+- The attachment staging app is expanded to strictly verify task UUID, fixed PNG/PDF file name and file header; agent installation is changed to production dependency deployment, ensuring that the PDF runtime is installed together with the LaunchAgent.
+- Today's work record and financial daily closing are unified to use the business day calendar; dates with valid work records but not closed are marked with orange dots. Owner/Manager displays them for the entire store, and employees only see their pending daily closing dates.
 
 ## 0.12.30 - 2026-08-28
 
-- Mac“信息”代理每个员工日结任务只发送一张 PNG，不再紧跟一条重复的中英文文字消息；姓名、营业日、日结周期和更正后的金额继续以图片快照为准。
-- 移除未再使用的文字正文生成器，并增加 AppleScript 回归断言，确保发送脚本只有 `send POSIX file`，不包含第二次文字 `send`。
+- Mac Messages agent only sends one PNG for each employee's daily closing task, which is no longer followed by a repeated Chinese and English text message; the name, business day, daily closing period and corrected amount continue to be based on the picture snapshot.
+- Remove the unused text body generator and add AppleScript regression assertion to ensure that the sending script only contains `send POSIX file` and does not contain the second text `send`.
 
 ## 0.12.29 - 2026-08-28
 
-- 修复 macOS 26 下 LaunchAgent 直接执行附件暂存二进制时，完全磁盘访问权限被归因给后台 Node，导致根目录探针成功但实际任务无法创建或读取 `Messages/Attachments/MassageNote/<分片>/<任务>` 的问题。
-- 代理改为通过 LaunchServices 以无界面 `.app` 身份后台启动暂存程序；暂存 App 只向代理专用结果目录写入与任务 UUID 精确对应的 JSON，代理核对成功结果和固定目标路径后才调用 Messages。诊断现在也实际创建两层目录，避免只测根目录造成假阳性。
-- 失败仍发生在 Messages 调用之前并保留自动重试语义；全程不激活 Messages、不模拟键盘、不使用剪贴板或相册。
+- Fixed the problem that when LaunchAgent directly executes the attachment staging binary under macOS 26, full disk access permission is attributed to the background Node, causing the root directory probe to succeed but the actual task cannot be created or read. `Messages/Attachments/MassageNote/<分片>/<任务>` problem.
+- The agent instead launches the staging program in the background as an interfaceless `.app` through LaunchServices; the staging app only writes JSON that accurately corresponds to the task UUID to the agent's dedicated result directory, and the agent checks the successful result and the fixed target path before calling Messages. Diagnosis now also actually creates two levels of directories to avoid false positives caused by only testing the root directory.
+- The failure still occurs before the Messages call and retains automatic retry semantics; Messages is not activated, the keyboard is not simulated, and the clipboard or photo album is not used.
 
 ## 0.12.28 - 2026-08-28
 
-- 修复 macOS 26“信息”账户列表含 AppleScript 无法转换的新服务类型时，整个账户枚举以 `-10000` 中断、任务实际未开始发送的问题；逐账户隔离错误并只使用已启用服务。
-- 美国/加拿大 E.164 号码在数据库与审计中仍保存 `+1`，交给 Messages 时转换为已在真实 RCS 设备验证的十位号码；电话发送从 SMS 账户进入，由 Messages 与配对 iPhone 完成 RCS/SMS/MMS 路由，无 SMS 时再回退 RCS/iMessage。
-- 移除会激活 Messages、粘贴剪贴板和模拟键盘的辅助程序。新增无界面的本机附件暂存程序，只把代理 outbox 中与任务 UUID 精确匹配的 PNG 写入 Messages 自有附件目录，再由 AppleScript 后台静默发送；不读取相册、“最近导入项”或聊天数据库。
-- 新 Mac 只需给附件暂存程序一次“完全磁盘访问权限”；安装诊断会实际写入并删除探针，权限未就绪时明确停止。测试覆盖 macOS 26 账户兼容、十位号码转换及暂存返回路径约束，运维文档记录权限与排障步骤。
+- Fixed an issue where when the macOS 26 Messages account list contained a new service type that AppleScript could not convert, the entire account enumeration was interrupted with `-10000` and the task did not actually start sending; isolate the error on a per-account basis and use only enabled services.
+- The US/Canada E.164 number is still saved as `+1` in the database and audit, and is converted to a ten-digit number that has been verified on the real RCS device when handed over to Messages; the call is sent from the SMS account, and Messages completes the RCS/SMS/MMS routing with the paired iPhone, and falls back to RCS/iMessage when there is no SMS.
+- Remove helpers that activate Messages, paste to the clipboard, and emulate the keyboard. A new interfaceless native attachment temporary program is added, which only writes the PNGs in the agent outbox that exactly match the task UUID into the Messages own attachment directory, and then sends them silently by AppleScript in the background; it does not read the photo album, "recently imported items" or the chat database.
+- New Macs only need to give the attachment staging program "full disk access" once; Setup Diagnostics actually writes and removes the probes, explicitly stopping when permissions are not in place. The test covers macOS 26 account compatibility, ten-digit number conversion and temporary storage return path constraints, and operation and maintenance documents record permissions and troubleshooting steps.
 
 ## 0.12.27 - 2026-08-28
 
-- 修复 Mac“信息”异步读取附件时 PNG 已被代理立即删除、导致消息显示 `0 KB` 并发送失败的问题；发送图片改存权限 `0600` 的本地 outbox，保留 30 分钟后由代理自动清理。
-- 增加 outbox 文件权限、保留窗口和过期清理测试；运维文档补充 Messages 已接收 AppleScript 但附件未完成复制时的判断方法。
+- Fixed an issue where the PNG was immediately deleted by the agent when Mac Messages read attachments asynchronously, causing the message to display `0 KB` and fail to be sent; the local outbox of the sent image with the save permission `0600` will be automatically cleared by the agent after 30 minutes.
+- Added outbox file permissions, retention window and expiration cleanup test; operation and maintenance documentation supplemented Messages judgment method when AppleScript has been received but the attachment has not been copied.
 
 ## 0.12.26 - 2026-08-28
 
-- 修复 Mac“信息”代理的 AppleScript 参数入口：使用标准 `on run argv` 接收号码、图片路径和短信正文，避免任务领取后因 `argv` 未定义而在发送前失败。
-- 增加 AppleScript 源码与 macOS 编译回归测试，修复重复安装时 `bootout` 与 `bootstrap` 的服务注销竞态，并将新 Mac 的 Node/pnpm 安装、代理令牌、LaunchAgent 状态、队列状态和日志排障步骤写入运维文档。
+- Fix the AppleScript parameter entry of the Mac Messages agent: use the standard `on run argv` to receive the number, image path and text message body to avoid failure before sending due to `argv` being undefined after receiving the task.
+- Add AppleScript source code and macOS compilation regression testing, fix the service logout race between `bootout` and `bootstrap` during repeated installations, and write the new Mac's Node/pnpm installation, agent token, LaunchAgent status, queue status and log troubleshooting steps into the operation and maintenance document.
 
 ## 0.12.25 - 2026-08-28
 
-- 员工日结短信队列新增可展开的逐条详情，展示员工、号码、日结周期、发送类型、语言、状态、尝试次数、时间和失败原因；店主或经理可取消仍在排队的单条任务。
-- 批量与单人入队统一执行严格 E.164 校验；Mac 代理领取到历史遗留的空号或非法号码任务时会将其标记为明确失败并继续下一条，避免一条坏任务卡住整个队列。
-- Mac 代理安装增加前台诊断，部署为 LaunchAgent 前先验证“信息”已登录、存在 iMessage/RCS/SMS 服务并取得 macOS 自动化权限；文档明确 NAS 仅提供队列 API，本地 Mac 通过出站 HTTPS 领取后调用本机“信息”。
+- The employee daily closing SMS queue adds expandable item-by-item details, showing the employee, number, daily closing cycle, sending type, language, status, number of attempts, time and failure reason; the store owner or manager can cancel a single task that is still queued.
+- Strict E.164 verification is implemented for both batch and single-person queuing; when the Mac agent receives a task with an empty or illegal number left over from history, it will mark it as a clear failure and continue to the next one to avoid a bad task blocking the entire queue.
+- Mac agent installation adds front-end diagnostics. Before deploying as LaunchAgent, first verify that Messages is logged in, iMessage/RCS/SMS services exist, and has obtained macOS automation permissions; the documentation clearly states that NAS only provides queue APIs, and the local Mac calls native Messages after receiving it through outbound HTTPS.
 
 ## 0.12.24 - 2026-08-27
 
-- 成员管理的短信接收号码在没有专用覆盖值时自动填入该成员已关联账号的注册手机号，便于直接核对或修改。
-- 开启“接收个人日结短信”时，若专用号码和关联账号注册手机号均为空，前端阻止保存并弹出明确提示；服务端同步拒绝该无效状态，避免绕过页面写入。
+- When the SMS receiving number managed by a member does not have a dedicated coverage value, it will automatically be filled in with the registered phone number of the member's associated account, making it easy to directly check or modify it.
+- When "receiving individual daily statement text messages" is turned on, if the dedicated number and the registered phone number of the associated account are both empty, the front-end prevents saving and pops up a clear prompt; the server synchronously rejects the invalid status to avoid bypassing page writing.
 
 ## 0.12.23 - 2026-08-27
 
-- 按员工阅读顺序重做个人日结顶部：现金、刷卡与合计使用两行工资表格，今日总收入独立突出，减少重复公式和状态信息。
-- 逐笔记工把员工大费明确改为折扣前大费基数；现金、刷卡和礼物卡实收拆分继续作为次级付款信息，避免折后实收被误认成员工大费。
-- 将现金交接移动到逐笔记工之前，并移除个人日结页面及浏览器生成图片中的“请先核对”提示区；Mac“信息”代理图片同步采用相同口径和层级。
+- Redo the individual daily statement in the order in which employees read it. Use two rows of the salary table for cash, credit card and total. Today's total income stands out independently, reducing repeated formulas and status information.
+- Transaction-by-transaction work record clearly changes the employee service fee to the pre-discount service fee base; the split of cash, credit card and gift card actual receipts continues to be used as secondary payment information to avoid post-discount actual receipts being mistaken for employee service fees.
+- Move the cash handover before the transaction-by-transaction work record, and remove the "Please check first" prompt area in the individual daily statement page and browser-generated images; Mac Messages agent image synchronization adopts the same definition and level.
 
 ## 0.12.22 - 2026-08-27
 
-- 修复 NAS 镜像构建上下文遗漏 `.env.nas.example`、导致镜像内版本一致性检查失败的问题；继续排除真实 `.env` 文件，仅允许公开的 NAS 环境模板进入构建上下文。
-- 修复 Mac 代理使用 `sips` 转换日结 SVG 时百分比背景只覆盖左上角、其余透明区域在“信息”深色模式显示为黑色的问题；背景改用明确画布尺寸，并增加不透明背景回归检查。
-- 重排代理生成的个人日结 PNG：工资汇总按“大费工资／小费工资 × 现金／刷卡／合计”展示四项分红，今日总收入继续独立突出。
-- 逐笔记工改为两行付款明细，现金金额直接显示、刷卡金额使用细线圆角框、礼物卡金额追加括号说明，零金额自动隐藏；项目、时间、状态和本笔收入分区排列。
+- Fixed the issue where `.env.nas.example` was omitted from the NAS image build context, causing the version consistency check within the image to fail; continue to exclude real `.env` files and only allow public NAS environment templates to enter the build context.
+- Fixed an issue where when the Mac agent uses `sips` to convert daily closing SVG, the percentage background only covers the upper left corner, and the remaining transparent areas appear black in Messages dark mode; the background uses clear canvas size instead, and an opaque background regression check is added.
+- Rearrange the individual daily statement PNG generated by the agent: The salary summary displays four dividends according to "service commission/tip earnings × cash/card/total", and today's total income continues to stand out independently.
+- The one-by-one work record is changed to two lines of payment details, the cash amount is directly displayed, the card amount is displayed using a thin rounded frame, the gift card amount is explained in parentheses, and the zero amount is automatically hidden; the project, time, status and current income are arranged in partitions.
 
 ## 0.12.21 - 2026-08-27
 
-- 新增店铺级 Mac“信息”发送代理：全店日结后可批量排队个人日结 PNG，个人日结页可单独补发，并支持 iMessage、RCS 和经 iPhone 转发的 SMS/MMS。
-- 成员资料新增逐人接收开关、登录号码回退、专用覆盖号码和中英文图片语言；发送任务使用持久化租约、幂等去重、取消日结联动、失败回报和审计，代理令牌只在生成时返回明文。
-- 个人日结新增目标员工当天全部逐笔记工，按开始时间展示项目、加项、状态，以及现金、刷卡、礼物卡分别支付的大费和小费；每笔同步显示大费工资、小费工资和本单收入。
-- 将原有大块收入卡片重排为三行紧凑等式：现金与非现金大费工资汇成大费工资，现金与非现金小费汇成小费工资，两者再汇成今日总收入；待结账记工明确不计入已确认收入。
-- 压缩大费基数、记工数量、现金交接和提示区域，并让个人日结 PNG 随逐笔记录数量增长为完整长图；补齐中英文文案、员工数据隔离集成测试和当前文档。
+- Added store-level Mac Messages sending agent: Individual daily statement PNGs can be queued in batches after the daily closing of the whole store. Individual daily statement pages can be reissued separately, and support iMessage, RCS and SMS/MMS forwarded via iPhone.
+- Member data has been added with per-person reception switches, login number fallback, dedicated coverage numbers, and Chinese and English picture languages; sending tasks use persistent leases, idempotency deduplication, daily closing linkage cancellation, failure reporting, and auditing. The proxy token only returns plain text when generated.
+- The individual daily statement adds all the work records of the target employee one by one on the day, and displays the project, add-on, status according to the start time, as well as the service fees and tips paid by cash, credit card, and gift card respectively; each transaction simultaneously displays service commission, tip earnings, and the income of this order.
+- Rearrange the original large block of income cards into three rows of compact equations: cash and non-cash service commission are merged into service commission, cash and non-cash tips are merged into tip earnings, and the two are then merged into today's total income; the pending work record is clearly not included in the recognized income.
+- Compress the service fee base, work record quantity, cash handover and prompt area, and let the individual daily statement PNG grow with the number of records to become a complete long picture; complete the Chinese and English copywriting, employee data isolation integration test and current documents.
 
 ## 0.12.20 - 2026-08-26
 
-- 彻底移除 Web 端的应用安装按钮、`beforeinstallprompt` 处理、Web App Manifest、Service Worker 注册和安装专用图标，使项目不再提供浏览器/PWA 安装能力。
-- 保留独立的断网状态提示，并在新版本加载时主动注销旧 `/sw.js` 注册、清除历史 `massage-note-v*` 缓存，防止已访问设备继续运行旧安装逻辑。
-- 同步产品、架构、开发、部署、安全和发布文档，删除当前能力与检查项中的 PWA 安装说明。
+- Completely remove the application installation button, `beforeinstallprompt` processing, Web App Manifest, Service Worker registration and installation dedicated icon on the web side, so that the project no longer provides browser/PWA installation capabilities.
+- Keep an independent disconnection status prompt, and actively log out the old `/sw.js` registration and clear the historical `massage-note-v*` cache when the new version is loaded to prevent accessed devices from continuing to run the old installation logic.
+- Synchronize product, architecture, development, deployment, security, and release documentation, and remove PWA installation instructions from current capabilities and checks.
 
 ## 0.12.19 - 2026-08-25
 
-- 建立 `docs/README.md` 统一文档入口，并新增与当前代码核对的架构说明和开发指南，明确产品、架构、API、部署、运维与安全文档的职责边界和事实优先级。
-- 将根目录产品需求整理为当前 `docs/PRODUCT.md`，修正礼物卡余额与双语界面的过时表述；把编码前的架构计划和一次性 AI 开发提示移入 `docs/archive/`，避免旧路由和旧目录结构被误认为当前实现。
-- 精简 README、AI 接管指南和 NAS 部署手册；NAS 历史升级说明统一回到 Changelog，部署命令改用 `VERSION` 读取目标版本，并扩展版本一致性检查覆盖当前文档和 NAS 环境模板。
-- 修正 API CORS 方法白名单漏掉 `PUT` 的框架配置，使员工默认提成和项目专属提成接口可在 Web/API 跨源部署下通过浏览器预检。
+- Establish a unified document entrance in `docs/README.md`, and add architectural descriptions and development guidelines that are verified with the current code, and clarify the responsibility boundaries and factual priorities of product, architecture, API, deployment, operation and maintenance, and security documents.
+- Organize the root directory product requirements into the current `docs/PRODUCT.md`, correct the outdated representation of gift card balance and bilingual interface; move the pre-coding architectural plan and one-time AI development prompts into `docs/archive/` to avoid the old routing and old directory structure being mistaken for the current implementation.
+- The README, AI handoff guide and NAS deployment manual are streamlined; NAS historical upgrade instructions are unified back to the Changelog, the deployment command uses `VERSION` to read the target version, and the version consistency check is expanded to cover the current document and NAS environment template.
+- Fixed the API CORS method whitelist missing the `PUT` framework configuration, so that the employee default commission and project-specific commission interfaces can pass browser pre-checking under Web/API cross-origin deployment.
 
 ## 0.12.18 - 2026-08-23
 
-- 记工详情把“仅保存修改”和“保存并确认付款”合并为统一“保存”：付款完全空白时只保存记工，开始填写付款或小费后自动校验并同步确认，已确认记录再次保存时自动重新确认。
-- 今日记工卡片在已确认实收服务费与应收金额不一致时于右下角显示红色“！”，小费为 0 时付款摘要直接显示数字 `0`，不额外标注也不触发差额提醒。
-- 店铺项目设置改为摘要优先、按需展开编辑与分类新增；额外项目的名称、简称、金额、时间、默认提成和启用状态在桌面上采用紧凑横排，并补齐手机响应式、中英文说明与回归测试。
+- The work record details merge "only save modifications" and "save and confirm payment" into a unified "save": when the payment is completely blank, only the work record is saved. After starting to fill in the payment or tips, it is automatically verified and confirmed synchronously. The confirmed record is automatically reconfirmed when it is saved again.
+- Today's work record card will display a red "!" in the lower right corner when it is confirmed that the service fee received is inconsistent with the amount receivable. When tips is 0, the payment summary will directly display the number `0`, without additional marking and no difference reminder will be triggered.
+- The store project settings are changed to summary priority, and editing and classification are added as needed; the name, abbreviation, amount, time, default commission, and activation status of additional projects are arranged in a compact horizontal layout on the desktop, and mobile responsiveness, Chinese and English instructions, and regression testing are completed.
 
 ## 0.12.17 - 2026-08-22
 
-- 稳定记工时间联动的数据库集成测试：测试运行接近店铺 22:00 截止时间时，自动避开跨营业日的 30 分钟平移，防止 CI 因真实时钟边界误判为历史修改；生产业务逻辑不变。
+- Stable work record time linkage database integration test: When the test runs close to the store's 22:00 deadline, it automatically avoids the 30-minute shift across business days to prevent CI from being misjudged as historical modifications due to real clock boundaries; the production business logic remains unchanged.
 
 ## 0.12.16 - 2026-08-22
 
-- 财务汇总把每日小计移到员工小计之前，“营业日”改为“日期”并增加本地化星期列。
-- 关键成果移除客人总付款和员工总收入，增加服务端计算的“总流水”；原“工资与现金结算”卡片组替换为店铺、店长、经理、礼物卡和总收入五项店铺总结算。
-- 员工筛选由原生多选列表改为可直接点选的复选标签，支持全部员工、多个员工、已选人数和一键清除，并完成中英文与 390px 手机布局验收。
+- The financial summary moves the daily subtotal before the employee subtotal, changes "business day" to "date" and adds a localized week column.
+- The key result is to remove the total guest payment and total employee income, and increase the "total turnover" calculated on the server side; the original "salary and cash settlement" card group is replaced by five store total accounts including store, store manager, manager, gift card and total income.
+- Employee filtering has been changed from a native multi-select list to a check label that can be directly clicked. It supports all employees, multiple employees, the number of selected people and one-click clearing. It also completes Chinese, English and 390px mobile layout acceptance.
 
 ## 0.12.15 - 2026-08-22
 
-- 今日记工顶部的全店汇总删除“小费总额”卡片；店铺收入公式、员工行和财务页面中的小费数据保持不变。
+- The "tips total" card is deleted from the store-wide summary at the top of today's work record; the store revenue formula, employee rows, and tips data in the financial page remain unchanged.
 
 ## 0.12.14 - 2026-08-22
 
-- 财务汇总的每日小计删除全部项目数、记工数、实收服务费、小费和客人总付款，营业日后第一项新增“今日流水”。
-- 今日流水由服务端按整数美分计算为“折后大费业绩＋礼物卡销售收入－礼物卡核销支出”，并补充领域、数据库集成和中英文回归测试。
+- The daily subtotal of the financial summary deletes the number of all projects, the number of work records, the actual service fees collected, tips and total guest payments, and adds "today's turnover" to the first item after business day.
+- Today's turnover is calculated by the server in integer cents as "post-discount service fee performance + gift card sales revenue - gift card write-off expenditure", and adds fields, database integration, and Chinese and English regression testing.
 
 ## 0.12.13 - 2026-08-22
 
-- 手机版今日／历史记工卡片恢复为紧凑的横向队列，所有记工和新增入口可在员工行内左右滑动查看，减少全宽卡片右侧的无效留白；iPad 与电脑布局保持不变。
+- The mobile version's today/history work record cards are restored to a compact horizontal queue. All work records and new entries can be viewed by sliding left and right in the employee row, reducing the invalid white space on the right side of the full-width card; the iPad and computer layouts remain unchanged.
 
 ## 0.12.12 - 2026-08-21
 
-- 财务汇总的付款方式默认改为“全部”；店铺级全部项目数量、客人总付款、每日小计、组成明细和 CSV 导出纳入礼物卡销售，并继续保留记工与卖卡分项。
-- 统一礼物卡账务口径：卖卡现金与刷卡实收全部计入店铺收入，客人使用礼物卡支付的大费与小费全部作为礼物卡核销支出。
-- 今日汇总、财务汇总、日结预览和财务 AI 共用“折后大费业绩＋小费－员工总收入＋礼物卡销售收入－礼物卡核销支出”公式，并补充中英文帮助、领域测试与数据库集成回归。
+- The default payment method of financial summary is changed to "all"; all store-level item quantities, total customer payments, daily subtotals, composition details and CSV export are included in gift card sales, and work records and card sales items continue to be retained.
+- Unified gift card accounting standards: all cash from card sales and actual receipts from card purchases are included in the store's income, and all service fees and tips paid by customers using gift cards are written off as gift card expenses.
+- Today's summary, financial summary, daily closing preview and financial AI share the formula of "service fee performance after discount + tips - total employee income + gift card sales income - gift card write-off expenditure", and supplemented with Chinese and English help, domain testing and database integration regression.
 
 ## 0.12.11 - 2026-08-21
 
-- 记工详情增加时间联动：调整开始时间时保持当前工作时长并同步移动结束时间；增加、移除或更换额外项目时，按加项配置分钟数的差值同步调整结束时间。
-- 服务端在请求未明确提交结束时间时执行相同兜底，并保留用户已手动调整的实际工作时长；主要项目时长与加项时长同时变化时按总差值处理。
-- 项目管理的额外项目编辑行改用独立的合理列宽，避免金额框异常拉长、简称和分钟框过窄；中等屏幕自动分行，手机继续单列显示。
+- Work record details Add time linkage: when adjusting the start time, keep the current work duration and move the end time synchronously; when adding, removing or replacing additional items, press the add-on to configure the difference in minutes to adjust the end time synchronously.
+- The server performs the same calculation when the request does not specify the submission end time, and retains the actual working time that has been manually adjusted by the user; when the main project duration and the add-on duration change at the same time, the total difference is used.
+- The extra project editing rows in project management are changed to independent and reasonable column widths to avoid abnormal elongation of the amount box and too narrow abbreviation and minute boxes; medium-sized screens are automatically divided into rows, and phones continue to display in a single column.
 
 ## 0.12.10 - 2026-08-21
 
-- 今日记工和历史记工页面都为店主、经理提供“日结”按钮：正常检查通过或只有非阻塞提醒时直接完成日结，存在真正阻塞项时自动跳转到对应日期的财务日结页面。
-- 已日结的今日或历史页面改为显示“取消日结”按钮；填写原因后使用当前有效日结版本取消，并同步刷新记工的只读状态。
+- Both today's work record and historical work record pages provide "daily closing" buttons for store owners and managers: daily closing is completed directly when the normal check is passed or there is only a non-blocking reminder. When there are real blocking items, it automatically jumps to the financial daily closing page of the corresponding date.
+- The closed today or history page changes to display the "Cancel daily closing" button; after filling in the reason, cancel using the currently valid daily closing version, and refresh the read-only status of the work record simultaneously.
 
 ## 0.12.9 - 2026-08-21
 
-- 卖卡表单的系统建议序列号改为可编辑：保留默认自动分配，也允许直接填写自定义序列号。
-- 自定义号码在服务端按 Unicode、大小写和空白规范化后检查同店重复；已软删除的历史号码也不能重新卖出，并补充自动并发、自定义与历史重复回归测试。
+- The system recommends that the serial number of the card selling form be changed to editable: retain the default automatic allocation, and also allow you to directly fill in a custom serial number.
+- Customized numbers are checked for duplication in the same store after being normalized according to Unicode, uppercase and lowercase, and white space on the server side; historical numbers that have been soft-deletioned cannot be resold, and automatic concurrency, customization, and historical duplication regression testing are added.
 
 ## 0.12.8 - 2026-08-21
 
-- 今日页高亮记工卡继续使用整张黄色背景和边框提示，但移除右上角的星形小标志；高亮编辑、财务筛选与导出规则保持不变。
+- The highlight work record card on today's page continues to use the entire yellow background and border tips, but the small star-shaped logo in the upper right corner is removed; highlight editing, financial filtering and export rules remain unchanged.
 
 ## 0.12.7 - 2026-08-21
 
-- 今日记工卡片不再在底部显示“有加项”文字；有加项时改为在右上角显示绿色“＋”小标志，并与高亮、折扣和待结账标志并排。
+- Today's work record card no longer displays the text "With add-on" at the bottom; when there is an add-on, a small green "+" sign is displayed in the upper right corner, side by side with the highlight, discount and pending checkout signs.
 
 ## 0.12.6 - 2026-08-21
 
-- 日结检查中的手动改价记录降为非阻塞提醒：继续显示数量和逐笔查看入口，但可以直接正常日结。
-- 日结页只有存在待结账、金额不匹配等真正阻塞项时才禁用“确认日结”并显示强制日结入口；仅有手动改价时明确提示“不影响正常日结”。
+- The manual price change record in the daily closing check is reduced to a non-blocking reminder: the quantity and entry are displayed one by one, but the daily closing can be performed directly.
+- On the daily closing page, "Confirm daily closing" is disabled and the forced daily closing entry is displayed only when there are real blocking items such as pending settlement and mismatched amounts; only when manual price changes are made, a clear prompt of "does not affect normal daily closing" is displayed.
 
 ## 0.12.5 - 2026-08-21
 
-- 全站页面、AI 财务答复和个人日结图片中的只读金额统一显示为整美元，不再出现 `.00` 或其他小数位；今日卡片的付款摘要与 `off` 折扣标签同步采用整数显示。
-- 金额输入框不再自动补 `.00`，占位示例同步改为整数；底层仍使用整数美分保存和计算，既有真实美分在编辑框中继续保留，页面取整显示不会改写账本。
+- The read-only amounts in site-wide pages, AI financial replies, and individual daily statement images are uniformly displayed as whole dollars, without `.00` or other decimal places; the payment summary of today's card is displayed in integers simultaneously with the `off` discount label.
+- The amount input box no longer automatically fills in `.00`, and the placeholder example is synchronized to an integer; the bottom layer still uses integer cents to save and calculate, and the existing real cents continue to be retained in the edit box, and the page rounding display will not overwrite the ledger.
 
 ## 0.12.4 - 2026-08-21
 
-- 记工详情的普通付款输入改为按支付方式分行：第一行刷卡大费与小费，第二行现金大费与小费；桌面和手机保持相同顺序，英文与无障碍标签同步适配。
-- 单笔记工的自动折扣点击“移除”后直接进入待保存状态，不再弹出二次确认；恢复入口与持久化规则不变。
+- The ordinary payment input of work record details is changed to branch according to the payment method: the first line is credit card service fee and tips, the second line is cash service fee and tips; the desktop and phone keep the same order, and English and accessibility labels are adapted simultaneously.
+- After clicking "Remove", the automatic discount for a single work record will directly enter the pending state without popping up a secondary confirmation; the recovery entry and persistence rules remain unchanged.
 
 ## 0.12.3 - 2026-08-21
 
-- 今日记工卡片新增金额化付款摘要：刷卡金额使用细线框，现金金额保持无框，混合付款按“框内刷卡金额 + 无框现金金额”展示；大费实收与小费均采用同一规则。
-- 礼物卡金额保留独立“礼卡”标识，待结账与零金额状态继续明确显示；补充纯现金、纯刷卡、混合、礼物卡和中英文无障碍回归测试。
+- Today's work record card's new amount-based payment summary: the card swipe amount uses a thin line frame, the cash amount remains unframed, and mixed payments are displayed as "card swipe amount in the frame + unframed cash amount"; the same rules are used for service fee actual collection and tips.
+- The gift card amount retains the independent "gift card" logo, and the pending checkout and zero amount status continue to be clearly displayed; pure cash, pure card swiping, mixed, gift card and Chinese and English accessibility regression tests are added.
 
 ## 0.12.2 - 2026-08-20
 
-- 修复普通现金/刷卡付款确认错误地提交空礼物卡序列号、却被服务端契约拒绝为校验错误的问题；未使用礼物卡时现在允许省略或显式提交 `null`。
-- 记工详情在第一阶段保存成功后立即同步最新版本号；即使随后付款确认失败，修正付款后也能直接重试，不再因详情版本已经递增而陷入持续冲突。
+- Fixed the issue where ordinary cash/card payment confirmation incorrectly submitted an empty gift card serial number, but was rejected by the server contract as a verification error; when no gift card is used, it is now allowed to omit or explicitly submit `null`.
+- The latest version number of the work record details is synchronized immediately after the first stage is successfully saved; even if the subsequent payment confirmation fails, you can directly retry after correcting the payment, and no longer fall into continuous conflicts because the details version has been incremented.
 
 ## 0.12.1 - 2026-08-20
 
-- 修复记工版本冲突响应携带 Prisma `BigInt` 金额时再次触发 JSON 序列化异常、把应有的 409 提示错误变成 500 的问题；最新资源现在统一转换为 JSON 安全值。
-- 记工详情保存增加同步提交锁，避免快速重复点击在 React 禁用状态生效前并发提交，减少无意义的版本冲突和重复确认。
+- Fixed the issue where when the work record version conflict response carries the Prisma `BigInt` amount, the JSON serialization exception is triggered again and the due 409 prompt error is changed to 500; the latest resources are now uniformly converted to JSON safe values.
+- A synchronous submission lock is added to the work record details saving to avoid rapid repeated clicks and concurrent submission before the React disabled state takes effect, reducing meaningless version conflicts and repeated confirmations.
 
 ## 0.12.0 - 2026-08-20
 
-- 快速记工和记工详情顶部新增醒目的星形高亮按钮，高亮状态随记工持久保存并进入审计；首页对应记工卡片整张使用黄色背景和星形提示。
-- 财务汇总新增“查看所有记工／仅查看高亮记工／排除高亮记工”筛选，汇总、组成明细和 CSV 导出共用同一口径；明细和导出同时显示高亮标记。
-- 新增向前迁移 `20260820210000_work_record_highlight`，为记工增加高亮字段与店铺、状态、营业日组合索引，并补充契约、API 集成测试和中英文帮助。
+- A new eye-catching star-shaped highlight button is added to the top of the quick work record and work record details. The highlight status is persisted with the work record and entered into audit; the home page uses a yellow background and a star-shaped prompt for the entire work record card.
+- The financial summary has a new filter of "View all work records/View only highlight work records/Exclude highlight work records". Summary, composition details and CSV export share the same definition; details and exports display the highlight mark at the same time.
+- Added forward migration `20260820210000_work_record_highlight`, added highlight field and store, status, business day combined index for work record, and added contract, API integration test and Chinese and English help.
 
 ## 0.11.0 - 2026-08-20
 
-- 今日页营业日日历改为选择日期后立即加载，移除额外“查看”按钮；财务日结异常记录改为在当前财务页原地打开单笔记工弹窗。
-- 财务页新增礼物卡台账，按自然序列号展示售出日、面值、折扣、实际收款、售出人、付款方式及同卡多条使用记录。
-- 礼物卡序列号改为每店事务内从 1001 自动递增，删除后不复用，并保留旧客户端手工序列号兼容与并发防重。
-- 店铺设置新增礼物卡满额百分比自动折扣；卖卡记录分开保存面值、折扣规则快照、折扣金额和实际收款，现金与刷卡合计必须等于折后应付。
-- 新增向前迁移 `20260820180000_gift_card_auto_serial`，补齐契约、数据库/API 集成测试、API 与部署文档。
+- The business day calendar on the today page is changed to load immediately after selecting the date, and the extra "View" button is removed; the financial daily closing exception record is changed to open a single work record pop-up window on the current financial page.
+- A new gift card ledger is added to the financial page, which displays the date of sale, face value, discount, actual receipt, seller, payment method and multiple usage records of the same card according to the natural serial number.
+- The gift card serial number is changed to automatically increment from 1001 in each store transaction and will not be reused after deletion. The old client manual serial number is retained for compatibility and concurrency prevention.
+- Store settings add automatic discounts for gift card full percentages; card sales records separately store face value, discount rule snapshot, discount amount and actual receipts. The total of cash and card payments must be equal to the payable after discount.
+- Added forward migration `20260820180000_gift_card_auto_serial` to complete the contract, database/API integration test, API and deployment documentation.
 
 ## 0.10.0 - 2026-08-20
 
-- 今日页在所有员工下方新增固定礼物卡销售栏目，记录序列号、现金、刷卡与操作人；销售金额由付款总额自动计算并全部计入店铺收入，不参与员工分成或现金结算。
-- 普通记工付款新增礼物卡开关、序列号、礼物卡大费与小费，财务汇总、筛选、明细、CSV、日结和个人非现金分红同步采用新的确定性金额口径。
-- 新增 `gift_card_sales` 数据表、同店有效序列号唯一约束、营业日锁、幂等、乐观锁、软删除、审计以及数据库、契约、领域与 API 集成测试。
-- 补齐礼物卡流程的中英文界面、帮助、产品、API、部署与 AI 接管文档。
+- On today's page, a fixed gift card sales column is added under all employees to record the serial number, cash, card swipe and operator; the sales amount is automatically calculated from the total payment and is fully included in the store's income, and does not participate in employee sharing or cash settlement.
+- Ordinary work record payment adds gift card switch, serial number, gift card service fee and tips, and financial summary, filtering, details, CSV, daily closing and personal non-cash dividends simultaneously adopt new deterministic amount definition.
+- Added `gift_card_sales` data table, same-store valid serial number unique constraint, business day lock, idempotency, optimistic lock, soft deletion, auditing, and database, contract, domain and API integration tests.
+- Complete the Chinese and English interface, help, product, API, deployment and AI handoff documentation of the gift card process.
 
 ## 0.9.1 - 2026-08-17
 
-- 将中英文切换气泡降到业务弹窗下层，避免遮挡详情、财务等弹窗的关闭按钮。
-- AI 记工悬浮窗改为跟随手机 `visualViewport`，并在输入法失焦、窗口和方向变化后分阶段恢复尺寸，修复第三方输入法收起后停留半屏的问题。
-- AI 记工助手新增 6–60 秒的 MP4/AAC 语音输入；转写调用 MiniMax `music-cover` 音频预处理接口内置的 ASR，与文字理解共用 `MINIMAX_API_KEY`，应用不持久化原始录音。
-- 将 Prisma 间接使用的 `deepmerge-ts` 固定到已修复递归对象栈耗尽漏洞的 `8.0.1`，生产依赖审计保持 0 个已知漏洞。
+- Move the Chinese and English switching bubbles to the lower level of the business pop-up window to avoid blocking the close buttons of pop-up windows such as details and finance.
+- The AI work record floating window is changed to follow the phone's `visualViewport`, and the size is restored in stages after the input method loses focus, the window and direction change, and the problem of the third-party input method staying on half the screen after being retracted is fixed.
+- The AI work record assistant adds 6–60 seconds of MP4/AAC voice input; transliteration calls the built-in ASR of the MiniMax `music-cover` audio preprocessing interface, which shares the `MINIMAX_API_KEY` with text understanding, and the application does not persist the original recording.
+- Fixed `deepmerge-ts` used indirectly by Prisma to `8.0.1` which has fixed recursive object stack exhaustion vulnerability, production dependency audit maintains 0 known vulnerabilities.
 
 ## 0.8.4 - 2026-08-16
 
-- 修正提成优先级为“员工项目专属 → 员工默认 → 项目默认 → 全店默认”，解决成员单独设置的默认提成被项目默认比例覆盖的问题。
-- 保存员工默认或项目专属提成后，自动重算该员工未日结的当前营业日记工及其工资、现金分配字段，使今日小结、个人日结和财务金额同步；已结清现金自动回退复核，已日结及历史快照保持不变。
-- 全面复核整数美分、逐项四舍五入、折扣、现金／刷卡分摊、今日汇总、个人日结、财务汇总与工资余额链路；修复免费项目有工资时个人日结四项收入分红不守恒的边界情况。
+- Corrected the commission priority to be "employee project exclusive → employee default → project default → store-wide default" to solve the problem of the default commission set individually by members being overwritten by the project default ratio.
+- After saving the employee's default or project-specific commission, the employee's not closed current business day work record and its salary and cash distribution fields are automatically recalculated to synchronize today's summary, individual daily statement and financial amounts; settled cash is automatically rolled back for review, and closed and historical snapshots remain unchanged.
+- Comprehensively review the integer cents, itemized rounding, discounts, cash/card apportionment, today's summary, individual daily statement, financial summary and salary balance links; fix the boundary situation where the four individual daily statement income dividends are not conserved when free projects have wages.
 
 ## 0.8.3 - 2026-08-16
 
-- 成员管理将成员资料与默认提成合并为一次保存操作，按版本顺序写入并保留提成历史；保存成功后在对应成员卡片显示明确提示。
-- 普通员工仍可查看其他员工的今日记工，但其他员工行不再显示大费、小费和应得小结；店主、经理及员工本人原有可见范围不变。
+- Member management combines member information and default commission into one save operation, writes and retains the commission history in version order; after successful saving, a clear prompt is displayed on the corresponding member card.
+- Ordinary employees can still view today's work records of other employees, but other employee rows will no longer display service fees, tips, and due summaries; the original visibility range of store owners, managers, and employees themselves remains unchanged.
 
 ## 0.8.2 - 2026-08-16
 
-- 修复英语界面中独立渲染的“有加项”状态仍显示中文的问题；组合记工卡片现在完整显示 `Add-ons`。
+- Fixed the problem that the independently rendered "with add-on" status in the English interface still displays Chinese; the combined work record card now fully displays `Add-ons`.
 
 ## 0.8.1 - 2026-08-16
 
-- 修复真实生产记工中“大身体”“小身体”这类店长自定义中文项目简称在英语界面仍显示中文的问题，历史快照与当前项目列表统一显示英文且不改写数据库原值。
-- 修复记工付款摘要在英语界面仍残留“有加项”的问题，并增加覆盖现有生产项目简称与组合付款摘要的回归测试。
+- Fixed the problem in the real production work record that the store manager's customized Chinese project abbreviations such as "Big Body" and "Small Body" are still displayed in Chinese in the English interface. The historical snapshot and the current project list are uniformly displayed in English and do not overwrite the original value of the database.
+- Fixed the issue where "add-on" still remains in the work record payment summary in the English interface, and added a regression test that covers the existing production project short name and combined payment summary.
 
 ## 0.8.0 - 2026-08-16
 
-- 新增简体中文／英文全局语言选择，登录、断网、帮助和全部业务页面均可随时切换；没有本机偏好时默认中文，选择通过 Cookie 与本机存储跨页面保留，并同步更新页面语言标记、辅助功能标签和 Firebase 登录语言。
-- 为今日记工、详情、财务、日结、成员与项目管理、审计、个人资料、首次设置、AI 助手和完整帮助内容补齐英语文案；英语模式按稳定 API 错误码显示英语说明，未知错误安全降级。
-- 个人日结 PNG 会按当前语言生成标题、日期、金额、指标、状态、文件名与分享信息；英语界面下的 AI 文字／语音请求会携带语言偏好，确定性财务回答与无模型安全降级同时支持英语。
-- 英语界面会自动识别店长以中文设置的主要项目、加项和折扣名称，按按摩店常用术语转换为英文；历史记工快照与 AI 预览也使用同一译名，编辑框仍保留数据库中的原始中文。
-- 增加语言目录与动态状态回归测试，并完成桌面、390px 手机、切换、刷新持久化及中英文恢复的浏览器检查。
+- Added Simplified Chinese/English global language selection, login, disconnection, help and all business pages can be switched at any time; Chinese is the default when there is no local preference, the choice is to retain cross-pages through cookies and local storage, and the page language tag, accessibility label and Firebase login language are updated simultaneously.
+- Complete English copywriting for today's work record, details, finance, daily closing, member and project management, audit, personal information, first time setup, AI assistant and complete help content; English mode displays English instructions according to stable API error codes, and unknown errors are safely downgraded.
+- The individual daily statement PNG will generate titles, dates, amounts, indicators, status, file names and sharing information in the current language; AI text/voice requests under the English interface will carry language preferences, and deterministic financial answers and model-free safe downgrades support English at the same time.
+- The English interface will automatically recognize the main items, add-ons and discount names set by the store manager in Chinese, and convert them into English according to common terms used in massage shops; historical work record snapshots and AI previews also use the same translation, and the edit box still retains the original Chinese in the database.
+- Added language directory and dynamic state regression testing, and completed browser checks for desktop, 390px mobile, switching, refresh persistence, and Chinese and English recovery.
 
 ## 0.7.2 - 2026-08-16
 
-- 今日页新增始终可见的“已隐藏员工”管理区，可直接恢复员工；即使营业日已经日结，也允许店主或经理调整行的显示状态，记工和财务数据保持只读且不受影响。
-- 隐藏或恢复遇到其他设备刚刚更新时会自动采用最新行版本重试一次，减少无效的版本冲突。
-- 修复财务卡片打开 16 列组成明细后撑宽整个页面、导致右侧内容显示不全的问题；明细改为限定视口宽度的独立弹窗，手机与桌面均可在弹窗内横向查看。
-- 财务汇总按“关键结果、项目与业绩、收款构成、工资与现金结算”重新分组，并整理筛选、员工小计、每日小计和累计余额的说明与操作层级。
-- 将 PostCSS 间接使用的 `nanoid` 锁定到已修复版本，生产依赖审计恢复为 0 个已知漏洞。
+- A new "Hidden Employees" management area is added to the today page that is always visible, and employees can be restored directly. Even if the business day has been daily closed, the store owner or manager is allowed to adjust the display status of the row, and the work record and financial data remain read-only and unaffected.
+- When hiding or restoring another device that has just been updated, it will automatically use the latest version and try again to reduce invalid version conflicts.
+- Fixed an issue where the financial card would expand the entire page after opening 16 columns of details, resulting in incomplete display of content on the right side; the details would be changed to an independent pop-up window that limits the width of the viewport, and can be viewed horizontally in the pop-up window on both phones and desktops.
+- Financial summaries are regrouped by "Key Results, Projects and Performance, Collection Structure, Payroll and Cash Settlement" and organized into descriptions and operational levels for filters, employee subtotals, daily subtotals and cumulative balances.
+- Locked `nanoid` used indirectly by PostCSS to a fixed version, reverting production dependency auditing to 0 known vulnerabilities.
 
 ## 0.7.1 - 2026-08-15
 
-- 修正今日页面“全店日结”链接按钮的弹性垂直居中，使文字始终位于按钮正中央。
+- Corrected the elastic vertical centering of the "Store-wide daily closing" link button on today's page so that the text is always in the center of the button.
 
 ## 0.7.0 - 2026-08-15
 
-- 店主和经理可在成员管理中只填写名字预先创建员工，无需姓氏、手机号或已注册账号；待认领员工可立即参与记工、提成与财务流程。
-- 员工注册后用店铺代码加入时，系统按账号注册 First Name 自动认领本店同名待注册成员，并保留原成员 ID、记工、提成和全部历史。
-- 自动认领不信任加入表单临时填写的显示名；非同名账号仍进入正常审批流程，防止冒领。
-- 新增 `store_memberships.user_id` 可空的向前数据库迁移、权限/契约/数据库回归测试，以及管理页、帮助和 API 文档。
-- 修正一条依赖固定营业日的记工集成测试，使完整回归可在后续日期持续运行。
+- Store owners and managers can pre-create employees by filling in only their names in member management, without surnames, phone numbers or registered accounts; employees to be claimed can immediately participate in work record, commission and financial processes.
+- When an employee joins with a store code after registration, the system will automatically claim the member to be registered with the same name in the store according to the account registration First Name, and retain the original member ID, work record, commission and all history.
+- Automatic claiming does not trust the display name temporarily filled in the joining form; accounts with non-same names will still enter the normal approval process to prevent false claims.
+- Added `store_memberships.user_id` nullable for forward database migration, permissions/contracts/database regression testing, and admin pages, help and API documentation.
+- Fix a work record integration test that relies on a fixed business day so that the full regression can continue to run on subsequent dates.
 
 ## 0.6.13 - 2026-08-13
 
-- 个人日结新增现金大费分红与现金小费分红；现金大费按已确认付款的现金比例分摊大费工资，现金小费汇总已确认现金小费。
-- 将现金与刷卡的四项分红统一放在今日总收入旁边，并把页面重新整理为收入概览、收入基础和现金交接三层；生成的日结图片同步采用新结构。
+- Individual daily statement adds cash service fee dividends and cash tips dividends; cash service fee is apportioned according to the cash proportion of confirmed payments, service commission, and cash tips summarizes confirmed cash tips.
+- The four dividends of cash and card swiping are unified next to today's total income, and the page is reorganized into three layers: income overview, income base and cash handover; the generated daily closing image simultaneously adopts the new structure.
 
 ## 0.6.12 - 2026-08-13
 
-- 财务汇总卡片移除“老板尚欠”和“本期工资结算”，相关累计余额与工资结算功能仍保留在各自区域。
-- 其余 16 项汇总卡片增加圆形“！”说明入口；鼠标悬停、键盘聚焦或手机点击均可查看词条解释和计算方法，原有卡片点击组成明细保持不变。
+- The financial summary card removes "Boss still owes" and "Salary settlement for this period", and the related cumulative balance and salary settlement functions remain in their respective areas.
+- The remaining 16 summary cards have been added with a circular "!" explanation entry; you can hover the mouse, focus on the keyboard, or click on the phone to view the explanation and calculation method of the entry. The details of the original card click composition remain unchanged.
 
 ## 0.6.11 - 2026-08-13
 
-- 修复记工详情将主要项目从 60 分钟改为 90 分钟后，下工时间仍沿用旧值的问题。
-- 选择预设时长或修改自定义项目时长时，界面立即按“开始时间 + 新时长”重算结束时间；服务端也会在未明确提交结束时间时执行相同兜底计算。
+- Fixed an issue where after changing the work record details of the main project from 60 minutes to 90 minutes, the end of work time still uses the old value.
+- When selecting a preset duration or modifying a custom project duration, the interface immediately recalculates the end time based on "start time + new duration"; the server will also perform the same calculation when the end time is not clearly submitted.
 
 ## 0.6.10 - 2026-08-13
 
-- 普通员工若尚未加入当前营业日表格，可从今日页顶部点击“上班”将本人加入；历史日期、已日结和未参与记工的员工不显示该按钮。
-- 今日页不提供“下班”按钮，员工的“空闲 / 下工时间”状态继续只按进行中的记工时间计算。
+- If ordinary employees have not yet joined the current business day table, they can click "Go to Work" from the top of today's page to add themselves; this button will not be displayed for employees with historical dates, closed and not participating in work records.
+- Today's page does not provide an "off work" button, and the employee's "idle/off work time" status continues to be calculated only based on the ongoing work record time.
 
 ## 0.6.9 - 2026-08-12
 
-- 个人日结页面和生成的 PNG 移除记工单数与折后大费，改为显示刷卡大费分红和刷卡小费分红。
-- 个人日结按“收入组成”和“结算往来”重新排版；刷卡大费分红按已确认记工的刷卡付款比例对应工资计算，刷卡小费分红汇总已确认刷卡小费。
+- The individual daily statement page and the generated PNG remove the work record odd number and discounted service fee, and instead display the card service fee bonus and card tips bonus.
+- The individual daily statement is rearranged according to "income composition" and "settlement transactions"; credit card service fee dividends are calculated based on the credit card payment ratio of confirmed work records corresponding to wages, and credit card tips dividends are summarized for confirmed credit card tips.
 
 ## 0.6.8 - 2026-08-12
 
-- 全店日结发现异常时，每类异常直接列出对应记工的查看按钮；点击后自动切换到正确营业日并打开该笔记工详情。
-- 店长和经理可从今日或历史记工页直接进入当前所看营业日的财务“日结”标签；该入口只负责导航，不会自动执行日结。
+- When an exception is found in the daily closing of the store, each type of exception directly lists the view button corresponding to the work record; after clicking it, it automatically switches to the correct business day and opens the details of the work record.
+- Store managers and managers can directly enter the financial "daily closing" tab of the current business day from today's or historical work record pages; this entrance is only responsible for navigation and will not automatically execute daily closing.
 
 ## 0.6.7 - 2026-08-11
 
-- 修正个人日结“应提交现金”的口径：汇总所有含现金大费的已确认项目折前大费基数，再按固定 40% 计算。
-- 个人日结不再复用现金结算页的“实际现金大费－实际取得工资”公式；折扣和实际收到的现金大费金额均不改变个人日结的 40% 结果。
+- Modify the definition of "cash should be submitted" in the individual daily statement: sum up the pre-discount service fee base of all confirmed projects that include cash service fees, and then calculate it at a fixed 40%.
+- The individual daily statement no longer reuses the "actual cash service fee - actual salary received" formula on the cash settlement page; neither the discount nor the actual cash service fee amount received changes the 40% result of the individual daily statement.
 
 ## 0.6.6 - 2026-08-11
 
-- 今日页面顶部总结移除“员工应得”和“待结账”，改为显示折扣总额与店铺收入。
-- 店铺收入由后端按“大费总额－折扣总额＋小费总额－员工应得”使用整数美分计算。
+- The summary at the top of today's page removes "Employees Deserve" and "Pending Checkout" and instead displays the total discount and store revenue.
+- Store income is calculated by the backend using "total service fees - total discounts + total tips - what employees deserve" using integer cents.
 
 ## 0.6.5 - 2026-08-11
 
-- 现金结算页面只显示所选营业日有记工记录的员工；没有记工的员工不再显示，也不进入一键全部结清。
-- 个人日结页面和生成的 PNG 不再单独显示折扣金额，改为显示后端确定性计算的应提交现金。
+- The cash settlement page only displays employees with work records on the selected business day; employees without work records are no longer displayed, and they do not enter one-click settlement.
+- The individual daily statement page and the resulting PNG no longer show the discount amount separately, but instead show the backend deterministic calculation of the cash due.
 
 ## 0.6.4 - 2026-08-11
 
-- 今日记工卡片的红色折扣标签改为 `off5`、`off10` 这样的紧凑格式，不再重复显示 `US$` 和 `.00`；非整数美元仍保留必要小数，避免金额失真。
-- 完整金额继续保留在无障碍说明和鼠标提示中，记工详情及财务页面的正式金额格式不变。
+- The red discount label of today's work record card has been changed to a compact format such as `off5` and `off10`, and `US$` and `.00` are no longer displayed repeatedly; non-integer US dollars still retain necessary decimals to avoid distortion of the amount.
+- Full amounts continue to be retained in accessibility instructions and mouse prompts, and formal amount formats for work record details and financial pages remain unchanged.
 
 ## 0.6.3 - 2026-08-11
 
-- 记工详情允许手动移除该笔记工的周一至周四自动折扣，并提供恢复入口；该选择会持久保存，后续编辑不会把折扣自动加回。
-- 单笔移除只改变店铺承担的折扣和折后大费业绩，不关闭店铺自动折扣规则，也不影响员工大费工资。
-- 补充记录级停用字段、向前迁移、契约与真实数据库回归测试，并明确“更新部署”的完整发布含义。
-- 本地 PostgreSQL/Redis 测试端口支持环境变量覆盖，避免为运行集成测试停止其他项目的容器。
+- The work record details allow you to manually remove the Monday to Thursday automatic discount for this work record and provide a recovery entrance; this selection will be persisted and subsequent edits will not automatically add the discount back.
+- A single removal only changes the discount and post-discount service fee performance borne by the store. It does not close the store's automatic discount rules, nor does it affect employee service commission.
+- Supplement record-level deactivation fields, forward migration, contract and real database regression testing, and clarify the full release meaning of "update deployment".
+- The local PostgreSQL/Redis test port supports environment variable overrides to avoid stopping other projects' containers for running integration tests.
 
 ## 0.6.2 - 2026-08-11
 
-- 店铺设置保存成功后显示明确提示，并在保存期间显示“正在保存”。
-- 修复手机端“营业日截止”时间框因原生最小宽度超出屏幕的问题。
-- 今日记工的红色 `off` 标记同时显示该笔记工的折扣总额，多项折扣按总额合并展示。
-- 将页面根节点改为受控滚动容器，并增加触控滚动边界保护，阻止手机端在页面底部继续拉出大块空白，同时保留页面内可滚动区域的正常操作。
+- A clear prompt will be displayed after the store settings are successfully saved, and "Saving" will be displayed during the saving process.
+- Fixed the problem that the "business day deadline" time box on the phone exceeds the screen due to the native minimum width.
+- The red `off` mark of today's work record also displays the total discount of the work record, and multiple discounts are combined and displayed according to the total amount.
+- Change the root node of the page to a controlled scrolling container, and add touch scrolling boundary protection to prevent the phone from continuing to pull out large blanks at the bottom of the page, while retaining the normal operation of the scrollable area within the page.
 
 ## 0.6.1 - 2026-08-11
 
-- 修复员工全部待结账项目结清后仍显示“下工时间”的问题；已确认记录不再参与工作状态计算，结清后立即显示“空闲”。
-- 保留多笔待结账同时进行时选择最晚下工时间的规则，并新增已结清、混合状态回归测试。
+- Fixed the issue where "off-duty time" is still displayed after all pending items of employees are settled; confirmed records no longer participate in the calculation of work status, and "idle" is displayed immediately after settlement.
+- The rule for selecting the latest closing time when multiple pending settlements are being processed at the same time is retained, and settled and mixed state regression tests are added.
 
 ## 0.6.0 - 2026-08-11
 
-- 店铺设置新增周一至周四自动折扣开关，可分别设置折前大费应用门槛与固定折扣额度，并对配置做接口与数据库约束。
-- 新建或编辑记工时按营业日和“主要项目 + 额外项目”自动生成折扣快照；自动折扣可与手动折扣并存、不会重复叠加，也不会降低员工大费工资。
-- 记工详情将自动折扣显示为只读系统项目，今日、财务和个人日结继续按普通折扣汇总与标记；补充契约和真实数据库回归测试。
+- A new automatic discount switch is added from Monday to Thursday in the store settings. You can set the pre-discount service fee application threshold and fixed discount amount respectively, and make interface and database constraints for the configuration.
+- When creating or editing a work record, discount snapshots are automatically generated by business day and "main project + additional projects"; automatic discounts can coexist with manual discounts, will not be overlapped, and will not reduce employee service commission.
+- Work record details will display automatic discounts as read-only system items, today, financial and individual daily statements continue to be summarized and marked as normal discounts; supplementary contract and real database regression testing.
 
 ## 0.5.2 - 2026-08-11
 
-- 明确允许同一员工同时保留多笔待结账记录，并增加真实数据库回归测试，确保新建第二笔不会报错。
-- 两笔待结账记工的时间重叠时，今日员工状态继续以结束时间较晚的一笔作为下工时间。
+- Explicitly allow the same employee to retain multiple pending settlement records at the same time, and add real database regression testing to ensure that no errors will be reported when creating a second transaction.
+- When the times of two pending work records overlap, the employee status today will continue to use the one with a later end time as the end of work time.
 
 ## 0.5.1 - 2026-08-11
 
-- 今日记工页面移除上班、下班打卡入口；员工卡片不再显示打卡状态。
-- 员工卡片根据当前记工时间段实时显示“空闲”或“下工时间”，重叠记工以最晚结束时间为准。
+- The entry for clocking in and out of get off work has been removed from today’s work record page; the employee card no longer displays the clocking in status.
+- The employee card displays "idle" or "off-duty time" in real time according to the current work record time period. For overlapping work records, the latest end time shall prevail.
 
 ## 0.5.0 - 2026-08-11
 
-- 员工权限下隐藏今日页面顶部的全店大费、小费、员工应得和待结账汇总，店主与经理界面保持不变。
-- 员工可在今日页面切换过去营业日查看自己的记工；后端直接将历史表格查询缩小为本人行、班次、记工和本人统计，且历史页面只读。
+- Under employee permissions, the store-wide service fee, tips, employee dues and pending checkout summary at the top of today's page are hidden. The store owner and manager interface remains unchanged.
+- Employees can switch to the past business day on the today page to view their work records; the backend directly reduces the historical table query to personal row, shift, work record and personal statistics, and the history page is read-only.
 
 ## 0.4.1 - 2026-08-11
 
-- 限制手机端根滚动容器的边界回弹，并让页面根节点始终覆盖动态视口高度，避免在任意页面向下拉动时露出大块空白区域。
+- Limit the border rebound of the root scroll container on the phone, and let the page root node always cover the dynamic viewport height to avoid exposing a large blank area when any page is pulled down.
 
 ## 0.4.0 - 2026-08-11
 
-- 新增按员工隔离的个人日结接口；员工只能读取自己的日结数据，无法取得全店汇总或其他员工信息，店长和经理仍可查看指定员工。
-- 今日页面为每名可查看的员工增加“个人日结”按钮，并为员工在财务页提供专属“我的日结”界面，以更清晰的卡片展示当日收入、记工、折扣、小费和大费工资。
-- 个人日结可以按当前设备屏幕尺寸生成 PNG 图片；支持文件分享的手机可通过系统分享面板存储到相册，不支持时自动退化为图片下载。
+- Added an individual daily statement interface isolated by employee; employees can only read their own daily closing data and cannot obtain store-wide summary or other employee information. Store managers and managers can still view designated employees.
+- Today's page adds an "individual daily statement" button for each viewable employee, and provides employees with an exclusive "My daily closing" interface on the financial page to display the day's income, work record, discounts, tips and service commissions in clearer cards.
+- The individual daily statement can generate PNG images according to the current device screen size; phones that support file sharing can be stored in the album through the system sharing panel, and will automatically degrade to image downloads if not supported.
 
 ## 0.3.1 - 2026-08-11
 
-- 今日记工卡片使用红色 `off` 小图标标记折扣单，保留无障碍说明但不再重复显示底部折扣文字。
-- 快速记工弹窗锁定背景滚动，按手机视口宽度自适应，并限制为仅纵向触控滚动，避免整页上下左右漂移。
-- 电脑版今日页面把员工的大费、小费、应得汇总改为纵向键值布局，并调整宽屏助手位置，避免金额粘连、裁切或被悬浮按钮遮挡。
+- Today's work record card uses a small red `off` icon to mark the discount order, retaining the accessibility description but no longer displaying the discount text at the bottom repeatedly.
+- The quick work record pop-up window locks the background scrolling, adapts to the width of the phone's viewport, and limits it to only vertical touch scrolling to prevent the entire page from drifting up, down, left, and right.
+- On the PC version of today's page, the employees' service fees, tips, and due summaries have been changed to a vertical key-value layout, and the position of the widescreen assistant has been adjusted to prevent amounts from being stuck, cropped, or blocked by floating buttons.
 
 ## 0.3.0 - 2026-08-10
 
-- 重做“项目与提成”目录布局：主要、额外和折扣项目分别拥有底部新增窗口，并可通过带版本校验的原子操作调整上下顺序；今日记工和详情选择框同步使用该顺序。
-- 修复店主手动加入今日表格后被旧营业日遗留班次阻塞的问题；新营业日打卡会自动结束遗留班次并留下审计，同时上班、下班均显示明显成功提示。
-- 修复今日页面实时变化后整块员工表格重复追加的问题：为相邻组件使用唯一 React key，并防止并发旧响应覆盖及异常重复成员行污染界面。
-- 记工详情保存成功后立即关闭并在后台刷新，避免等待整页同步时卡住；手机详情锁定为视口宽度，不再左右拖动。
-- 根据 Firebase 官方能力边界未实现加入申请短信：Phone Auth 短信仅用于认证验证码，FCM 是应用/浏览器推送而非手机号短信。
+- The "Projects and Commission" directory layout has been redone: main, additional and discount projects have new windows at the bottom respectively, and the upper and lower order can be adjusted through atomic operations with version verification; today's work record and detail selection box use this order simultaneously.
+- Fixed the problem of being blocked by the legacy shifts of the old business day after the store owner manually added to today's form; clocking in on the new business day will automatically end the legacy shifts and leave an audit, and at the same time, obvious success prompts will be displayed on both work and off work.
+- Fix the problem of the entire employee table being appended repeatedly after real-time changes on today's page: use unique React keys for adjacent components and prevent concurrent old responses from overwriting and abnormal duplicate member rows from polluting the interface.
+- After the work record details are successfully saved, they are immediately closed and refreshed in the background to avoid getting stuck while waiting for the entire page to be synchronized; the phone details are locked to the viewport width and are no longer dragged left or right.
+- According to Firebase's official capability boundaries, joining application SMS messages are not implemented: Phone Auth SMS messages are only used for authentication verification codes, and FCM is pushed by applications/browsers rather than phone number SMS messages.
 
 ## 0.2.6 - 2026-08-10
 
-- 更正 GHCR 首次公开说明：GitHub REST API 不提供修改 Package visibility 的端点，必须在 Package Settings 网页完成，并在之后执行匿名拉取验证。
+- Correction to GHCR first public statement: The GitHub REST API does not provide an endpoint for modifying Package visibility. This must be done on the Package Settings web page and then perform anonymous pull verification.
 
 ## 0.2.5 - 2026-08-10
 
-- 将本次 GitHub Actions、GHCR 与群晖部署的实操经验整理为可复制的 AI 发布手册，补充首次授权、匿名拉取、NAS 安全更新、验收、排错和回滚检查点。
+- The practical experience of this GitHub Actions, GHCR and Synology deployment is compiled into a replicable AI release manual, supplementing first authorization, anonymous pull, NAS security update, acceptance, debugging and rollback checkpoints.
 
 ## 0.2.4 - 2026-08-10
 
-- GitHub CI 直接迁移并测试其一次性 PostgreSQL service container，不再误调用只适用于本机 Compose 的独立测试库准备脚本。
+- GitHub CI directly migrates and tests its disposable PostgreSQL service container, no longer accidentally calling the standalone test repository preparation script that only works with native Compose.
 
 ## 0.2.3 - 2026-08-10
 
-- `pnpm typecheck` 现在先生成 Prisma Client 并构建内部 workspace 包，确保全新 clone、GitHub runner 与已构建本机得到一致结果。
+- `pnpm typecheck` Now generate the Prisma Client and build the internal workspace package to ensure consistent results between new clones, GitHub runner and the built machine.
 
 ## 0.2.2 - 2026-08-10
 
-- 为干净的 GitHub Actions runner 显式提供仅用于测试的 PostgreSQL URL，修复 Prisma schema 校验在没有本机 `.env` 时失败的问题。
+- Explicitly provide a test-only PostgreSQL URL to the clean GitHub Actions runner, fixing Prisma schema validation failing without a native `.env`.
 
 ## 0.2.1 - 2026-08-10
 
-- CI 测试通过后自动构建 `linux/amd64` NAS 镜像，并发布到公开 GHCR 的版本、`latest` 与提交标签。
-- NAS Compose 默认从 GHCR 拉取版本镜像，不再依赖缓慢的本地 tar 上传；补充拉取、升级、回滚和首次配置说明。
-- 明确公开仓库的秘密边界：GitHub 仅保存浏览器公开配置，真实私钥和生产密码只存在于本机/NAS 环境文件或系统钥匙串。
+- After the CI test passes, the `linux/amd64` NAS image is automatically built and published to the public GHCR version, `latest` and commit tag.
+- NAS Compose pulls version images from GHCR by default, no longer relying on slow local tar upload; additional instructions for pulling, upgrading, rolling back, and first-time configuration are added.
+- Clear the secret boundary of the public repository: GitHub only saves the browser public configuration, and the real private key and production password only exist in the local/NAS environment file or system keychain.
 
 ## 0.2.0 - 2026-08-09
 
-- 主要项目支持多个独立的时长价格档位；现有项目由迁移自动转换为单档位，历史记工快照保持不变。
-- 快速记工和记工详情改为分别选择项目与时长价格，后端拒绝多档位项目缺少时长的含糊写入。
-- 店长/经理可在一个项目内新增、修改和移除多个时长价格；首次店铺设置、AI 记工和中文帮助同步支持新结构。
-- 增加档位唯一性、迁移约束、多价格选择及 AI 流程回归测试。
+- Main projects support multiple independent duration price tiers; existing projects are automatically converted to a single tier by migration, and historical work record snapshots remain unchanged.
+- Quick work record and work record details are changed to select the project and duration price respectively, and the backend rejects ambiguous writing of multi-level projects that lack duration.
+- Store managers/managers can add, modify, and remove multiple duration prices within a project; first-time store setup, AI work record, and Chinese help simultaneously support the new structure.
+- Added gear uniqueness, migration constraints, multi-price selection and AI process regression testing.
 
 ## 0.1.2 - 2026-08-09
 
-- 重写并浓缩 AI 接管指南，移除一次性排障现场和过期流水账，保留架构索引、业务不变量、一致性约束、验证基线与部署边界。
+- Rewrite and condense the AI handoff guide, remove one-time troubleshooting sites and expired turnover accounts, and retain architectural indexes, business invariants, consistency constraints, verification baselines, and deployment boundaries.
 
 ## 0.1.1 - 2026-08-09
 
-- 修复短信验证码已通过后，API 会话失败仍被误报为验证码错误的问题。
-- 修复已删除店铺仍出现在个人页，以及切换店铺后残留上一家店的项目和 AI 对话状态的问题。
-- 为记工、表格、现金结算和日结增加同一营业日事务锁，并加强现金结算乐观锁，避免并发写入造成已日结数据变化或重复结清。
-- 增加个人店铺过滤与并发现金结清回归测试，移除未接入业务且会泄露短信正文的 SMS 草稿代码。
+- Fixed the issue where API session failure was still mistakenly reported as a verification code error after the SMS verification code was passed.
+- Fixed the issue where deleted stores still appear on the personal page, and the items and AI dialogue status of the previous store remain after switching stores.
+- Add the same business day transaction lock for work record, table, cash settlement and daily closing, and strengthen cash settlement optimistic lock to avoid closed data changes or repeated settlement caused by concurrent writing.
+- Add personal store filtering and concurrent cash settlement regression testing, and remove SMS draft codes that are not connected to the business and will leak the text of the text message.
 
 ## 0.1.0 - 2026-08-06
 
-- 产品、仓库、工作区包、容器、数据库、缓存和文档名称统一为 Massage note。
-- 增加群晖 Container Manager 的 `linux/amd64` 单镜像构建与部署方案。
-- 建立强制版本迭代规则与一致性检查。
+- Product, repository, workspace package, container, database, cache and document names are unified into Massage note.
+- Added Synology Container Manager's `linux/amd64` single image construction and deployment solution.
+- Establish mandatory version iteration rules and consistency checks.

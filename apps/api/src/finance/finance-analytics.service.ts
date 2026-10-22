@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { User } from "@massage-note/database";
 import type { FinanceAnalyticsQuery, FinanceAnalyticsResponse } from "@massage-note/contracts";
-import { calculateFinanceAnalytics, calculateRevenue, calculateWeekdayRevenueComparison, hasStoreCapability, shiftAnalyticsDate } from "@massage-note/domain";
+import { calculateFinanceAnalytics, calculateFinanceTrends, calculateRevenue, calculateWeekdayRevenueComparison, hasStoreCapability, shiftAnalyticsDate } from "@massage-note/domain";
 import { businessDateFor, deviceNow } from "../common/device-time.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
@@ -27,29 +27,47 @@ export class FinanceAnalyticsService {
       const [recordStart, saleStart, closingStart, lostCustomerStart] = await Promise.all([
         client.workRecord.aggregate({ where: { ...workBase, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
         client.giftCardSale.aggregate({ where: { ...base, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
-        client.businessDayClosing.aggregate({ where: { ...closingBase, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
+        client.businessDayClosing.aggregate({ where: { ...closingBase, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true }, _max: { businessDate: true } }),
         client.lostCustomer.aggregate({ where: { ...base, businessDate: { lte: asDate(dateTo) } }, _min: { businessDate: true } }),
       ]);
       const starts = [recordStart, saleStart, closingStart, lostCustomerStart].flatMap(r => r._min.businessDate ? [dateOnly(r._min.businessDate)] : []).sort();
       const dateFrom = query.dateFrom ?? starts[0] ?? dateTo;
       if (dateFrom > dateTo || dateTo > today) throw new BadRequestException("日期范围无效，结束日期不能晚于今天");
       const businessDate = { gte: asDate(shiftAnalyticsDate(dateFrom, -29)), lte: asDate(dateTo) };
+      const trendAsOf = closingStart._max.businessDate ? dateOnly(closingStart._max.businessDate) : null;
+      const trendFrom = trendAsOf ? shiftAnalyticsDate(trendAsOf, -59) : null;
+      const closingDates = { gte: asDate(trendFrom && trendFrom < shiftAnalyticsDate(dateFrom, -29) ? trendFrom : shiftAnalyticsDate(dateFrom, -29)), lte: asDate(dateTo) };
       const [records, sales, closings, lostCustomers] = await Promise.all([
         client.workRecord.findMany({ where: { ...workBase, businessDate }, select: { businessDate: true, startAt: true, storeTimezoneSnapshot: true, discountedFeePerformanceCents: true, giftCardServiceCents: true, isHighlighted: true } }),
         client.giftCardSale.findMany({ where: { ...base, businessDate }, select: { businessDate: true, amountCents: true } }),
-        client.businessDayClosing.findMany({ where: { ...closingBase, businessDate }, select: { businessDate: true }, distinct: ["businessDate"] }),
+        client.businessDayClosing.findMany({ where: { ...closingBase, businessDate: closingDates }, select: { businessDate: true }, distinct: ["businessDate"] }),
         client.lostCustomer.findMany({ where: { ...base, businessDate }, select: { businessDate: true, customerCount: true } }),
       ]);
       const allRecords = records.map(r => ({ businessDate: dateOnly(r.businessDate), startAt: r.startAt, timezone: r.storeTimezoneSnapshot, revenueCents: calculateRevenue({ ...r, giftCardServiceCents: r.giftCardServiceCents ?? 0n, giftCardSalesAmountCents: 0n }), isHighlighted: r.isHighlighted }));
       const allSales = sales.map(r => ({ businessDate: dateOnly(r.businessDate), revenueCents: r.amountCents }));
       const closedDates = closings.map(r => dateOnly(r.businessDate));
+      const trendDates = trendAsOf && trendFrom ? closedDates.filter(date => date >= trendFrom && date <= trendAsOf).map(asDate) : [];
+      const trendScope = { ...base, businessDate: { in: trendDates } };
+      const [trendRecords, trendSales] = trendDates.length ? await Promise.all([
+        client.workRecord.findMany({ where: { ...trendScope, status: { not: "PLACEHOLDER" },
+          ...(highlightedOnly ? { isHighlighted: true } : query.highlightFilter === "EXCLUDE_HIGHLIGHTED" ? { isHighlighted: false } : {}),
+        }, select: { businessDate: true, isHighlighted: true, discountedFeePerformanceCents: true, totalLargeFeeWageCents: true,
+          cardServiceCents: true, giftCardServiceCents: true, cashTipCents: true, cardTipCents: true, giftCardTipCents: true,
+          employee: { select: { role: true } },
+        } }),
+        highlightedOnly ? Promise.resolve([]) : client.giftCardSale.findMany({ where: trendScope, select: { businessDate: true, amountCents: true, cashCents: true, cardCents: true } }),
+      ]) : [[], []];
+      const trends = calculateFinanceTrends({ dateTo, closedDates, highlightFilter: query.highlightFilter ?? "ALL",
+        records: trendRecords.map(r => ({ ...r, businessDate: dateOnly(r.businessDate), role: r.employee.role })),
+        sales: trendSales.map(r => ({ ...r, businessDate: dateOnly(r.businessDate) })),
+      });
       const selectedRecords = allRecords.filter(r => highlightedOnly ? r.isHighlighted : query.highlightFilter === "EXCLUDE_HIGHLIGHTED" ? !r.isHighlighted : true);
       return { ...calculateFinanceAnalytics({ dateFrom, dateTo,
         records: selectedRecords,
         sales: highlightedOnly ? [] : allSales,
         lostCustomers: lostCustomers.map(r => ({ businessDate: dateOnly(r.businessDate), customerCount: r.customerCount })),
         closedDates,
-      }), weekdayComparison: calculateWeekdayRevenueComparison({ dateFrom, dateTo, records: allRecords, sales: allSales, closedDates }) };
+      }), trends, weekdayComparison: calculateWeekdayRevenueComparison({ dateFrom, dateTo, records: allRecords, sales: allSales, closedDates }) };
     }, { isolationLevel: "RepeatableRead", timeout: 30000 });
   }
 }

@@ -1,25 +1,31 @@
 # Massage Note Backups
 
-> 已获账户所有者授权，发布于 https://massagenote.waltonjin.com/backup-info/ 。本文件用于生成 Google OAuth 应用首页、隐私政策和使用说明。
+**English** | **[简体中文](BACKUP_PUBLIC_PAGE.zh-CN.md)**
 
-Massage Note Backups 是账户所有者自用的 Massage Note 灾难恢复工具，用于将网站的完整恢复包加密保存到本人 Google Drive，并在需要时恢复到本人的 Mac。该工具不提供公众注册或商业备份服务。
+> The account owner authorized publication at https://massagenote.waltonjin.com/backup-info/ . This source generates the Google OAuth application homepage, privacy policy, and usage terms.
 
-它仅请求 Google 账号身份、邮箱，以及本应用使用的特定 Drive 文件权限（`drive.file`）。备份文件保存于独立私有目录，每次新包上传并完整读回校验成功后，只保留最近三份成功备份。
+Massage Note Backups is the account owner’s personal disaster recovery tool. It encrypts complete website recovery packages, saves them to the owner’s Google Drive, and restores them to the owner’s Mac when needed. It offers no public registration or commercial backup service.
 
-## 隐私政策
+It requests only Google account identity, email, and access to the specific Drive files used by this application (`drive.file`). Backups use a dedicated private directory. After each new upload passes full readback verification, only the latest three successful backups are retained.
 
-Google 账号身份和邮箱只用于确认备份目标为账户所有者本人。Drive 权限用于创建专用目录、上传及下载加密恢复包、校验文件完整性，以及删除超出三份保留范围的旧备份。
+<a id="隐私政策"></a>
 
-恢复包包含网站数据库、应用镜像和恢复所需配置，上传前整体加密；解密私钥独立保存在账户所有者 Mac 的系统钥匙串，上传端不持有该私钥。离线授权凭据保存在本人受限的设备配置中，用于后续自动备份。
+## Privacy policy
 
-本工具不出售 Google 用户数据，不用于广告或模型训练，不向其他用户共享备份目录。只有账户所有者及其明确授权的维护操作可以使用这些配置和备份。用户可在 Google 账号的第三方连接中撤销授权，并在本人 Drive 中删除备份文件。已下载到本人设备的副本需要由本人另行删除。
+Google identity and email confirm that the backup destination belongs to the account owner. Drive access creates the dedicated directory, uploads/downloads encrypted recovery packages, verifies integrity, and deletes older backups beyond the three-package retention limit.
 
-本工具对 Google API 数据的使用遵循 [Google API 服务用户数据政策](https://developers.google.com/terms/api-services-user-data-policy)，包括 Limited Use 要求。Google 平台自身的数据处理适用 Google 的相关政策。
+Recovery packages contain the website database, application images, and configuration needed for recovery. They are encrypted in full before upload. The decryption private key is stored separately in the owner’s Mac system keychain; the uploading device does not hold it. Offline authorization credentials remain in restricted device configuration for subsequent automatic backups.
 
-## 使用说明与条款
+The tool does not sell Google user data, use it for advertising or model training, or share backup directories with other users. Only the account owner and explicitly authorized maintenance operations may use the configuration and backups. The owner can revoke authorization through Google account third-party connections and delete backups in Drive. Copies already downloaded to the owner’s devices must be deleted separately.
 
-该工具仅供账户所有者本人使用，不接受其他用户数据或对外提供服务。
+Use of Google API data follows the [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy), including Limited Use requirements. Google’s own data processing follows its relevant policies.
 
-备份计划为纽约时间每日 00:00，恢复点为最近一次成功备份，可能丢失此后新增的数据。恢复后的服务仅供本机访问，不会自动切换公网服务；恢复期间先暂停外发消息并核对历史任务。
+<a id="使用说明与条款"></a>
 
-备份和恢复需要相关设备、网络及 Google/Firebase 等外部服务可用。备份是否完整，以文件校验、隔离数据库恢复和完整服务恢复演练的实际结果为准。停用工具可停止 NAS 备份任务并撤销 Google 授权。
+## Instructions and Terms of Use
+
+The tool is for the account owner alone; it does not accept other users’ data or provide services to the public.
+
+Backups run daily at 00:00 America/New_York. The recovery point is the latest successful backup; later data may be lost. Restored services are local-only and do not automatically replace the public service. Pause outgoing messages and reconcile historical tasks before recovery.
+
+Backup and recovery require the relevant devices, network, and external services such as Google/Firebase to remain available. File verification, isolated database restores, and complete service recovery drills determine whether a backup is usable. To stop using the tool, stop the NAS backup task and revoke Google authorization.

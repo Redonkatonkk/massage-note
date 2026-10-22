@@ -1,8 +1,14 @@
-# 运维、备份与恢复
+<a id="运维备份与恢复"></a>
 
-## 日常检查
+# Operations, backup and recovery
 
-检查容器健康、磁盘容量、最近备份和 API 就绪状态。保留原因：容器运行不代表依赖就绪或备份可用。
+**English** | **[简体中文](OPERATIONS.zh-CN.md)**
+
+<a id="日常检查"></a>
+
+## Daily inspection
+
+Check container health, disk capacity, recent backups, and API readiness status. Reason: Just because the container is running does not mean that dependencies are ready or that backups are available.
 
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml ps
@@ -10,29 +16,35 @@ docker compose --env-file .env.production -f docker-compose.prod.yml logs --sinc
 curl --fail https://api.massage-note.example.com/api/v1/health/ready
 ```
 
-为 `/api/v1/health/ready` 配置外部监控，并跟踪磁盘、数据库及备份失败；告警阈值由实际部署确定。错误排查使用 `X-Request-Id`，不把 Cookie、token、完整手机号或密钥贴到工单。保留原因：仓库没有旧文档宣称的固定监控阈值实现，请求编号已足够关联日志。
+Configure external monitoring for `/api/v1/health/ready` and track disk, database and backup failures; the alarm threshold is determined by the actual deployment. Use `X-Request-Id` for error troubleshooting and do not post cookies, tokens, complete phone numbers or keys to the work order. Reason: The repository does not have the fixed monitoring threshold implementation claimed in the old document, and the request number is enough to correlate the logs.
 
-## 云端完整恢复
+<a id="云端完整恢复"></a>
 
-NAS 每晚纽约时间 00:00 的 Google Drive 完整恢复包、最近三次成功备份轮换、独立 age 私钥及 Mac 按需演练见 [灾难恢复手册](DISASTER_RECOVERY.md)。启用状态以该手册与实际任务/云端恢复报告为准。保留原因：下面的手动逻辑备份只有数据库，不能替代配置、密钥和离线镜像的完整恢复包；创建脚本不代表线上定时任务已启用。
+## Complete recovery in the cloud
 
-## 手动逻辑备份
+The Google Drive full recovery package for NAS every night at 00:00 New York time, the last three successful backup rotations, independent age private keys, and Mac on-demand walkthroughs are available in the [Disaster Recovery Manual](DISASTER_RECOVERY.md). The activation status is subject to this manual and the actual task/cloud recovery report. Reason: The following manual logical backup only has the database and cannot replace the complete recovery package of configuration, keys and offline images; creating the script does not mean that the online scheduled task has been enabled.
 
-`scripts/backup-database.sh` 需要 PostgreSQL 客户端。建议由只读备份账号或受控管理账号每日执行，并将目录同步到与应用主机不同的加密存储。保留原因：脚本依赖 pg_dump，异地副本避免主机故障同时丢失数据与备份。
+<a id="手动逻辑备份"></a>
+
+## Manual logical backup
+
+`scripts/backup-database.sh` requires PostgreSQL client. It is recommended that a read-only backup account or a controlled management account execute it daily and synchronize the directory to an encrypted storage different from the application host. Reason: The script relies on pg_dump, and the off-site copy avoids host failure and data and backup loss.
 
 ```bash
 DATABASE_URL='postgresql://...' \
 BACKUP_DIR='/srv/massage-note-backups' \
 BACKUP_RETENTION_DAYS=30 \
-BACKUP_ENCRYPTION_KEY='单独保存的高强度密钥' \
+BACKUP_ENCRYPTION_KEY='replace-with-a-strong-key-stored-separately' \
 ./scripts/backup-database.sh
 ```
 
-脚本使用 custom-format `pg_dump`、AES-256-CBC/PBKDF2（配置密钥时）、权限收紧和 SHA-256 校验。加密密钥不得与备份文件放在同一位置。单机 Compose 的逻辑备份不是时间点恢复；需要更小 RPO 时使用启用 PITR/WAL 归档的托管 PostgreSQL。保留原因：校验验证传输完整性，加密保护备份，独立密钥与 WAL 能力不能靠普通 dump 替代。
+The script uses custom-format `pg_dump`, AES-256-CBC/PBKDF2 (when configuring keys), permission tightening, and SHA-256 checksums. Encryption keys must not be placed in the same location as backup files. Standalone Compose's logical backup is not a point-in-time recovery; use managed PostgreSQL with PITR/WAL archiving enabled when smaller RPO is required. Reason: Verification verifies transmission integrity, encryption protects backups, independent keys and WAL capabilities cannot be replaced by ordinary dumps.
 
-## 恢复演练
+<a id="恢复演练"></a>
 
-恢复会覆盖目标数据库，绝不能先对仍在营业的生产库试跑。创建独立空库，核对目标 URL，显式设置 `CONFIRM_RESTORE=YES` 后执行。保留原因：恢复脚本会覆盖目标数据库，没有旧文档所说的三次确认机制。
+## Recovery drill
+
+Restoration will overwrite the target database and must not be performed on a production database that is still in operation first. Create an independent empty library, check the target URL, and execute after explicitly setting `CONFIRM_RESTORE=YES`. Reason: The recovery script will overwrite the target database and there is no triple confirmation mechanism as mentioned in the old documentation.
 
 ```bash
 DATABASE_URL='postgresql://.../massage_note_restore_test' \
@@ -42,31 +54,35 @@ CONFIRM_RESTORE=YES \
 ./scripts/restore-database.sh
 ```
 
-随后对恢复库执行当前版本迁移并启动一套临时 API：
+Then perform a current version migration of the recovery repository and start a set of temporary APIs:
 
 ```bash
 DATABASE_URL='postgresql://.../massage_note_restore_test' pnpm db:deploy
 ```
 
-验收以下内容后才算演练成功：店铺/成员数、最近营业日、最近一条记工付款拆分、日结快照、现金与工资账本、审计记录；通过 API 或数据库核对一日总额，用户需要时可自行抽查页面。保留原因：恢复成功须核对业务完整性，默认验证不调用浏览器。记录恢复耗时和备份时间，以得出实际 RPO/RTO。
+The drill is considered successful only after the following content has been accepted: number of stores/members, latest business day, payment split of the latest work record, daily closing snapshot, cash and payroll ledger, and audit records; check the daily total through API or database, and users can spot-check the page if needed. Reason: Successful recovery must verify business integrity, and the default verification does not call the browser. Record recovery time and backup time to derive actual RPO/RTO.
 
-## 数据维护
+<a id="数据维护"></a>
 
-以数据库管理账号定期执行：
+## Data maintenance
+
+Execute regularly with database management account:
 
 ```bash
 psql "$ADMIN_DATABASE_URL" --set=ON_ERROR_STOP=1 --file=scripts/maintenance.sql
 ```
 
-维护只删除过期幂等缓存、过期/已消费很久的 AI 预览和超过事件重连窗口的 outbox；不会删除记工、付款、日结、工资或审计。执行前仍应有可用备份。保留原因：维护脚本只清理运行缓存，但生产删除仍需可恢复。
+Maintenance only deletes expired idempotency caches, expired/long-consumed AI previews, and outboxes that have exceeded the event reconnect window; it will not delete work records, payments, daily closings, salaries, or audits. There should still be a backup available before execution. Reason: The maintenance script only cleans the running cache, but production deletions still need to be reversible.
 
-## 故障处理
+<a id="故障处理"></a>
 
-- **API ready 失败**：先查 PostgreSQL 健康和迁移容器日志。不要反复重建数据库卷。保留原因：重新建卷不能修复缺迁移或连接配置，还会损失业务数据。
-- **Redis 失败**：接口限流会退化为单实例内存计数；业务数据仍可写入。尽快恢复 Redis，期间避免横向扩容造成限流不一致。保留原因：降级计数按进程分开，多实例会放大可接受请求数。
-- **AI/MiniMax/语音失败**：核心记工和财务不依赖外部 AI；界面应提示改用手动或文字输入。保留原因：手工业务路径没有供应商依赖。
-- **实时连接失败**：业务提交仍以数据库响应为准；刷新页面会重新读取真相。检查反向代理是否缓冲或过早关闭 SSE。保留原因：REST 与数据库保存结果才是业务真相。
-- **疑似重复记工**：不要直接删数据库行。先查审计与幂等记录，再从界面软删除并写清原因。保留原因：直接删行会破坏审计和恢复，业务接口已有软删除。
-- **密钥泄露**：立即轮换相应供应商密钥/数据库密码，重启服务，检查时间范围内的审计和访问日志；Firebase 私钥泄露还需撤销服务账号密钥。保留原因：旧秘密必须撤销，删除文件不会使凭据失效。
+## Troubleshooting
 
-Mac“信息”发送代理的安装、权限、附件路由和专项排障已集中到 [`MESSAGES_AGENT.md`](MESSAGES_AGENT.md)。
+- **API ready failed**: Check the PostgreSQL health and migration container logs first. Do not rebuild database volumes repeatedly. Reason: Rebuilding the volume cannot repair missing migration or connection configuration, and will also cause loss of business data.
+- **Redis failure**: The interface current limit will degrade to a single instance memory count; business data can still be written. Restore Redis as soon as possible to avoid inconsistent rate limiting caused by horizontal expansion. Reason: Degrade counts are separated by process, multiple instances will amplify the number of acceptable requests.
+- **AI/MiniMax/Voice Failure**: Core work records and finance do not rely on external AI; the interface should prompt to use manual or text input instead. Reason: Manual business path has no vendor dependencies.
+- **Real-time connection failure**: Business submission is still based on the database response; refreshing the page will re-read the source of truth. Check if the reverse proxy is buffering or shutting down SSE prematurely. Reason: REST and database saving results are the business truth.
+- **Suspected duplicate work record**: Do not delete database rows directly. First check the audit and idempotency records, then soft deletion from the interface and write down the reasons. Reason: Directly deleting rows will destroy auditing and recovery, and the business interface already has soft deletion.
+- **Key leak**: Immediately rotate the corresponding supplier key/database password, restart the service, and check the audit and access logs within the time range; if the Firebase private key is leaked, the service account key must be revoked. Reason: Old secrets must be revoked, deleting the file will not invalidate the credentials.
+
+Mac Messages sending agent installation, permissions, attachment routing, and specialized troubleshooting have been centralized into [`MESSAGES_AGENT.md`](MESSAGES_AGENT.md).

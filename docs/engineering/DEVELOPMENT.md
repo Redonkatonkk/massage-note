@@ -1,17 +1,25 @@
-# 开发指南
+<a id="开发指南"></a>
 
-> 适用版本：`1.32.14`
+# Development Guide
 
-本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.md)，HTTP 细节看 [`API.md`](API.md)。
+**English** | **[简体中文](DEVELOPMENT.zh-CN.md)**
 
-## 环境要求
+> Applies to version: `1.34.1`
+
+This guide describes the current repository’s development workflow. See [`PRODUCT.md`](../product/PRODUCT.md) for business rules, [`ARCHITECTURE.md`](ARCHITECTURE.md) for code boundaries, and [`API.md`](API.md) for HTTP details.
+
+<a id="环境要求"></a>
+
+## Environment requirements
 
 - Node.js 24
-- pnpm 11（仓库锁定 `pnpm@11.9.0`）
-- Docker Engine 与 Compose v2
-- 本地可用的 3000、4000、5432、6379 端口；数据库和 Redis 端口可通过环境变量改写
+- pnpm 11 (repository locked `pnpm@11.9.0`)
+- Docker Engine and Compose v2
+- Locally available ports 3000, 4000, 5432, 6379; database and Redis ports can be rewritten through environment variables
 
-## 第一次启动
+<a id="第一次启动"></a>
+
+## First start
 
 ```bash
 cp .env.example .env
@@ -22,82 +30,92 @@ pnpm db:deploy
 pnpm dev
 ```
 
-Web 固定使用 `http://localhost:3000`，用 `curl --fail` 确认可访问，不默认调用浏览器。保留原因：遵循用户的代码验证偏好，并确保验收端口稳定。API 存活与就绪检查分别是：
+Web uses `http://localhost:3000`; confirm availability with `curl --fail` without opening a browser by default. Reason: the user prefers code/command-line validation and a stable acceptance port. API liveness and readiness endpoints are:
 
 ```text
 http://localhost:4000/api/v1/health
 http://localhost:4000/api/v1/health/ready
 ```
 
-Firebase 和 MiniMax 的运行边界见 [安全说明](../operations/SECURITY.md)；本地没有 Firebase 时，Web 与 API 两侧须显式开启开发登录。保留原因：单侧启用不能建立开发会话，生产认证另由强制关闭逻辑保护。
+For the operating boundaries of Firebase and MiniMax, see [Security Instructions](../operations/SECURITY.md); when Firebase is not available locally, development login must be explicitly enabled on both the Web and API sides. Reason: One-sided enablement cannot establish a development session, and production authentication is protected by force-off logic.
 
-## 本地手工测试数据
+<a id="本地手工测试数据"></a>
 
-本地网页连接 `massage_note` 开发库，当前使用用户授权的线上备份快照；`massage_note_test` 继续用于独立自动化测试，不作为网页数据源。默认保留当前快照，不在启动或收尾时运行演示种子。保留原因：真实历史业务更适合核对经营分析和财务数据，自动造数会混入另一套店铺及金额。
+## Local manual test data
 
-替换本地数据时，先核对 `.env` 指向 localhost 的开发库和本项目 PostgreSQL 容器，下载并校验指定快照，在独立临时数据库恢复并核对表计数、有效记工、日结与金额，再停止本项目开发服务。保留覆盖前的本地备份与校验文件，将旧库保留为本机恢复点后切换已经验证的快照库，并应用当前迁移。备份、恢复 SQL 与本机切换记录只存放在 Git 忽略的 `.local-ai/` 受限目录。保留原因：先验证后切换可缩短停机并保留恢复能力，生产凭据与业务数据不能进入版本库。
+The local web app uses the `massage_note` development database, currently populated from a user-authorized production backup snapshot. `massage_note_test` remains the independent automated-test database and is not the web app’s data source. Keep the current snapshot; do not seed on startup or completion. Reason: real historical records support analytics and financial review; synthetic seeding would mix unrelated stores and amounts into that snapshot.
 
-快照导入本地后，店主身份映射到固定本机测试号码 `+1 (770) 575-0450`，保留原用户 ID、店铺、员工与全部业务记录；本地副本中的发送代理授权设为已撤销。打开 `http://localhost:3000`，输入 `7705750450`，点击“使用此号码直接进入”，不发送短信。上述适配只修改本地副本，不修改 NAS；恢复后先核对业务行数及金额，再通过 API 验证店主访问及经营分析，并重启和保持 Web/API 就绪。保留原因：本机需要可重复使用的登录入口，复制的线上发送凭据不能在测试库继续生效。
+Before replacing local data, verify that `.env` targets the localhost development database and this project’s PostgreSQL container. Download and verify the requested snapshot, restore it to a separate temporary database, and check table counts, valid work records, closings, and amounts before stopping this project’s development services. Keep a local backup and checksums, retain the old database as a recovery point, switch to the verified snapshot database, and apply current migrations. Store backups, restore SQL, and local switch records only in Git-ignored restricted `.local-ai/`. Reason: validation before switching shortens downtime and preserves recovery; production credentials and business data must stay out of version control.
 
-`.env` 中须保持以下本地开发配置；密钥只用于签署本机会话，不得复制到生产环境。保留原因：开发会话签名不能替代生产身份验证。
+After importing the snapshot locally, map the Owner identity to the fixed local test number `+1 (770) 575-0450`, preserving the original user ID, stores, employees, and business records. Revoke sending-agent authorizations in the local copy. At `http://localhost:3000`, enter `7705750450` and choose the direct development-login action without sending SMS. These adaptations affect only the local copy. Verify row counts and amounts, validate Owner access and analytics through the API, then restart and retain Web/API readiness. Reason: local tests need a repeatable login, and copied production sending credentials must not remain active.
+
+The following local development configuration must be maintained in `.env`; the key is only used to sign local sessions and may not be copied to production. Reason: Development session signing is not a replacement for production authentication.
 
 ```dotenv
 NEXT_PUBLIC_DEV_AUTH_ENABLED=true
 DEV_AUTH_ENABLED=true
-DEV_AUTH_SECRET=至少32个字符的本地随机字符串
+DEV_AUTH_SECRET=replace-with-a-local-random-secret-at-least-32-characters
 ```
 
-### 可选固定演示数据
+<a id="可选固定演示数据"></a>
 
-只有用户明确需要合成演示场景时才运行 `pnpm demo:seed`。它会先应用现有迁移，再幂等刷新 `本地演示店` 和固定测试身份，将演示日期移动到执行当天及之前最近一周；重复运行不会累加演示记录，其他店铺不清空。实现位于 [`scripts/seed-local-demo.sql`](../../scripts/seed-local-demo.sql)。保留原因：种子仍用于独立复现多种付款与结算场景，但不应与当前业务快照混用。
+### Optional fixed demo data
 
-## 常用命令
+Run `pnpm demo:seed` only when the user explicitly requests synthetic demo scenarios. It applies existing migrations, idempotently refreshes `本地演示店` and fixed test identities, and moves dates to the current day and preceding week. Repeated runs do not accumulate records or clear other stores. Implementation: [`scripts/seed-local-demo.sql`](../../scripts/seed-local-demo.sql). Reason: the seed remains useful for independent payment/settlement scenarios but must not be mixed into the current business snapshot.
 
-| 命令 | 用途 |
+<a id="常用命令"></a>
+
+## Common commands
+
+| Command | Purpose |
 | --- | --- |
-| `pnpm dev` | 并行启动 Web 与 API，启动前构建共享包 |
-| `pnpm typecheck` | 检查全部 workspace 类型 |
-| `pnpm test` | 运行仓库工具、领域、契约、Mac 代理、Web 辅助函数和 API 非数据库测试 |
-| `pnpm test:tooling` | 运行仓库脚本的 Node.js 内置测试 |
-| `pnpm test:integration` | 创建/迁移独立测试库并运行数据库与 API 集成测试 |
-| `python3 -m unittest discover -s integrations/langbot-plugin/tests -v` | 运行 LangBot 插件边界与解析测试（CI 当前未执行） |
-| `pnpm build` | 检查版本一致性并构建全部 workspace |
-| `pnpm db:generate` | 生成 Prisma Client |
-| `pnpm db:validate` | 校验 Prisma schema |
-| `pnpm db:migrate` | 本地创建新迁移；不能用于生产 |
-| `pnpm db:deploy` | 应用现有迁移，本地和生产均可用 |
-| `pnpm demo:seed` | 应用迁移并创建或刷新固定本地演示数据 |
-| `pnpm docker:status` | 查看本项目 PostgreSQL/Redis 状态 |
-| `pnpm version:check` | 检查版本号、镜像标签和文档标记 |
-| `pnpm docs:check` | 检查仓库 Markdown 的本地文件/目录链接目标 |
-| `pnpm ui:check` | 检查全部样式断点的颜色/圆角来源和记工面板共享规则 |
-| `pnpm ui:mobile` | 核对全部路由与常用弹层在 320–760px 的 DOM 层叠样式，不启动浏览器 |
+| `pnpm dev` | Start Web and API in parallel, build shared package before starting |
+| `pnpm typecheck` | Check all workspace types |
+| `pnpm test` | Runs repository tools, domain rules, contracts, Mac agents, web helpers and API non-database tests |
+| `pnpm test:tooling` | Node.js built-in tests that run repository scripts |
+| `pnpm test:integration` | Create/migrate standalone test databases and run database and API integration tests |
+| `python3 -m unittest discover -s integrations/langbot-plugin/tests -v` | Run LangBot plug-in boundary and parsing tests (CI is not currently executed) |
+| `pnpm build` | Check version consistency and build all workspaces |
+| `pnpm db:generate` | Generate Prisma Client |
+| `pnpm db:validate` | Validate Prisma schema |
+| `pnpm db:migrate` | Create new migration locally; cannot be used in production |
+| `pnpm db:deploy` | Apply existing migrations, available both locally and in production |
+| `pnpm demo:seed` | Apply migrations and create or refresh pinned local demo data |
+| `pnpm docker:status` | Check the PostgreSQL/Redis status of this project |
+| `pnpm version:check` | Check version number, image tag and document tag |
+| `pnpm docs:check` | Check the local file/directory link target of the repository Markdown |
+| `pnpm ui:check` | Check the color/rounded source of all style breakpoints and work record panel sharing rules |
+| `pnpm ui:mobile` | Check all routes and the DOM cascading style of common spring layers at 320–760px without starting the browser |
 
-手机阅读顺序和低频操作另由 [真实组件回归](../../apps/web/app/ui/mobile-reading.test.tsx) 验证，包含真实 DOM 在 320–900px 与桌面的展示切换、恢复/取消确认、金额对应、权限与帮助主题展开。复核范围见 [手机复核记录](MOBILE_REVIEW_2026-10-04.md)。保留原因：代表性样式结构不能替代真实组件和操作验证，二者都不构成浏览器视觉实测。
+The mobile reading order and low-frequency operations are also verified by [Real Component Regression](../../apps/web/app/ui/mobile-reading.test.tsx), including real DOM display switching between 320–900px and desktop, recovery/cancellation confirmation, amount correspondence, permissions and help topic expansion. For the scope of review, please see [Mobile Phone Review Record](MOBILE_REVIEW_2026-10-04.md). Reason: Representative style structures are not a substitute for real components and operational verification, neither of which constitute browser visual testing.
 
-`pnpm test:integration` 默认使用 `massage_note_test`，不会清空 `massage_note` 开发库。若默认数据库端口被占用：
+`pnpm test:integration` uses `massage_note_test` by default and will not clear the `massage_note` development database. If the default database port is occupied:
 
 ```bash
 POSTGRES_HOST_PORT=55432 REDIS_HOST_PORT=56379 pnpm docker:up
 MASSAGE_NOTE_TEST_DATABASE_URL='postgresql://massage:massage@localhost:55432/massage_note_test' pnpm test:integration
 ```
 
-不要为了测试停止、删除或重建不属于本项目的容器与数据卷。保留原因：独立测试数据库不授权操作其他项目或生产数据。
+Do not stop, delete, or rebuild containers and data volumes that are not part of this project for testing purposes. Reason: The standalone test database does not authorize manipulation of other project or production data.
 
-## 修改规则
+<a id="修改规则"></a>
 
-- 接口变化同步共享契约、Controller、Service、Web 调用与 [API 文档](API.md)；公式变化先修改领域函数和对应测试。保留原因：多个调用端必须采用相同输入语义和金额来源。
-- 写入沿用现有权限、对象归属、营业日锁、版本、幂等、审计/outbox 与事务，验证正常和失败路径。保留原因：重构不能使跨店、重复请求或半笔账成为有效写入。
-- 数据库只追加描述性前向迁移，不改已发布迁移；生产使用 `prisma migrate deploy`，破坏性变化分阶段。保留原因：已有数据库必须能按同一历史重放升级，旧容器也需兼容过渡 schema。
-- Web 刷新复用 `refresh-queue.ts`，切店/卸载使旧结果失效；日历缓存规则以 [产品规则](../product/PRODUCT.md) 为准。保留原因：合并请求与过期响应隔离已有公共实现，重复定义缓存失效范围会产生冲突。
-- 视觉维护遵循 [UI 设计](UI_DESIGN.md)，样式变化运行 `pnpm ui:check`、`pnpm ui:mobile`；成员交互变化运行 `pnpm --filter @massage-note/web exec vitest run app/manage/members-panel.test.tsx`。保留原因：变量来源、手机层叠样式和草稿/冲突流程分别由对应检查覆盖；CI 同步运行两项样式检查，代码验证不代表视觉实测。
-- Web SVG 转 PNG、画布容量限制和临时 URL 回收统一在 `apps/web/lib/svg-png.ts`；图片主题与换行统一在 `packages/domain/src/image-layout.ts`，工资结算修改共享 `employee-settlement-image.ts`，个人日结的页面／图片展示内容统一修改 `employee-closing-template.ts`，图片布局修改 `employee-closing-image.ts`，页面结构在 `employee-closing-statement.tsx`；同步检查对应 domain、Web `lib/*-image.test.ts` 与 Mac 代理 `test/settlement-render.test.ts`／`test/render.test.ts`。核对对象与日期、主要收入、来源汇总、时间顺序明细，以及精确金额、长文字、未知／零值和待结账提示；区间保留每天总结最左及长图容量边界，个人日结核对两列记工卡、三列来源表、现金／刷卡／礼卡付款标记、高亮／折扣／加项、旧快照兼容、固定源宽和 Web 分享／下载适配。保留原因：Web 与代理使用不同图片转换环境，网页 CSS 检查不能覆盖附件阅读顺序和完整账目。
-- 保留 loading、重复点击保护和 409 核对；前端不另算最终财务或持久缓存业务响应。保留原因：等待状态、失败恢复和账目真相不能因清理丢失。
-- TypeScript workspace 继承未使用变量/参数检查；domain/contracts 测试放 `test/`，生产构建排除测试。保留原因：类型检查能发现局部死代码，构建产物不应混入测试入口。
+## Modify rules
 
-## 完成前验证
+- Interface changes synchronize the shared contract, Controller, Service, Web calls and [API document](API.md); formula changes first modify the domain functions and corresponding tests. Reason: Multiple callers must use the same input semantics and amount source.
+- Writes inherit existing permissions, object ownership, business day locks, versions, idempotency, audit/outbox and transactions, verifying good and failed paths. Reason: Refactoring does not make cross-store, duplicate requests, or half-bills valid writes.
+- Only descriptive forward migrations are appended to the database, and published migrations are not changed; `prisma migrate deploy` is used in production, and destructive changes are staged. Reason: Existing databases must be able to be replayed and upgraded according to the same history, and old containers must also be compatible with the transition schema.
+- Web refresh reuses `refresh-queue.ts`, and store cut/uninstall invalidates old results; calendar caching rules are subject to [Product Rules](../product/PRODUCT.md). Reason: There is a public implementation for isolating merge requests and expired responses, and repeatedly defining the cache invalidation range will cause conflicts.
+- Visual maintenance follows [UI Design](UI_DESIGN.md), style changes run `pnpm ui:check`, `pnpm ui:mobile`; member interaction changes run `pnpm --filter @massage-note/web exec vitest run app/manage/members-panel.test.tsx`. Reason: Variable sources, mobile cascading styles, and draft/conflict processes are covered by corresponding checks respectively; CI runs two style checks simultaneously, and code verification does not represent visual measurement.
+- Web SVG to PNG, canvas capacity limit and temporary URL recycling are unified in `apps/web/lib/svg-png.ts`; image themes and line breaks are unified in `packages/domain/src/image-layout.ts`, salary settlement modifications are shared in `employee-settlement-image.ts`, and the page/picture display content of individual daily statement is unified and modified `employee-closing-template.ts`, image layout modification `employee-closing-image.ts`, page structure in `employee-closing-statement.tsx`; synchronization check corresponding to domain, Web `lib/*-image.test.ts` and Mac agent `test/settlement-render.test.ts`/`test/render.test.ts`. Check objects and dates, main income, source summary, chronological details, as well as precise amounts, long text, unknown/zero values and pending settlement prompts; the interval retains the leftmost side of daily summary and long chart capacity boundary, individual daily statement checks two-column work record card, three-column source table, cash/swipe card/gift card payment mark, highlight/discount/add-on, old snapshot compatibility, fixed source width and Web sharing/download adaptation. Reason: Web and proxy use different image conversion environments, and web page CSS inspection cannot cover attachment reading order and complete accounting.
+- Loading, double-click protection, and 409 checks are retained; the front end does not count final financial or persistent cache business responses. Reason: Waiting states, failure recovery, and accounting truth cannot be lost through cleanup.
+- TypeScript workspace inherits unused variable/parameter checks; domain/contracts tests are placed in `test/`, and production builds exclude tests. Reason: Type checking can find local dead code, and build products should not be mixed into test entries.
 
-按改动选择必要验证，已通过且未受后续改动影响的检查不重复；默认仅代码、命令行/API 验证，用户在具体任务中要求时才使用浏览器。保留原因：这是用户的长期验证范围，减少重复开销。以下是开发阶段完整验证的参考命令，不是普通更新部署的串行前置清单；发布直接遵循 [默认更新部署流程](../operations/NAS_DEPLOYMENT.md#默认更新部署流程)。
+<a id="完成前验证"></a>
+
+## Verify before completion
+
+Select necessary verifications based on changes. Checks that have passed and are not affected by subsequent changes are not repeated; the default is only code and command line/API verification, and users will only use the browser when required in specific tasks. Reason: This is the user's long-term verification scope to reduce duplication overhead. The following is a reference command for complete verification during the development phase, not a serial pre-list for ordinary update deployment; follow directly for release [Default update deployment process](../operations/NAS_DEPLOYMENT.md#default-update-deployment-process).
 
 ```bash
 pnpm version:check
@@ -108,47 +126,67 @@ pnpm test:integration
 pnpm build
 ```
 
-文档整理也至少运行 `pnpm version:check`、`pnpm docs:check` 和 `git diff --check`。链接检查覆盖 Git 已跟踪和未忽略的新 Markdown 文件，检查行内链接、图片与引用式链接的本地文件/目录目标，跳过代码示例；外部 URL 与标题锚点不在此命令的校验范围。保留原因：版本和本地链接各有独立检查，文档中的行为声明还须有实现证据。若文档修改涉及命令、路由、契约、金额或部署事实，还要运行相应代码验证；正式发布遵循完整 [`RELEASE_CHECKLIST.md`](../operations/RELEASE_CHECKLIST.md)。
+Documentation also runs at least `pnpm version:check`, `pnpm docs:check` and `git diff --check`. Link checking covers new Markdown files that are tracked and not ignored by Git, checks local file/directory targets for inline links, images, and quoted links, and skips code examples; external URLs and title anchors are not verified by this command. Reason: Versions and local links are each independently checked, and behavioral statements in the documentation must have implementation evidence. If the document modification involves commands, routing, contracts, amounts or deployment facts, the corresponding code verification must be run; the official release follows the complete [`RELEASE_CHECKLIST.md`](../operations/RELEASE_CHECKLIST.md).
 
-CI 发布运行将完整验证与镜像构建并行，生产构建由镜像阶段覆盖，普通分支与 PR 继续单独构建；分支实测与阶段计时见 [NAS 手册](../operations/NAS_DEPLOYMENT.md)。保留原因：避免本地和 CI 再次引入相同源码的串行重复构建。
+Release CI runs full verification and image building in parallel; the image stage covers production builds, while ordinary branches and PRs retain their separate build. See the [NAS manual](../operations/NAS_DEPLOYMENT.md) for branch measurements and stage timing. Reason: avoid duplicate serial builds of the same source locally and in CI.
 
-## 版本同步位置
+<a id="版本同步位置"></a>
 
-修改与版本规则以 [AGENTS.md](../../AGENTS.md) 为准。以下同步清单的保留原因：`scripts/check-version.mjs` 会逐项校验它们。
+## Version synchronization location
 
-- 根目录 `VERSION`、根目录及所有 workspace 的 `package.json`。
-- `CHANGELOG.md`、`Dockerfile` 的 `APP_VERSION`。
-- `docker-compose.nas.yml` 和 `.env.nas.example` 的镜像标签。
-- README、当前产品、API、架构、开发、接管及 NAS 文档的版本标记。
+Modification and version rules are subject to [AGENTS.md](../../AGENTS.md). Reason: `scripts/check-version.mjs` for the following sync manifest will verify them item by item.
 
-已发布镜像不覆盖旧版本标签。保留原因：生产升级和回滚须定位可追溯的固定产物。
+- Root directory `VERSION`, root directory and `package.json` of all workspaces.
+- `CHANGELOG.md`, `Dockerfile` of `APP_VERSION`.
+- Image tags for `docker-compose.nas.yml` and `.env.nas.example`.
+- English `README.md`, Chinese `README.zh-CN.md`, version tags for current product, API, architecture, development, handoff and NAS documentation.
 
-## 文档分工
+Published images do not overwrite old version tags. Reason: Production upgrades and rollbacks must locate traceable fixed products.
 
-| 内容 | 维护位置 |
+<a id="文档分工"></a>
+
+## Document division of labor
+
+| Content | Maintenance location |
 | --- | --- |
-| 产品范围、权限、金额定义 | `docs/product/PRODUCT.md` |
-| 当前模块与数据流 | `docs/engineering/ARCHITECTURE.md` |
-| HTTP 接口 | `docs/engineering/API.md` |
-| 本地开发与验证 | `docs/engineering/DEVELOPMENT.md` |
-| 普通/NAS 部署 | `docs/operations/DEPLOYMENT.md`、`docs/operations/NAS_DEPLOYMENT.md` |
-| 备份与故障处理 | `docs/operations/OPERATIONS.md` |
-| Mac“信息”代理安装与排障 | `docs/operations/MESSAGES_AGENT.md` |
-| 安全边界 | `docs/operations/SECURITY.md` |
-| 已发布变化 | `CHANGELOG.md` |
+| Overview of external projects | Default English `README.md` and Chinese `README.zh-CN.md`, mutual links at the top |
+| Product scope, authority, amount definition | `docs/product/PRODUCT.md` |
+| Current modules and data flows | `docs/engineering/ARCHITECTURE.md` |
+| HTTP interface | `docs/engineering/API.md` |
+| Local development and verification | `docs/engineering/DEVELOPMENT.md` |
+| Normal/NAS deployment | `docs/operations/DEPLOYMENT.md`, `docs/operations/NAS_DEPLOYMENT.md` |
+| Backup and Troubleshooting | `docs/operations/OPERATIONS.md` |
+| Mac Messages agent installation and troubleshooting | `docs/operations/MESSAGES_AGENT.md` |
+| Security Boundary | `docs/operations/SECURITY.md` |
+| Published changes | `CHANGELOG.md` |
 
-不要把一次性容器 ID、PID、临时 tunnel、真实域名凭据或逐日开发流水写入当前文档。历史设计需要保留时移到 `docs/archive/`，并明确标为归档。保留原因：当前手册应可重复执行，临时标识与旧计划不是维护规则。
+Don't include disposable container IDs, PIDs, temporary tunnels, real domain credentials, or daily development turnover in current documentation. Historical designs that need to be preserved are moved to `docs/archive/` and explicitly marked as archives. Reason: The current manual should be repeatable, temporary identification and old plans are not maintenance rules.
 
-## 修改后的本地测试服务
+<a id="documentation-language--文档语言"></a>
 
-每次完成任何项目改动，包括代码、配置和文档，都要重新运行 `pnpm dev`，保持 Web 使用 `http://localhost:3000`，通过命令行确认就绪供用户测试，默认不打开浏览器。先检查 3000/4000 端口的进程归属，只重启本项目服务；端口被其他项目占用时不得擅自终止或改用其他端口。确认 Web 可访问以及 API `/api/v1/health/ready` 就绪后，保持开发进程运行。保留原因：用户测试须访问本次代码，固定端口和进程归属可避免影响其他项目；该要求不授予 NAS 部署权限。
+### Documentation language / Documentation language
 
-## 改动交接
 
-- 报告修改模块、实际验证结果、尚未验证的外部依赖和必要的迁移边界。保留原因：本地验证不等于生产或外部平台验收。
-- 提交前检查 `git status --short` 和 `git diff`，只处理本次任务文件。保留原因：同一工作区可能同时承载其他未提交任务。
-- 发布授权与 NAS 提醒遵循 [AGENTS.md](../../AGENTS.md)。保留原因：避免在各文档复制不同发布授权规则。
+All documentation follows the English-first bilingual policy in [AGENTS.md](../../AGENTS.md). New documents and content updates must include both English and Chinese, with synchronized capabilities, architecture, commands, and implementation references. Use the English document as the default entry point; paired files must link to each other prominently at the top, or place English before Chinese in a shared document. Reason: external portfolio reviewers need an English entry point, and Chinese readers need an equivalent, current version.
 
-## LangBot 插件目录
+<a id="修改后的本地测试服务"></a>
 
-插件源码与后端在同一仓库维护，入口见 [插件开发指南](../../integrations/langbot-plugin/DEVELOPMENT.md)。安装包输出到插件的 `dist/`，旧包保留在 `dist/archive/`；LangBot 的运行数据位于工作区兄弟仓库的 `langbot-local/docker/data/`，不作为源码修改。
+## Modified local test service
+
+Every time you complete any project changes, including code, configuration and documentation, you must re-run `pnpm dev`, keep using `http://localhost:3000` for the Web, confirm readiness through the command line for user testing, and do not open the browser by default. First check the process ownership of port 3000/4000, and only restart the service of this project; when the port is occupied by other projects, it is not allowed to terminate or use other ports without authorization. After confirming that the web is accessible and the API `/api/v1/health/ready` is ready, keep the development process running. Reason: User testing must access this code, and fixed port and process ownership can avoid affecting other projects; this requirement does not grant NAS deployment permissions.
+
+<a id="改动交接"></a>
+
+## Change handover
+
+- Report modified modules, actual verification results, unverified external dependencies and necessary migration boundaries. Reason: Local validation does not equal production or external platform acceptance.
+- Check `git status --short` and `git diff` before submitting, and only process files for this task. Reason: The same workspace may be hosting other uncommitted tasks at the same time.
+- Release authorization and NAS reminders follow [AGENTS.md](../../AGENTS.md). Reason: Avoid duplicating different publishing authorization rules across documents.
+
+<a id="langbot-插件目录"></a>
+
+## LangBot plug-in directory
+
+The plug-in source code and backend are maintained in the same repository. For the entrance, see [Plug-in Development Guide](../../integrations/langbot-plugin/DEVELOPMENT.md). The installation package is output to the plug-in's `dist/`, and the old package is retained in `dist/archive/`; LangBot's running data is located in the `langbot-local/docker/data/` of the workspace brother repository and is not modified as source code.
+
+Documentation uses paired `.md` (English default) and `.zh-CN.md` files, except the plugin’s established `readme/README_zh_Hans.md`. `pnpm docs:check` validates local file links, reciprocal language links within the first eight lines, English/Chinese prose, heading structure, and matching executable examples. It skips prose inside code examples and allows translated `text`/`mermaid` diagrams. It cannot prove translation equivalence or validate external URLs/heading anchors; review those when editing. Reason: structural checks catch missing editions and obvious drift, while technical meaning still needs human review.

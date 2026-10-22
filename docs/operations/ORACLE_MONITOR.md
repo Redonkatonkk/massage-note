@@ -1,33 +1,45 @@
-# NAS 上的 Oracle 免费实例监控
+<a id="nas-上的-oracle-免费实例监控"></a>
 
-## 范围与当前状态
+# Oracle Free Instance Monitoring on NAS
 
-独立运行器位于 [`scripts/oracle-monitor`](../../scripts/oracle-monitor/)，只在 `us-ashburn-1` 查询和申请 **2 OCPU / 12GB** 的 `VM.Standard.A1.Flex`。它不更新 NAS 的 `mn` 应用、数据库、备份任务或 DNS，也不自动部署应用到新实例。保留原因：得到云主机、迁移业务和切换正式入口是不同阶段；旧、新数据库不能同时接收生产写入。
+**English** | **[简体中文](ORACLE_MONITOR.zh-CN.md)**
 
-**已启用，最后验收于 2026-10-19（America/New_York）**：NAS 容器运行 `mn-oracle-monitor:1.32.11`，健康检查为 `healthy`。更正后的后台检查时间为 `2026-10-19T15:06:47Z`，状态 `waiting`、创建尝试 0 次、连续错误 0 次；实际预检仅向三个可用区查询 2 OCPU / 12GB，均无容量。此前 NAS 测试邮件已确认进入收件箱，一次性更新任务已删除。保留原因：记录实际请求规格与 NAS 运行证据，避免本地修正后后台继续使用旧版降配逻辑。
+<a id="范围与当前状态"></a>
 
-本次未取得云实例，应用仍由现有 NAS 提供服务。后续状态以受限目录 `state/state.json` 和容器健康检查为准。保留原因：容量会变化，部署记录不能代替实时状态；实例获取成功也不代表业务迁移完成。
+## Scope and current status
 
-## 执行和费用边界
+The standalone runner is located at [`scripts/oracle-monitor`](../../scripts/oracle-monitor/), only in `us-ashburn-1` Inquiries and applications **2 OCPU / 12GB** of `VM.Standard.A1.Flex`. It does not update the NAS `mn` applications, databases, backup tasks, or DNS, nor automatically deploy applications to new instances. Reason: Obtaining the cloud host, migrating the business and switching the official entrance are different stages; the old and new databases cannot receive production writes at the same time.
 
-- 常态每 300 秒查询三个可用区，只检查并申请 2 OCPU / 12GB，不降配；无库存不发邮件。API 临时失败和限流逐步退避到一小时，认证或配置错误暂停申请。保留原因：用户只授权这一配置；查询信号不是资源预留，频繁失败不能触发高频创建。
-- 单一容器、文件锁、固定监控标签、持久状态和 OCI 重试令牌共同防止重复创建。网络超时后复用原令牌并查回实例；超过 20 小时仍无法确认结果时暂停。保留原因：创建响应丢失不等于创建失败，不能换令牌再创建一台。
-- 创建前读取整个租户可见分区中的实例及磁盘，包含已停止实例和未删除磁盘；总量不得超过 2 A1 OCPU、12GB 内存及 200GB 启动盘/块存储，新实例固定使用 50GB 启动盘。有其他机型或无法完整读取资源时停止，不假设空闲。保留原因：免费额度按实际资源累计，而不是每个进程或运行中实例分别计算。
-- 只使用明确配置的 Ubuntu 24.04 ARM 官方平台镜像与预建公网子网；不申请其他机型、专属主机、预留容量、额外磁盘或升级付费账户。Oracle 的免费政策和最终账单仍以账户当时规则为准。保留原因：脚本限制不能替代供应商额度或把试用金误当长期免费。
-- 创建成功以实例 `RUNNING` 且已取得公网 IP 为准，随后停止调用创建 API。邮件失败只重试通知，不重新创建。保留原因：请求被接受、实例已就绪及邮件送达是不同证据。
+**Enabled, last accepted on 2026-10-19 (America/New_York)**: The NAS container runs `mn-oracle-monitor:1.32.11` with a health check of `healthy`. The corrected background check time is `2026-10-19T15:06:47Z`, status `waiting`, 0 creation attempts, and 0 consecutive errors; the actual precheck only queries three availability zones for 2 OCPU / 12GB, none of which has capacity. The previous NAS test email has been confirmed to be in the inbox, and the one-time update task has been deleted. Reason: Record the actual request specifications and NAS operation evidence to avoid continuing to use the old version of downgrade logic in the background after local correction.
 
-## 身份、安装与验收
+No cloud instance was obtained this time, and the application is still served by the existing NAS. Subsequent status is subject to the restricted directory `state/state.json` and container health check. Reason: Capacity will change, and deployment records cannot replace real-time status; successful instance acquisition does not mean that business migration is completed.
 
-1. 为监控建立独立身份与分组，把创建权限限制在独立分区；只授予容量报告、全租户资源读取、目标分区实例创建、指定网络使用及平台镜像读取能力，不授予计费管理、身份管理或实例删除能力。保留原因：长期保存于 NAS 的签名密钥不应使用账号所有者权限。
-2. API 签名密钥保存在受限的 `config/api-key.pem`；实例 SSH 私钥继续只保存在 Mac，运行器仅需 SSH 公钥。两者不能混用。保留原因：API 签名和服务器登录是不同凭证，后台申请无需获得服务器登录私钥。
-3. 将 Compose、配置、SSH 公钥及离线镜像放到 `/volume1/docker/massage-note-oracle-monitor`。安装器从现有 SMTP 密码文件读取 UID/GID，写入私有 `.env`，让容器及配置/状态文件使用同一身份；目录为 `0700`，凭据文件为 `0600`。只读挂载现有备份的 Gmail 应用密码，不挂载业务数据或 Docker socket，不发布任何 NAS 入站端口。保留原因：移除全部 capabilities 后，容器不能越过其他文件所有者的权限；使用密码文件的原所有者即可读取凭据，无需复制密码或放宽权限。
-4. 核对镜像摘要及归档 SHA-256，执行 [`install.sh`](../../scripts/oracle-monitor/install.sh)，它只加载镜像并检查资源/容量。只有该检查成功、NAS 发出的测试邮件被收件确认后，创建 `config/enabled` 并执行 `docker compose -f compose.yml up -d`。保留原因：凭据存在、SMTP 接受或容器启动不能单独证明监控链路可用。
-5. 创建成功或认证/配置异常时，使用现有备份通知邮箱发送单次邮件；记录 SMTP 接受状态和受限运行报告。邮件包含区域、CPU/内存、实例 ID、IP、实例创建时间和控制台入口，不包含密钥。保留原因：用户需要知道何时可以继续部署，日志与邮件不能携带凭据。
+<a id="执行和费用边界"></a>
 
-程序使用 Oracle 官方 Python SDK，固定依赖见 [`requirements.txt`](../../scripts/oracle-monitor/requirements.txt)。部署容器使用只读根文件系统、256MB 内存上限、无 Linux capabilities 和有上限的日志。保留原因：后台容量检查不需要业务级资源或宿主权限。
+## Execution and cost boundaries
 
-## 暂停与排障
+- Normally, three availability zones are queried every 300 seconds, and only 2 OCPU/12GB are checked and applied for without downgrading; no email is sent if there is no inventory. Temporary API failures and current throttling will be gradually backed off to one hour, and applications will be suspended due to authentication or configuration errors. Reason: The user only authorizes this configuration; query signals are not resource reservations, and frequent failures cannot trigger high-frequency creation.
+- Single containers, file locks, fixed monitoring tags, persistent state, and OCI retry tokens work together to prevent duplicate creation. After the network times out, the original token is reused and the instance is retrieved; it is paused if the result cannot be confirmed after more than 20 hours. Reason: The loss of the creation response does not mean that the creation failed. You cannot change the token and create another one.
+- Read the instances and disks in the entire tenant visible partition before creation, including stopped instances and undeleted disks; the total amount must not exceed 2 A1 OCPU, 12GB memory, and 200GB startup disk/block storage. New instances use a fixed 50GB startup disk. Stop when there are other models or the resource cannot be read completely, and idleness is not assumed. Reason: Free credits are accumulated based on actual resources, rather than calculated separately for each process or running instance.
+- Only use the explicitly configured Ubuntu 24.04 ARM official platform image and pre-built public network subnet; do not apply for other models, dedicated hosts, reserved capacity, additional disks or upgrade paid accounts. Oracle's free policy and final bill are still subject to the account's then-current rules. Reason: Script limits do not replace vendor credits or mistake trial credits for long-term free use.
+- The successful creation is subject to the instance `RUNNING` and the public IP has been obtained, and then stop calling the creation API. If the email fails, only the notification will be retried and not re-created. Reason: The request is accepted, the instance is ready, and the email is delivered are different evidences.
 
-在该目录执行 `docker compose -f compose.yml stop` 暂停；不要删除持久状态或改监控标签后盲目重启。恢复前核对 `state/state.json`、Oracle 实际资源及原请求令牌；终止实例或删除磁盘属于单独操作。保留原因：状态文件是防重复创建证据，停止监控不等于释放已分配的云资源。
+<a id="身份安装与验收"></a>
 
-NAS 完全断网或停止运行时不能查询或发信；SMTP 接受也不保证邮件一定进入收件箱，应检查垃圾邮件。此工具不承诺库存、获取时限、永久保留实例或保证未来费用政策不变。保留原因：后台轮询不提供 Oracle 容量保证，也不构成独立的 NAS 存活监控。
+## Identity, installation and acceptance
+
+1. Establish independent identities and groups for monitoring, and limit creation permissions to independent partitions; only capacity reporting, full-tenant resource reading, target partition instance creation, designated network usage, and platform image reading capabilities are granted, and billing management, identity management, or instance deletion capabilities are not granted. Reason: Signing keys stored long-term on the NAS should not use account owner permissions.
+2. API signing keys are stored in the restricted `config/api-key.pem`; instance SSH private keys continue to be stored only on Mac, and the runner only requires the SSH public key. The two cannot be mixed. Reason: API signature and server login are different credentials, and background application does not require obtaining the server login private key.
+3. Put Compose, configuration, SSH public key and offline image into `/volume1/docker/massage-note-oracle-monitor`. The installer reads the UID/GID from the existing SMTP password file and writes it into a private `.env` so that the container and config/state files use the same identity; the directory is `0700` and the credentials file is `0600`. Read-only mounts the existing backed-up Gmail application password, does not mount business data or Docker sockets, and does not publish any NAS inbound ports. Reason: After removing all capabilities, the container cannot override the permissions of other file owners; the original owner of the password file can read the credentials without copying the password or relaxing permissions.
+4. Check image digest and archive SHA-256, execute [`install.sh`](../../scripts/oracle-monitor/install.sh), which only loads the image and checks resources/capacity. Only if the check is successful and the test email sent by the NAS is received and confirmed, create `config/enabled` and execute `docker compose -f compose.yml up -d`. Reason: The presence of credentials, SMTP acceptance, or container startup alone do not prove that the monitoring link is available.
+5. When creation is successful or authentication/configuration exception occurs, a single email is sent using the existing backup notification mailbox; SMTP acceptance status and restricted run reports are recorded. The email contains region, CPU/memory, instance ID, IP, instance creation time, and console entry, but does not include the key. Reason: Users need to know when they can proceed with deployment, logs and emails cannot carry credentials.
+
+The program uses Oracle's official Python SDK. For fixed dependencies, see [`requirements.txt`](../../scripts/oracle-monitor/requirements.txt). Deploy containers with a read-only root file system, a 256MB memory limit, no Linux capabilities, and capped logs. Reason: Background capacity checks do not require business-level resources or host permissions.
+
+<a id="暂停与排障"></a>
+
+## Pause and Troubleshooting
+
+Execute `docker compose -f compose.yml stop` in this directory to pause; do not delete the persistent state or change the monitoring label and then blindly restart. Check `state/state.json`, the actual Oracle resources and the original request token before restoring; terminating the instance or deleting the disk is a separate operation. Reason: The status file is proof against repeated creation. Stopping monitoring does not mean releasing the allocated cloud resources.
+
+When the NAS is completely disconnected or stops running, it cannot query or send emails; SMTP acceptance does not guarantee that emails will definitely enter the inbox, so spam should be checked. This tool does not promise inventory, acquisition timelines, permanent reservation of instances, or guarantees of future fee policies. Reason: Background polling does not provide Oracle capacity guarantees and does not constitute independent NAS liveness monitoring.

@@ -9,9 +9,9 @@ export type ChartPoint = { label: string; value: number | null; secondary?: numb
 
 export type ChartSeries = { id: string; label?: string; color: string; dash?: string; values: (number | null)[] };
 
-export function Chart({ title, description, points, bars = false, horizontalBars = false, currency = false, legend, series, controls, className = "" }: {
+export function Chart({ title, description, points, bars = false, horizontalBars = false, currency = false, legend, series, controls, className = "", fitToData = false, scrollLabel }: {
   title: string; description: string; points: ChartPoint[]; bars?: boolean; currency?: boolean; legend?: string | undefined;
-  series?: ChartSeries[]; controls?: ReactNode; className?: string; horizontalBars?: boolean;
+  series?: ChartSeries[]; controls?: ReactNode; className?: string; horizontalBars?: boolean; fitToData?: boolean; scrollLabel?: string;
 }) {
   const { locale } = useLanguage();
   const en = locale === "en-US";
@@ -49,29 +49,42 @@ export function Chart({ title, description, points, bars = false, horizontalBars
   const categoryWidth = Math.max(60, ...points.map(point => (point.label.length === 10 ? 5 : point.label.length) * 9 + 16));
   const groupWidth = Math.max(categoryWidth, groupedBars ? curves.length * valueWidth + 16 : valueWidth);
   const width = bars ? Math.max(plotWidth, points.length * groupWidth + 85) : plotWidth;
-  const left = 65, right = width - 20;
-  const seriesSlot = (right - left) / Math.max(1, points.length * curves.length);
+  let minimum = Infinity;
+  let peak: { curve: ChartSeries; index: number; value: number } | null = null;
+  if (fitToData && !bars) {
+    for (const curve of curves) for (const [index, value] of curve.values.entries()) {
+      if (value == null || !Number.isFinite(value)) continue;
+      minimum = Math.min(minimum, value);
+      if (peak === null || value > peak.value) peak = { curve, index, value };
+    }
+  }
   const max = bars && !groupedBars ? points.reduce((max, point) => Math.max(max, (point.value ?? 0) + (point.lostCount ?? 0)), 1)
     : curves.reduce((max, curve) => curve.values.reduce<number>((max, value) => Math.max(max, value ?? 0), max), 1);
   const min = curves.reduce((min, curve) => curve.values.reduce<number>((min, value) => Math.min(min, value ?? 0), min), 0);
   const height = bars ? 310 : 270;
   const bottom = bars ? 250 : 225, top = bars ? 44 : 20;
-  const floor = currency ? Math.floor(min / 5) * 5 : Math.floor(min);
-  const ceiling = currency ? Math.ceil(max / 5) * 5 : Math.max(4, Math.ceil(max / 4) * 4);
+  const floor = peak ? minimum : currency ? Math.floor(min / 5) * 5 : Math.floor(min);
+  // A single value or flat series still needs a nonzero plotting span.
+  const ceiling = peak ? (peak.value > minimum ? peak.value : minimum + Math.max(1, Math.abs(minimum) * .05))
+    : currency ? Math.ceil(max / 5) * 5 : Math.max(4, Math.ceil(max / 4) * 4);
+  const left = peak ? Math.max(65, Math.max(label(floor).length, label(ceiling).length) * 7 + 12) : 65;
+  const right = width - 20;
+  const seriesSlot = (right - left) / Math.max(1, points.length * curves.length);
   const x = (i: number) => left + (i + .5) * (right - left) / Math.max(1, points.length);
   const y = (value: number) => bottom - (value - floor) / (ceiling - floor) * (bottom - top);
   const labelCount = Math.min(points.length, Math.max(2, Math.floor((right - left) / 75)));
   const labelIndices = new Set(Array.from({ length: labelCount }, (_, index) => Math.round(index * (points.length - 1) / Math.max(1, labelCount - 1))));
-  return <section className={`analytics-card ${className}`.trim()}>
+  const tickCount = peak && currency ? Math.min(5, Math.max(2, Math.round((ceiling - floor) * 100) + 1)) : 5;
+  return <section className={`analytics-card ${className}`.trim()} aria-label={scrollLabel} tabIndex={scrollLabel ? 0 : undefined}>
     <h2>{title}</h2><p className="analytics-description">{description}</p>
     {legend && <p className="analytics-legend">{legend}</p>}
     {controls}
     {points.length === 0 && <p className="empty-state">{en ? "No service records in this range." : "当前范围没有记工。"}</p>}
     <div className={horizontalBars ? "analytics-plot analytics-horizontal-bars" : bars ? "analytics-scroll" : "analytics-plot"} ref={plot} tabIndex={0} aria-label={title}>
       {horizontalBars ? <AnalyticsHorizontalBars points={points} series={curves} width={plotWidth} valueWidth={valueWidth} label={label} selected={revenueSelection} inspect={point => setSelected(point.label)} activate={activate} /> : <svg width={bars ? width : "100%"} height={height} viewBox={`0 0 ${width} ${height}`} aria-label={title}>
-        {Array.from({ length: 5 }, (_, i) => { const value = floor + (ceiling - floor) * i / 4; return <g key={i}>
+        {Array.from({ length: tickCount }, (_, i) => { const value = floor + (ceiling - floor) * i / (tickCount - 1); return <g key={i}>
           <line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="var(--line)" />
-          <text x={left - 8} y={y(value) + 4} textAnchor="end">{currency ? `$${Math.round(value)}` : value}</text>
+          <text className="analytics-y-label" x={left - 8} y={y(value) + 4} textAnchor="end">{peak ? label(value) : currency ? `$${Math.round(value)}` : value}</text>
         </g>; })}
         {!bars && curves.map(curve => <path key={curve.id} data-series={curve.id} d={smoothChartPath(curve.values, x, y)} fill="none" stroke={curve.color} strokeWidth="2.5" strokeDasharray={curve.dash} />)}
         {groupedBars && <line className="analytics-zero-line" x1={left} x2={right} y1={y(0)} y2={y(0)} stroke="var(--muted)" />}
@@ -100,8 +113,10 @@ export function Chart({ title, description, points, bars = false, horizontalBars
           <rect className="analytics-hit" x={x(i) - (right - left) / points.length / 2} y={top} width={(right - left) / points.length} height={bottom - top + (point.dailyRevenueDetails !== undefined ? (bars ? 55 : 35) : 0)} fill="transparent" tabIndex={0} role="button" aria-label={point.detail} aria-pressed={point.dailyRevenueDetails !== undefined ? revenueSelection === point.label : undefined}
             onMouseEnter={() => setSelected(point.label)} onFocus={() => setSelected(point.label)} onClick={() => activate(point)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(point); } }}><title>{point.detail}</title></rect>
         </g>)}
+        {peak && <circle className="analytics-peak-point" data-series={peak.curve.id} cx={x(peak.index)} cy={y(peak.value)} r="5" fill="var(--surface)" stroke={peak.curve.color} strokeWidth="2.5" pointerEvents="none" aria-hidden="true" />}
       </svg>}
     </div>
+    {peak && <p className="analytics-description analytics-peak" role="status">{en ? "Highest average revenue" : "最高平均营业额"} <strong>{label(peak.value)}</strong> · {points[peak.index]?.label} · {peak.curve.label}</p>}
     <p className="analytics-readout" aria-live="polite">{selectedPoint ? selectedPoint.detail : en ? "Tap or focus a point to see its value." : "点击或聚焦图中位置查看具体数值。"}</p>
     {points.some(point => point.dailyDetails !== undefined) ? <details className="hourly-details">
       <summary>{en ? "Selected hour record details" : "我选择的时段记工明细"}<span>{en ? "Dates with service starts only" : "仅显示有上工的日期"}</span></summary>

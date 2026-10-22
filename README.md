@@ -1,69 +1,154 @@
-# Massage note
+# Massage Note
 
-当前版本：`1.32.14`
+**English** | **[简体中文 · 中文说明](README.zh-CN.md)**
 
-面向美国按摩店的中英文记工与财务管理 Web 应用，支持手机、iPad 和电脑。系统覆盖多店成员、今日记工、礼物卡、提成、确定性财务、日结、现金与工资结算、审计、实时同步和带确认预览的 AI 助手。
+[![CI](https://github.com/Redonkatonkk/massage-note/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Redonkatonkk/massage-note/actions/workflows/ci.yml)
 
-## 快速导航
+Current version: `1.34.1`
 
-- 想了解业务：[`docs/product/PRODUCT.md`](docs/product/PRODUCT.md)
-- 想看代码框架：[`docs/engineering/ARCHITECTURE.md`](docs/engineering/ARCHITECTURE.md)
-- 准备本地开发：[`docs/engineering/DEVELOPMENT.md`](docs/engineering/DEVELOPMENT.md)
-- 学习项目审美与维护 UI：[UI 设计与审美准则](docs/engineering/UI_DESIGN.md)
-- 准备部署或排障：[`docs/operations/NAS_DEPLOYMENT.md`](docs/operations/NAS_DEPLOYMENT.md)、[`docs/operations/OPERATIONS.md`](docs/operations/OPERATIONS.md)
-- 查全部文档：[`docs/README.md`](docs/README.md)
-- 让 AI 接管维护：[`docs/engineering/AI_HANDOFF.md`](docs/engineering/AI_HANDOFF.md)
+A full-stack TypeScript application for massage shop operations in the United States, with an English/Chinese interface for phones, tablets, and desktops. It connects service records, split payments, employee commissions, daily closing, payroll tracking, and business analytics in one auditable workflow.
 
-## 当前能力
+**[Engineering highlights](#engineering-highlights)** · **[Architecture](#architecture)** · **[Run locally](#run-locally)** · **[Explore the code](#explore-the-code)** · **[Documentation](#documentation)**
 
-- Firebase 美国手机号验证、密码登录和服务端 `HttpOnly` 会话，生产环境硬性关闭开发登录。
-- Owner、Manager、Employee 多角色与多店隔离，支持待认领员工、加入审批和店主原子转移。
-- 多时长主要项目、额外项目、折扣、四级提成优先级和历史快照。
-- 今日/历史营业日记工、整卡 X 占位、待日结日期标记日历、混合付款、礼物卡销售与使用、跑客记录、软删除恢复和多设备 SSE 同步；占位只保留卡片位置，不计服务和财务。
-- 可按店铺开启每日开门排位，根据全职/兼职与最近一次实际出勤顺序生成当天员工排名，不干预逐笔记工。
-- 整数美分确定性计算，覆盖折扣、工资、日结、现金结算、工资账本和财务 CSV。
-- 中英文响应式 UI、断网说明、短期本地草稿、个人日结 PNG，以及通过固定 Mac“信息”代理发送员工小结。
-- MiniMax 记工/财务助手支持同一会话连续追问，并提供短录音转写；写入必须先预览再确认，AI 未配置时核心流程照常可用。保留原因：现有 AI 只产生候选参数，不拥有自主写账权限。
-- Docker Compose、GHCR/NAS 镜像、数据库账号加固、Redis 限流、备份恢复脚本和 CI。
+<a id="解决的问题"></a>
 
-## 仓库结构
+## The problem
+
+A single service can combine a discount, an add-on, cash, a card payment, a gift card, and a tip. Employee earnings must remain explainable when prices or commission rules change later. Massage Note keeps the original service and pricing snapshots, separates earned income from actual payroll payments, and checks permissions and financial rules on the server.
+
+<a id="当前能力"></a>
+
+## What it does
+
+- **Daily operations:** today and historical work boards, employee attendance and opening order, service durations, add-ons, discounts, payment confirmation, and recoverable deletion.
+- **Financial workflows:** cash/card/gift-card splits, commissions, daily closing, cash settlement, employee payroll ledgers, date-range statements, monthly financial comparisons, and CSV exports.
+- **Business analytics:** revenue trends, weekday comparisons, service activity heatmaps, recurring expenses, and one-time expenses.
+- **Multiple stores and roles:** Owner, Manager, and Employee access, membership approval, store switching, and employee-specific financial visibility.
+- **Bilingual access across devices:** responsive English/Chinese screens, live change notifications, temporary form drafts, and downloadable employee statement images.
+- **Optional integrations:** a MiniMax text/voice assistant, a LangBot WeChat work-record plugin, and a macOS Messages agent for employee statements. Core manual workflows remain available without an AI provider.
+
+<a id="工程重点"></a>
+
+## Engineering highlights
+
+| Concern | Implementation |
+| --- | --- |
+| Financial correctness | Integer-cent calculations in pure domain functions, database constraints, and saved price/commission snapshots preserve historical calculations. |
+| Concurrent edits and closing | Transaction-scoped PostgreSQL advisory locks coordinate business-day writes; resource versions detect stale edits, and idempotency keys protect critical operations from replay. |
+| Traceable state changes | Business data, audit records, and outbox events are written in the same transaction. Soft deletion preserves a recovery path. |
+| Store and employee isolation | API services check active membership, role, store scope, and object ownership. Integration tests exercise access boundaries. |
+| Reliable synchronization | SSE events tell clients to refetch authoritative REST data. Refreshes are coalesced, and stale requests are discarded after store changes or unmounting. |
+| Controlled AI writes | The web assistant produces a server-stored preview. Confirmation rechecks authorization and consumes the preview once; financial totals come from deterministic queries. |
+| Deployment and recovery | CI verifies the code and builds a NAS image in parallel, then promotes the same image digest to immutable version tags. Compose, database account hardening, backup, and recovery tooling are included. |
+
+<a id="系统架构"></a>
+
+## Architecture
+
+A pnpm workspace organized as a modular monolith, with separate web/API applications and shared domain, contract, and persistence packages.
+
+```mermaid
+flowchart LR
+    Web["Next.js / React"] -->|REST| API["NestJS API"]
+    API --> Domain["Pure TypeScript domain rules"]
+    API --> DB[("PostgreSQL / Prisma")]
+    API --> Redis["Redis rate limiting"]
+    API --> Auth["Firebase Auth"]
+    API --> AI["MiniMax · optional"]
+    API -->|SSE change notifications| Web
+    Agent["macOS Messages agent · optional"] -->|HTTPS polling| API
+    Bot["LangBot / WeChat · optional"] -->|Scoped integration API| API
+```
+
+PostgreSQL is the source of truth. SSE carries change notifications, and clients reload the relevant data through REST. The API owns authorization, transactions, and final financial calculations; the web app handles presentation and interaction. Shared Zod contracts validate inputs across application boundaries.
+
+| Layer | Technology |
+| --- | --- |
+| Web | Next.js 16, React 19, TypeScript, responsive CSS |
+| API | NestJS 11, REST, Server-Sent Events, Zod |
+| Persistence | PostgreSQL 17, Prisma, forward-only migrations |
+| Identity and request controls | Firebase Auth, HttpOnly session cookies, CSRF/origin checks, Redis 8 rate limiting |
+| Verification | Vitest, React/jsdom component tests, database/API integration tests, repository checks |
+| Delivery | Node.js 24, pnpm 11, Docker Compose, GitHub Actions, GHCR, Synology NAS |
 
 ```text
 apps/
-  web/              Next.js Web 应用
-  api/              NestJS REST、SSE、认证与领域编排
-  messages-agent/   固定 Mac 上的附件渲染与“信息”发送代理
+  web/              Responsive bilingual UI and API client
+  api/              Authentication, authorization, REST, SSE, transactions
+  messages-agent/   Statement rendering and macOS Messages delivery
 packages/
-  domain/           金额、提成、营业日和权限纯函数
-  contracts/        前后端共享 Zod 契约
-  database/         Prisma schema、迁移和数据库测试
+  domain/           Pure financial, commission, date, and permission rules
+  contracts/        Shared Zod schemas and TypeScript types
+  database/         Prisma schema, migrations, and database tests
 integrations/
-  langbot-plugin/   微信记工机器人插件与独立测试
-docker/             生产数据库加固与 NAS 入口
-scripts/            测试库、版本、文档链接、备份、恢复和维护脚本
-docs/               当前文档与归档设计
+  langbot-plugin/   WeChat work-record integration and Python tests
+docker/             Database hardening and NAS startup
+scripts/            Verification, demo data, backup, and recovery tooling
+docs/               Product, engineering, operations, and archived decisions
 ```
 
-当前依赖方向、页面路由、API 模块和写入链路见 [`docs/engineering/ARCHITECTURE.md`](docs/engineering/ARCHITECTURE.md)。
+<a id="本地运行"></a>
 
-## 本地启动
+## Run locally
 
-需要 Node.js 24、pnpm 11 和 Docker Compose。保留原因：仓库包管理器、构建镜像和本地数据库入口按这些版本维护。
+Requires **Node.js 24**, **pnpm 11.9.0**, and **Docker with Compose**. Default local ports are 3000 (web), 4000 (API), 5432 (PostgreSQL), and 6379 (Redis).
 
 ```bash
+git clone https://github.com/Redonkatonkk/massage-note.git
+cd massage-note
 cp .env.example .env
 pnpm install
+```
+
+For a local demo without Firebase, set these values in `.env`:
+
+```dotenv
+NEXT_PUBLIC_DEV_AUTH_ENABLED=true
+DEV_AUTH_ENABLED=true
+DEV_AUTH_SECRET=replace-with-a-local-random-secret-at-least-32-characters
+```
+
+Generate your own secret with `openssl rand -hex 32`. Development login is disabled in production. Firebase is needed for normal phone/password authentication; MiniMax credentials are optional for the assistant.
+
+```bash
 pnpm docker:up
 pnpm db:generate
 pnpm db:deploy
+```
+
+For a **fresh local demo database**, optionally run `pnpm demo:seed`. This creates synthetic shop records with the fixed local demo phone number `7705750450`; it is an explicit setup step, not part of normal startup. Existing developer databases may contain authorized business snapshots and should be preserved; see the [development guide](docs/engineering/DEVELOPMENT.md#local-manual-test-data) before replacing local data.
+
+```bash
 pnpm dev
 ```
 
-Web 固定使用 `http://localhost:3000`，默认用命令行确认；API 就绪检查为 `http://localhost:4000/api/v1/health/ready`。本地无 Firebase 时可以显式启用开发登录，生产环境绝不能开启。保留原因：开发登录只用于本机演示，生产必须验证真实身份。
+Open **[localhost:3000](http://localhost:3000)**, select English with the language switcher, and use the development login with `7705750450` when using the demo seed. The seed uses Chinese sample names; the interface language can be switched independently.
 
-本地手工测试当前使用授权的线上备份快照，默认保留，不自动刷新演示数据；使用 `+1 (770) 575-0450` 和登录页的“使用此号码直接进入”查看导入的店铺。独立自动化测试仍使用 `massage_note_test`。只有明确需要合成演示场景时运行 `pnpm demo:seed`；替换与登录说明见 [`开发指南`](docs/engineering/DEVELOPMENT.md#本地手工测试数据)。保留原因：业务快照与演示种子需要明确区分，避免启动时混入另一套店铺和金额。
+Readiness can be checked from the command line:
 
-## 验证
+```bash
+curl --fail http://localhost:3000
+curl --fail http://localhost:4000/api/v1/health/ready
+```
+
+<a id="代码阅读入口"></a>
+
+## Explore the code
+
+| Start here | What to look for |
+| --- | --- |
+| [Domain rules](packages/domain/src) and [tests](packages/domain/test) | Integer-cent arithmetic, commission precedence, settlement rules, and business dates. |
+| [Shared contracts](packages/contracts/src) | Validated inputs shared between the web app and API. |
+| [Database schema](packages/database/prisma/schema.prisma) and [migrations](packages/database/prisma/migrations) | Financial snapshots, audit/outbox tables, constraints, and schema evolution. |
+| [Business-day locks](apps/api/src/common/business-day-lock.ts) and [idempotency service](apps/api/src/common/idempotency.service.ts) | Coordination of competing writes and repeated requests. |
+| [Finance integration tests](apps/api/test/finance.integration.test.ts) and [membership integration tests](apps/api/test/memberships.integration.test.ts) | Financial behavior and store/role access boundaries against a database. |
+| [Realtime API](apps/api/src/realtime) and [refresh queue](apps/web/lib/refresh-queue.ts) | Outbox-driven notifications and coordinated client refreshes. |
+| [AI module](apps/api/src/ai) | Conversation scope, deterministic queries, previews, and confirmed changes. |
+| [CI workflow](.github/workflows/ci.yml) | Verification, parallel image builds, and versioned image promotion. |
+
+<a id="验证"></a>
+
+## Verification
 
 ```bash
 pnpm version:check
@@ -74,19 +159,28 @@ pnpm test:integration
 pnpm build
 ```
 
-集成测试使用独立的 `massage_note_test`，不会清空开发主库。完整环境和修改流程见 [`docs/engineering/DEVELOPMENT.md`](docs/engineering/DEVELOPMENT.md)。
+Integration tests use a separate `massage_note_test` database. The suite covers domain rules, contracts, API behavior, database constraints, web helpers/components, and the Messages agent. The LangBot plugin has a separate Python suite: `python3 -m unittest discover -s integrations/langbot-plugin/tests -v`.
 
-以上为开发阶段的完整验证参考；普通更新部署直接按 [默认更新部署流程](docs/operations/NAS_DEPLOYMENT.md#默认更新部署流程) 使用本地预检与并行 CI，不把这些命令再串行重跑一遍。保留原因：开发验证与发布验证已有明确分工，重复执行会增加等待。
+These are the full development checks; select checks appropriate to each change. NAS releases follow the [deployment workflow](docs/operations/NAS_DEPLOYMENT.md#default-update-deployment-process), which reuses CI verification rather than repeating the full suite locally.
 
-## 部署与运维
+<a id="项目文档"></a>
 
-- 普通 Docker Compose：[`docs/operations/DEPLOYMENT.md`](docs/operations/DEPLOYMENT.md)
-- 群晖 Container Manager：[`docs/operations/NAS_DEPLOYMENT.md`](docs/operations/NAS_DEPLOYMENT.md)
-- 备份、恢复和排障：[`docs/operations/OPERATIONS.md`](docs/operations/OPERATIONS.md)
-- Mac“信息”发送代理：[`docs/operations/MESSAGES_AGENT.md`](docs/operations/MESSAGES_AGENT.md)
-- LangBot 微信记工机器人：[`docs/operations/LANGBOT_WORK_BOT.md`](docs/operations/LANGBOT_WORK_BOT.md)
-- 安全边界：[`docs/operations/SECURITY.md`](docs/operations/SECURITY.md)
-- 发布检查：[`docs/operations/RELEASE_CHECKLIST.md`](docs/operations/RELEASE_CHECKLIST.md)
-- 版本记录：[`CHANGELOG.md`](CHANGELOG.md)
+## Documentation
 
-生产配置、备份及恢复要求统一见 [安全说明](docs/operations/SECURITY.md) 和 [发布检查](docs/operations/RELEASE_CHECKLIST.md)。保留原因：入口页只负责导航，避免在这里复制另一套部署规矩。
+This README is the English project overview. Product, engineering, operations, recovery, plugin, and archived documentation is available in matching English and Chinese editions. English is the default; use the language link at the top of each document to switch.
+
+- **[中文 README](README.zh-CN.md)** — Chinese version of this overview.
+- [Documentation index](docs/README.md) — all current manuals and archived decisions.
+- [Product rules](docs/product/PRODUCT.md) — roles, workflows, and financial definitions.
+- [Architecture](docs/engineering/ARCHITECTURE.md) · [API reference](docs/engineering/API.md) · [Development guide](docs/engineering/DEVELOPMENT.md).
+- [UI design](docs/engineering/UI_DESIGN.md) — visual conventions and mobile reading order.
+- [Docker deployment](docs/operations/DEPLOYMENT.md) · [NAS deployment](docs/operations/NAS_DEPLOYMENT.md).
+- [Operations](docs/operations/OPERATIONS.md) · [Security](docs/operations/SECURITY.md) · [Release checklist](docs/operations/RELEASE_CHECKLIST.md).
+- [Messages agent](docs/operations/MESSAGES_AGENT.md) · [LangBot integration](docs/operations/LANGBOT_WORK_BOT.md).
+- [Maintainer handoff](docs/engineering/AI_HANDOFF.md) · [Changelog](CHANGELOG.md).
+
+<a id="实现范围"></a>
+
+## Scope
+
+Massage Note records shop operations and tracks earnings and payroll payments. Appointment scheduling, card processing, payroll tax calculation, and tax filing are outside the current implementation. Employee statement submission is tracked separately from confirmed delivery.

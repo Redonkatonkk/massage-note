@@ -1,52 +1,64 @@
-# 2026-10-04 全仓代码与文档整理
+<a id="2026-10-04-全仓代码与文档整理"></a>
 
-> 一次性检查记录：基于工作区 `1.18.3` 整理至 `1.18.4`。保留原因：记录扫描依据、清理及验证证据，方便追溯；本页不定义现行规则。
+# 2026-10-04 repository-wide code and document organization
 
-## 扫描范围与方法
+**English** | **[简体中文](CODE_CLEANUP_2026-10-04.zh-CN.md)**
 
-接手时已有 49 个修改文件和 10 个未忽略新文件。本轮以完整文件快照保留这些工作，扫描 Git 跟踪及未忽略的新文件，共 481 个文本文件、70,739 行：Web、API、Mac 代理、共享包、数据库 schema/39 个迁移、Python/Swift 集成、Docker、Shell/Node 脚本、CI、配置、SVG 及全部 26 份 Markdown。
+> One-time inspection record: based on workspace `1.18.3` organized to `1.18.4`. Reason: Record scanning basis, cleaning and verification evidence to facilitate traceability; this page does not define current rules.
 
-使用 TypeScript AST 扫描引用、未导入模块和完全相同的函数体；静态核对 CSS 类及动态 className；对照契约、领域函数、服务、现有测试和文档中的规则。无引用仅作为候选，框架动态入口与兼容字段需另行核对。依赖、生成文件、忽略的环境/运行数据不作为源码删除，也不输出真实凭据。本轮没有使用浏览器或子代理。
+<a id="扫描范围与方法"></a>
 
-## 已清理
+## Scan range and method
 
-| 项目 | 依据与处理 |
+At the time of taking over there were 49 modified files and 10 new files that had not been ignored. This round keeps this work as a full file snapshot, scanning Git traces and new files not ignored, totaling 481 text files, 70,739 lines: Web, API, Mac agent, shared package, database schema/39 migrations, Python/Swift integration, Docker, Shell/Node scripts, CI, configuration, SVG, and all 26 copies of Markdown.
+
+Use TypeScript AST to scan for references, unimported modules, and identical function bodies; statically check CSS classes and dynamic classNames; and compare rules in contracts, domain functions, services, existing tests, and documentation. No reference is only used as a candidate, and the dynamic entry and compatible fields of the framework need to be checked separately. Dependencies, generated files, and ignored environment/running data are not deleted as source code, and real credentials are not output. No browser or sub-agent was used in this round.
+
+<a id="已清理"></a>
+
+## Cleaned
+
+| Project | Basis and Processing |
 | --- | --- |
-| 财务计算适配器 | `FinanceCalculatorService` 仅在 AppModule 注册及转发自测出现，没有业务注入或调用；移除服务、注册和镜像实现的测试，实际服务继续调用现有领域函数。 |
-| 礼物卡使用明细 | 新销售与老卡分组有相同映射；共用本次查询的 `serializeUsageRecord`，字段、BigInt 与顺序保持。 |
-| 图片格式化 | Mac 渲染器与 Web 共用的 SVG 文件重复 XML 转义、币种和时间显示；集中于 domain `image-format.ts`，移除代理旧 helper 文件。 |
-| 旧 CSS | 核实 23 个无页面引用类，移除 73 条无效规则并精简 11 条共享选择器，覆盖三份样式及媒体查询；涉及旧现金区、成员卡、余额、截止时间等已不存在结构。 |
-| 过时规则 | 删除不自动日结、所有只读金额取整、旧品牌/侧栏/字号、旧成员编辑分区、卖卡跑客永远并排、结算总结在最右等要求。 |
-| 临时及不实要求 | 移除 Photos 诊断规矩、恢复 URL 三次确认、固定监控阈值承诺、每次发布重复扫描完整历史与无需改配置替换托管数据库等描述。 |
-| 重复文档 | 产品按业务主题压缩至 172 行；接管与发布清单改为职责入口和发布证据，缓存、金额、插件/代理限制集中维护，保留的规则逐条解释原因。 |
+| Financial Calculation Adapter | `FinanceCalculatorService` only appears in AppModule registration and forwarding self-test, without business injection or call; remove the test of service, registration and mirror implementation, and the actual service continues to call existing domain functions. |
+| gift card usage details | New sales and old card groups have the same mapping; share the `serializeUsageRecord` of this query, and the fields, BigInt and order are maintained. |
+| Image formatting | Duplicate XML escaping, currency and time display for SVG files shared by Mac renderer and web; focus on domain `image-format.ts`, remove proxy old helper files. |
+| Old CSS | Verified 23 non-page reference classes, removed 73 invalid rules and streamlined 11 shared selectors, covering three styles and media queries; the structures involved in the old cash area, member cards, balances, deadlines, etc. no longer exist. |
+| Outdated Rules | Delete requirements such as non-automatic daily closing, all read-only amount rounding, old brand/side column/font size, old member editing partition, card selling and running guest always side by side, settlement summary on the far right, etc. |
+| Temporary and false requests | Descriptions such as removal of Photos diagnostic rules, triple confirmation of recovery URL, fixed monitoring threshold commitment, repeated scanning of the complete history for each release, and replacement of the managed database without configuration changes. |
+| Duplicate documents | Products are compressed to 172 lines by business theme; the handoff and release list is changed to responsibility entry and release evidence, cache, amount, plug-in/agent restrictions are maintained centrally, and the reasons for retained rules are explained one by one. |
 
-## 保留项及原因
+<a id="保留项及原因"></a>
 
-| 项目 | 保留原因 |
+## Reserved items and reasons
+
+| Project | Reason |
 | --- | --- |
-| 框架动态入口 | Next 路由、Nest 装饰器/生命周期、LangBot manifest/YAML 和 Swift App 入口不依赖普通静态导入，不能按引用次数删除。 |
-| 兼容接口与历史字段 | 旧截止、下班、工资拆分、机器人 aliases 与已入队附件字段仍有代码或历史数据读取路径。 |
-| 动态 CSS 类 | 付款方式、发送状态与目录类型由模板字符串生成，静态字面量扫描没有命中不代表无用。 |
-| 事务服务及相似测试夹具 | 权限、锁、审计和事务边界不同；独立 fixture 保证测试隔离，不为减少行数合并不同业务流程。 |
-| 共享契约与类型 | 一些只在本文件使用的 schema/type 仍参与组合或生成声明，未将这些误作不可达代码。 |
-| 迁移及首版约束快照 | 39 个迁移是已发布升级历史，不能按最新模型重写；本轮没有数据库变化。 |
-| 历史文档与许可证 | 归档统一标明历史引用、不作为当前要求；变化记录、设计来源和第三方版权仍需追溯。 |
-| 原有未提交工作与独立产物 | 本轮只在工作区基线上清理，成员、样式、缓存及排工功能改动保留；NAS、已安装代理与插件未发布/替换。 |
+| Framework dynamic entry | Next routing, Nest decorator/life cycle, LangBot manifest/YAML and Swift App entry do not rely on ordinary static imports and cannot be deleted based on the number of references. |
+| Compatible interfaces and historical fields | Old cutoff, off-duty, salary split, robot aliases and queued attachment fields still have code or historical data reading paths. |
+| Dynamic CSS class | Payment method, delivery status and directory type are generated from template strings. No hits in static literal scanning does not mean it is useless. |
+| Transaction services and similar test fixtures | Permissions, locks, auditing and transaction boundaries are different; independent fixtures ensure test isolation and do not merge different business processes to reduce the number of lines. |
+| Shared Contracts and Types | Some schemas/types used only in this document are still involved in composition or generation declarations, and these are not mistaken for unreachable code. |
+| Migration and first version constraint snapshot | 39 migrations are published upgrade history and cannot be rewritten according to the latest model; there are no database changes in this round. |
+| Historical documents and licenses | Archives are uniformly marked with historical references and are not current requirements; change records, design sources and third-party copyrights still need to be traced. |
+| Original unsubmitted work and independent products | This round is only cleaned up on the workspace baseline, and changes to members, styles, caching and scheduling functions are retained; NAS, installed agents and plug-ins are not released/replaced. |
 
-## 验证
+<a id="验证"></a>
 
-| 范围 | 结果 |
+## Verify
+
+| Scope | Result |
 | --- | --- |
-| 全 workspace 类型 / Prisma schema | 通过 |
-| domain / contracts | 102 / 77 项通过 |
-| Web（含 React/jsdom） | 210 项通过 |
-| API 非数据库 | 241 项通过；数据库套件按原门控跳过 |
-| Mac 代理 | 36 项通过，包括真实本地图片转换和脚本编译；未发送消息 |
-| 仓库工具 | 8 项通过 |
-| 礼物卡数据库集成 | 独立 `massage_note_test`，11 项通过，39 个迁移无待应用项 |
-| Shell / Node / Python 语法 | 8 / 7 / 3 个文件通过 |
-| 生产构建 / 版本 / 样式 / 文档链接 / 差异格式 | 通过 |
+| Full workspace type / Prisma schema | Pass |
+| domain / contracts | 102 / 77 passes |
+| Web (including React/jsdom) | 210 passes |
+| API non-database | 241 passes; database suite skipped as originally gated |
+| Mac Agent | 36 passes, including true native image conversion and script compilation; no messages sent |
+| repository tools | 8 passes |
+| gift card database integration | Standalone `massage_note_test`, 11 passed, 39 unapplied migration items |
+| Shell / Node / Python syntax | 8 / 7 / 3 files passed |
+| Production Builds/Versions/Styles/Documentation Links/Diff Format | Via |
 
-共 685 项测试通过；数据库只定向执行本次涉及的礼物卡路径，不将其他跳过的套件记作已通过。共享格式化通过既有 Web/代理图片回归验证，没有新增镜像实现的测试。
+A total of 685 tests passed; the database only directed execution of the gift card path involved this time, and other skipped packages were not recorded as passed. The shared formatting has passed the existing Web/proxy image regression verification, and there is no new mirroring implementation test.
 
-按维护约定重启本项目开发服务，Web 固定 3000、API 4000，命令行确认 Web 可访问及 API ready 后保持运行。NAS 和独立 Mac 代理更新需对应发布授权；本轮未部署，无新增迁移。
+Restart the development service of this project according to the maintenance agreement. The Web is fixed at 3000 and the API is 4000. The command line confirms that the Web is accessible and the API is ready and keeps running. NAS and standalone Mac agent updates require corresponding release authorization; they have not been deployed in this round and there are no new migrations.

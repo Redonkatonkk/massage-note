@@ -14,6 +14,37 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 const labels = () => [...container.querySelectorAll<SVGTextElement>(".analytics-bar-value")];
 
+it.each([
+  { values: [123.45, null, 234.56], low: "$123.45", high: "$234.56" },
+  { values: [-15.25, null, -2.01], low: "-$15.25", high: "-$2.01" },
+  { values: [0, 0, null], low: "$0", high: "$1" },
+  { values: [100, null], low: "$100", high: "$105" },
+  { values: [12.34, 12.35], low: "$12.34", high: "$12.35" },
+])("按有效曲线范围缩放纵轴并标记最高值：$values", async ({ values, low, high }) => {
+  await act(async () => root.render(<Chart title="平均营业额" description="" currency fitToData
+    series={[{ id: "average", label: "最近30天平均", color: "var(--brand)", values }]}
+    points={values.map((value, index) => ({ label: `2026-10-${String(index + 1).padStart(2, "0")}`, value: null, detail: String(value) }))} />));
+  const axis = [...container.querySelectorAll(".analytics-y-label")].map(node => node.textContent);
+  expect(axis[0]).toBe(low);
+  expect(axis.at(-1)).toBe(high);
+  expect(new Set(axis).size).toBe(axis.length);
+  expect(container.querySelector("path")!.getAttribute("d")).not.toMatch(/NaN|Infinity/);
+  expect(container.querySelector(".analytics-peak-point")!.getAttribute("data-series")).toBe("average");
+  expect(container.querySelector(".analytics-peak")!.textContent).toContain("最高平均营业额");
+  expect(container.querySelector(".analytics-peak")!.textContent).toContain("最近30天平均");
+  for (const point of container.querySelectorAll("circle")) {
+    expect(Number(point.getAttribute("cy"))).toBeGreaterThanOrEqual(20);
+    expect(Number(point.getAttribute("cy"))).toBeLessThanOrEqual(225);
+  }
+});
+
+it.each([{ series: [] }, { series: [{ id: "empty", color: "var(--brand)", values: [null, null] }] }])("无可见样本时不显示最高值，空刻度仍有效", async ({ series }) => {
+  await act(async () => root.render(<Chart title="平均营业额" description="" currency fitToData series={series}
+    points={[{ label: "2026-10-01", value: null, detail: "未日结" }, { label: "2026-10-02", value: null, detail: "未日结" }]} />));
+  expect(container.querySelector(".analytics-peak")).toBeNull();
+  expect(container.querySelector("svg")!.innerHTML).not.toMatch(/NaN|Infinity/);
+});
+
 it("负营业额及均线仍绘制在图内，零与未日结缺口保留", async () => {
   await act(async () => root.render(<Chart title="营业额" description="" currency points={[
     { label: "10-01", value: -10.01, detail: "-$10.01" },

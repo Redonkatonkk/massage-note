@@ -134,11 +134,6 @@ button, summary { overflow-wrap: anywhere; }
   .finance-shell .filter-panel__heading .export-link { font-size: .8rem; }
   .quick-ranges { display: flex; flex-wrap: wrap; gap: 6px; }
   .quick-ranges button { flex: 1; padding-inline: 8px; }
-  .finance-summary-card__main { min-height: 0; padding: 12px; gap: 8px; }
-  .finance-summary-card__main strong { font-size: 1.35rem; }
-  .finance-summary-card__main small { font-size: .75rem; }
-  .finance-summary-info summary { position: static; width: auto; margin: 0 10px 10px; min-height: 44px; padding: 8px; }
-  .finance-summary-info summary::marker { color: var(--muted); }
   .finance-cards article:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .finance-metric-group > header h2, .finance-report-heading h2 { font-size: 1.2rem; }
   .finance-report-heading { gap: 10px; }
@@ -312,10 +307,48 @@ button, summary { overflow-wrap: anywhere; }
 }
 
 /* Curves fit their cards; comparison tables and bar charts scroll within theirs. */
+.monthly-finance { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.monthly-finance > *, .monthly-finance__hero > * { min-width: 0; }
+.monthly-finance__toolbar, .monthly-finance__actions, .monthly-finance__month-picker, .monthly-finance__chart-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.monthly-finance__toolbar, .monthly-finance__chart-controls { justify-content: space-between; gap: 20px; }
+.monthly-finance__month-picker { flex-wrap: nowrap; gap: 4px; }
+.monthly-finance__month-picker > label { min-width: 0; max-width: 180px; }
+.monthly-finance__context { display: grid; gap: 4px; }
+.monthly-finance__metrics, .monthly-finance__hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: stretch; }
+.monthly-finance__metric { display: flex; flex-direction: column; min-width: 0; }
+.monthly-finance__metric-comparison { margin-top: auto; padding-top: 14px; }
+.monthly-finance__chart-controls { margin-block: 18px; }
+.monthly-finance__comparison-table { margin-top: 14px; }
+@media (min-width: 600px) {
+  .monthly-finance__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1100px) {
+  .monthly-finance__metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .monthly-finance__hero { grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); }
+}
+@media (max-width: 599px) {
+  .monthly-finance__toolbar, .monthly-finance__actions { align-items: stretch; }
+  .monthly-finance__actions { width: 100%; }
+  .monthly-finance__month-picker { flex: 1 1 240px; }
+  .monthly-finance__month-picker > label { flex: 1; max-width: none; }
+  .monthly-finance__panel, .monthly-finance .monthly-finance__trend { padding: 18px; }
+  .monthly-finance__comparison table, .monthly-finance__comparison tbody { display: block; }
+  .monthly-finance__comparison thead { display: none; }
+  .monthly-finance__comparison tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; padding-block: 16px; border-bottom: 1px solid var(--line); }
+  .monthly-finance__comparison th, .monthly-finance__comparison td { display: block; min-width: 0; padding: 0; border: 0; text-align: left; }
+  .monthly-finance__comparison tbody th { grid-column: 1 / -1; font-weight: 600; }
+  .monthly-finance__comparison td::before { content: attr(data-label); display: block; margin-bottom: 5px; color: var(--muted); font-weight: 400; }
+}
 .analytics-panel { min-width: 0; }
-.analytics-grid { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 20px; }
+.analytics-grid, .analytics-hero { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 20px; }
+.analytics-overview__metrics { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.analytics-overview__metric { display: flex; flex-direction: column; min-width: 0; }
+.analytics-overview__metric dt { min-height: 42px; }
+.analytics-overview__metric .analytics-overview__caption { margin-top: auto; padding-top: 8px; }
+.analytics-context { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 0 24px; }
+.analytics-context details[open] { flex-basis: 100%; }
 .analytics-card { min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); }
-.analytics-card h2 { margin: 0 0 8px; font-size: 20px; }
+.analytics-card h2 { margin: 0 0 8px; font-size: 1rem; }
 .analytics-description, .analytics-legend { color: var(--muted); font-size: 14px; line-height: 1.6; }
 .analytics-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
 .analytics-scroll svg { display: block; min-width: 100%; }
@@ -336,6 +369,7 @@ button, summary { overflow-wrap: anywhere; }
 .analytics-income-controls > label { display: grid; gap: 8px; font-size: 14px; }
 .analytics-income-controls select { width: 100%; min-width: 120px; }
 .analytics-income-controls > p { flex-basis: 100%; }
+.analytics-income-scroll-hint { display: none; color: var(--muted); font-size: 14px; line-height: 1.6; }
 .analytics-income-legend { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
 .analytics-income-legend li { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .analytics-income-legend svg { flex-shrink: 0; }
@@ -350,7 +384,17 @@ button, summary { overflow-wrap: anywhere; }
 .analytics-heat-table button { width: 100%; min-width: 30px; height: 40px; border: 0; border-radius: 5px; padding: 0; font-size: 12px; cursor: pointer; }
 .analytics-heat-table button:focus-visible { outline: 3px solid var(--brand); outline-offset: 1px; }
 .analytics-panel .quick-ranges button[aria-pressed="true"] { background: var(--brand); color: var(--surface); }
-@media (min-width: 1100px) { .analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .analytics-heatmap, .analytics-average-revenue { grid-column: 1 / -1; } }
+@media (min-width: 600px) { .analytics-overview__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1100px) {
+  .analytics-overview__metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .analytics-hero { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  .analytics-hero > :only-child { grid-column: 1 / -1; }
+  .analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* The weekday chart sets this row's height; period count must not stretch it. */
+  .analytics-grid > .analytics-income-bars { contain: size; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; }
+  .analytics-income-scroll-hint { display: block; }
+  .analytics-heatmap, .analytics-daily-revenue { grid-column: 1 / -1; }
+}
 @media (max-width: 600px) { .analytics-card { padding: 14px; } .analytics-panel .filter-panel { display: flex; flex-direction: column; align-items: stretch; } .analytics-panel .quick-ranges { display: flex; flex-wrap: wrap; } }
 @media (max-width: 760px) {
   .analytics-heat-table, .analytics-heat-table button, .analytics-scroll svg text { font-size: 14px; }

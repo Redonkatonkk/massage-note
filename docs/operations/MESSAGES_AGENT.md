@@ -1,39 +1,49 @@
-# Mac“信息”发送代理
+<a id="mac信息发送代理"></a>
 
-本文是固定 Mac 上“信息”发送代理的唯一安装与排障手册。NAS 只保存发送任务并提供 HTTPS API；本地 LaunchAgent 主动领取任务，再由受限附件 App 调用本机“信息”。通用监控、数据库备份和恢复见 [`OPERATIONS.md`](OPERATIONS.md)，安全边界见 [`SECURITY.md`](SECURITY.md)。
+# Mac Messages sending agent
 
-## 发送内容与运行边界
+**English** | **[简体中文](MESSAGES_AGENT.zh-CN.md)**
 
-| 任务类型 | 附件 | 路由要求 |
+This article is the only installation and troubleshooting guide to fixing the Messages sending agent on your Mac. NAS only saves sending tasks and provides HTTPS API; the local LaunchAgent actively receives the tasks, and then the restricted attachment App calls the local Messages. See [`OPERATIONS.md`](OPERATIONS.md) for general monitoring, database backup and recovery, and [`SECURITY.md`](SECURITY.md) for security boundaries.
+
+<a id="发送内容与运行边界"></a>
+
+## Sending content and running boundaries
+
+| Task Type | Attachments | Routing Requirements |
 | --- | --- | --- |
-| 个人日结 | 一张中英文 PNG，包含已确认收入、来源分组和完整逐笔，不附带重复文字气泡 | iMessage、RCS 或 SMS/MMS |
-| 员工区间结算 | 顶部三张汇总卡＋完整逐笔明细 | 所有会话统一只发送一张专门排版的 JPEG 长图，不生成 PDF、独立摘要图或分页拼接图 |
+| individual daily statement | A Chinese and English PNG containing confirmed revenue, source grouping and complete transaction without repeated text bubbles | iMessage, RCS or SMS/MMS |
+| Employee range settlement | Three summary cards at the top + complete transaction details | All sessions will only send one specially formatted JPEG long image, and no PDF, independent summary image or paged splicing image will be generated |
 
-- 日结与区间结算共用串行处理循环，正常任务确认结果后再等 2 分钟，失败后再等 5 分钟领取下一条；空队列仍每 10 秒轮询。下次领取时间写入本地日志，重启继续等待；冷却不占用下一条任务的租约。心跳独立每分钟执行，不因等待发送或重试而断线。保留原因：指令被接受后仍有异步发送过程，串行观察、冷却及持久等待共同避免连续发送过快。
-- 代理不开放入站端口，只向 API 发起出站 HTTPS 请求；NAS 不需要连接或控制 Mac。保留原因：固定 Mac 主动轮询，不需要 NAS 获得本机控制权限。
-- 固定 Mac 必须保持对应 macOS 用户登录。锁屏不影响运行，退出该用户会停止 LaunchAgent。保留原因：LaunchAgent 属于用户会话，退出会话会停止发送。
-- 代理不模拟键盘、不使用剪贴板或相册、不激活“信息”窗口。受限附件 App 以 SQLite 只读模式读取本次任务的发送状态：仅匹配固定附件路径、接收号码及出站标记，选择消息 GUID、已发出、已送达、错误码和通道；不选择正文、不枚举其他聊天内容、不写数据库。保留原因：AppleScript 返回及文件上传完成都不能证明消息已发出，后续失败只能以对应消息的实际状态判断，查询必须限制到发送任务。
-- AppleScript 返回只表示“信息”接受了发送指令，不等于运营商已经送达；结果不明确时不得自动重发。真实验收以 Messages 送达状态为准。保留原因：调用成功不是网络送达，结果不确定重发可能产生重复。
+- Daily closing and interval settlement share a serial processing loop. Normal tasks wait 2 minutes after confirming the result, and wait 5 minutes after failure to receive the next one; the empty queue is still polled every 10 seconds. The next collection time is written to the local log, and restarts to continue waiting; cooling does not occupy the lease of the next task. The heartbeat is executed independently every minute and will not be disconnected due to waiting for transmission or retry. Reason: There is still an asynchronous sending process after the command is accepted. Serial observation, cooling and persistent waiting jointly avoid continuous sending too fast.
+- The proxy does not open inbound ports and only makes outbound HTTPS requests to the API; the NAS does not require a Mac to be connected or controlled. Reason: Fixed Mac actively polling and not requiring NAS to gain native control permissions.
+- Fixed Macs must remain logged in as the corresponding macOS user. Locking the screen does not affect the operation. Exiting the user will stop the LaunchAgent. Reason: LaunchAgent belongs to the user session, and exiting the session will stop sending.
+- The agent does not emulate the keyboard, use the clipboard or photo album, or activate the Messages window. The restricted attachment app reads the sending status of this task in SQLite read-only mode: only matches the fixed attachment path, receiving number and outbound mark, selects the message GUID, sent, delivered, error code and channel; does not select the text, does not enumerate other chat content, and does not write to the database. Reason: Neither AppleScript return nor file upload completion can prove that the message has been sent. Subsequent failures can only be judged by the actual status of the corresponding message. The query must be limited to the sending task.
+- The return from AppleScript only means that Messages has accepted the sending instruction, and does not mean that the operator has delivered it; when the result is unclear, it shall not be automatically resent. The actual acceptance is subject to the delivery status of Messages. Reason: The successful call is not a network delivery, and the result is uncertain and retransmission may cause duplication.
 
-每次发送前记录同一任务的上一条消息 GUID，发送后最多观察 2 分钟，每 5 秒读取一次本次新消息的状态；上一轮的成功不能充当本次回执。明确送达即可结束观察；没有送达回执的 SMS 必须观察完整窗口且最后仍为已发出、错误码为零，才能结束该任务。明确失败进入有上限的重试；无新记录、仍待发送、状态读取异常或数据库结构不兼容均保留待核对，不写成功、不自动重发。保留原因：SMS 可能不提供送达回执，错误优先于历史成功标记，监控不可用时不能降级为假成功。
+The GUID of the previous message of the same task is recorded before each sending. It can be observed for up to 2 minutes after sending, and the status of this new message is read every 5 seconds; the success of the previous round cannot be used as a receipt for this time. The observation can be ended by clear delivery; the SMS without delivery receipt must be observed for the entire window and is still sent with an error code of zero in the end before the task can be ended. Clear failures will lead to a retry with an upper limit; no new records, still to be sent, status reading exceptions or incompatible database structures will be retained for verification. If the write is not successful, there will be no automatic resend. Reason: SMS may not provide delivery receipts, errors take precedence over historical success markers, and cannot be downgraded to false successes when monitoring is unavailable.
 
-网页保留旧 API 的 `SENT` 字段兼容，但统一显示“已提交·未确认送达”，时间标为提交时间，采用待核对颜色；日结、区间结算和员工小计均说明以信息 App 的实际状态为准。保留原因：历史 `SENT` 只证明接受指令，新版监控中的已发出也不等于收件手机已收到。
+The webpage retains the `SENT` field compatibility of the old API, but uniformly displays "Submitted·Unconfirmed Delivery", the time is marked as the submission time, and the color to be verified is used; daily closing, interval settlement and employee subtotals all indicate that the actual status of the information app shall prevail. Reason: Historical `SENT` only proves acceptance of the command, and "sent" in the new version of monitoring does not mean that the recipient phone has received it.
 
-个人日结短信由 `apps/messages-agent/src/render.ts` 将 `packages/domain/src/employee-closing-image.ts` 的共享 SVG 经 `sips` 转换为 PNG；Web 生成图片沿用同一 SVG，页面与图片共用 `employee-closing-template.ts` 的中英文内容。源宽固定为 **1170 像素**，高度随两列记工卡增长。顶部显示店铺、员工、日期与已确认收入，现金／刷卡＋礼卡两行列出大费工资和小费；卡片按时间显示项目、加项、折前大费、实收付款拆分、小费与本笔收入。现金无框、刷卡加框、礼卡带文字，高亮及折扣沿用记工卡语义；待结账未计入汇总，未知与零值区分，长内容完整换行。旧快照缺少高亮和折扣字段时默认无标记。保留原因：页面、保存图片与发送附件需要同一阅读模板，精确收入来自排队时的快照，历史快照不能因新增展示字段失效。
+The individual daily statement text message is converted from `apps/messages-agent/src/render.ts` to the shared SVG of `packages/domain/src/employee-closing-image.ts` to PNG via `sips`; the Web-generated image uses the same SVG, and the page and image share the Chinese and English content of `employee-closing-template.ts`. The source width is fixed at **1170 pixels** and the height grows with the two columns of work record cards. The top displays the store, employees, date and confirmed income, and the two lines of cash/swipe card + gift card list service commission and tips; the card displays projects, add-on, pre-discount service fee, actual payment split, tips and current income by time. Cash has no frame, card swiping has a frame, gift card has text, highlight and discount follow the work record card semantics; pending checkout is not included in the summary, unknown and zero values are distinguished, and long content is completely wrapped. Old snapshots default to no tags when they are missing highlight and discount fields. Reason: Pages, saving pictures and sending attachments require the same reading template. The precise income comes from the snapshot when queuing. The historical snapshot cannot be invalidated due to the new display field.
 
-区间结算短信由 `apps/messages-agent/src/settlement-render.ts` 将 `packages/domain/src/employee-settlement-image.ts` 的共享 SVG 渲染为 JPEG；Web 工资结算 PNG 也使用此模板。两种结算图片共用 `image-layout.ts` 的主题、换行和表面绘制，沿用 [UI 设计](../engineering/UI_DESIGN.md) 的石灰白背景、白色表面、墨色文字、深绿重点、细边线与统一圆角。区间图片先交代店铺、日期范围、员工和工资来源，再读取顶部收入汇总、每天总结和时间顺序逐笔；主要总收入突出一次，所选来源的大费、小费与合计都有标签，金额保留美分。图片说明完整期间收入，不表示已经支付工资。保留原因：不同输出环境需要共同的阅读层级和金额标签，附件应延续本项目的账本阅读方式，收入资料与支付事实不能混为一谈。
+The interval settlement SMS is rendered to JPEG by `apps/messages-agent/src/settlement-render.ts` which renders the shared SVG of `packages/domain/src/employee-settlement-image.ts`; the web salary settlement PNG also uses this template. The two settlement images share the theme, line wrapping and surface drawing of `image-layout.ts`, and follow the lime white background, white surface, ink text, dark green emphasis, thin edges and uniform rounded corners of [UI Design](../engineering/UI_DESIGN.md). The interval picture first explains the store, date range, employees and salary source, and then reads the top income summary, daily summary and time sequence one by one; the main total income is highlighted once, the service fee, tips and total of the selected source are all labeled, and the amount is retained in cents. The picture illustrates the income for the complete period and does not indicate that wages have been paid. Reason: Different output environments require common reading levels and amount tags. Attachments should continue the ledger reading method of this project, and income information and payment facts cannot be confused.
 
-网页图片和短信附件由不同运行环境生成。修改源码、重启 Web 或部署 NAS 都不会更新已安装的 Mac 代理；若短信仍显示旧版，先核对 `~/Library/Application Support/Massage Note Messages Agent/app/package.json` 与 `app/dist/render.js`，获得代理更新授权后按下方安装流程升级。已发送附件不会随模板更新而变化。保留原因：Web、NAS 与已安装代理是独立交付物，历史附件不可变。
+Web page images and text message attachments are generated by different operating environments. Modifying the source code, restarting the Web, or deploying NAS will not update the installed Mac agent; if the text message still shows the old version, first check `~/Library/Application Support/Massage Note Messages Agent/app/package.json` and `app/dist/render.js`, obtain the agent update authorization, and then follow the installation process below to upgrade. Sent attachments will not change with template updates. Reason: Web, NAS and installed agents are independent deliverables, and historical attachments are immutable.
 
-## 安装前准备
+<a id="安装前准备"></a>
 
-1. 安装 Node.js 24 LTS 和仓库声明的 pnpm 版本，确认新的登录 shell 中 `node --version`、`pnpm --version` 可用。LaunchAgent 不应依赖 Codex、IDE 或临时缓存目录里的 Node。保留原因：安装脚本与 LaunchAgent 依赖稳定运行时路径。
-2. 登录目标 Mac 的“信息”App。向非 Apple 号码发送图片时，同 Apple 账户的 iPhone 还需开启短信转发，并由运营商支持 MMS/RCS。保留原因：本机可用的发送账户与配对 iPhone 决定实际路由。
-3. 在生产“店铺设置 → Mac 信息代理”生成店铺级令牌。令牌只显示一次，安装后只保存在当前用户的 `~/Library/Application Support/Massage Note Messages Agent/agent.env`，权限必须为 `0600`。保留原因：明文令牌只在签发时可得，配置必须限制为当前用户读取。
+## Preparation before installation
 
-## 安装
+1. Install Node.js 24 LTS and the pnpm version declared in the repository, and confirm that `node --version` and `pnpm --version` are available in the new login shell. LaunchAgent should not rely on Nodes in the Codex, IDE, or temporary cache directory. Reason: The installation script and LaunchAgent depend on a stable runtime path.
+2. Sign in to the Messages App on the target Mac. When sending pictures to a non-Apple number, the iPhone with the same Apple account also needs to turn on text message forwarding and have the operator support MMS/RCS. Reason: The sending accounts available locally and the paired iPhone determine the actual routing.
+3. Generate store-level tokens in production "Store Settings → Mac Information Agent". The token is only displayed once and is only saved in the current user's `~/Library/Application Support/Massage Note Messages Agent/agent.env` after installation. The permission must be `0600`. Reason: Clear text tokens are only available at the time of issuance, and configuration must be restricted to readability by the current user.
 
-在已登录“信息”的目标 macOS 桌面用户会话中运行：
+<a id="安装"></a>
+
+## Install
+
+Run in the target macOS desktop user session logged into Messages:
 
 ```bash
 MASSAGE_NOTE_API_URL='https://<production-domain>/api/v1' \
@@ -41,19 +51,21 @@ MASSAGE_NOTE_AGENT_TOKEN='<设置页生成的令牌>' \
 ./scripts/install-messages-agent.sh
 ```
 
-首次运行会安装无界面的 `~/Applications/Massage Note Attachment Stager.app`。若脚本以状态 2 停止：
+The first run will install the interfaceless `~/Applications/Massage Note Attachment Stager.app`. If the script stops in status 2:
 
-1. 打开“系统设置 → 隐私与安全性 → 完全磁盘访问权限”。保留原因：安装诊断返回状态二表示需要授予暂存 App 权限。
-2. 只添加并开启 `Massage Note Attachment Stager.app`，不要给 Node、终端或“信息”整体授予更宽权限。保留原因：暂存 App 是指定授权身份，更宽权限不是当前实现需要。
-3. 用相同命令重新运行安装脚本；系统询问自动化权限时，允许 `Massage Note Attachment Stager.app` 控制“信息”。代理枚举账户仍使用 Node/终端已有的自动化授权。保留原因：最终发送的授权身份是附件 App，账户枚举和附件发送分别需要对应身份的自动化权限。
+1. Open "System Settings → Privacy & Security → Full Disk Access". Reason: The installation diagnostic return status 2 indicates that the temporary app permission needs to be granted.
+2. Only add and enable `Massage Note Attachment Stager.app`, do not grant wider permissions to Node, Terminal or Messages as a whole. Reason: The temporary app is a designated authorization identity, and wider permissions are not required by the current implementation.
+3. Rerun the installation script with the same command; allow `Massage Note Attachment Stager.app` to control Messages when asked for automation permissions. The agent enumeration account still uses the existing automated authorization of the Node/terminal. Reason: The authorized identity for final sending is the attachment app. Account enumeration and attachment sending require the automation permissions of the corresponding identity respectively.
 
-安装脚本通过 LaunchServices 以这个 App 的身份验证 Messages 附件目录的“分片/任务”两级探针，再由 App 内的 AppleScript 实际读取探针并枚举 Messages 账户，不发送消息。暂存和最终发送均使用这个 App 的身份；Node 在发送前复核租约后，只提交已验证的任务 UUID、固定文件名、接收号码和图片路由，App 重建路径、拒绝符号链接、验证文件头并执行随包脚本。不能把 `Contents/MacOS` 二进制直接作为 LaunchAgent 子进程执行，也不能回退到后台 Node 的 `osascript` 读取受保护附件。保留原因：只测试 App 能写入文件，不能证明另一个授权身份可以读取或转交文件；同一 App 身份覆盖暂存、读取与发送。
+The installation script authenticates the "shard/task" two-level probe of the Messages attachment directory through LaunchServices with the identity of this app, and then the AppleScript in the app actually reads the probe and enumerates the Messages account without sending the message. The identity of this App is used for both staging and final sending; after Node reviews the lease before sending, it only submits the verified task UUID, fixed file name, receiving number and image route. The App rebuilds the path, rejects the symbolic link, verifies the file header and executes the package script. The `Contents/MacOS` binary cannot be executed directly as a LaunchAgent child process, nor can it fall back to the background Node's `osascript` to read protected attachments. Reason: Only testing that the App can write files does not prove that another authorized identity can read or transfer files; the same App identity covers temporary storage, reading and sending.
 
-脚本用两份 Swift 源码与发送脚本模块的联合 SHA-256 识别附件 App，并把同一份 AppleScript 放入 App 资源。代码未变时保留现有二进制和签名；首次安装或源码变化时重建签名。若升级后权限失效，关闭再开启该 App 的完全磁盘访问权限，然后重跑安装。保留原因：脚本资源也属于签名产物，重签名可能使现有权限失效，联合校验避免脚本变化后继续使用旧 App。
+The script uses the SHA-256 combination of two Swift source codes and the sending script module to identify the attached App, and puts the same AppleScript into the App resources. Preserve existing binaries and signatures when the code has not changed; rebuild signatures when installing for the first time or when the source code changes. If the permissions become invalid after the upgrade, close and enable full disk access permissions for the app, and then rerun the installation. Reason: Script resources are also signature products. Re-signing may invalidate existing permissions. Joint verification prevents continued use of the old app after script changes.
 
-维修时可在安装命令末尾加 `--no-start`：先构建并禁用、停止旧代理，再替换安装文件和验证权限，发送服务保持禁用；核对历史结果并获得实际发送授权后，再按正常安装流程重新启用。权限检查失败也保持禁用。保留原因：运行中的旧代理不能继续领取任务或读取正在替换的运行文件，更新、探针或重新登录不应隐式补发积压短信。
+During maintenance, you can add `--no-start` at the end of the installation command: first build, disable and stop the old agent, then replace the installation file and verify permissions, and keep the sending service disabled; after checking the historical results and obtaining actual sending authorization, re-enable it according to the normal installation process. Permission check failures also remain disabled. Reason: The running old agent cannot continue to receive tasks or read the running files being replaced. Updates, probes or re-login should not implicitly reissue the backlog of SMS messages.
 
-## 安装后验证
+<a id="安装后验证"></a>
+
+## Post-install verification
 
 ```bash
 launchctl print "gui/$(id -u)/com.massagenote.messages-agent"
@@ -61,59 +73,67 @@ stat -f '%Lp %Su' "$HOME/Library/Application Support/Massage Note Messages Agent
 tail -n 50 "$HOME/Library/Application Support/Massage Note Messages Agent/agent-error.log"
 ```
 
-正常结果是 LaunchAgent `state = running`、配置权限 `600`，且店铺设置显示代理最近在线。重复安装时，脚本会等待 `bootout` 的旧服务注册完全消失后再调用 `bootstrap`；不要把偶发的 `Bootstrap failed: 5` 当成 Messages 权限问题。保留原因：旧服务未完全退出时重复注册会失败，不应误诊为附件权限。
+The normal result is LaunchAgent `state = running`, configuration permissions `600`, and the store settings show that the agent was recently online. When reinstalling, the script will wait for the old service registration of `bootout` to disappear completely before calling `bootstrap`; do not regard the occasional `Bootstrap failed: 5` as a Messages permission issue. Reason: Repeated registration will fail when the old service is not completely exited and should not be misdiagnosed as attachment permission.
 
-## 附件暂存与重试
+<a id="附件暂存与重试"></a>
 
-代理先把附件以 `0600` 权限写入 `~/Library/Application Support/Massage Note Messages Agent/outbox`。暂存 App 验证源路径、任务 UUID、固定文件名和 PNG/JPEG 文件头，再写入：保留原因：暂存程序只接受受控目录、任务和已验证图片，不能成为任意文件拷贝器。
+## Attachment temporary storage and retry
+
+The agent first sends the attachment as `0600` Permission to write `~/Library/Application Support/Massage Note Messages Agent/outbox`. The staging app verifies the source path, task UUID, fixed file name, and PNG/JPEG file header, and then writes: Reason: The staging app only accepts controlled directories, tasks, and verified images, and cannot be an arbitrary file copyer.
 
 ```text
-~/Library/Messages/Attachments/MassageNote/<前两位>/<任务 UUID>/
+~/Library/Messages/Attachments/MassageNote/<top two>/<Task UUID>/
 ```
 
-同一任务已有不同内容时拒绝覆盖。App 只在 `stager-results/<任务 UUID>.json` 返回成功或失败；代理读取后立即删除结果文件，并核对返回路径必须精确等于该任务目标。没有明确成功结果时绝不调用“信息”。保留原因：明确回执与精确路径防止发送其他任务或未成功暂存的附件。
+Refuse to overwrite when the same task already has different content. App only in `stager-results/<任务 UUID>.json` Returns success or failure; the agent deletes the result file immediately after reading it, and checks that the return path must be exactly equal to the task target. "Information" is never called without a clear successful result. Reason: Clear receipts and precise paths prevent sending other tasks or unsuccessfully staged attachments.
 
-区间结算只记录单张长图的完成检查点。长图顶部放置店名、员工、结算区间和三张汇总卡，下面按营业日分组；每天第一张为独立的“当日总结”，固定放在当日第一行最左列；后续每笔记工使用独立卡片并按时间排列，所有列数及奇偶笔数均沿用此顺序，不再为总结补空卡位。长店名、员工姓名、项目名称、付款拆分、混合付款提示和金额按可用宽度完整折行，头部与卡片随内容增高，不允许用省略号隐藏内容。同一天记工超过一行时自动换到下一行；渲染器会根据总天数和记录密度在 1080、1440、1680 像素源画布与 2～4 列之间选择布局，再在不超过 4 MB 的前提下压缩输出。图片不含独立封面、分页页眉或页码。保留原因：共享 SVG 及容量测试采用总结在最左的顺序，单张快照可追溯重发。
+Interval settlement only records the completion checkpoint of a single long chart. The store name, employees, settlement interval and three summary cards are placed at the top of the long chart, and are grouped below by business day; the first one every day is an independent "summary of the day", which is always placed in the leftmost column of the first row of the day; each subsequent work record uses independent cards and is arranged by time. All column numbers and odd-even numbers follow this order, and the blank card slots are no longer filled for the summary. The long store name, employee name, project name, payment split, mixed payment reminder and amount should be fully wrapped according to the available width. The header and card will increase with the content. No ellipses are allowed to hide the content. When the work record exceeds one row on the same day, it will automatically switch to the next row; the renderer will select a layout between a 1080, 1440, and 1680 pixel source canvas and 2 to 4 columns based on the total number of days and record density, and then compress the output without exceeding 4 MB. The image does not contain a separate cover, paginated headers or page numbers. Reason: Shared SVG and capacity tests are summarized in the leftmost order, and a single snapshot can be retroactively reissued.
 
-容量回归测试必须至少覆盖“单日 18 笔”和“31 天、每天 12 笔”。长图最大源高度为 32,760 像素；若在保持完整文字和可读字号的前提下仍超限，明确要求缩短结算日期区间，不能继续压缩行高或裁掉记录。代理串行处理队列，发送脚本额外保留 15 秒让“信息”接管附件；源 outbox 保留 30 分钟后清理，正式附件交由“信息”管理。保留原因：高密度与长区间有不同容量边界，超限不能裁掉账目。
+Capacity regression testing must cover at least "18 transactions in a single day" and "12 transactions per day for 31 days." The maximum source height of a long image is 32,760 pixels; if it still exceeds the limit while maintaining the complete text and readable font size, it is clearly required to shorten the settlement date range, and the row height cannot be further compressed or the record can be cropped. The agent processes the queue serially, and the sending script retains an additional 15 seconds for Messages to take over the attachment; the source outbox is retained for 30 minutes and then cleared, and the official attachment is managed by Messages. Reason: High-density and long ranges have different capacity boundaries, and accounts cannot be cut if the limits are exceeded.
 
-代理在渲染与暂存完成后、调用“信息”前再次校验租约和发送资格，并先原子保存 `started`；指令返回后保存 `submitted`（附件与上次消息 GUID），观察确认后才保存 `accepted`。重新领取时，有 `submitted` 的任务继续观察，不再次发送；已确认的任务只补写服务端回执；只有开始记录而没有提交回执的任务标记结果不明确。明确失败清除本次提交检查点并保存五分钟退避，再由服务端决定是否重试；已完成的结算任务被管理员明确重新排队时，开始新一轮检查点。旧日志缺少新增字段时保持兼容；日志损坏或不可读时停止发送，需先恢复日志，不能当作空历史。API 请求有 30 秒超时，心跳只有在附件 App 的读写、自动化和只读状态查询探针、可识别发送账户均可用时才报告就绪；探针不通过时暂停领取。保留原因：租约/权限可能在渲染期间变化，回执或失败上报中断不能使已开始的发送再次执行，观察和退避状态必须跨重启保留。
+After rendering and staging are completed, the agent verifies the lease and sending qualification again before calling Messages, and first saves `started` atomically; after the command returns, it saves `submitted` (attachment and last message GUID), and only saves `accepted` after observing the confirmation. When re-acquiring, tasks with `submitted` will continue to be observed and will not be sent again; confirmed tasks will only write server receipts; tasks that only start recording without submitting a receipt will have unclear marking results. If a clear failure occurs, the submission checkpoint will be cleared and saved for a five-minute backoff, and then the server will decide whether to retry; when the completed settlement task is explicitly requeued by the administrator, a new round of checkpoints will begin. The old log remains compatible when it lacks new fields; it stops sending when the log is damaged or unreadable. The log needs to be restored first and cannot be treated as empty history. API requests have a 30-second timeout, and the heartbeat will only report readiness when the attachment App's read-write, automation, and read-only status query probes, and identifiable sending accounts are all available; collection will be suspended if the probe fails. Reason: Leases/permissions may change during rendering, acknowledgment or failure reporting interrupts cannot cause an already started send to be executed again, and observation and backoff status must be preserved across restarts.
 
-子进程错误优先保留 stderr 的实际失败原因，隐藏完整手机号，并将心跳 `lastError` 与任务失败 `message` 限制在接口允许的 1000 字符内。保留原因：Node 的异常正文可能附带整份脚本和参数，超长错误会同时使失败回写及心跳返回 400，使原任务不断租约重领。
+For child process errors, the actual failure reason is retained on stderr first, the complete phone number is hidden, and the heartbeat `lastError` and task failure `message` are limited to the 1000 characters allowed by the interface. Reason: Node's exception text may include the entire script and parameters. Overlong errors will cause failure to write back and heartbeat to return 400 at the same time, causing the original task to continuously re-acquire the lease.
 
-## 路由规则
+<a id="路由规则"></a>
 
-数据库、权限和审计始终保存 E.164 号码。对 `+1` 号码，交给“信息”时转换为十位本地号码：
+## Routing rules
 
-- PNG 优先交给已连接的 SMS 账户，由配对 iPhone 升级为 RCS 或发送 SMS/MMS；没有 SMS 时再回退到 RCS/iMessage。保留原因：SMS 配对支持非 Apple 接收者，缺账户时仍保留其他可用通道。
-- 结算长图优先沿用该号码已经存在的一对一会话，使 Messages 保留实际可用的 iMessage 或 RCS 路由；找不到会话时再按 SMS/RCS/iMessage 账户顺序寻址。保留原因：已有一对一会话保留实际路由，不能仅凭本机账户类型推断。
-- 结算流程不再交给 Messages 任何文档附件，避免运营商把文档降级为随后失败的 SMS。保留原因：现有长图使用图片附件，旧文档/PDF发送会触发不同运营商路由。
-- “本机有 iMessage 账号”不代表收件号码已注册 iMessage，不能据此单独判断路由。保留原因：发送方登录与接收号码的注册状态不是同一事实。
-- 仅在未开始发送且无法找到会话/收件人时尝试下一路由。一旦调用发送命令，异常按结果不确定处理，不自动换路由再次发送，需人工核对。保留原因：发送开始后换通道重试可能重复发出同一财务资料。
+Database, permissions and auditing always save E.164 numbers. For `+1` numbers, convert them to ten-digit local numbers when passed to Messages:
 
-## 故障速查
+- PNG is given priority to the connected SMS account, upgraded from paired iPhone to RCS or sending SMS/MMS; when there is no SMS, it falls back to RCS/iMessage. Reason: SMS pairing supports non-Apple recipients and leaves other channels available in the absence of an account.
+- The settlement chart preferentially uses the existing one-to-one conversation with the number, so that Messages retains the actual available iMessage or RCS routing; when the conversation cannot be found, it will be addressed in the order of SMS/RCS/iMessage accounts. Reason: There is already a one-to-one session that retains the actual route, which cannot be inferred based on the local account type alone.
+- The checkout process no longer hands over any document attachments to Messages, preventing operators from downgrading documents to SMS that subsequently fail. Reason: Existing long images use image attachments, and sending old documents/PDFs will trigger routing by different operators.
+- "This machine has an iMessage account" does not mean that the recipient number has registered for iMessage, and routing cannot be determined based on this alone. Reason: The sender's login and the receiving number's registration status are not the same fact.
+- The next route is only tried if the sending has not started and the conversation/recipient cannot be found. Once the send command is called, the exception will be handled as an indeterminate result, and the route will not be automatically changed to be sent again, requiring manual verification. Reason: Changing channels and retrying after sending starts may send the same financial data repeatedly.
 
-| 现象 | 优先检查 |
+<a id="故障速查"></a>
+
+## Quick troubleshooting
+
+| Phenomenon | Priority Check |
 | --- | --- |
-| 队列显示“排队、尝试 0” | LaunchAgent 状态、API URL、令牌和网络 |
-| 尝试数增加但失败 | 页面队列详情和本地 `agent-error.log` |
-| 发送报 `Access denied`，但旧版暂存探针通过 | 更新附件 App，确认由它读取并发送；关闭再开启其完全磁盘访问权限并核对自动化授权，不能改用后台 Node 发送 |
-| 心跳返回 400 且发送次数持续增加 | 检查是否仍为未限制错误长度的旧代理；更新代理，先核对历史发送结果，不直接重置发送状态 |
-| 安装诊断失败 | “信息”登录、自动化权限、暂存 App 的完全磁盘访问权限、可用的 iMessage/RCS/SMS 服务 |
-| `argv 未定义` | AppleScript 必须用 `on run argv` 接收 `osascript -e ... -- <参数>` |
-| macOS 26 账户枚举报 `-10000` | 逐账户读取 `service type` 时必须各自包在 `try` 内，忽略无法转换的额外账户类型 |
-| PNG 显示 `0 KB / 原大小`，或出现 `fileTransfer rejected error 30`、`IMFileTransfer error 15` | 确认交给 AppleScript 的路径位于 Messages 专用附件目录，再运行暂存程序 `--diagnose` |
-| 非 Apple 号码图片失败 | iPhone 短信转发、运营商 MMS/RCS 和已连接 SMS 账户 |
-| 结算长图无法发送 | 确认已按本手册更新代理（心跳版本读取随包 `package.json`），并检查图片是否超过 32,760 像素或 4 MB；超限时缩短结算区间 |
+| Queue shows "Queue, Attempt 0" | LaunchAgent Status, API URL, Token and Network |
+| Number of attempts increased but failed | Page queue details and local `agent-error.log` |
+| Send reports `Access denied`, but the old version of the staging probe passes | Update the attachment App to confirm that it reads and sends it; turn off and on its full disk access permissions and check the automated authorization, and cannot use the background Node to send |
+| The heartbeat returns 400 and the number of sending times continues to increase | Check whether it is still an old agent with no limit on the error length; update the agent, first check the historical sending results, and do not directly reset the sending status |
+| Installation diagnostics failed | Messages login, automation permissions, full disk access to staging apps, available iMessage/RCS/SMS services |
+| `argv 未定义` | AppleScript is required `on run argv` take over `osascript -e ... -- <参数>` |
+| macOS 26 account number report `-10000` | When reading `service type` on an account-by-account basis, each must be wrapped in `try`, and additional account types that cannot be converted are ignored |
+| PNG display `0 KB / 原大小`, or appear `fileTransfer rejected error 30`, `IMFileTransfer error 15` | Confirm that the path given to AppleScript is in the Messages-specific attachment directory, and then run the temporary program `--diagnose` |
+| Non-Apple number picture failure | iPhone SMS forwarding, carrier MMS/RCS and connected SMS accounts |
+| The long settlement image cannot be sent | Confirm that the agent has been updated according to this manual (the heartbeat version reads the package `package.json`), and check whether the image exceeds 32,760 pixels or 4 MB; shorten the settlement interval when it exceeds the limit |
 
-遇到附件读取问题时，不要改用模拟键盘、剪贴板粘贴、相册最近项、复制私有 `com.apple.macl` 属性，或操作 Messages/Photos 数据库。正式代理不需要“辅助功能”权限。保留原因：受限暂存是现有解决方式，临时相册操作和私有属性没有源码依据。
+When encountering attachment reading problems, do not use emulated keyboards, paste to the clipboard, recent items in the photo album, copy private `com.apple.macl` properties, or manipulate the Messages/Photos database. Official agents do not require Accessibility permissions. Reason: Restricted temporary storage is the existing solution, and there is no source code basis for temporary album operations and private properties.
 
-## 卸载
+<a id="卸载"></a>
+
+## Uninstall
 
 ```bash
 ./scripts/uninstall-messages-agent.sh
 ```
 
-卸载后应确认 LaunchAgent 已消失。若不再使用该 Mac，还应在店铺设置中轮换或撤销代理令牌。保留原因：删除本机进程不会使服务端令牌自动失效。
+After uninstalling you should confirm that the LaunchAgent has disappeared. If you no longer use the Mac, you should also rotate or revoke the proxy token in your store settings. Reason: Deleting the native process will not automatically invalidate the server token.
 
-API 将可重试失败最早 60 秒后重新排队，Mac 代理对失败持久等待至少 5 分钟才再次领取；最多重试 3 次（首次发送加重试共 4 次），达到上限标记失败并停止自动重试。队列繁忙或代理离线时实际重试可能更晚。已交给“信息”但结果不明确的任务仍需人工核对，不自动重发。保留原因：失败类型区分可安全重试与结果不确定，重试上限保护队列和收件者。
+The API will requeue after a retry failure at the earliest 60 seconds, and the Mac agent will wait for at least 5 minutes for failure before receiving it again; it can retry a maximum of 3 times (a total of 4 retries for the first send), and the upper limit is reached to mark the failure and stop automatic retries. The actual retry may come later when the queue is busy or the agent is offline. Tasks that have been handed over to Messages but have unclear results still need to be manually checked and will not be automatically resent. Reason: Failure types differentiate between safe retries and indeterminate results, and retry caps protect queues and recipients.

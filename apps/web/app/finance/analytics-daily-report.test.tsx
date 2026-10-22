@@ -35,7 +35,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   state.locale = "zh-CN";
-  data = { dateFrom: "2026-10-05", dateTo: "2026-10-07", hasData: true, hours: [], weekdays: [],
+  data = { dateFrom: "2026-10-05", dateTo: "2026-10-07", hasData: true, trends: null, hours: [], weekdays: [],
     weekdayComparison: { hasData: false, days: [], weekdays: [] },
     days: ["2026-10-05", "2026-10-06", "2026-10-07"].map((businessDate, index) => ({ businessDate, revenueCents: ["134567", "0", null][index]!, count: 0, hours: [], lostCustomerCount: 0, averageCents: null, averageDayCount: 0, average30Cents: null, average30DayCount: 0, cumulativeAverageCents: null, cumulativeAverageDayCount: 0 })),
   };
@@ -58,7 +58,6 @@ it("日历金额在日期下，区分已日结零值、未日结与范围外，�
   await click(button("显示全部列"));
   expect(container.querySelector(".finance-daily-table")!.classList.contains("is-expanded")).toBe(true);
 });
-
 it("三种高光筛选作用于小计与日历点击明细，不继承财务的员工或付款条件", async () => {
   for (const filter of ["ALL", "ONLY_HIGHLIGHTED", "EXCLUDE_HIGHLIGHTED"] as const) {
     await render(filter);

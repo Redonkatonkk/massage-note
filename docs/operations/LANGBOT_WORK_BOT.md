@@ -1,99 +1,123 @@
-# LangBot 记工机器人
+<a id="langbot-记工机器人"></a>
 
-当前插件 **1.4.1**，完整能力要求 API **至少 1.7.0**、协议 2；应用当前版本以根目录 `VERSION` 为准。保留原因：插件安装包版本与应用独立，协议二及多人意图需要对应的后端支持。
+# LangBot work record robot
 
-群内 @ 机器人后，每条消息结合店铺实时目录和自然语言说明交给模型理解。最终写入、权限和查询由 Massage Note 后端执行，数据库是金额的唯一来源。
+**English** | **[简体中文](LANGBOT_WORK_BOT.zh-CN.md)**
 
-## 记工与查询
+The current plug-in is **1.4.1**, and complete capabilities require API **at least 1.7.0** and protocol 2; the current version of the application is subject to the root directory `VERSION`. Reason: The plug-in installation package version is independent of the application. Protocol 2 and multi-player intent require corresponding back-end support.
 
-| 示例 | 行为 |
+After adding the @bot in the group, each message is combined with the store’s real-time catalog and natural language description and handed over to the model for understanding. Final writes, permissions and queries are performed by the Massage Note backend, with the database being the only source of amounts.
+
+<a id="记工与查询"></a>
+
+## Work record and query
+
+| Example | Behavior |
 | --- | --- |
-| `绑定店铺 123456`、`绑定 Lily` | 绑定群和微信身份；姓名认领本身不授予历史财务访问 |
-| `Lily 大力 60` | 给同店 Lily 上工，使用目录价格和提成 |
-| `Lily 下了，收 75/15卡，评论` | 实收服务费 $75、刷卡小费 $15、添加配置的评论折扣；保留项目原价 |
-| `Lily 加热石`、`Lily 加评论折扣` | 给唯一的待付款记录添加配置项目，重复添加同一预设项不叠加 |
-| `Lily 移除热石`、`Lily 取消评论折扣` | 移除已有加项或折扣，停用目录项仍可按快照名称移除 |
-| `Lily 高亮`、`Lily 取消高亮` | 设置或取消高亮；影响网页原有刷卡手续费规则 |
-| `最近 15 天的折后大费都是多少？给我列表` | 以店铺营业日查询，含当前营业日，默认已付款记录，逐笔列表与全范围合计 |
-| `最近 15 天折后大费按天汇总` | 按营业日汇总；也可按员工汇总 |
-| `查询 Lily 最近 15 天折后大费，第 2 页` | 员工筛选及分页；每页 20 条，不静默截断 |
-| `查询今天待付款记工`、`查询最近 15 天高亮记录` | 按付款状态、高亮筛选；可查询已删除记录以取得恢复编号 |
-| `高亮 <完整记录编号>` | 精确操作指定记录，包括已付款记工 |
-| `修改 <完整记录编号> 原价 90，现金大费 30，卡大费 60，卡小费 10` | 原子修改项目原价及混合付款；礼物卡付款须明确序列号 |
-| `删除 <完整记录编号>`、`恢复 <完整记录编号>` | 软删除或恢复；日结锁与历史权限继续生效 |
+| `绑定店铺 123456`, `绑定 Lily` | Bind group and WeChat identities; name recognition itself does not grant historical financial access |
+| `Lily 大力 60` | Work for Lily, the same store, using catalog prices and commissions |
+| `Lily 下了, 收 75/15卡, 评论` | Actual service fee $75, credit card tips $15, add configuration review discount; keep the original price of the project |
+| `Lily 加热石`, `Lily 加评论折扣` | Add configuration items to the only pending payment record. Repeated additions of the same preset items will not overlap. |
+| `Lily 移除热石`, `Lily 取消评论折扣` | Remove existing add-on or discount, deactivated catalog items can still be removed by snapshot name |
+| `Lily 高亮`, `Lily 取消高亮` | Set or cancel highlight; affect the original card processing fee rules of the web page |
+| `最近 15 天的折后大费都是多少?给我列表` | Query based on store business day, including current business day, default paid records, transaction list and full range total |
+| `最近 15 天折后大费按天汇总` | Summarized by business day; also summarized by employee |
+| `查询 Lily 最近 15 天折后大费, 第 2 页` | Employee filtering and paging; 20 entries per page, no silent truncation |
+| `查询今天待付款记工`, `查询最近 15 天高亮记录` | Filter by payment status, highlight; deleted records can be queried to obtain recovery numbers |
+| `高亮 <完整记录编号>` | Precisely operate specified records, including paid work records |
+| `修改 <完整记录编号> 原价 90, 现金大费 30, 卡大费 60, 卡小费 10` | Atomic modification project original price and mixed payment; gift card payment must specify the serial number |
+| `删除 <完整记录编号>`, `恢复 <完整记录编号>` | soft deletion or recovery; daily closing lock and historical permissions continue to take effect |
 
-下工回复显示实收与小费；仅已高亮时显示高亮状态，项目金额等于实收时隐藏项目金额。应收（项目金额＋加项－折扣，不含小费）与实收不一致时，标明应收及少收/多收差额；仅在存在加项或折扣时展示对应金额与名称，不显示编号和折后大费。查询列表仍提供完整编号及折后大费。“折后大费”是主要项目加加项再减折扣。折扣不减少员工的大费工资。未知配置、多个待付款记录或缺少关键信息时不猜记录；可先查列表获得完整编号。保留原因：实收、应收和工资口径不同，完整编号用于消除多笔记录的操作歧义。
+The actual receipt and tips are displayed in the response after work is completed; the highlight status is displayed only when highlighted, and the item amount is equal to the hidden item amount when actual receipt. When receivables (project amount + add-on - discount, excluding tips) are inconsistent with actual receipts, indicate the receivables and under/overcharge differences; only display the corresponding amount and name when there is an add-on or discount, and do not display the number and post-discount service fee. The query list still provides the complete number and discounted service fee. "Service fee after discount" is the main item plus add-on minus the discount. The discount does not reduce the employee's service commission. No records will be guessed when the configuration is unknown, there are multiple pending payment records or key information is missing; you can check the list first to get the complete number. Reason: Actual receipts, receivables, and salary definitions are different, and the complete number is used to eliminate operational ambiguity in multiple records.
 
-按编号编辑还支持员工、项目、时长、备注、自动折扣开关、手工结清标记、自定义折扣/加项及提成。自定义金额须在消息中明确提供；完整加项/折扣列表的修改会替换原列表，单项添加或移除使用上述简单命令。开始/结束时间修改、历史补录要求明确带时区的 ISO 时间，例如 `2026-09-08T14:00:00-04:00`。补录可指定预设项目或提供完整自定义项目名称、时长和金额。只支持现有网页的业务能力，不支持任意 SQL 或绕过日结。保留原因：完整替换与单项增删的语义不同，明确时间和原文金额可避免误改历史账目。
+Editing by number also supports employees, projects, duration, notes, automatic discount switches, manual settlement marks, custom discounts/add-ons and commissions. Custom amounts must be provided explicitly in the message; modifications to the complete add-on/discount list will replace the original list, and individual items can be added or removed using the simple commands above. Start/end time modification and historical supplementary recording require clear ISO time with time zone, such as `2026-09-08T14:00:00-04:00`. Supplementary recording can specify preset projects or provide fully customized project names, duration and amounts. Only supports the business capabilities of existing web pages and does not support arbitrary SQL or bypass daily closing. Reason: The semantics of complete replacement are different from single additions and deletions. Clarifying the time and original amount can avoid mistakenly modifying historical accounts.
 
-查询最多覆盖 366 个营业日期。普通员工只能查询本人历史财务，经理和店主可查询全店。分页回复中的总计始终覆盖完整筛选范围；长页拆成多条微信回复。翻页需重复查询范围并注明页码。保留原因：限制查询负载、保护员工隐私，并让分页合计与实际筛选一致。
+The query covers up to 366 business day periods. Ordinary employees can only query their personal financial history, while managers and store owners can query the entire store. The total in paginated replies always covers the complete filtering range; long pages are split into multiple WeChat replies. When turning pages, you need to repeat the query range and indicate the page number. Reason: Limit query load, protect employee privacy, and keep pagination totals consistent with actual filtering.
 
-## 核实身份并开启数据访问
+<a id="核实身份并开启数据访问"></a>
 
-1. 在群内完成绑定。
-2. 店主或经理登录网页 → 店铺管理 → 记工机器人 → 微信群绑定，核对微信 senderId 与员工本人。
-3. 点击「核实身份并开启数据访问」。查询结果会发送到该微信群。
+## Verify identity and enable data access
 
-保留原因：先绑定再核实，才能把真实微信身份关联到当前店铺成员和其实际角色。
+1. Complete binding within the group.
+2. The store owner or manager logs in to the web page → Store Management → Work Record Robot → Bind the WeChat group and check the WeChat senderId and the employee himself.
+3. Click "Verify identity and enable data access". The query results will be sent to the WeChat group.
 
-核实前只允许普通员工级别的当日记工，不能因为认领经理姓名而获得历史编辑和财务查询权限。核实后仍以成员当前角色为准；未参与服务的经理或店主也能绑定和查账。切换绑定身份取消核实，关闭数据访问后重放旧查询也会重新鉴权。保留原因：姓名认领不是身份凭据，撤销权限后重放历史消息也不能绕过鉴权。
+Reason: Only by binding first and then verifying can the real WeChat identity be associated with the current store member and his or her actual role.
 
-## 组件与接口
+Before verification, only ordinary employee-level work records of the day are allowed. History editing and financial query permissions cannot be obtained by claiming the name of the manager. After verification, the current role of the member will still prevail; managers or store owners who have not participated in the service can also bind and check accounts. Switching the binding identity cancels verification, and replaying old queries after closing data access will also re-authenticate. Reason: Name recognition is not an identity credential, and replaying historical messages after revoking permissions cannot bypass authentication.
 
-- 插件：`integrations/langbot-plugin`，事件组件 `components/events/work_bot.py`。
-- 契约：`packages/contracts/src/work-bot.ts`。后端意图为 BIND_STORE、BIND_MEMBER、START、FINISH、ADJUST、QUERY、MANAGE、HELP、BATCH；CLARIFY 仅在插件内处理。
-- 后端：`apps/api/src/work-bot`。复杂写入使用内部绑定身份适配器，复用 `WorkRecordsService`；微信来源与成员身份另有审计记录。
-- 管理 UI：`apps/web/app/manage/work-bot-panel.tsx`。
-- `POST /api/v1/integrations/langbot/work-context`：返回 `protocolVersion: 2`、店铺营业日期/时区、说明、实时目录、员工和意图 JSON Schema。模型不持有数据库连接信息。
-- `POST /api/v1/integrations/langbot/work-events`：验证集成令牌及 `Idempotency-Key: wechatpad:<bot-id>:<message-id>`，执行结构化查询或记工。重复写消息返回原结果；同编号不同内容拒绝。
-- `PATCH /api/v1/stores/:storeId/work-bot/members/:bindingId/verification`：已登录管理者提交 `{version, verified}`，核实或撤销微信身份，带版本校验及审计。
+<a id="组件与接口"></a>
 
-## 部署
+## Components and Interfaces
 
-先升级符合当前最低要求的 API 并应用全部现有迁移，再构建并安装当前插件。配置字段、打包与验证命令以 [插件开发指南](../../integrations/langbot-plugin/DEVELOPMENT.md) 和随包中英文说明为准。保留原因：只安装旧插件或只更新 API 都不能代表完整功能已上线；旧版逐次升级步骤不再适用于当前安装。
+- Plug-in: `integrations/langbot-plugin`, event component `components/events/work_bot.py`.
+- Contract: `packages/contracts/src/work-bot.ts`. Backend intents are BIND_STORE, BIND_MEMBER, START, FINISH, ADJUST, QUERY, MANAGE, HELP, BATCH; CLARIFY is only handled within the plugin.
+- Backend: `apps/api/src/work-bot`. Complex writing uses the internal binding identity adapter and reuses `WorkRecordsService`; WeChat sources and membership identities are also audited.
+- Management UI: `apps/web/app/manage/work-bot-panel.tsx`.
+- `POST /api/v1/integrations/langbot/work-context`: Returns `protocolVersion: 2`, store business day/timezone, description, live directory, employees and intent JSON Schema. The model does not hold database connection information.
+- `POST /api/v1/integrations/langbot/work-events`: Verify integration token and `Idempotency-Key: wechatpad:<bot-id>:<message-id>`, execute structured query or work record. Repeatedly writing the message will return the original result; the same number but different content will be rejected.
+- `PATCH /api/v1/stores/:storeId/work-bot/members/:bindingId/verification`: The logged-in administrator submits `{version, verified}` to verify or revoke the WeChat identity, with version verification and auditing.
 
-保持记工流水线仅由被 @ 的群消息触发，专用机器人和插件配置不变。新版插件检查后端协议，避免误连旧版 API。安装后核对 `mounted`、`initialized` 日志，并在管理页开启需要查账的真实微信身份。保留原因：插件监听器不会自行判断 @，需要流水线限制接管范围；协议和身份检查防止误接旧服务或错误账号。
+<a id="部署"></a>
 
-验证覆盖金额与付款口径、权限与撤销、营业日和夏令时、分页、折扣/加项、高亮、原子混合付款、失败回滚、软删除恢复、重复事件和并发上工。
+## Deploy
 
-高亮操作可直接说 `高亮`、`取消高亮`（使用发送者绑定员工），或 `Lily 高亮`、`Lily 取消高亮`。`去掉高亮`、`移除高亮`、`关闭高亮`、`不高亮`、`unhighlight` 均表示取消。已付款记录请用完整记录编号；无编号只操作唯一待付款记录。下工时也可附带高亮/取消高亮。模型必须保留否定词；疑问或“不要取消高亮”等歧义表达不写账。保留原因：后端原文校验依赖完整动作证据，省略否定词会颠倒用户指令。
+Upgrade APIs that meet the current minimum requirements and apply any existing migrations before building and installing the current plugin. The configuration fields, packaging and verification commands are subject to the [Plug-in Development Guide](../../integrations/langbot-plugin/DEVELOPMENT.md) and the Chinese and English instructions included with the package. Reason: Just installing the old plugin or just updating the API does not mean that the full functionality is online; the old step-by-step upgrade steps no longer apply to the current installation.
 
-## 店铺默认时长与解析失败
+Keep the work record turnover line only triggered by @ group messages, and the dedicated robot and plug-in configuration remain unchanged. The new version of the plug-in checks the backend protocol to avoid mistakenly connecting to the old version of the API. After installation, check the `mounted` and `initialized` logs, and enable the real WeChat identity that needs to be audited on the management page. Reason: The plug-in listener will not judge by itself, and the turnover line is required to limit the handoff scope; protocol and identity checks prevent mistaken connections to old services or wrong accounts.
 
-店铺说明约定“大力指 Deep Tissue Massage；未提时长默认60分钟”时，`@Jeunesse jessica 上工 大力` 应映射至目录中的对应项目、Jessica 和60分钟。默认时长使用 `durationSource=SKILL`，不编造原文时长证据；显式时长优先。员工、项目和价格档仍须存在于当前店铺。后端保留 @ 员工的姓名证据。保留原因：只有店铺配置可以授权默认时长，显式用户输入和实时目录仍有优先权。
+Verification covers amount and payment definition, permissions and revocation, business day and daylight saving time, paging, discount/add-on, highlight, atomic hybrid payment, failure rollback, soft deletion recovery, duplicate events and concurrent work.
 
-每条消息仍读取当前店铺说明。第一次解析为 HELP 且店铺有说明，或结构不合格时，插件最多复核一次；复核仍有歧义则保持 HELP。两次结构不合格明确报错；后端原文证据不匹配返回 `INTENT_EVIDENCE_REJECTED`，说明本次没有记账。复核最多增加一次模型调用。保留原因：限制复核次数和失败时明确不写账，避免无限重试或不完整解析被执行。
+ The highlight operation can be directly said `高亮`, `取消高亮`(use sender to bind employee), or `Lily 高亮`, `Lily 取消高亮`.`去掉高亮`, `移除高亮`, `关闭高亮`, `不高亮`, `unhighlight` All indicate cancellation. Please use the complete record number for paid records; without a number, only the unique record to be paid will be operated. Highlight/cancel highlight can also be included during off-duty time. The model must retain negative words; questions or ambiguous expressions such as "don't cancel highlight" are not included in the account. Reason: Back-end original text verification relies on complete action evidence, and omitting negative words will reverse user instructions.
 
-## 源码与安装包
+<a id="店铺默认时长与解析失败"></a>
 
-插件目录、测试与打包命令见 [插件开发指南](../../integrations/langbot-plugin/DEVELOPMENT.md)。运行版本以已安装包及日志为准。保留原因：源文件修改不会自动更新独立的插件进程；历史引入版本只在 CHANGELOG 追溯。
+## Store default duration and parsing failure
 
-## 上工回复的人员状态
+When the store description stipulates that "Defensively refers to Deep Tissue Massage; if the duration is not mentioned, the default is 60 minutes",`@Jeunesse jessica 上工 大力` Should be mapped to the corresponding projects in the catalog, Jessica and 60 Minutes. Default duration of use `durationSource=SKILL`, do not fabricate evidence of the duration of the original text; explicit duration takes precedence. Employees, items, and price brackets must still exist in the current store. The backend retains evidence of @employees' names. Reason: Only the store configuration can authorize the default duration, explicit user input and live catalogs still take precedence.
 
-上工成功内容后追加一行：`空闲：Lily、Anna`。全员忙碌时改为 `全员上工｜最早下工：Lily 15:30（预计）`；并列最早结束的员工一起显示，跨当地自然日附日期。没有可确定的结束时间时显示 `全员上工｜下工时间待定`。
+Each message still reads the current store description. When it is resolved to HELP for the first time and the store has a description, or the structure is unqualified, the plug-in will be reviewed at most once; if there is still ambiguity after review, HELP will be maintained. Twice the structure is unqualified and an error is clearly reported; the back-end original text evidence does not match and returns `INTENT_EVIDENCE_REJECTED`, indicating that there is no accounting this time. Review adds at most one model call. Reason: Limit the number of reviews and explicitly not write accounts when failures occur to avoid infinite retries or incomplete parsing.
 
-范围仅限已加入本店今日排工、排工行未隐藏/移除，且在职、参与记工、关联账号未停用的成员，不要求绑定微信。“今日”按回复生成时刻的店铺当地自然日期确定；未加入今日排工、仅加入其他日期排工的员工不出现在空闲或最早下工名单中。今日无符合条件的排工人员时显示 `今日暂无排工`。保留原因：状态回复应与今日看板一致，不能把未排班人员算作可接客。
+<a id="源码与安装包"></a>
 
-状态以回复生成时刻为准，包含网页和机器人创建的未删除记工，沿用网页口径：待付款、已经开始且预计结束尚未到达（或结束时间未知）视为忙碌；预计到时即视为空闲，不等同于已收款。同一人多条进行中记录按最后结束时间计算。重复消息返回原先保存的回复。保留原因：人员状态来自后端当前排工和记录，不能根据聊天记忆估计。
+## Source code and installation package
 
-## 最近对话记忆
+For the plug-in directory, testing and packaging commands, see [Plug-in Development Guide](../../integrations/langbot-plugin/DEVELOPMENT.md). The running version is subject to the installed package and log. Reason: Source file modifications will not automatically update the independent plug-in process; historical imported versions are only traced in CHANGELOG.
 
-每次调用模型，在当前店铺系统提示与本条用户消息之间，按时间顺序附带同一机器人、群和发送者最近 5 轮用户原文及实际发送的机器人回复；解析复核也保留这些历史。相同发送者的并发请求依次处理，重复消息不会把自身加入本次上下文或反复积累。失败时记录实际失败/结果未确认提示，不将模型意图当作记账成功。保留原因：顺序处理和去重避免并发对话串线，也不把未成功的模型意图记成成功。
+<a id="上工回复的人员状态"></a>
 
-记忆仅存插件进程内存，空闲 30 分钟过期、重启清空。当前店铺上下文或配置不同的请求不共享历史，最多保留 256 个会话；一轮中任何文本超过 4,000 字符则整轮不保存。只收录插件接管的文字对话，不读取群内其他聊天。保留原因：范围隔离和容量上限防止跨店泄漏及无界内存增长。
+## Personnel status responded to at work
 
-历史帮助理解语境，但不能直接当作新操作、金额事实或授权。原文证据仍来自本条消息，不能仅凭“他”“上一笔”等历史指代补齐写账对象；必要信息缺失时仍返回帮助。实时目录、查询与后端校验继续生效。保留原因：历史不是本次写入证据，不能凭过去的对象或金额生成新账。
+Add a line after the success content:`空闲: Lily, Anna`. When everyone is busy, change to `全员上工｜最早下工: Lily 15:30 (预计)`;The employees who ended the earliest period are displayed together, with dates attached across local calendar days. Displayed when there is no determinable end time `全员上工｜下工时间待定`.
 
-## 学习记忆
+The scope is limited to members who have joined our store’s today’s work schedule, whose work schedule has not been hidden/removed, who are employed, participated in work records, and whose associated accounts have not been deactivated. WeChat binding is not required. "Today" is determined based on the local natural date of the store at the time when the reply is generated; employees who are not scheduled for today but are only scheduled for other dates will not appear in the idle or earliest off-duty list. Displayed when there are no qualified schedulers today `今日暂无排工`. Reason: The status reply should be consistent with today's board, and unscheduled personnel cannot be counted as available to pick up customers.
 
-歧义和纠正触发 CLARIFY：先说出具体猜测并询问。用户在30分钟内回复“对/是的/确认”等后保存经验；确认只学习，不记账，操作需发送完整指令。纠正会停用同说法旧经验并等待重新确认。最新目录、原文证据、店铺配置和权限校验仍优先，经验不能授权默认时长或付款方式。保留原因：先暂停错误经验并确认解释，防止纠正消息本身触发错误记工。
+The status is based on the time when the reply is generated, including undeleted work records created by web pages and robots. It follows the web page definition: pending payment, which has been started and the estimated end has not yet arrived (or the end time is unknown) is considered busy; when it is expected to arrive, it is considered idle, which does not mean that payment has been received. Multiple ongoing records for the same person will be calculated based on the last end time. Duplicate messages return the previously saved reply. Reason: Personnel status comes from the current schedule and records in the backend and cannot be estimated based on chat memory.
 
-记忆使用 LangBot SDK 的 get_plugin_storage/set_plugin_storage 持久保存，按 API 配置、storeId、机器人、群、发送者及绑定姓名隔离；跨日期、重启保留。每个范围保留最近50条经验、30条未理解事件和30条澄清回复（用于去重）。改配置或绑定会切换记忆范围。存储失败会提示，不能宣称已记住。备份包含消息片段，应按运行数据保护。保留原因：持久经验含消息片段，需要隔离、限量并如实反馈保存失败。
+<a id="最近对话记忆"></a>
 
-CLARIFY 只由插件处理，不提交记工 API。保留原因：后端业务契约不接受 CLARIFY，确认学习不能变成财务写入。
+## Recent conversation memory
 
-## 多人员指令
+Each time the model is called, between the current store system prompt and this user message, the last 5 rounds of user original texts and actual sent robot replies from the same robot, group and sender are attached in chronological order; the parsing review also retains these histories. Concurrent requests from the same sender are processed in sequence, and repeated messages will not add themselves to this context or accumulate repeatedly. On failure, the actual failure/result unconfirmed prompt is recorded, and the model intention is not treated as a accounting success. Reason: Sequential processing and deduplication avoid concurrent conversation threading and do not count unsuccessful model intents as successful.
 
-`Ling Jessie 上工 大力` 表示为 Ling 和 Jessie 分别上工，共用明确项目与店铺默认时长。插件识别完整员工姓名，不将多人拼成一个姓名；每人可有不同的明确项目和时长。多人下工的共同金额必须明确为每人金额，合计或分配不清先澄清。保留原因：完整姓名匹配和明确付款分配可避免漏掉员工或把合计重复记到每人。
+The memory only exists in the plug-in process memory. It expires after 30 minutes of idle time and is cleared upon restart. Requests with different current store contexts or configurations do not share history, and a maximum of 256 sessions are retained; if any text exceeds 4,000 characters in a round, the entire round will not be saved. Only the text conversations taken over by the plug-in are included, and other chats in the group are not read. Reason: Range isolation and capacity capping prevent cross-store leaks and unbounded memory growth.
 
-解析结果使用 `{ "kind": "BATCH", "actions": [...] }`，含2–10个 START、FINISH 或 ADJUST，每项必须有 memberName/memberMention，员工不得重复，不能嵌套或带 recordId。原文逐项校验，权限及目录逐项复核；同事务全部成功才返回 BATCH_COMPLETED，任一失败回滚全部写入。消息级幂等保存合并回复，重发原消息不会再次执行。保留原因：消息级幂等和同事务提交防止多人指令只完成一部分或重放写入。
+History helps understand context, but cannot be used directly as a new operation, amount fact, or authorization. The original text evidence still comes from this message, and historical references such as "he" and "previous transaction" cannot be used to complete the accounting object; help will still be returned when necessary information is missing. Live catalogs, queries, and backend validations continue to take effect. Reason: History is not evidence of this writing, and new accounts cannot be generated based on past objects or amounts.
+
+<a id="学习记忆"></a>
+
+## Learning memory
+
+Ambiguity and Correction Trigger CLARIFY: State the specific guess first and ask. The user saves the experience after replying "Yes/Yes/Confirm" within 30 minutes; confirmation is only for learning, not accounting, and complete instructions must be sent for operation. Correction will deactivate synchronization experience and wait for re-confirmation. The latest catalog, original text evidence, store configuration and permission verification still take priority, and experience cannot authorize the default duration or payment method. Reason: Pause the error experience first and confirm the explanation to prevent the correction message itself from triggering the error work record.
+
+The memory is persisted using LangBot SDK's get_plugin_storage/set_plugin_storage, isolated by API configuration, storeId, robot, group, sender and binding name; retained across dates and restarts. Each range retains the latest 50 experiences, 30 ununderstood events, and 30 clarification responses (for deduplication). Changing the configuration or binding will switch the memory range. If the storage fails, a prompt will appear and you cannot claim to have remembered it. The backup contains message fragments and should be protected against running data. Reason: Persistent experience contains message fragments, which need to be isolated, limited, and truthfully reported on failure to save.
+
+CLARIFY is only handled by plugins and does not submit to the work record API. Reason: The backend business contract does not accept CLARIFY, confirming that learning cannot be turned into financial writing.
+
+<a id="多人员指令"></a>
+
+## Multiple personnel instructions
+
+`Ling Jessie 上工 大力` It means that Ling and Jessie work separately, sharing clear projects and store default duration. The plug-in recognizes the complete employee name and does not spell multiple people into one name; each person can have different specific projects and durations. The common amount for multiple people off work must be clearly stated as the amount per person. If the total or allocation is unclear, please clarify first. Reason: Full name matching and clear payment allocation avoid missing employees or double-billing totals to each person.
+
+The parsing result uses `{ "kind": "BATCH", "actions": [...] }`, containing 2-10 START, FINISH or ADJUST. Each item must have memberName/memberMention. Employees must not be repeated, nested or with recordId. The original text is verified item by item, and permissions and directories are reviewed item by item; BATCH_COMPLETED will be returned only when all transactions are successful, and all writes will be rolled back if any failure occurs. Message-level idempotency saves the merged reply, and resending the original message will not be executed again. Reason: Message-level idempotency and same-transaction commit prevent multi-instructions from only partially completing or replaying writes.

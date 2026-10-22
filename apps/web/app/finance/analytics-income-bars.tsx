@@ -18,6 +18,7 @@ export function AnalyticsIncomeBars({ days, dateFrom, dateTo, loading, failed, e
   const [period, setPeriod] = useState<IncomePeriod>("WEEK");
   const id = useId();
   const title = en ? "Turnover and income" : "流水与收入柱状图";
+  const scrollLabel = en ? "Turnover and income; scroll vertically for all periods" : "流水与收入柱状图，可上下滚动查看全部周期";
   const description = en ? "Totals follow the dates and highlight filter above. Weeks run Monday–Sunday; months are calendar months. Edge periods include selected dates only. Total income follows daily subtotals, before card fees." : "按上方日期及高光条件合计；每周按周一至周日，每月按自然月，首尾仅统计所选日期。总收入沿用每日小计口径（手续费前）。";
   const series = [
     { id: "turnover", key: "turnoverCents", label: en ? "Total turnover" : "总流水", color: "var(--brand)" },
@@ -30,14 +31,15 @@ export function AnalyticsIncomeBars({ days, dateFrom, dateTo, loading, failed, e
     </select></label>
     <ul className="analytics-income-legend" aria-label={en ? "All three amounts are shown" : "三项金额全部显示"}>{series.map(item => <li key={item.id}><svg width="14" height="14" aria-hidden="true"><rect width="14" height="14" fill={item.color} /></svg>{item.label}</li>)}</ul>
     {loading && days.length > 0 && !failed && <p role="status">{en ? "Updating turnover and income…" : "正在更新流水与收入…"}</p>}
+    <p className="analytics-income-scroll-hint">{en ? "Scroll inside this panel for all periods and details." : "在此面板内上下滚动，查看全部周期与明细。"}</p>
   </div>;
-  if (failed || days.length === 0) return <section className="analytics-card analytics-income-bars" aria-busy={loading}>
+  if (failed || days.length === 0) return <section className="analytics-card analytics-income-bars" aria-busy={loading} aria-label={scrollLabel} tabIndex={0}>
     <h2>{title}</h2><p className="analytics-description">{description}</p>{controls}
     {failed ? <p role={error ? "alert" : "status"} className={error ? "form-error" : undefined}>{error} <button type="button" onClick={retry}>{en ? "Retry" : "重试"}</button></p>
       : <p role={loading ? "status" : undefined} className={loading ? undefined : "empty-state"}>{loading ? (en ? "Loading turnover and income…" : "正在读取流水与收入…") : (en ? "No financial data in this range." : "当前范围没有财务数据。")}</p>}
   </section>;
   const groups = groupIncomePeriods(days, dateFrom, dateTo, period);
-  return <Chart key={period} className="analytics-income-bars" title={title} description={description} bars horizontalBars currency controls={controls}
+  return <Chart key={period} className="analytics-income-bars" title={title} description={description} bars horizontalBars currency controls={controls} scrollLabel={scrollLabel}
     series={series.map(item => ({ id: item.id, color: item.color, values: groups.map(group => group[item.key] / 100) }))}
     points={groups.map(group => ({ label: group.label, value: null, detail: [group.from === group.to ? group.from : `${group.from} — ${group.to}`, ...series.map(item => `${item.label} ${formatUsdPrecise(group[item.key], locale)}`)].join(" · ") }))} />;
 }

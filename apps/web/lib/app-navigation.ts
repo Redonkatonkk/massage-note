@@ -7,7 +7,7 @@ export type ManageTab = "store" | "members" | "catalog" | "work-bot" | "recovery
 
 export function financeNavigationTabs(role: NavigationRole): Array<[FinanceTab, string]> {
   const canManage = role !== "EMPLOYEE";
-  const tabs: Array<[FinanceTab, string]> = [["summary", "财务汇总"]];
+  const tabs: Array<[FinanceTab, string]> = [["summary", "月度汇总"]];
   if (canManage) tabs.push(["analytics", "经营分析"], ["expenses", "支出"]);
   tabs.push(["closing", canManage ? "日结" : "我的日结"]);
   if (canManage) tabs.push(["giftCards", "礼物卡"]);

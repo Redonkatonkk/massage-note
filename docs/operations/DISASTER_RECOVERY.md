@@ -1,71 +1,85 @@
-# Google Drive 灾难恢复
+<a id="google-drive-灾难恢复"></a>
 
-## 目标与当前状态
+# Google Drive Disaster Recovery
 
-每天 **America/New_York 00:00** 由 NAS 执行备份，只保留最近 **3 次成功的完整恢复包**。NAS 丢失后，在当前 Mac 上按需恢复，平时不运行本地备用服务。恢复点为最近一次成功备份，最多可能损失约一天的新记录；不提供自动切换或时间点恢复。保留原因：每日离线恢复包不能保存尚未上传的写入，也不能代替常开备用数据库。
+**English** | **[简体中文](DISASTER_RECOVERY.zh-CN.md)**
 
-**2026-10-18 真实云端恢复演练通过，自动备份已激活。** NAS → Drive 完整上传及读回、包内代码 → ARM Mac 完整恢复、登录与账目查询、隔离写入和清理均通过。专用 OAuth 为正式版，私有目录为 [Massage Note Backups/production](https://drive.google.com/drive/folders/1PUMZ8jsVBRXinEhdV21qxU3CvzaELhqp)；Gmail 测试及 NAS 实际失败通知均已核对收件。NAS 采用 Eastern 夏令时规则，每天 00:00 运行，下次定时触发为 2026-10-19 00:00。保留原因：这里记录真实验收与启用事实；首个定时触发尚未发生，不能把手动运行同一入口说成已观察到跨夜执行。
+<a id="目标与当前状态"></a>
 
-完整证据、耗时及边界见 [恢复验收记录](RECOVERY_REPORT.md)。两份真实云端包分别独立恢复通过，耗时约 46 秒和 49 秒；第二次直接查询 Drive 并重新下载最新包。期间不读取 NAS、不从镜像仓库拉取应用，只使用已校验的云端包、包内恢复代码和独立钥匙串私钥。
+## Goals and current status
 
-## 独立目录与恢复包
+Backups are performed by the NAS at **America/New_York 00:00** every day, and only the most recent **3 successful full recovery packages** are retained. After the NAS is lost, it is restored on demand on the current Mac, and the local backup service is not usually run. The recovery point is the latest successful backup, and new records of about one day may be lost at most; automatic switching or point-in-time recovery is not provided. Reason: Daily offline recovery packages cannot save writes that have not yet been uploaded, nor can they replace an always-on standby database.
 
-专用 OAuth 身份使用 `jr24839652@gmail.com` 的私有目录 `Massage Note Backups/production`，固定绑定目录 ID，范围为 `drive.file`。首次目录必须由该 OAuth 身份创建；不要用聊天连接器提前创建同名目录，否则该目录可能对专用身份不可见。首次设置见 [工具与 Google 设置](../../scripts/recovery/README.md)。
+**2026-10-18 The real cloud recovery drill passed and automatic backup has been activated. ** NAS → Drive complete upload and readback, package code → ARM Mac complete recovery, login and account query, isolation write and cleanup all passed. The dedicated OAuth is the official version, and the private directory is [Massage Note Backups/production](https://drive.google.com/drive/folders/1PUMZ8jsVBRXinEhdV21qxU3CvzaELhqp); Gmail test and NAS actual failure notifications have been verified and received. NAS adopts Eastern Daylight Saving Time rules and runs at 00:00 every day. The next scheduled trigger is 2026-10-19 00:00. Reason: Real experiment acceptance and activation facts are recorded here; the first scheduled trigger has not yet occurred, and manual running of the same entry cannot be said to have observed overnight execution.
 
-每份恢复包包括：
+For complete evidence, time consumption and boundaries, see [Recovery Acceptance Record](RECOVERY_REPORT.md). The two real cloud packages were independently restored and passed, which took about 46 seconds and 49 seconds; the second time, the Drive was directly queried and the latest package was re-downloaded. During this period, the NAS is not read, and the application is not pulled from the image repository. Only the verified cloud package, the recovery code in the package, and the independent keychain private key are used.
 
-- 全库 custom-format `pg_dump`，保留所有者和 ACL；集群角色、密码摘要及角色授权单独由 `pg_dumpall --globals-only` 保存。保留原因：只有表数据不能重建数据库账号与权限，现有手动 dump 的 `--no-owner/--no-acl` 接口仍保持不变。
-- 同一导出快照的全部 public 业务表行数/有序数据摘要、数据库约束、索引、角色属性、角色成员关系、密码摘要校验和表授权基线；另按店铺/日期/状态核对营业收款、小费、礼卡销售、现金交接和工资结算金额。隔离恢复结果必须与基线一致。保留原因：数据必须和同一时刻比较，文件非空或 `pg_restore --list` 不能证明业务数据一致。
-- NAS 实际运行的应用、PostgreSQL、Redis 镜像，以及恢复代理和备份运行器镜像；记录平台、文件系统层和运行配置。保留原因：本地源码可能尚未发布，镜像仓库也可能在事故时不可用；旧 Docker 与 Mac containerd 的镜像 ID 表示方式不同。
-- 展开后的生产 Compose、容器实际配置及环境、相关反向代理规则、独立公开说明代理的 Compose/Caddyfile/三个页面、Drive/SMTP 凭据、备份配置和恢复代码。Redis 只负责限流，恢复为空库；当前应用无独立附件挂载。新增未知运行服务或持久挂载会使备份停止，而不是静默遗漏。
-- 全部成员文件的大小、SHA-256、格式版本和数据库恢复验证报告。保留原因：缺失密钥、配置或镜像时不能声称恢复包完整。
+<a id="独立目录与恢复包"></a>
 
-恢复点时间记录数据库导出事务的 `snapshotAt`，与压缩包完成时间分别保存。旧集群 CHECK 约束重建后可能改变等价表达式的括号或数组转换写法，因此使用 PostgreSQL 只规划、不执行的表达式结果比较语义，同时核对验证状态及继承属性；其他约束、索引、权限与数据摘要继续逐项比较。保留原因：文本写法变化不等于约束丢失，真实数值边界或允许值变化仍必须被发现。
+## Independent catalog and recovery package
 
-整体采用 age 加密，NAS 只持有公钥。私钥保存在 Mac 系统钥匙串服务 `com.massagenote.recovery.age-identity`，不上传 Drive，不放在 NAS；恢复默认从钥匙串读取。明文仅在权限 `0700` 的临时目录、`0600` 文件内处理，正常结束自动清理。NAS 意外断电留下的暂存目录须在确认无备份运行后清理。保留原因：恢复不能依赖已经遗失的 NAS，云端配置和密钥也不能以明文存储。
+Private OAuth identity usage `jr24839652@gmail.com` private directory `Massage Note Backups/production`, fixed binding directory ID, range is `drive.file`. The first-time directory must be created by that OAuth identity; do not create a directory with the same name in advance with the chat connector, or the directory may not be visible to the private identity. See the first time setup [Tools and Google Settings](../../scripts/recovery/README.md).
 
-## 每晚流程
+Each recovery package includes:
 
-1. 取得独占锁，核对五个生产服务、实际镜像、持久挂载和本机可用空间。保留原因：防止重叠执行和遗漏新增持久数据。
-2. 保持 `pg_export_snapshot` 事务存活，用 `pg_dump --snapshot` 导出并计算同一快照基线；保存角色、原始部署及相关代理配置。保留原因：营业中的写入不应造成导出与核验基线错位。
-3. 启动无网络、无宿主端口、独立数据卷的临时 PostgreSQL，恢复角色和数据库，核对数据、结构及权限后删除验证容器和卷。保留原因：不在生产数据库试跑恢复，也不只校验压缩文件。
-4. 归档离线镜像；再次核对部署、Compose 和代理配置未变化；生成清单、加密。保留原因：数据库与运行版本需要成套保存，部署中途变化须重新备份。
-5. 检查 Drive 可用空间；上传唯一名称恢复包，完整下载并计算 SHA-256，再上传和读取同名 `.sha256` 完成标记。保留原因：上传请求成功不等于远端文件完整，未完成副本不能参与轮换。
-6. 仅删除专用目录中符合命名规则的较旧成功包及标记，永久删除而不清空整个回收站。先保留新副本，轮换期间允许短暂存在第四份。保留原因：上传失败不能删除已有有效备份，用户其他文件不属于本工具管理范围。
-7. 最多三次尝试；最终失败通过 Gmail SMTP 向同一邮箱发信。日志只记录安全状态和阶段，不打印命令参数、数据库 URL、令牌或供应商错误正文。保留原因：失效授权和空间不足需要可发现，通知本身失败也不能被当成已送达。
+- Full library custom-format `pg_dump`, retains owner and ACL; cluster roles, password digests and role authorizations are saved separately by `pg_dumpall --globals-only`. Reason: Only table data cannot rebuild database accounts and permissions. The existing `--no-owner/--no-acl` interface for manual dump remains unchanged.
+- All public business table row numbers/ordered data summaries, database constraints, indexes, role attributes, role memberships, password summary verification and table authorization baselines of the same exported snapshot; also check business receipts, tips, gift card sales, cash handovers and salary settlement amounts by store/date/status. Isolation recovery results must be consistent with baseline. Reason: The data must be compared with the same time. The file is not empty or `pg_restore --list` cannot prove that the business data is consistent.
+- NAS actual running applications, PostgreSQL, Redis images, as well as recovery agents and backup runner images; records platform, file system layer and running configuration. Reason: The local source code may not have been released yet, and the image repository may not be available at the time of the incident; the image IDs of old Docker and Mac containerd are represented differently.
+- Expanded production Compose, actual container configuration and environment, relevant reverse proxy rules, independent public Compose/Caddyfile/three pages describing the proxy, Drive/SMTP credentials, backup configuration and recovery code. Redis is only responsible for rate limiting and is restored to an empty library; the current application has no independent attachments to mount. Adding unknown running services or persistent mounts will cause the backup to stop, rather than silently missing it.
+- Size, SHA-256, format version and database recovery verification report for all member files. Reason: A recovery package cannot be claimed to be complete when keys, configurations or images are missing.
 
-NAS 必须保持开机联网；NAS 完全断网或遗失时也无法主动发出失败邮件。保留原因：此方案不含独立外部存活监控，不能把机器离线等同于能发信的脚本失败。
+The recovery point time records the `snapshotAt` of the database export transaction, and is saved separately from the compression package completion time. After the old cluster CHECK constraint is rebuilt, the parentheses or array conversion writing of equivalent expressions may change. Therefore, PostgreSQL is used to compare the semantics of the expression results that are only planned but not executed, and at the same time check the verification status and inherited attributes; other constraints, indexes, permissions, and data summaries continue to be compared one by one. Reason: Changes in textual writing do not equate to loss of constraints. True numerical boundaries or allowed value changes must still be discovered.
 
-## 安装到 NAS
+Age encryption is used as a whole, and the NAS only holds the public key. Private keys are stored in the Mac System Keychain Service `com.massagenote.recovery.age-identity`, do not upload to Drive, do not put it on NAS; restore the default to read from the keychain. Clear text only in permissions `0700` temporary directory,`0600` Process within the file and automatically clean up after normal completion. The temporary directory left behind by an unexpected power outage on the NAS must be cleared after confirming that no backup is running. Reason: Recovery cannot rely on a lost NAS, and cloud configurations and keys cannot be stored in clear text.
 
-Google 公开说明页由独立的 `mn-recovery-public-info` 项目在 `127.0.0.1:13100` 提供；DSM 将原站点入口转给它，只有 `/backup-info/` 提供静态内容，其他路径继续转原应用 `3100`。生成与安装分别使用 `prepare_public_info.py`、`install-public-info.sh`；切换前须核对本机健康检查及文件回读，切换后命令行核对公网 Web/API 和三个页面。NAS 内核不支持 CFS CPU 配额，容器使用内存上限，不设置 `--cpus`。保留原因：Google 正式授权需要可公开访问的首页、隐私及条款，说明页必须随完整恢复包交付。
+<a id="每晚流程"></a>
 
-1. 按 [设置说明](../../scripts/recovery/README.md) 完成工具安装、钥匙串、OAuth 和 Gmail 配置。使用 Google Cloud 的 Desktop app，发布为 In production，避免 Testing 授权七天失效；Google 登录由用户手动操作。
-2. 在 Mac 项目根目录运行：
+## Nightly process
+
+1. Obtain exclusive locks and check five production services, actual images, persistent mounts, and local free space. Reason: Prevent overlapping execution and missing new persistent data.
+2. Keeping the `pg_export_snapshot` transaction alive, use `pg_dump --snapshot` to export and calculate the same snapshot baseline; save the role, original deployment and related agent configuration. Reason: In-service writing should not cause misalignment of export and verification baselines.
+3. Start a temporary PostgreSQL without network, host port, and independent data volume, restore the role and database, and delete the verification container and volume after checking the data, structure, and permissions. Reason: Do not test restore on production database, nor only verify compressed files.
+4. Archive offline images; double-check that deployment, Compose, and agent configurations have not changed; generate manifests and encrypt. Reason: The database and running version need to be saved as a set, and any changes during deployment must be backed up again.
+5. Check the Drive available space; upload the unique name recovery package, download and calculate SHA-256 in full, then upload and read the `.sha256` completion mark with the same name. Reason: A successful upload request does not mean that the remote file is complete, and uncompleted copies cannot participate in rotation.
+6. Only delete older successful packages and tags in the dedicated directory that comply with the naming rules, and permanently delete them without emptying the entire Recycle Bin. Keep the new copy first, allowing a fourth copy to exist briefly during the rotation. Reason: If the upload fails, the existing valid backup cannot be deleted, and the user's other files are not within the management scope of this tool.
+7. Up to three attempts; ultimately failed to send a message to the same mailbox via Gmail SMTP. The log only records security status and phases and does not print command parameters, database URLs, tokens, or vendor error text. Reason: Invalid authorization and insufficient space need to be discoverable, and the failure of the notification itself cannot be regarded as delivered.
+
+The NAS must remain powered on and connected to the Internet; it cannot proactively send out failure emails when the NAS is completely disconnected or lost. Reason: This solution does not include independent external survival monitoring, and the machine offline cannot be equated to the failure of the script that can send messages.
+
+<a id="安装到-nas"></a>
+
+## Install to NAS
+
+The Google public help page is provided by the independent `mn-recovery-public-info` project at `127.0.0.1:13100`; DSM forwards the original site entrance to it, only `/backup-info/` provides static content, and other paths continue to forward to the original application `3100`. Use `prepare_public_info.py` and `install-public-info.sh` respectively for generation and installation; the local health check and file readback must be checked before switching, and the public network Web/API and three pages must be checked on the command line after switching. The NAS kernel does not support CFS CPU quotas, the upper limit of container memory usage, and `--cpus` is not set. Reason: Official authorization from Google requires a publicly accessible home page, privacy and terms, and instructions page must be delivered with the complete recovery package.
+
+1. Follow [Setup Instructions](../../scripts/recovery/README.md) to complete tool installation, keychain, OAuth, and Gmail configuration. Use Google Cloud's Desktop app and publish it as In production to avoid the seven-day expiration of the Test authorization; Google login must be manually performed by the user.
+2. Run in the Mac project root directory:
 
    ```sh
    python3 scripts/recovery/prepare_install.py
    ```
 
-   生成 `.local-ai/recovery/nas-install/`，包含 SHA-256 校验过的离线工具镜像、任务脚本及受限配置。`--runtime-only` 可提前准备不含 Google/Gmail 凭据的运行器，但不能启用备份。
-3. 将安装目录内容（包括 `recovery/` 工具源码子目录）放入 NAS `/volume1/docker/massage-note-recovery`，目录仅允许管理员访问，配置和凭据为 `0600`。不要复制 Mac age 私钥。工具源码只读覆盖离线运行器的 `/opt/recovery`，备份时把实际工具一并归档；现有应用项目目录只读挂载，Docker socket 只供本次备份运行器导出和创建隔离验证容器。保留原因：Docker socket 等同主机管理权限，任务目录必须受限，恢复不能依赖仓库中的后续代码。
-4. 在 DSM 的 Task Scheduler 创建用户定义脚本，以 root 运行，每天 Eastern 时间 `00:00`（随夏令时调整），命令为：
+   Generate `.local-ai/recovery/nas-install/`, including SHA-256 verified offline tool image, task script and restricted configuration. `--runtime-only` prepares the runner without Google/Gmail credentials in advance, but does not enable backup.
+3. Place the contents of the installation directory (including the `recovery/` tool source code subdirectory) into the NAS `/volume1/docker/massage-note-recovery`. The directory is only accessible to administrators, and the configuration and credentials are `0600`. Do not copy the Mac age private key. The tool source code is read-only and covers the `/opt/recovery` of the offline runner, and the actual tools are archived together during backup; the existing application project directory is read-only mounted, and the Docker socket is only used for this backup runner to export and create isolation verification containers. Reason: Docker socket is equivalent to host management rights, the task directory must be restricted, and recovery cannot rely on subsequent code in the repository.
+4. Create a user-defined script in the Task Scheduler of DSM and run it as root at `00:00` Eastern time every day (adjusted with daylight saving time). The command is:
 
    ```sh
    /bin/sh /volume1/docker/massage-note-recovery/nas-task.sh
    ```
 
-   若 API 返回 `105`，在已认证 DSM 会话中由用户创建，不绕过 MFA。任务不会更新应用镜像或生产 Compose。
-5. 首次验收通过 root 手动运行 `/bin/sh /volume1/docker/massage-note-recovery/nas-task.sh --verify-install`。必须核实退出码为 0、云端恢复包和完成标记存在且可读回，最后执行下一节的 Mac 云端演练。邮件测试和云端验收完成后，才在受限目录创建 `enabled` 文件并核实每日任务启用；删除该文件可停止后续自动备份。另用 `setup.py test-mail` 发送一封明确标为配置测试的邮件，核对收件。保留原因：创建计划任务不是成功执行的证据，SMTP 接受不等于用户已经收到；提前创建的计划任务不能在未验收时开始正式备份。
+   If the API returns `105`, created by the user in an authenticated DSM session, MFA is not bypassed. The task does not update the application image or production Compose.
+5. For the first time acceptance, manually run `/bin/sh /volume1/docker/massage-note-recovery/nas-task.sh --verify-install` as root. You must verify that the exit code is 0, that the cloud recovery package and completion flag are present and readable, and finally perform the Mac cloud walkthrough in the next section. After email testing and cloud acceptance are completed, create an `enabled` file in the restricted directory and verify that the daily task is enabled; deleting this file can stop subsequent automatic backups. Also use `setup.py test-mail` to send an email clearly marked as a configuration test and verify receipt. Reason: Creating a scheduled task is not evidence of successful execution. SMTP acceptance does not mean that the user has received it; scheduled tasks created in advance cannot start formal backup without acceptance.
 
-## Mac 按需恢复和演练
+<a id="mac-按需恢复和演练"></a>
 
-使用 [恢复命令](../../scripts/recovery/README.md) 的 `--drill` 从 Drive 下载备份并在新目录启动。加载归档镜像时按内容和配置核对平台，并保留原有开发镜像标签；Compose 禁止拉取镜像，只创建独立项目和卷。只有 `127.0.0.1:8443` 的 HTTPS 代理发布端口。端口占用时明确失败，不停止其他项目。
+## Mac on-demand recovery and walkthrough
 
-验收包括完整清单、age 解密、数据库与快照基线一致、角色和审计权限、x86 镜像在 ARM Mac 启动、健康/就绪接口、Firebase 令牌建立会话、账目查询和隔离数据库中的 API 测试写入。测试写入只在演练中执行；结束关闭新增容器并删除验证数据和明文配置，仅保留非敏感报告。保留原因：没有完整恢复演练不能保证这台 Mac 能运行恢复产物，普通恢复也不应自动添加测试店铺。
+Use `--drill` of [recovery command](../../scripts/recovery/README.md) to download the backup from Drive and launch it in the new directory. When loading archived images, check the platform according to content and configuration, and retain the original development image tag; Compose prohibits pulling images and only creates independent projects and volumes. Only the HTTPS proxy publishing port is `127.0.0.1:8443`. Explicitly fails when the port is occupied and does not stop other projects.
 
-演练不修改 hosts、系统证书信任或公网 DNS，使用回环连接和单独 CA 验证 HTTPS。真实恢复如需完整浏览器登录，用户在 Mac 安装该恢复目录的 `root.crt`，并仅在本机把原域名解析到 `127.0.0.1`；访问原域名的 `:8443` HTTPS 入口。Firebase 手机登录不支持 `localhost`，保留原授权域名可避免这个限制。公网入口不切换，其他设备不接入本机恢复服务。
+Acceptance includes full inventory, age decryption, database consistency with snapshot baselines, roles and audit permissions, x86 image boot on ARM Mac, health/ready interface, Firebase token session establishment, accounting queries, and API test writes in the isolated database. Test writing is only performed in the walkthrough; at the end, the newly added container is closed and the verification data and plaintext configuration are deleted, leaving only non-sensitive reports. Reason: Without a complete recovery walkthrough, there is no guarantee that this Mac can run the recovery product, and ordinary recovery should not automatically add a test store.
 
-恢复前暂停 Mac 信息代理，核对本机发送日志和恢复库中待发送任务，再决定是否重新接回。NAS 之外的 Firebase、MiniMax 和 Google 账号须仍有效且可访问；不会恢复整个 DSM、微信设备登录或 Messages 系统数据库。真实验证码/短信送达、浏览器和外部设备效果不属于默认代码/API 验收结论。保留原因：每日数据库回退不能撤回已经发出的消息，也不能复刻外部供应商和硬件状态。
+The walkthrough does not modify hosts, system certificate trusts, or public DNS, and uses loopback connections and a separate CA to authenticate HTTPS. If a complete browser login is required for real recovery, the user installs the `root.crt` of the recovery directory on Mac, and only resolves the original domain name to `127.0.0.1` on the local machine; accesses the `:8443` HTTPS entry of the original domain name. Firebase mobile login does not support `localhost`. Keeping the original authorized domain name can avoid this limitation. The public network entrance is not switched, and other devices are not connected to the local machine to restore services.
 
-项目代码收尾按 [开发指南](../engineering/DEVELOPMENT.md) 执行；本地开发服务与按需灾难恢复实例分开管理，不安装任何常驻备用服务。
+Before recovery, pause the Mac information agent, check the local sending log and the tasks to be sent in the recovery library, and then decide whether to resume it. Firebase, MiniMax, and Google accounts outside of the NAS must still be valid and accessible; the entire DSM, WeChat device login, or Messages system database will not be restored. Real verification code/SMS delivery, browser and external device effects do not belong to the default code/API acceptance conclusion. Reason: Daily database rollbacks cannot undo messages that have already been sent, nor can they replicate external vendor and hardware states.
+
+The project code is finished according to [Development Guide](../engineering/DEVELOPMENT.md); local development services and on-demand disaster recovery instances are managed separately, and no resident standby services are installed.

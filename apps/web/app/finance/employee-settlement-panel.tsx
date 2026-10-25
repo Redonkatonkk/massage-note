@@ -10,6 +10,8 @@ import { formatUsdPrecise } from "../../lib/money";
 import type { EmployeeSettlementCalendar, EmployeeSettlementDelivery, EmployeeSettlementDeliveryList, EmployeeSettlementPaymentScope, EmployeeSettlementPreview, PayrollSettlement, StoreMember } from "../../lib/types";
 import { payrollAmountCents } from "../../lib/payroll-settlement";
 import { selectSettlementDate, type SettlementDateRange } from "../../lib/settlement-calendar";
+import type { EmployeeSettlementAmountType } from "@massage-note/contracts";
+import { SettlementOptions } from "./settlement-options";
 import { SettlementCalendar } from "./settlement-calendar";
 import { SettlementSummary } from "./settlement-summary";
 import { useLanguage } from "../language-provider";
@@ -19,6 +21,7 @@ import { messagesDeliveryNotice, messagesSubmittedLabel } from "../../lib/messag
 
 const money = (value: number) => formatUsdPrecise(value);
 const scopeLabel = (scope: EmployeeSettlementPaymentScope) => scope === "CASH" ? "现金" : scope === "NON_CASH" ? "刷卡＋礼物卡" : "全部";
+const amountLabel = (amountType?: EmployeeSettlementAmountType) => amountType === "SERVICE" ? "仅大费" : amountType === "TIP" ? "仅小费" : "大费＋小费";
 const time = (value: string | null, timezone: string) => value ? new Intl.DateTimeFormat("zh-CN", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)) : "—";
 const recordName = (record: EmployeeSettlementPreview["records"][number]) => [record.serviceShortName || record.serviceName, ...record.addons.map((item) => item.shortName || item.name)].join(" ＋ ");
 
@@ -60,11 +63,11 @@ function DeliveryHistoryModal({ value, busy, action, close }: { value: EmployeeS
           <ResponsiveDataView desktop={<div className="table-scroll settlement-delivery-table">
             <table className="data-table">
               <thead><tr><th>员工</th><th>区间</th><th>分类</th><th>附件进度</th><th>接收号码</th><th>尝试</th><th>错误</th><th>操作</th></tr></thead>
-              <tbody>{value.deliveries.map((item) => <tr key={item.id}><td>{item.membership?.displayName ?? "员工小计汇总"}</td><td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td><td>{scopeLabel(item.paymentScope)}</td><td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{stage(item)}</span></td><td>{item.recipientPhoneE164}</td><td>{item.attemptCount}</td><td>{item.lastError || "—"}</td><td>{deliveryAction(item) ?? "—"}</td></tr>)}</tbody>
+              <tbody>{value.deliveries.map((item) => <tr key={item.id}><td>{item.membership?.displayName ?? "员工小计汇总"}</td><td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td><td>{scopeLabel(item.paymentScope)} · {amountLabel(item.amountType)}</td><td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{stage(item)}</span></td><td>{item.recipientPhoneE164}</td><td>{item.attemptCount}</td><td>{item.lastError || "—"}</td><td>{deliveryAction(item) ?? "—"}</td></tr>)}</tbody>
             </table>
           </div>}>
             <ul className="mobile-data-list">{value.deliveries.map(item => <li key={item.id}><MobileDataCard title={item.membership?.displayName ?? "员工小计汇总"} subtitle={`${dateOnly(item.periodStart)} 至 ${dateOnly(item.periodEnd)}`} status={<span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{stage(item)}</span>} actions={deliveryAction(item)}>
-              <RecordFacts items={[{ label: "工资来源", value: scopeLabel(item.paymentScope) }, { label: "接收号码", value: item.recipientPhoneE164 }, { label: "尝试", value: item.attemptCount }]} />
+              <RecordFacts items={[{ label: "工资来源", value: scopeLabel(item.paymentScope) }, { label: "工资类型", value: amountLabel(item.amountType) }, { label: "接收号码", value: item.recipientPhoneE164 }, { label: "尝试", value: item.attemptCount }]} />
               {item.lastError && <p className="form-error">{item.lastError}</p>}
             </MobileDataCard></li>)}</ul>
           </ResponsiveDataView>
@@ -223,7 +226,8 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
   const [calendarFailed, setCalendarFailed] = useState(false);
   const [calendarEpoch, setCalendarEpoch] = useState(0);
   const [deduction, setDeduction] = useState("0");
-  const [paymentScope, setPaymentScope] = useState<EmployeeSettlementPaymentScope>("ALL");
+  const [paymentScope, setPaymentScope] = useState<EmployeeSettlementPaymentScope>("NON_CASH");
+  const [amountType, setAmountType] = useState<EmployeeSettlementAmountType>("ALL");
   const [preview, setPreview] = useState<EmployeeSettlementPreview | null>(null);
   const [deliveries, setDeliveries] = useState<EmployeeSettlementDeliveryList | null>(null);
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
@@ -244,7 +248,7 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
   const previewRequest = useRef(0);
   const previewRef = useRef(preview);
   previewRef.current = preview;
-  const selectionKey = JSON.stringify({ storeId, membershipId, dateFrom, dateTo, paymentScope });
+  const selectionKey = JSON.stringify({ storeId, membershipId, dateFrom, dateTo, paymentScope, amountType });
   const selectionRef = useRef(selectionKey);
   selectionRef.current = selectionKey;
   useEffect(() => {
@@ -285,11 +289,11 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
   const generate = useCallback(async () => {
     if (!membershipId || !dateTo) return;
     const request = ++previewRequest.current;
-    const selected = JSON.stringify({ storeId, membershipId, dateFrom, dateTo, paymentScope });
-    const params = new URLSearchParams({ membershipId, dateFrom, dateTo, paymentScope });
+    const selected = JSON.stringify({ storeId, membershipId, dateFrom, dateTo, paymentScope, amountType });
+    const params = new URLSearchParams({ membershipId, dateFrom, dateTo, paymentScope, amountType });
     const result = await apiRequest<EmployeeSettlementPreview>(`/stores/${storeId}/employee-settlements/preview?${params}`);
     if (previewRequest.current === request && selectionRef.current === selected) setPreview(result);
-  }, [storeId, membershipId, dateFrom, dateTo, paymentScope]);
+  }, [storeId, membershipId, dateFrom, dateTo, paymentScope, amountType]);
   // Ledger edits/deletion/restoration refresh both payment totals and calendar marks.
   useEffect(() => {
     if (previewRef.current) {
@@ -308,7 +312,7 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
     registering.current = true;
     const currentPreview = preview;
     const selected = selectionKey;
-    const body = { membershipId: preview.employee.membershipId, dateFrom: preview.dateFrom, dateTo: preview.dateTo, paymentScope: preview.paymentScope, deductionCents, revision: preview.payment.revision };
+    const body = { membershipId: preview.employee.membershipId, dateFrom: preview.dateFrom, dateTo: preview.dateTo, paymentScope: preview.paymentScope, amountType: preview.amountType ?? "ALL", deductionCents, revision: preview.payment.revision };
     const payload = JSON.stringify(body);
     void run(async () => {
       try {
@@ -333,7 +337,7 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
       }
     });
   }
-  async function send() { setSending(true); setSendMessage("正在加入短信发送队列…"); try { const result = await apiRequest<{ queuedCount?: number }>(`/stores/${storeId}/employee-settlements/deliveries`, { method: "POST", idempotent: true, body: { membershipId, dateFrom, dateTo, paymentScope } }); await loadDeliveries(); setSendMessage(result.queuedCount ? `已加入短信发送队列（${result.queuedCount} 条），可点发送记录查看进度。` : "发送任务已更新，可点发送记录查看进度。"); } catch (error) { setSendMessage(`发送失败：${errorMessage(error)}`); throw error; } finally { setSending(false); } }
+  async function send() { setSending(true); setSendMessage("正在加入短信发送队列…"); try { const result = await apiRequest<{ queuedCount?: number }>(`/stores/${storeId}/employee-settlements/deliveries`, { method: "POST", idempotent: true, body: { membershipId, dateFrom, dateTo, paymentScope, amountType } }); await loadDeliveries(); setSendMessage(result.queuedCount ? `已加入短信发送队列（${result.queuedCount} 条），可点发送记录查看进度。` : "发送任务已更新，可点发送记录查看进度。"); } catch (error) { setSendMessage(`发送失败：${errorMessage(error)}`); throw error; } finally { setSending(false); } }
   async function createImage() {
     if (!preview || preview.records.length === 0 || imageGenerating.current) return;
     imageGenerating.current = true;
@@ -372,7 +376,7 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
         <div className="settlement-selection-sidebar">
           <div className="settlement-employee-buttons" role="group" aria-label="选择员工">{payable.map((member) => <button key={member.id} type="button" disabled={busy || sending} aria-pressed={membershipId === member.id} className={membershipId === member.id ? "is-selected" : ""} onClick={() => { setMembershipId(member.id); clearPreview(); }}>{member.displayName}</button>)}</div>
           <form className="employee-settlement-controls settlement-calendar-controls" onSubmit={(event) => { event.preventDefault(); setDeduction("0"); void run(generate); }}>
-            <label>工资来源<select disabled={busy || sending || !dateTo} value={paymentScope} onChange={(event) => { setPaymentScope(event.target.value as EmployeeSettlementPaymentScope); clearPreview(); }}><option value="CASH">现金</option><option value="NON_CASH">刷卡＋礼物卡</option><option value="ALL">全部</option></select></label>
+            <SettlementOptions paymentScope={paymentScope} amountType={amountType} disabled={busy || sending || !dateTo} onPaymentScope={value => { setPaymentScope(value); clearPreview(); }} onAmountType={value => { setAmountType(value); clearPreview(); }} />
             <button className="primary-action" type="submit" disabled={busy || sending || !membershipId || !dateTo}>生成结算单</button>
           </form>
         </div>
@@ -381,7 +385,7 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
         </div>
         {preview && <section className="employee-settlement-preview settlement-preview-compact" aria-label="结算单汇总">
           <header>
-            <div><p className="eyebrow">{preview.storeName} · 员工区间结算</p><h2>{preview.employee.displayName}</h2><p>{preview.dateFrom} 至 {preview.dateTo} · {scopeLabel(preview.paymentScope)} · {preview.records.length} 笔</p></div>
+            <div><p className="eyebrow">{preview.storeName} · 员工区间结算</p><h2>{preview.employee.displayName}</h2><p>{preview.dateFrom} 至 {preview.dateTo} · {scopeLabel(preview.paymentScope)} · {amountLabel(preview.amountType)} · {preview.records.length} 笔</p></div>
           </header>
           <SettlementSummary preview={preview} />
           {!isOwnerPreview && preview.payment && <section className="settlement-payment" aria-label="付款登记">
@@ -390,7 +394,7 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
               <label>抵扣金额（美元）<input disabled={busy || sending || alreadyRegistered || preview.records.length === 0} inputMode="decimal" value={deduction} aria-invalid={invalidDeduction} onChange={(event) => setDeduction(event.target.value)} /></label>
               <article><span>本次实付金额</span><strong>{paidCents === null ? "—" : money(paidCents)}</strong></article>
             </div>
-            <details className="settlement-payment-note"><summary>抵扣说明</summary><p>抵扣此前已付金额；此前付款应已登记到账本或现金结算中。本次只登记实付金额，并确认所选日期和来源结清。</p></details>
+            <details className="settlement-payment-note"><summary>抵扣说明</summary><p>抵扣此前已付金额；此前付款应已登记到账本或现金结算中。本次只登记实付金额，并确认所选日期、来源和工资类型结清。</p></details>
             {invalidDeduction && <p role="alert">抵扣金额需精确到美分，且不能超过本次未结金额。</p>}
           </section>}
           <div className="employee-settlement-preview-actions settlement-preview-footer">

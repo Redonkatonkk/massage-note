@@ -12,5 +12,5 @@ export async function generateEmployeeSettlementImage(preview: EmployeeSettlemen
   const source = createEmployeeSettlementSvg(preview, locale === "en-US" ? "en_US" : "zh_CN");
   const image = await generateSvgPng(source);
   const name = preview.employee.displayName.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_");
-  return { url: image.url, fileName: `${name}_${preview.dateFrom}_${preview.dateTo}_${preview.paymentScope}.png` };
+  return { url: image.url, fileName: `${name}_${preview.dateFrom}_${preview.dateTo}_${preview.paymentScope}_${preview.amountType ?? "ALL"}.png` };
 }

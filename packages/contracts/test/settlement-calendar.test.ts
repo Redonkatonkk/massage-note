@@ -13,3 +13,12 @@ describe("工资日历和付款确认契约", () => {
     for (const month of ["2026-00", "2026-13", "2026-1", "0000-10", "2026-10-01"]) expect(employeeSettlementCalendarQuerySchema.safeParse({ membershipId: input.membershipId, month }).success).toBe(false);
   });
 });
+
+it("工资类型支持大费、小费或全部，旧请求省略仍兼容，拒绝空值和未知类型", () => {
+  for (const amountType of ["SERVICE", "TIP", "ALL"]) {
+    expect(confirmEmployeeSettlementSchema.parse({ ...input, amountType }).amountType).toBe(amountType);
+  }
+  for (const amountType of ["", "OTHER", ["SERVICE", "TIP"]]) {
+    expect(confirmEmployeeSettlementSchema.safeParse({ ...input, amountType }).success).toBe(false);
+  }
+});

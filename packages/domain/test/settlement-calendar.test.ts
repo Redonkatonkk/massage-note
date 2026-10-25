@@ -43,3 +43,25 @@ it("每日全部结清覆盖两种来源及现金工资缺口，取消后恢复�
   expect(settlementUnsettledTotal(settled, "ALL")).toBe(0n);
   expect(settlementUnsettledTotal(calculateSettlementDays(income, [], []), "ALL")).toBe(9300n);
 });
+
+it("大费和小费分别确认，合并查询只扣除已确认部分，现金已取得按组成扣除", () => {
+  const income = [{ ...days[0]!, cashTipCents: 1000n, nonCashTipCents: 2300n }];
+  const confirmations = [{ periodStart: "2026-09-30", periodEnd: "2026-09-30", paymentScope: "NON_CASH" as const, amountType: "TIP" as const }];
+  const all = calculateSettlementDays(income, confirmations, []);
+  expect(all[0]).toMatchObject({ nonCashSettled: false, nonCashUnsettledCents: 3600n });
+  expect(settlementUnsettledTotal(all, "ALL")).toBe(7000n);
+  expect(settlementUnsettledTotal(calculateSettlementDays(income, confirmations, [], "TIP"), "NON_CASH")).toBe(0n);
+  const cash = [{ businessDate: "2026-09-30", cashRetainedCents: 3000n, cashTipCents: 1000n }];
+  expect(settlementUnsettledTotal(calculateSettlementDays(income, [], cash, "SERVICE"), "CASH")).toBe(400n);
+  expect(settlementUnsettledTotal(calculateSettlementDays(income, [], cash, "TIP"), "CASH")).toBe(0n);
+  const both = [...confirmations, { ...confirmations[0]!, amountType: "SERVICE" as const }];
+  expect(calculateSettlementDays(income, both, [])[0]).toMatchObject({ nonCashSettled: true, nonCashUnsettledCents: 0n });
+});
+
+it("零提成且有小费时，大费仍可独立确认；小费不能冒充已确认的大费", () => {
+  const income = [{ businessDate: "2026-09-30", cashIncomeCents: 1000n, nonCashIncomeCents: 0n, cashTipCents: 1000n, hasCash: true, hasNonCash: false, hasCashService: true }];
+  const confirmed = [{ periodStart: "2026-09-30", periodEnd: "2026-09-30", paymentScope: "CASH" as const, amountType: "SERVICE" as const }];
+  expect(calculateSettlementDays(income, [], [], "SERVICE")[0]).toMatchObject({ hasCash: true, cashConfirmed: false });
+  expect(calculateSettlementDays(income, confirmed, [], "SERVICE")[0]).toMatchObject({ hasCash: true, cashConfirmed: true });
+  expect(settlementUnsettledTotal(calculateSettlementDays(income, confirmed, [], "TIP"), "CASH")).toBe(1000n);
+});

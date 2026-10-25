@@ -11,7 +11,7 @@ interface SettlementRecord {
   cashTipCents: number; cardTipCents?: number; giftCardTipCents?: number; nonCashTipCents: number; cashIncomeCents: number; nonCashIncomeCents: number; totalIncomeCents: number;
 }
 export interface SettlementSnapshot {
-  storeName: string; storeTimezone: string; dateFrom: string; dateTo: string; paymentScope: Scope;
+  storeName: string; storeTimezone: string; dateFrom: string; dateTo: string; paymentScope: Scope; amountType?: "ALL" | "SERVICE" | "TIP";
   generatedAt: string;
   employee: { displayName: string };
   summary: {
@@ -148,7 +148,7 @@ function headerLayout(snapshot: SettlementSnapshot, locale: Locale, width: numbe
     [snapshot.storeName, 28, 36, "eyebrow"],
     [`${en ? "Employee settlement" : "员工区间结算"} · ${snapshot.dateFrom} - ${snapshot.dateTo}`, 24, 32, "meta"],
     [snapshot.employee.displayName, 44, 54, "name"],
-    [`${en ? "Earnings source" : "工资来源"}: ${scopeLabel(snapshot.paymentScope, locale)} · ${snapshot.records.length} ${en ? "records" : "笔"} · ${days} ${en ? "days" : "天"}`, 24, 32, "meta"],
+    [`${en ? "Earnings source" : "工资来源"}: ${scopeLabel(snapshot.paymentScope, locale)}${snapshot.amountType && snapshot.amountType !== "ALL" ? ` · ${en ? (snapshot.amountType === "SERVICE" ? "Service only" : "Tips only") : (snapshot.amountType === "SERVICE" ? "仅大费" : "仅小费")}` : ""} · ${snapshot.records.length} ${en ? "records" : "笔"} · ${days} ${en ? "days" : "天"}`, 24, 32, "meta"],
   ] as const;
   fields.forEach(([value, fontSize, lineHeight, className]) => {
     parts.push(textLines(value, contentWidth, fontSize, PAGE_MARGIN, cursor + fontSize, className, lineHeight));

@@ -52,10 +52,18 @@ describe("employee settlement image", () => {
     expect(english).toContain("Store &amp; Spa");
   });
 
+  it("筛选后的快照在中英文图片及文件名中保留工资类型", async () => {
+    const selected = { ...preview, amountType: "TIP" as const };
+    expect(createEmployeeSettlementSvg(selected, "zh_CN").svg).toContain("仅小费");
+    expect(createEmployeeSettlementSvg(selected, "en_US").svg).toContain("Tips only");
+    setup();
+    expect((await generateEmployeeSettlementImage(selected, "en-US")).fileName).toContain("NON_CASH_TIP.png");
+  });
+
   it("生成 PNG，文件名包含范围和来源，并回收临时 SVG", async () => {
     const { create, revoke, drawImage } = setup();
     const image = await generateEmployeeSettlementImage(preview, "en-US");
-    expect(image).toEqual({ url: "blob:png", fileName: "Amy_测试_2026-10-02_2026-10-02_NON_CASH.png" });
+    expect(image).toEqual({ url: "blob:png", fileName: "Amy_测试_2026-10-02_2026-10-02_NON_CASH_ALL.png" });
     expect(create.mock.calls[1]?.[0]).toMatchObject({ type: "image/png" });
     expect(drawImage).toHaveBeenCalledOnce();
     expect(revoke).toHaveBeenCalledExactlyOnceWith("blob:svg");

@@ -47,7 +47,7 @@ export class EmployeeSettlementsService {
         take: 100,
         select: {
           id: true, membershipId: true, documentType: true, periodStart: true, periodEnd: true,
-          paymentScope: true, status: true, recipientPhoneE164: true, locale: true,
+          paymentScope: true, amountType: true, status: true, recipientPhoneE164: true, locale: true,
           attemptCount: true, summarySentAt: true, detailSentAt: true, sentAt: true,
           lastErrorCode: true, lastError: true, createdAt: true, updatedAt: true,
           membership: { select: { displayName: true } },
@@ -70,7 +70,7 @@ export class EmployeeSettlementsService {
         take: 100,
         select: {
           id: true, membershipId: true, documentType: true, periodStart: true, periodEnd: true,
-          paymentScope: true, status: true, recipientPhoneE164: true, locale: true,
+          paymentScope: true, amountType: true, status: true, recipientPhoneE164: true, locale: true,
           attemptCount: true, summarySentAt: true, detailSentAt: true, sentAt: true,
           lastErrorCode: true, lastError: true, createdAt: true, updatedAt: true,
           membership: { select: { displayName: true } },
@@ -166,6 +166,7 @@ export class EmployeeSettlementsService {
           periodStart: dateAtUtc(input.dateFrom),
           periodEnd: dateAtUtc(input.dateTo),
           paymentScope: input.paymentMethod,
+          amountType: input.amountType,
           recipientPhoneE164: input.recipientPhoneE164,
           locale: store.closingDefaultLocale,
           snapshotJson: snapshot as unknown as Prisma.InputJsonValue,
@@ -212,7 +213,8 @@ export class EmployeeSettlementsService {
           && existing.membershipId === input.membershipId
           && dateOnly(existing.periodStart) === input.dateFrom
           && dateOnly(existing.periodEnd) === input.dateTo
-          && existing.paymentScope === input.paymentScope;
+          && existing.paymentScope === input.paymentScope
+          && (existing.amountType ?? "ALL") === (input.amountType ?? "ALL");
         if (!same) throw new ConflictException({ code: "IDEMPOTENCY_KEY_REUSED", messageZh: "同一个请求键不能用于不同的员工结算范围" });
         return existing;
       }
@@ -235,6 +237,7 @@ export class EmployeeSettlementsService {
           periodStart: dateAtUtc(input.dateFrom),
           periodEnd: dateAtUtc(input.dateTo),
           paymentScope: input.paymentScope,
+          amountType: input.amountType ?? "ALL",
           recipientPhoneE164: phone,
           locale: member.closingImageLocale ?? member.store.closingDefaultLocale,
           snapshotJson: snapshot as unknown as Prisma.InputJsonValue,
@@ -247,7 +250,7 @@ export class EmployeeSettlementsService {
           storeId, actorUserId: actor.id, actorMembershipId: manager.id,
           source: "api", action: "employee_settlement.delivery_queued",
           entityType: "employee_settlement_delivery", entityId: delivery.id,
-          afterJson: { membershipId: input.membershipId, dateFrom: input.dateFrom, dateTo: input.dateTo, paymentScope: input.paymentScope } as Prisma.InputJsonValue,
+          afterJson: { membershipId: input.membershipId, dateFrom: input.dateFrom, dateTo: input.dateTo, paymentScope: input.paymentScope, amountType: input.amountType ?? "ALL" } as Prisma.InputJsonValue,
           requestId,
         },
       });
@@ -395,11 +398,12 @@ export class EmployeeSettlementsService {
       orderBy: [{ businessDate: "asc" }, { startAt: "asc" }, { id: "asc" }],
       include: { serviceSnapshot: { select: { name: true, shortName: true } }, addonSnapshots: { orderBy: { position: "asc" }, select: { name: true, shortName: true } } },
     });
+    const amountType = query.amountType ?? "ALL";
     const records = rows.map((record) => {
-      const cashLargeFeeWageCents = record.cashAllocatedServiceWageCents ?? 0n;
-      const nonCashLargeFeeWageCents = record.totalLargeFeeWageCents - cashLargeFeeWageCents;
-      const cashTipCents = record.cashTipCents ?? 0n;
-      const nonCashTipCents = (record.cardTipCents ?? 0n) + (record.giftCardTipCents ?? 0n);
+      const cashLargeFeeWageCents = amountType === "TIP" ? 0n : record.cashAllocatedServiceWageCents ?? 0n;
+      const nonCashLargeFeeWageCents = amountType === "TIP" ? 0n : record.totalLargeFeeWageCents - cashLargeFeeWageCents;
+      const cashTipCents = amountType === "SERVICE" ? 0n : record.cashTipCents ?? 0n;
+      const nonCashTipCents = amountType === "SERVICE" ? 0n : (record.cardTipCents ?? 0n) + (record.giftCardTipCents ?? 0n);
       const cashIncomeCents = cashLargeFeeWageCents + cashTipCents;
       const nonCashIncomeCents = nonCashLargeFeeWageCents + nonCashTipCents;
       return {
@@ -413,17 +417,17 @@ export class EmployeeSettlementsService {
         nonCashServiceCents: this.safeNumber((record.cardServiceCents ?? 0n) + (record.giftCardServiceCents ?? 0n)),
         cashLargeFeeWageCents: this.safeNumber(cashLargeFeeWageCents), nonCashLargeFeeWageCents: this.safeNumber(nonCashLargeFeeWageCents),
         cashTipCents: this.safeNumber(cashTipCents),
-        cardTipCents: this.safeNumber(record.cardTipCents ?? 0n),
-        giftCardTipCents: this.safeNumber(record.giftCardTipCents ?? 0n),
+        cardTipCents: this.safeNumber(amountType === "SERVICE" ? 0n : record.cardTipCents ?? 0n),
+        giftCardTipCents: this.safeNumber(amountType === "SERVICE" ? 0n : record.giftCardTipCents ?? 0n),
         nonCashTipCents: this.safeNumber(nonCashTipCents),
         cashIncomeCents: this.safeNumber(cashIncomeCents), nonCashIncomeCents: this.safeNumber(nonCashIncomeCents), totalIncomeCents: this.safeNumber(cashIncomeCents + nonCashIncomeCents),
       };
-    }).filter((record) => this.includeRecord(record, query.paymentScope));
+    }).filter((record) => this.includeRecord(record, query.paymentScope) && (amountType !== "TIP" || (query.paymentScope !== "NON_CASH" && record.cashTipCents !== 0) || (query.paymentScope !== "CASH" && record.nonCashTipCents !== 0)));
     if (records.length > 999) throw new BadRequestException({ code: "RECORD_LIMIT_EXCEEDED", messageZh: `当前范围有 ${records.length} 笔已确认记工，最多支持 999 笔，请缩短日期区间`, latestResource: { recordCount: records.length, limit: 999 } });
     const sum = (key: keyof (typeof records)[number]) => this.safeNumber(records.reduce((total, record) => total + (typeof record[key] === "number" ? BigInt(record[key]) : 0n), 0n));
     return {
       storeId, storeName: member.store.name, storeTimezone: member.store.timezone,
-      dateFrom: query.dateFrom, dateTo: query.dateTo, paymentScope: query.paymentScope,
+      dateFrom: query.dateFrom, dateTo: query.dateTo, paymentScope: query.paymentScope, amountType,
       employee: { membershipId: member.id, displayName: member.displayName },
       summary: {
         recordCount: records.length,

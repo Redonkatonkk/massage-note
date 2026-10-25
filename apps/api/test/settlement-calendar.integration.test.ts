@@ -220,6 +220,34 @@ describe.skipIf(!enabled).sequential("工资日历、抵扣与结清事务", () 
     expect((await preview("2026-09-15")).payment).toMatchObject({ unsettledCents: 9300, fullyConfirmed: false });
   });
 
+  it("分别支付小费与大费，重叠范围、删除恢复、编辑类型及日历保持一致", async () => {
+    const settings = await prisma.storeMembership.findUniqueOrThrow({ where: { id: membershipId } });
+    await members.updateMember(owner, storeId, membershipId, { version: settings.version, dailySettlementEnabled: false }, key());
+    await record("2026-09-16");
+    const base = { ...query("2026-09-16", "2026-09-16", "NON_CASH"), amountType: "TIP" as const };
+    const tips = await payments.preview(owner, storeId, base);
+    expect(tips.summary.totalIncomeCents).toBe(2300);
+    expect(tips.payment.unsettledCents).toBe(2300);
+    const paid = await payments.confirm(owner, storeId, { ...base, deductionCents: 0, revision: tips.payment.revision }, key(), key());
+    expect(paid).toMatchObject({ amountType: "TIP", totalPaidCents: 2300n });
+    expect((await payments.preview(owner, storeId, base)).payment.fullyConfirmed).toBe(true);
+    expect((await preview("2026-09-16", "2026-09-16", "NON_CASH")).payment.unsettledCents).toBe(3600);
+    expect((await calendar()).days.find(day => day.businessDate === "2026-09-16")?.nonCashSettled).toBe(false);
+    const removed = await payroll.remove(owner, storeId, paid.id, { version: paid.version }, key(), key());
+    expect((await preview("2026-09-16", "2026-09-16", "NON_CASH")).payment.unsettledCents).toBe(5900);
+    const restored = await payroll.restore(owner, storeId, paid.id, { version: removed.version }, key(), key());
+    const edited = await payroll.update(owner, storeId, paid.id, { version: restored.version, amountType: "SERVICE" }, key(), key());
+    expect((await payments.preview(owner, storeId, base)).payment.unsettledCents).toBe(2300);
+    await payroll.update(owner, storeId, paid.id, { version: edited.version, amountType: "TIP" }, key(), key());
+    const wage = await payments.preview(owner, storeId, { ...base, amountType: "SERVICE" });
+    await payments.confirm(owner, storeId, { ...base, amountType: "SERVICE", deductionCents: 0, revision: wage.payment.revision }, key(), key());
+    expect((await calendar()).days.find(day => day.businessDate === "2026-09-16")?.nonCashSettled).toBe(true);
+    await cash.settle(owner, storeId, "2026-09-16", membershipId, { version: 0, dailySettlementEnabled: false }, key(), key());
+    const cashTips = await payments.preview(owner, storeId, { ...base, paymentScope: "CASH" });
+    expect(cashTips.payment).toMatchObject({ unsettledCents: 0, fullyConfirmed: true });
+    await expect(payments.confirm(owner, storeId, { ...base, amountType: "SERVICE", deductionCents: 0, revision: tips.payment.revision }, key(), key())).rejects.toBeInstanceOf(ConflictException);
+  });
+
   it("权限、跨店归属、空记工和店主仅预览边界", async () => {
     await expect(payments.calendar(employee, storeId, { membershipId, month: "2026-09" })).rejects.toBeInstanceOf(ForbiddenException);
     await expect(payments.calendar(owner, storeId, { membershipId: randomUUID(), month: "2026-09" })).rejects.toBeInstanceOf(NotFoundException);

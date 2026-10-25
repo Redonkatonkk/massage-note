@@ -1,4 +1,4 @@
-import type { EmployeeSettlementPaymentScope, RankingExplanation, WeeklyDispatchInput } from "@massage-note/contracts";
+import type { EmployeeSettlementAmountType, EmployeeSettlementPaymentScope, RankingExplanation, WeeklyDispatchInput } from "@massage-note/contracts";
 import type { StoreRole } from "@massage-note/domain";
 
 export type { EmployeeSettlementPaymentScope } from "@massage-note/contracts";
@@ -117,7 +117,7 @@ export interface EmployeeSettlementRecord {
 
 export interface EmployeeSettlementPreview {
   storeId: string; storeName: string; storeTimezone: string;
-  dateFrom: string; dateTo: string; paymentScope: EmployeeSettlementPaymentScope;
+  dateFrom: string; dateTo: string; paymentScope: EmployeeSettlementPaymentScope; amountType?: EmployeeSettlementAmountType;
   employee: { membershipId: string; displayName: string };
   summary: {
     recordCount: number; cashServiceCents: number; nonCashServiceCents: number;
@@ -139,7 +139,7 @@ export interface EmployeeSettlementCalendar {
 export interface EmployeeSettlementDelivery {
   id: string; membershipId: string | null; periodStart: string; periodEnd: string;
   documentType: "RANGE_SETTLEMENT" | "EMPLOYEE_SUMMARY";
-  paymentScope: EmployeeSettlementPaymentScope; status: ClosingDeliveryStatus;
+  paymentScope: EmployeeSettlementPaymentScope; amountType?: EmployeeSettlementAmountType; status: ClosingDeliveryStatus;
   recipientPhoneE164: string; locale: "zh_CN" | "en_US"; attemptCount: number;
   summarySentAt: string | null; detailSentAt: string | null; sentAt: string | null;
   lastErrorCode: string | null; lastError: string | null;
@@ -737,6 +737,7 @@ export interface PayrollSettlement {
   totalPaidCents: number;
   paymentMethod: "CASH" | "CARD" | "CHECK" | "ZELLE" | "OTHER";
   paymentScope: EmployeeSettlementPaymentScope | null;
+  amountType?: EmployeeSettlementAmountType;
   note: string;
   createdBy: string;
   updatedBy: string;

@@ -172,6 +172,7 @@ export class PayrollSettlementsService {
             totalPaidCents,
             paymentMethod: compact ? "OTHER" : input.paymentMethod,
             paymentScope: compact ? input.paymentScope : null,
+            amountType: compact ? input.amountType ?? "ALL" : "ALL",
             note: compact ? "" : input.note,
             createdBy: actor.id,
             updatedBy: actor.id,
@@ -263,6 +264,7 @@ export class PayrollSettlementsService {
           data: {
             membershipId: input.membershipId ?? current.membershipId,
             ...(input.paymentScope ? { paymentScope: input.paymentScope } : {}),
+            ...(input.amountType ? { amountType: input.amountType } : {}),
             ...(input.settlementDate
               ? { settlementDate: dateAtUtc(input.settlementDate) }
               : {}),
@@ -502,6 +504,7 @@ export class PayrollSettlementsService {
     totalPaidCents: bigint;
     paymentMethod: string;
     paymentScope: string | null;
+    amountType: string;
     note: string;
     version: number;
   }) {
@@ -517,6 +520,7 @@ export class PayrollSettlementsService {
       totalPaidCents: settlement.totalPaidCents.toString(),
       paymentMethod: settlement.paymentMethod,
       paymentScope: settlement.paymentScope,
+      amountType: settlement.amountType,
       note: settlement.note,
       version: settlement.version,
     };

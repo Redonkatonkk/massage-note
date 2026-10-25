@@ -176,3 +176,26 @@ describe("EmployeeSettlementsService employee-summary delivery", () => {
     });
   });
 });
+
+describe("区间结算工资类型", () => {
+  it.each(["CASH", "NON_CASH", "ALL"] as const)("%s 的大费、小费和全选由服务端分别汇总", async paymentScope => {
+    const { value } = service([record(1)]);
+    const query = { membershipId: member.id, dateFrom: "2026-08-01", dateTo: "2026-08-31", paymentScope };
+    const wage = await value.preview(actor, storeId, { ...query, amountType: "SERVICE" });
+    const tip = await value.preview(actor, storeId, { ...query, amountType: "TIP" });
+    const all = await value.preview(actor, storeId, query);
+    expect(wage.summary.totalIncomeCents).toBe(paymentScope === "CASH" ? 2400 : paymentScope === "NON_CASH" ? 3600 : 6000);
+    expect(tip.summary.totalIncomeCents).toBe(paymentScope === "CASH" ? 1000 : paymentScope === "NON_CASH" ? 2300 : 3300);
+    expect(wage.summary.totalIncomeCents + tip.summary.totalIncomeCents).toBe(all.summary.totalIncomeCents);
+    expect(wage.records[0]).toMatchObject({ cashTipCents: 0, cardTipCents: 0, giftCardTipCents: 0 });
+    expect(tip.records[0]).toMatchObject({ cashLargeFeeWageCents: 0, nonCashLargeFeeWageCents: 0 });
+    expect(tip.amountType).toBe("TIP");
+  });
+
+  it("仅小费排除无所选来源小费的记录", async () => {
+    const { value } = service([{ ...record(1), cardTipCents: 0n, giftCardTipCents: 0n }]);
+    const result = await value.preview(actor, storeId, { membershipId: member.id, dateFrom: "2026-08-01", dateTo: "2026-08-31", paymentScope: "NON_CASH", amountType: "TIP" });
+    expect(result.records).toEqual([]);
+    expect(result.summary.totalIncomeCents).toBe(0);
+  });
+});

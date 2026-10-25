@@ -72,6 +72,11 @@ export function validateBackup(input: unknown): StoreBackup {
     const ids = new Set<string>();
     rowIds.set(model.name, ids);
     for (const row of rows) {
+      // Backups created before earnings-type selection cover both types.
+      if (table === "payrollSettlement" && !("amountType" in row)) {
+        row.amountType = "ALL";
+      }
+      if (table === "payrollSettlement" && !["SERVICE", "TIP", "ALL"].includes(String(row.amountType))) invalidBackup(`${table}.amountType 无效`);
       if (Object.keys(row).length !== fields.length || fields.some(field => !(field.name in row))) invalidBackup(`${table} 字段不完整或包含未知字段`);
       for (const field of fields) {
         const value = row[field.name];
@@ -120,7 +125,7 @@ export function validateBackup(input: unknown): StoreBackup {
   }
   try { new Intl.DateTimeFormat("en", { timeZone: String(backup.data.store.timezone) }); } catch { invalidBackup("店铺时区无效"); }
   if (backup.source.storeName !== backup.data.store.name || backup.source.storeCode !== backup.data.store.storeCode) invalidBackup("来源摘要不一致");
-  return backup;
+  return sealBackup(backup);
 }
 
 const auditActions = new Set(["ai.preview_consumed", "board.row_added", "board.row_hidden", "board.row_removed", "board.row_shown", "board.row_updated", "board.rows_ranked", "board.rows_reordered", "board.weekly_dispatch_applied", "board.weekly_dispatch_updated", "business_day.closed", "business_day.closing_cancelled", "business_day.force_closed", "cash_settlement.reopened", "cash_settlement.reopened_automatically", "cash_settlement.settled", "cash_settlement.settled_via_all", "catalog.initialized", "catalog.item_created", "catalog.item_deleted", "catalog.item_restored", "catalog.item_updated", "catalog.items_reordered", "closing_delivery.agent_credential_revoked", "closing_delivery.agent_credential_rotated", "commission.employee_default_changed", "commission.employee_item_changed", "employee_closing.delivery_cancelled", "employee_closing.delivery_queued", "employee_closing.delivery_rejected", "employee_closing.delivery_sent", "employee_settlement.delivery_cancelled", "employee_settlement.delivery_detail_retried", "employee_settlement.delivery_queued", "employee_settlement.delivery_retried", "employee_settlement.delivery_sent", "expense.created", "expense.deleted", "expense.period_cleared", "expense.period_recorded", "expense.restored", "expense.rule_changed", "expense.stopped", "expense.updated", "finance.employee_summary_delivery_queued", "gift_card.sale_created", "gift_card.sale_deleted", "gift_card.sale_restored", "gift_card.sale_updated", "lost_customer.created", "lost_customer.deleted", "lost_customer.updated", "membership.account_claimed", "membership.created_unclaimed", "membership.deactivated", "membership.join_approved", "membership.join_approved_and_restored", "membership.join_rejected", "membership.join_requested", "membership.restored", "membership.updated", "payroll_settlement.confirmed", "payroll_settlement.created", "payroll_settlement.deleted", "payroll_settlement.restored", "payroll_settlement.updated", "shift.clocked_in", "shift.clocked_out", "shift.stale_auto_closed", "store.created", "store.data_imported", "store.deleted", "store.owner_transferred", "store.settings_updated", "work_bot.alias_created", "work_bot.alias_deleted", "work_bot.alias_updated", "work_bot.create", "work_bot.delete", "work_bot.group_bound", "work_bot.group_unbound", "work_bot.instructions_updated", "work_bot.member_bound", "work_bot.member_unbound", "work_bot.member_verified", "work_bot.update", "work_bot.work_adjusted", "work_bot.work_finished", "work_bot.work_started", "work_record.commission_refreshed", "work_record.created", "work_record.created_with_custom_service", "work_record.deleted", "work_record.payment_confirmed", "work_record.placeholder_created", "work_record.restored", "work_record.updated"]);

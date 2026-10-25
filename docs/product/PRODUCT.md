@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](PRODUCT.zh-CN.md)**
 
-> Applies to version: `1.36.0`
+> Applies to version: `1.37.0`
 > Check basis: domain functions, shared contracts, API services and their tests. See [API](../engineering/API.md) for the HTTP fields, see [UI Design](../engineering/UI_DESIGN.md) for the layout, and see [Development Guide](../engineering/DEVELOPMENT.md) for the maintenance process.
 
 <a id="产品范围与数据原则"></a>
@@ -165,6 +165,7 @@ Let P be the main item, E be the add-on total, and D be the discount; CS/CC/GCS 
 
 ## Interval settlement and delivery
 
+- Card/Cash and Service/Tips use checkboxes in the settlement builder and payroll entry/edit forms. Each group permits one or both options; new entries default to Card and both earnings types. Card includes gift cards and residual non-cash wages. Previews, payment confirmation, images and SMS use the selected types; payroll entries retain them, and older entries cover both types. Separate service/tip confirmations only clear their own balances; a calendar source is complete after both types are covered. Reason: changing selection must preserve the same financial scope throughout reconciliation and payment.
 - The manager selects the employee, the date range including the beginning and the end, and the salary source, and generates a complete settlement from the valid confirmed records, which can include not closed days, up to 999 transactions; the owner only generates data. Reason: The data is not a payment authorization. If the limit is exceeded, the range needs to be shortened but not truncated.
 - Cash/non-cash wages are allocated according to the payment ratio of this order. Non-cash wages include credit cards, gift cards and wages that are not distributed through cash; closed records are still entered into the data. Reason: The settlement statement states the income for the entire period, not just the portion that remains to be paid.
 - Calendar yellow indicates cash confirmation, green indicates non-cash confirmation, all contributions are on both sides, and there is no relevant source. If there is a gap in cash settlement, it can still be marked yellow but the gap remains to be paid. Reason: Business confirmation and actual amount obtained are expressed separately.

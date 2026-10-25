@@ -36,7 +36,7 @@ const attributeSources = new WeakMap<Element, Map<string, { source: string; tran
 const translatedAttributes = ["aria-label", "aria-description", "alt", "placeholder", "title"];
 
 function translateTextNode(node: Text, locale: AppLocale) {
-  if (node.parentElement?.closest("script, style")) return;
+  if (node.parentElement?.closest('script, style, textarea, [translate="no"]')) return;
   const current = node.nodeValue ?? "";
   const saved = textSources.get(node);
   const source = saved && (current === saved.source || current === saved.translated)
@@ -48,6 +48,7 @@ function translateTextNode(node: Text, locale: AppLocale) {
 }
 
 function translateElementAttributes(element: Element, locale: AppLocale) {
+  if (element.closest('[translate="no"]')) return;
   let savedAttributes = attributeSources.get(element);
   if (!savedAttributes) {
     savedAttributes = new Map();

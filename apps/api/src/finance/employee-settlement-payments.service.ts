@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, type User } from "@massage-note/database";
 import type { ConfirmEmployeeSettlementInput, EmployeeSettlementCalendarQuery, EmployeeSettlementQuery } from "@massage-note/contracts";
-import { calculateSettlementDays, settlementUnsettledTotal, type SettlementDayIncome, type SettlementScope } from "@massage-note/domain";
+import { calculateSettlementDays, settlementUnsettledTotal, type SettlementDayIncome, type SettlementScope, type SettlementAmountType } from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { businessDateFor, deviceNow } from "../common/device-time.js";
 import { IdempotencyService, idempotencyRequestHash } from "../common/idempotency.service.js";
@@ -77,13 +77,13 @@ export class EmployeeSettlementPaymentsService {
         settlementDate: atUtc(businessDateFor({ startAt: deviceNow(), timezone: member.store.timezone, cutoffLocal: member.store.businessCutoffLocal })),
         periodStart: atUtc(input.dateFrom), periodEnd: atUtc(input.dateTo),
         serviceWageCents: 0n, cashTipCents: 0n, cardTipCents: 0n, adjustmentCents: totalPaidCents, totalPaidCents,
-        paymentMethod: "OTHER", paymentScope: input.paymentScope, note: "", createdBy: actor.id, updatedBy: actor.id,
+        paymentMethod: "OTHER", paymentScope: input.paymentScope, amountType: input.amountType ?? "ALL", note: "", createdBy: actor.id, updatedBy: actor.id,
         confirmation: { create: { unsettledCents, deductionCents } },
       }, include: { confirmation: true } });
       await tx.auditLog.create({ data: {
         storeId, actorUserId: actor.id, actorMembershipId: manager.id, source: "api",
         action: "payroll_settlement.confirmed", entityType: "payroll_settlement", entityId: ledger.id,
-        afterJson: { membershipId: input.membershipId, dateFrom: input.dateFrom, dateTo: input.dateTo, paymentScope: input.paymentScope,
+        afterJson: { membershipId: input.membershipId, dateFrom: input.dateFrom, dateTo: input.dateTo, paymentScope: input.paymentScope, amountType: input.amountType ?? "ALL",
           unsettledCents: unsettledCents.toString(), deductionCents: deductionCents.toString(), totalPaidCents: totalPaidCents.toString(), revision: input.revision }, requestId,
       } });
       return ledger;
@@ -107,8 +107,9 @@ export class EmployeeSettlementPaymentsService {
       throw new BadRequestException({ code: "AMOUNT_TOTAL_TOO_LARGE", messageZh: "结算金额超出系统允许范围" });
     }
     const { generatedAt: _generatedAt, ...document } = preview;
-    const selection = { membershipId: query.membershipId, dateFrom: query.dateFrom, dateTo: query.dateTo, paymentScope: query.paymentScope };
-    const relevant = state.days.filter((day) => query.paymentScope === "ALL" || (query.paymentScope === "CASH" ? day.hasCash : day.hasNonCash));
+    const selection = { membershipId: query.membershipId, dateFrom: query.dateFrom, dateTo: query.dateTo, paymentScope: query.paymentScope, amountType: query.amountType ?? "ALL" };
+    const recordDates = new Set(preview.records.map(record => record.businessDate));
+    const relevant = state.days.filter((day) => recordDates.has(day.businessDate) && (query.paymentScope === "ALL" || (query.paymentScope === "CASH" ? day.hasCash : day.hasNonCash)));
     return { ...preview, payment: {
       unsettledCents: Number(unsettledCents),
       fullyConfirmed: relevant.length > 0 && relevant.every((day) =>
@@ -130,31 +131,35 @@ export class EmployeeSettlementPaymentsService {
       }),
       tx.dailyCashSettlement.findMany({
         where: { storeId, membershipId: query.membershipId, businessDate: dateRange, status: "SETTLED", deletedAt: null },
-        select: { businessDate: true, cashRetainedCents: true, dailySettlementEnabled: true, version: true }, orderBy: { businessDate: "asc" },
+        select: { businessDate: true, cashRetainedCents: true, cashTipCents: true, dailySettlementEnabled: true, version: true }, orderBy: { businessDate: "asc" },
       }),
       tx.payrollSettlement.findMany({
         where: { storeId, membershipId: query.membershipId, periodStart: { lte: atUtc(query.dateTo) }, periodEnd: { gte: atUtc(query.dateFrom) }, deletedAt: null },
-        select: { id: true, periodStart: true, periodEnd: true, paymentScope: true, version: true, totalPaidCents: true, confirmation: true },
+        select: { id: true, periodStart: true, periodEnd: true, paymentScope: true, amountType: true, version: true, totalPaidCents: true, confirmation: true },
         orderBy: { id: "asc" },
       }),
     ]);
     const byDay = new Map<string, SettlementDayIncome>();
     for (const record of records) {
       const businessDate = dateOnly(record.businessDate);
-      const day = byDay.get(businessDate) ?? { businessDate, cashIncomeCents: 0n, nonCashIncomeCents: 0n, hasCash: false, hasNonCash: false };
+      const day = byDay.get(businessDate) ?? { businessDate, cashIncomeCents: 0n, nonCashIncomeCents: 0n, cashTipCents: 0n, nonCashTipCents: 0n, hasCashService: false, hasNonCashService: false, hasCash: false, hasNonCash: false };
       const cashWage = record.cashAllocatedServiceWageCents ?? 0n;
       const cashIncome = cashWage + (record.cashTipCents ?? 0n);
       const nonCashIncome = record.totalLargeFeeWageCents - cashWage + (record.cardTipCents ?? 0n) + (record.giftCardTipCents ?? 0n);
       day.cashIncomeCents += cashIncome;
       day.nonCashIncomeCents += nonCashIncome;
+      day.cashTipCents = (day.cashTipCents ?? 0n) + (record.cashTipCents ?? 0n);
+      day.nonCashTipCents = (day.nonCashTipCents ?? 0n) + (record.cardTipCents ?? 0n) + (record.giftCardTipCents ?? 0n);
+      day.hasCashService ||= (record.cashServiceCents ?? 0n) !== 0n || cashWage !== 0n;
+      day.hasNonCashService ||= (record.cardServiceCents ?? 0n) !== 0n || (record.giftCardServiceCents ?? 0n) !== 0n || record.totalLargeFeeWageCents - cashWage !== 0n;
       day.hasCash ||= (record.cashServiceCents ?? 0n) !== 0n || (record.cashTipCents ?? 0n) !== 0n || cashIncome !== 0n;
       day.hasNonCash ||= (record.cardServiceCents ?? 0n) !== 0n || (record.giftCardServiceCents ?? 0n) !== 0n || (record.cardTipCents ?? 0n) !== 0n || (record.giftCardTipCents ?? 0n) !== 0n || nonCashIncome !== 0n;
       byDay.set(businessDate, day);
     }
     const confirmations = payroll.flatMap((entry) => entry.confirmation && ["CASH", "NON_CASH", "ALL"].includes(entry.paymentScope ?? "")
-      ? [{ periodStart: dateOnly(entry.periodStart), periodEnd: dateOnly(entry.periodEnd), paymentScope: entry.paymentScope as SettlementScope }] : []);
+      ? [{ periodStart: dateOnly(entry.periodStart), periodEnd: dateOnly(entry.periodEnd), paymentScope: entry.paymentScope as SettlementScope, amountType: entry.amountType as SettlementAmountType }] : []);
     const days = calculateSettlementDays([...byDay.values()].sort((a, b) => a.businessDate.localeCompare(b.businessDate)), confirmations,
-      cash.map((item) => ({ businessDate: dateOnly(item.businessDate), cashRetainedCents: item.cashRetainedCents, dailySettlementEnabled: item.dailySettlementEnabled })));
+      cash.map((item) => ({ businessDate: dateOnly(item.businessDate), cashRetainedCents: item.cashRetainedCents, cashTipCents: item.cashTipCents, dailySettlementEnabled: item.dailySettlementEnabled })), query.amountType ?? "ALL");
     return { days, records, cash, payroll };
   }
 }

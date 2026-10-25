@@ -3,11 +3,14 @@ import { businessDateSchema, moneyCentsSchema, uuidSchema } from "./common.js";
 
 export const employeeSettlementPaymentScopeSchema = z.enum(["CASH", "NON_CASH", "ALL"]);
 
+export const employeeSettlementAmountTypeSchema = z.enum(["SERVICE", "TIP", "ALL"]);
+
 export const employeeSettlementQuerySchema = z.object({
   membershipId: uuidSchema,
   dateFrom: businessDateSchema,
   dateTo: businessDateSchema,
   paymentScope: employeeSettlementPaymentScopeSchema.default("ALL"),
+  amountType: employeeSettlementAmountTypeSchema.optional(),
 }).superRefine((value, context) => {
   if (value.dateTo < value.dateFrom) {
     context.addIssue({ code: "custom", path: ["dateTo"], message: "结束日期不能早于开始日期" });
@@ -26,6 +29,7 @@ export const confirmEmployeeSettlementSchema = z.object({
   dateFrom: businessDateSchema,
   dateTo: businessDateSchema,
   paymentScope: employeeSettlementPaymentScopeSchema,
+  amountType: employeeSettlementAmountTypeSchema.optional(),
   deductionCents: moneyCentsSchema,
   revision: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict().superRefine((value, context) => {
@@ -59,6 +63,7 @@ export const employeeSettlementAttachmentSchema = z.object({
   attachment: z.enum(["SUMMARY", "DETAIL"]),
 });
 
+export type EmployeeSettlementAmountType = z.output<typeof employeeSettlementAmountTypeSchema>;
 export type EmployeeSettlementPaymentScope = z.output<typeof employeeSettlementPaymentScopeSchema>;
 export type EmployeeSettlementQuery = z.output<typeof employeeSettlementQuerySchema>;
 export type CreateEmployeeSettlementDeliveryInput = z.output<typeof createEmployeeSettlementDeliverySchema>;

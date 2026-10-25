@@ -8,6 +8,8 @@ The current plug-in is **1.4.1**, and complete capabilities require API **at lea
 
 After adding the @bot in the group, each message is combined with the store’s real-time catalog and natural language description and handed over to the model for understanding. Final writes, permissions and queries are performed by the Massage Note backend, with the database being the only source of amounts.
 
+The Work bot settings page follows the app’s Chinese/English language selection, including group/member counts, activity labels, input hints, confirmation prompts, and timestamps. Store instructions, employee identities, original group messages, and bot replies retain their original content. Binding examples retain the actual Chinese commands, with translated placeholders. Reason: interface language must not rewrite business instructions or message history.
+
 <a id="记工与查询"></a>
 
 ## Work record and query

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { employeeSettlementPaymentScopeSchema } from "./employee-settlement.js";
+import { employeeSettlementAmountTypeSchema, employeeSettlementPaymentScopeSchema } from "./employee-settlement.js";
 import {
   businessDateSchema,
   moneyCentsSchema,
@@ -123,6 +123,7 @@ export const payrollSettlementEntrySchema = z.object({
   periodEnd: businessDateSchema,
   totalPaidCents: moneyCentsSchema,
   paymentScope: employeeSettlementPaymentScopeSchema,
+  amountType: employeeSettlementAmountTypeSchema.optional(),
 }).strict().superRefine((value, context) => {
   if (value.periodEnd < value.periodStart) {
     context.addIssue({ code: "custom", path: ["periodEnd"], message: "覆盖结束日期不能早于开始日期" });
@@ -141,6 +142,7 @@ export const updatePayrollSettlementSchema = z
     membershipId: uuidSchema.optional(),
     totalPaidCents: moneyCentsSchema.optional(),
     paymentScope: employeeSettlementPaymentScopeSchema.optional(),
+    amountType: employeeSettlementAmountTypeSchema.optional(),
     settlementDate: businessDateSchema.optional(),
     periodStart: businessDateSchema.optional(),
     periodEnd: businessDateSchema.optional(),

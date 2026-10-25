@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.36.0`
+> 适用版本：`1.37.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -88,7 +88,7 @@
 | GET/POST | `/stores/:storeId/payroll-settlements` | 查询或新增工资结算账本 |
 | GET/PATCH/DELETE | `/stores/:storeId/payroll-settlements/:settlementId` | 工资结算详情、修改和软删除 |
 | POST | `/stores/:storeId/payroll-settlements/:settlementId/restore` | 恢复工资结算 |
-| GET | `/stores/:storeId/employee-settlements/preview` | Owner/Manager 按 `membershipId`、`dateFrom`、`dateTo` 和 `paymentScope=CASH|NON_CASH|ALL` 预览员工区间结算；只含已确认且未删除记工，最多 999 笔 |
+| GET | `/stores/:storeId/employee-settlements/preview` | Owner/Manager 按 `membershipId`、`dateFrom`、`dateTo` 和 `paymentScope=CASH|NON_CASH|ALL` 及可选 `amountType=SERVICE|TIP|ALL`（默认 `ALL`）预览员工区间结算；只含已确认且未删除记工，最多 999 笔 |
 | GET | `/stores/:storeId/employee-settlements/calendar` | Owner/Manager 按 `membershipId`、`month=YYYY-MM` 查询该月有已确认记工日期的现金/非现金状态 |
 | POST | `/stores/:storeId/employee-settlements/confirm` | Owner/Manager 依据预览 revision 和抵扣金额确认结清，原子登记实际支付与范围确认；要求幂等键 |
 | GET/POST | `/stores/:storeId/employee-settlements/deliveries` | 查看区间结算短信队列，或把服务端重算后的不可变快照加入单张 JPEG 长图发送队列 |
@@ -255,11 +255,13 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 这些字段采用当前日期、员工、付款方式、金额类型和高亮筛选口径。`finance/summary.employees[]` 还返回员工当前 `defaultCommissionBps` 和是否存在不同项目专属设置的 `hasDifferentItemCommission`；Web 与员工小计短信直接显示该设置，不再用筛选后的工资反推比例。Web 的每日小计位于经营分析，使用分析响应的日期边界与当前高光条件请求汇总/明细，付款和金额类型固定为全部、员工不限定；日期后显示按当前界面语言本地化的星期。财务汇总的员工范围继续使用复选框多选，空选择表示全部员工。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
 
-工资结算列表支持成员和 `includeDeleted=true`；每条记录返回 `paymentScope`（`CASH` / `NON_CASH` / `ALL`，历史未指定为 `null`）。新增 `POST /stores/:storeId/payroll-settlements` 的简化请求为 `{ membershipId, periodStart, periodEnd, totalPaidCents, paymentScope }`，总额使用非负整数美分，登记日期自动按设备时区自然日期记录。手工登记不生成结清确认。列表与详情额外返回可空 `confirmation`（`payrollSettlementId`、`unsettledCents`、`deductionCents`、`createdAt`）。修改 `PATCH` 接受同样字段并要求 `version`，保留原登记日期；来源与旧金额拆分不能混为同一总额请求。旧客户端的拆分字段仍兼容，旧来源不回填猜测值。审计列表支持 `dateFrom`、`dateTo`、`entityType`、`action`、`actorUserId` 与游标分页。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
+工资结算列表支持成员和 `includeDeleted=true`；每条记录返回 `paymentScope`（`CASH` / `NON_CASH` / `ALL`，历史未指定为 `null`）。新增 `POST /stores/:storeId/payroll-settlements` 的简化请求为 `{ membershipId, periodStart, periodEnd, totalPaidCents, paymentScope, amountType? }`，总额使用非负整数美分，登记日期自动按设备时区自然日期记录。手工登记不生成结清确认。列表与详情额外返回可空 `confirmation`（`payrollSettlementId`、`unsettledCents`、`deductionCents`、`createdAt`）。修改 `PATCH` 接受同样字段并要求 `version`，保留原登记日期；来源与旧金额拆分不能混为同一总额请求。旧客户端的拆分字段仍兼容，旧来源不回填猜测值。审计列表支持 `dateFrom`、`dateTo`、`entityType`、`action`、`actorUserId` 与游标分页。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
 
 员工区间预览保留完整 `records` / `summary`，增加 `payment: { unsettledCents, fullyConfirmed, revision }`；金额为整数美分，revision 为服务端生成的 64 位十六进制修订值。日历响应为 `{ membershipId, month, days }`，各日包含 `businessDate`、`hasCash`、`hasNonCash`、`cashSettled`、`nonCashSettled`、`cashConfirmed`、`nonCashConfirmed`、`cashUnsettledCents`、`nonCashUnsettledCents`。黄色状态与现金工资缺口可以同时存在。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
 
-付款确认请求为 `{ membershipId, dateFrom, dateTo, paymentScope, deductionCents, revision }`，服务端不接受客户端指定实付。响应为带 `confirmation` 的工资账本记录，本次实付由服务端重新计算为未结金额减抵扣。可实付 $0；空记工、店主、抵扣超额或已全部结清的范围拒绝。旧 revision 返回 `409 SETTLEMENT_DATA_CHANGED`，已结范围返回 `409 SETTLEMENT_ALREADY_CONFIRMED`，抵扣超额返回 `400 SETTLEMENT_DEDUCTION_TOO_LARGE`。失败重试保持相同请求与幂等键，重新生成后使用新键。关联账本修改、软删除及恢复即时改变有效确认，不改变旧单据和已入队长图快照。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
+预览、确认、发送及简化工资请求支持 `amountType=SERVICE|TIP|ALL`，旧客户端省略时默认 `ALL`。响应与不可变发送快照保留类型，工资 PATCH 可修改类型。确认只覆盖所选工资类型，每日现金按大费／小费组成扣减。缺少新字段的旧备份在校验原校验值后补齐。保留原因：支付小费不能同时结清未付的大费。
+
+付款确认请求为 `{ membershipId, dateFrom, dateTo, paymentScope, amountType?, deductionCents, revision }`，服务端不接受客户端指定实付。响应为带 `confirmation` 的工资账本记录，本次实付由服务端重新计算为未结金额减抵扣。可实付 $0；空记工、店主、抵扣超额或已全部结清的范围拒绝。旧 revision 返回 `409 SETTLEMENT_DATA_CHANGED`，已结范围返回 `409 SETTLEMENT_ALREADY_CONFIRMED`，抵扣超额返回 `400 SETTLEMENT_DEDUCTION_TOO_LARGE`。失败重试保持相同请求与幂等键，重新生成后使用新键。关联账本修改、软删除及恢复即时改变有效确认，不改变旧单据和已入队长图快照。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
 
 ## 错误与排查
 

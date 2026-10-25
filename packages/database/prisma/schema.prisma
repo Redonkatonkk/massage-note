@@ -781,6 +781,7 @@ model EmployeeSettlementDelivery {
   periodEnd             DateTime               @map("period_end") @db.Date
   paymentScope          String                 @map("payment_scope")
   status                ClosingDeliveryStatus  @default(QUEUED)
+  amountType            String                 @default("ALL") @map("amount_type")
   recipientPhoneE164    String                 @map("recipient_phone_e164")
   locale                ClosingImageLocale
   snapshotJson          Json                   @map("snapshot_json")
@@ -873,6 +874,7 @@ model PayrollSettlement {
   totalPaidCents     BigInt    @map("total_paid_cents")
   paymentMethod      String    @map("payment_method")
   paymentScope       String?   @map("payment_scope")
+  amountType         String    @default("ALL") @map("amount_type")
   note               String    @default("")
   createdBy          String    @map("created_by") @db.Uuid
   updatedBy          String    @map("updated_by") @db.Uuid

@@ -4,6 +4,21 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.37.0 — 2026-10-25
+
+- Replace payroll source menus with Card/Cash checkboxes, defaulting to Card (including gift cards). Add Service/Tips checkboxes, both selected by default; each group supports one or both options.
+- Apply earnings types to server-calculated previews, payment confirmations, payroll edits, calendar balances and image/SMS snapshots. Keep separate service/tip confirmations and older backups compatible.
+- Add a forward database migration and focused contract, financial, component and integration regressions. NAS requires a Web/API update and database migration; the Messages agent needs an update for earnings-type labels in attachments.
+
+## 1.36.2 — 2026-10-22
+
+- Shorten the English work-record status from “Payment pending” to “Pending” and align its help text. No API or database changes; NAS requires a Web update.
+
+## 1.36.1 — 2026-10-22
+
+- Complete English translations for Work bot settings, group/member counts, activity labels, placeholders, confirmation prompts, and locale-aware timestamps. Preserve original instructions, employee identities, group messages, and bot replies during language switching.
+- Add component regressions for both language directions, unsaved instructions, empty/busy states, verification and save requests. No API or database changes; NAS requires a Web update.
+
 ## 1.36.0 — 2026-10-22
 
 - Add a public, sign-in-free GitHub Pages demo using the original Web pages and an isolated synthetic API snapshot. Block writes, live authentication, AI calls and message delivery in the demo build.

@@ -128,6 +128,19 @@ describe.skipIf(!enabled).sequential("single-store backup and recovery", () => {
     }
   });
 
+  it("normalizes verified older backups without earnings types and rejects invalid types", () => {
+    const older = structuredClone(full);
+    for (const table of ["payrollSettlement"] as const) {
+      for (const row of older.data.tables[table]) delete row.amountType;
+    }
+    const normalized = validateBackup(sealBackup(older));
+    expect(normalized.data.tables.payrollSettlement.every(row => row.amountType === "ALL")).toBe(true);
+    expect(validateBackup(normalized)).toEqual(normalized);
+    const invalid = structuredClone(full);
+    invalid.data.tables.payrollSettlement[0]!.amountType = "OTHER";
+    expect(() => validateBackup(sealBackup(invalid))).toThrow();
+  });
+
   it("rejects checksum, format, duplicate IDs and missing references", () => {
     expect(() => validateBackup({ ...full, checksum: "0".repeat(64) })).toThrow();
     expect(() => validateBackup({ ...full, formatVersion: 2 })).toThrow();

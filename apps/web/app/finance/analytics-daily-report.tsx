@@ -6,7 +6,6 @@ import { apiRequest, errorMessage } from "../../lib/api";
 import { LatestRequest } from "../../lib/latest-request";
 import { formatUsd } from "../../lib/money";
 import { createRefreshQueue } from "../../lib/refresh-queue";
-import { useStoreRealtime } from "../../lib/realtime";
 import type { FinanceDetailsResponse, FinanceSummaryResponse } from "../../lib/types";
 import { useLanguage } from "../language-provider";
 import { useAutoDismissState } from "../use-auto-dismiss-state";
@@ -57,6 +56,8 @@ export function AnalyticsDailyReport({ storeId, data, highlightFilter, children 
   const queue = useRef<ReturnType<typeof createRefreshQueue> | null>(null);
   const detailQueue = useRef<ReturnType<typeof createRefreshQueue> | null>(null);
 
+  // A new analytics response follows an explicit refresh or filter change.
+  // Refresh its subtotals and open details without subscribing the report to SSE.
   useEffect(() => {
     const refresh = createRefreshQueue(async () => {
       const current = requests.begin();
@@ -71,7 +72,7 @@ export function AnalyticsDailyReport({ storeId, data, highlightFilter, children 
     queue.current = refresh;
     void refresh.request();
     return () => { refresh.dispose(); requests.begin(); };
-  }, [storeId, dateFrom, dateTo, highlightFilter, scope, requests]);
+  }, [storeId, dateFrom, dateTo, highlightFilter, scope, requests, data]);
 
   useEffect(() => {
     setDetails(null); setDetailError(""); setDetailFailed(false); setDetailLoading(false);
@@ -89,9 +90,8 @@ export function AnalyticsDailyReport({ storeId, data, highlightFilter, children 
     detailQueue.current = refresh;
     void refresh.request();
     return () => { refresh.dispose(); detailRequests.begin(); };
-  }, [storeId, target, highlightFilter, detailScope, detailRequests]);
+  }, [storeId, target, highlightFilter, detailScope, detailRequests, data]);
 
-  useStoreRealtime(storeId, async () => { await Promise.all([queue.current?.request(), detailQueue.current?.request()]); });
   const days = result?.scope === scope ? result.days : [];
   const viewDetails = (date: string, label: string) => setTarget({ scope, date, label });
   const amount = (date: string, cents: number, label: string) => <button className="amount-link" type="button" disabled={detailLoading} aria-label={`${date} ${label} · ${t("查看组成明细", "View breakdown")}`} onClick={() => viewDetails(date, `${date} ${label}`)}>{formatUsd(cents, locale)}</button>;

@@ -7,8 +7,6 @@ import { apiRequest } from "../../lib/api";
 import { AnalyticsPanel } from "./analytics-panel";
 
 vi.mock("../../lib/api", () => ({ apiRequest: vi.fn(), errorMessage: (error: Error) => error.message }));
-const realtime = vi.hoisted(() => ({ refresh: null as null | (() => Promise<void> | undefined) }));
-vi.mock("../../lib/realtime", () => ({ useStoreRealtime: (_store: string, refresh: () => Promise<void> | undefined) => { realtime.refresh ??= refresh; } }));
 const language = vi.hoisted(() => ({ locale: "zh-CN" }));
 vi.mock("../language-provider", () => ({ useLanguage: () => language }));
 const request = vi.mocked(apiRequest);
@@ -61,7 +59,7 @@ function weekdayStats(): FinanceAnalyticsResponse {
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
-  language.locale = "zh-CN"; realtime.refresh = null; request.mockReset(); request.mockImplementation(async path => String(path).includes("/summary?") ? { days: [] } : stats());
+  language.locale = "zh-CN"; request.mockReset(); request.mockImplementation(async path => String(path).includes("/summary?") ? { days: [] } : stats());
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 
@@ -85,7 +83,7 @@ it("默认全部，切换三种高光筛选立即刷新，并保留独立日期�
   expect(container.textContent).toContain("跑客人数不受高光筛选影响");
 });
 
-it("趋势不等待每日小计，失败后仍可实时刷新且没有新增请求", async () => {
+it("趋势不等待每日小计，失败后仍可手动刷新图表和小计", async () => {
   let latest = "12001";
   request.mockImplementation(async path => {
     if (String(path).includes("/summary?")) throw new Error("小计失败");
@@ -96,9 +94,10 @@ it("趋势不等待每日小计，失败后仍可实时刷新且没有新增请�
   expect(container.textContent).toContain("小计失败");
   expect(request).toHaveBeenCalledTimes(2);
   latest = "23456";
-  await act(async () => { await realtime.refresh!(); });
+  await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "刷新")!.click());
   expect(container.querySelector('.analytics-overview [data-metric="revenue7"]')!.textContent).toContain("US$234.56");
   expect(request.mock.calls.filter(([path]) => String(path).includes("/analytics?")).length).toBe(2);
+  expect(request.mock.calls.filter(([path]) => String(path).includes("/summary?")).length).toBe(2);
 });
 
 it("趋势切换筛选和店铺时先清除旧值，延迟响应不能覆盖当前卡片，失败可重试", async () => {
@@ -120,7 +119,7 @@ it("趋势切换筛选和店铺时先清除旧值，延迟响应不能覆盖当�
   await act(async () => resolveStore(trendStats("34567")));
   expect(container.querySelector(".analytics-overview")!.textContent).toContain("US$345.67");
   request.mockRejectedValueOnce(new Error("趋势失败"));
-  await act(async () => { await realtime.refresh!(); });
+  await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "刷新")!.click());
   expect(container.querySelector(".analytics-overview")!.textContent).not.toContain("US$345.67");
   request.mockResolvedValueOnce(trendStats("45678"));
   await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "重试")!.click());
@@ -162,6 +161,19 @@ it("英文提供相同的三种筛选", async () => {
   expect([...container.querySelector("select")!.options].map(option => option.textContent)).toEqual(["Highlighted only", "Exclude highlighted", "All"]);
   await changeHighlight("ONLY_HIGHLIGHTED");
   expect(container.textContent).toContain("excludes card sales and tips");
+});
+
+it("切换语言复用已加载的图表和小计，刷新仍沿用当前筛选", async () => {
+  await render();
+  await changeHighlight("ONLY_HIGHLIGHTED");
+  request.mockClear();
+  language.locale = "en-US";
+  await render();
+  expect(container.textContent).toContain("Daily subtotals");
+  expect(request).not.toHaveBeenCalled();
+  await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "Refresh")!.click());
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(request.mock.calls.every(([path]) => new URL(String(path), "http://localhost").searchParams.get("highlightFilter") === "ONLY_HIGHLIGHTED")).toBe(true);
 });
 
 it("星期图固定同时显示高光、非高光、全部及金额，不随页面筛选隐藏或另发比较请求", async () => {

@@ -4,6 +4,11 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.37.1 — 2026-10-25
+
+- Keep Monthly summary and Business analytics stable while reading: stop automatic report reloads on realtime events, reconnects, foreground recovery and idle timers. Add Refresh actions that update dependent comparisons, averages, subtotals and open analytics details; keep filters, retries and operational finance synchronization.
+- Add focused component regressions and synchronize bilingual documentation. No API or database changes; NAS requires a Web update.
+
 ## 1.37.0 — 2026-10-25
 
 - Replace payroll source menus with Card/Cash checkboxes, defaulting to Card (including gift cards). Add Service/Tips checkboxes, both selected by default; each group supports one or both options.

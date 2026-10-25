@@ -13,7 +13,6 @@ import type { FinanceAnalyticsQuery, FinanceAnalyticsResponse } from "@massage-n
 import { apiRequest, errorMessage } from "../../lib/api";
 import { LatestRequest } from "../../lib/latest-request";
 import { createRefreshQueue } from "../../lib/refresh-queue";
-import { useStoreRealtime } from "../../lib/realtime";
 import { useLanguage } from "../language-provider";
 import { shiftDate } from "./date-utils";
 
@@ -51,7 +50,6 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
     void refresh.request();
     return () => { refresh.dispose(); requests.begin(); };
   }, [storeId, range.from, range.to, highlightFilter, scope, requests]);
-  useStoreRealtime(storeId, () => queue.current?.request());
   const data = result?.scope === scope ? result.data : null;
   const money = (cents: string | null) => cents === null ? "—" : new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(Number(cents) / 100);
   const dollars = (cents: string | null) => cents === null ? null : Number(cents) / 100;
@@ -69,6 +67,7 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
       <label>{t("结束日期", "End date")}<input type="date" required value={to} min={from} max={today} onChange={event => setTo(event.target.value)} /></label>
       <label>{t("高光记工", "Highlighted records")}<select value={highlightFilter} onChange={event => setHighlightFilter(event.target.value as NonNullable<FinanceAnalyticsQuery["highlightFilter"]>)}><option value="ONLY_HIGHLIGHTED">{t("仅高光", "Highlighted only")}</option><option value="EXCLUDE_HIGHLIGHTED">{t("排除高光", "Exclude highlighted")}</option><option value="ALL">{t("全部", "All")}</option></select></label>
       <button className="primary-action" type="submit">{t("应用日期段", "Apply dates")}</button>
+      <button className="secondary-action" type="button" disabled={loading} onClick={() => void queue.current?.request()}>{t("刷新", "Refresh")}</button>
     </form>
     {loading && <p role="status">{t("正在更新图表…", "Updating charts…")}</p>}
     {loadFailed && <p className={error ? "form-error" : undefined} role={error ? "alert" : undefined}>{error} <button type="button" onClick={() => void queue.current?.request()}>{t("重试", "Retry")}</button></p>}
@@ -76,7 +75,7 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
       {!data.hasData && <p className="empty-state">{t("当前范围没有经营数据。", "No business data in this range.")}</p>}
     </>}
     <AnalyticsOverview trends={data?.trends ?? null} loading={loading} failed={loadFailed} />
-    {data && <AnalyticsDailyReport key={`${scope}:${locale}`} storeId={storeId} data={data} highlightFilter={highlightFilter}>
+    {data && <AnalyticsDailyReport key={scope} storeId={storeId} data={data} highlightFilter={highlightFilter}>
       {income => <>
         {(data.hasData || data.weekdayComparison.hasData) && <AnalyticsWeekdayRevenue data={data.weekdayComparison} />}
         {data.hasData && <>

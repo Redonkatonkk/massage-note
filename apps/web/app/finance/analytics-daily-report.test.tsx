@@ -8,9 +8,8 @@ import type { FinanceDetailsResponse, FinanceSummaryResponse } from "../../lib/t
 import { AnalyticsDailyReport } from "./analytics-daily-report";
 
 vi.mock("../../lib/api", () => ({ apiRequest: vi.fn(), errorMessage: (error: Error) => error.message }));
-const state = vi.hoisted(() => ({ locale: "zh-CN", refresh: async () => {} }));
+const state = vi.hoisted(() => ({ locale: "zh-CN" }));
 vi.mock("../language-provider", () => ({ useLanguage: () => state }));
-vi.mock("../../lib/realtime", () => ({ useStoreRealtime: (_store: string, refresh: () => Promise<void>) => { state.refresh = refresh; } }));
 const request = vi.mocked(apiRequest);
 let root: Root;
 let container: HTMLDivElement;
@@ -121,7 +120,7 @@ it("小计失败可单独重试，空结果仍显示日历和空提示", async (
   expect(container.textContent).toContain("当前筛选没有每日小计。");
 });
 
-it("明细失败保留重试入口，重复点击受保护，实时刷新当前小计与打开的明细", async () => {
+it("明细失败保留重试入口，重复点击受保护，报表更新后刷新小计与打开的明细", async () => {
   await render("ONLY_HIGHLIGHTED");
   let reject!: (error: Error) => void;
   request.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
@@ -133,7 +132,8 @@ it("明细失败保留重试入口，重复点击受保护，实时刷新当前�
   await click(button("重试"));
   expect(container.querySelector("[role=dialog]")).not.toBeNull();
   request.mockClear();
-  await act(async () => state.refresh());
+  data = { ...data };
+  await render("ONLY_HIGHLIGHTED");
   expect(request).toHaveBeenCalledTimes(2);
   expect(query("summary").get("highlightFilter")).toBe("ONLY_HIGHLIGHTED");
   expect(query("details").get("highlightFilter")).toBe("ONLY_HIGHLIGHTED");

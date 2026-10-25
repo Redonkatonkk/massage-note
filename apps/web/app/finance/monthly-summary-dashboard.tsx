@@ -106,6 +106,7 @@ export function MonthlySummaryDashboard({ storeId, today, month, summary, loadin
     <header className="monthly-finance__toolbar">
       <div><p className="eyebrow">{t("每月经营账本", "MONTHLY FINANCES")}</p><h2>{t("月度汇总", "Monthly summary")}</h2><p>{ranges.dateFrom} — {ranges.dateTo}{ranges.partial ? t(" · 本月至今", " · Month to date") : t(" · 完整自然月", " · Full calendar month")}</p></div>
       <div className="monthly-finance__actions">
+        <button className="secondary-action" type="button" disabled={busy || loading} onClick={onRetry}>{t("刷新", "Refresh")}</button>
         <div className="monthly-finance__month-picker">
           <button type="button" className="secondary-action" disabled={busy} aria-label={t("上一个月", "Previous month")} onClick={() => onMonthChange(shiftMonth(month, -1))}>‹</button>
           <label><input type="month" aria-label={t("选择月份", "Select month")} required max={today.slice(0, 7)} value={month} onChange={event => { if (/^\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value) && event.target.value <= today.slice(0, 7)) onMonthChange(event.target.value); }} /></label>

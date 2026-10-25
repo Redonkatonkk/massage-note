@@ -224,7 +224,9 @@ export function FinancePageClient() {
     );
   }, [membership, canManage]);
 
-  const realtimeState = useStoreRealtime(membership?.store.id, async change => {
+  // Reports stay stable while reading; operational tabs still synchronize live.
+  const isReport = tab === "summary" || tab === "analytics";
+  const realtimeState = useStoreRealtime(isReport ? undefined : membership?.store.id, async change => {
     if (!change.full && change.changes.length > 0 && change.changes.every(item => item.entityType === "expense_item")) return;
     const workOnly = isWorkRecordChange(change);
     const cashAffected = !workOnly || change.changes.some(item => !item.businessDate || item.businessDate.slice(0, 10) === cashDate);
@@ -413,7 +415,7 @@ export function FinancePageClient() {
   return (
     <main className="app-shell finance-shell">
       <header className="topbar">
-        <div><p className="eyebrow">{membership.store.name}</p><h1>{financeTabs.find(([value]) => value === tab)?.[1]}</h1><p className="business-date">{pageDescriptions[tab]} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
+        <div><p className="eyebrow">{membership.store.name}</p><h1>{financeTabs.find(([value]) => value === tab)?.[1]}</h1><p className="business-date">{pageDescriptions[tab]} {!isReport && <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span>}</p></div>
         <a className="store-switcher header-link" href={appHref("/")}>返回今日记工</a>
       </header>
 

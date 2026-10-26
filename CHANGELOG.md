@@ -4,6 +4,11 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.39.3 — 2026-10-26
+
+- Move Close to the right of Detailed entry on the same quick-entry header row; keep the three record flags below. Synchronize bilingual help and layout documentation.
+- NAS requires a Web update; no API, database or Messages agent changes.
+
 ## 1.39.2 — 2026-10-26
 
 - Restore Close as the last direct button in the original quick-entry action row. Place Detailed entry separately in the header above it, removing the shared vertical wrapper that displaced Close and enlarged the action row.

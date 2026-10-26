@@ -223,7 +223,7 @@ describe("快速记工占位", () => {
   it("占位在高亮左侧，点击直接保存且不提交服务或其他标记", async () => {
     await render(); await click("新增记工");
     const modal = document.querySelector(".quick-work-modal")!;
-    expect([...modal.querySelectorAll(".modal-heading__actions button")].map((node) => node.textContent)).toEqual(["占位", "不算排工", "★高亮标记", "关闭"]);
+    expect([...modal.querySelectorAll(".modal-heading__actions button")].map((node) => node.textContent)).toEqual(["占位", "不算排工", "★高亮标记"]);
     await click("★高亮标记"); await click("不算排工"); await click("占位");
     expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, body: { employeeMembershipId: "employee", startAt: "2026-10-06T14:00:00.000Z", isPlaceholder: true } }]]);
     expect(document.querySelector(".quick-work-modal")).toBeNull();
@@ -410,14 +410,14 @@ describe("未选项目的记工详情", () => {
 
 
 describe("快速记工进入详细记工", () => {
-  it("详细记工位于关闭上方，沿用时间和标记，打开或取消均不写入", async () => {
+  it("关闭位于详细记工右侧同排，沿用时间和标记，打开或取消均不写入", async () => {
     await render(); await click("新增记工"); await click("★高亮标记"); await click("不算排工");
     const heading = document.querySelector(".quick-work-modal > .modal-heading")!;
     const actions = heading.querySelector(".modal-heading__actions")!;
-    expect(button("关闭").parentElement).toBe(actions);
-    expect(actions.lastElementChild).toBe(button("关闭"));
+    expect(button("关闭").parentElement).toBe(heading);
     expect(button("详细记工").parentElement).toBe(heading);
-    expect(button("详细记工").nextElementSibling).toBe(actions);
+    expect(button("详细记工").nextElementSibling).toBe(button("关闭"));
+    expect(button("关闭").nextElementSibling).toBe(actions);
     await inputValue(document.querySelector<HTMLInputElement>("#start-time")!, "11");
     await click("详细记工");
     expect(document.querySelector(".quick-work-modal")).toBeNull();

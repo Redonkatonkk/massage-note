@@ -4,6 +4,17 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.39.1 — 2026-10-26
+
+- Allow detail saves without a service when receipts are zero or blank; keep new detailed forms prefilled with 60 minutes. Support an explicit unknown duration through `durationMinutes: null`, preserving null end/duration fields on existing incomplete records.
+- Preserve service-free metadata edits and zero-receipt saves without creating a service/price/commission snapshot; positive receipts still require a service. Add focused contract, component and database regressions and synchronize bilingual documentation. NAS requires Web/API updates; no database migration or Messages agent update.
+
+## 1.39.0 — 2026-10-26
+
+- Add Detailed entry directly above Close in quick entry. It opens an unsaved full form with the selected employee, time and flags; closing creates no record. Add an atomic detailed-create endpoint for service, add-ons, discounts, notes and optional payment.
+- Treat zero or blank cash/card service fees and tips as pending on detail save, including previously confirmed records; positive gift card receipts still confirm payment. Clear obsolete payment snapshots and derived receipt/income fields when returning to pending, retaining price snapshots, permissions, locks, versions and idempotency.
+- Add focused contract, component and database regressions and synchronize bilingual documentation. NAS requires Web/API updates; no database migration or Messages agent update.
+
 ## 1.38.0 — 2026-10-26
 
 - Simplify quick entry to all enabled services’ unique durations, sorted by minutes; clicking saves a pending record with only time and duration, without selecting a service, price or commission. Remove the service/custom-service selector and confirmation button; Placeholder also saves immediately.

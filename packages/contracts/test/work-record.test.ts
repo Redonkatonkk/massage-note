@@ -4,6 +4,7 @@ import {
   confirmPaymentSchema,
   saveWorkRecordSchema,
   createWorkRecordSchema,
+  createDetailedWorkRecordSchema,
   updateWorkRecordSchema,
 } from "../src/index.js";
 
@@ -281,5 +282,26 @@ describe("百分比折扣契约", () => {
   });
   it.each([-1, 10001, 1.5])("拒绝无效比例 %s", (rateBps) => {
     expect(updateWorkRecordSchema.safeParse({ version: 1, discounts: [{ ...discount, rateBps }] }).success).toBe(false);
+  });
+});
+
+
+describe("详细记工新建契约", () => {
+  const create = { employeeMembershipId: "56d4a93a-5a73-49df-93c2-704ae844faa4", startAt: "2026-10-26T14:00:00-04:00", serviceItemId: "115e9be0-c76e-4d8d-bcec-55618c74450e", serviceDurationMinutes: 60 };
+  it("接收完整详情和可选付款，初始版本必须为 1", () => {
+    expect(createDetailedWorkRecordSchema.safeParse({ create, details: { version: 1, note: "待付款" } }).success).toBe(true);
+    expect(createDetailedWorkRecordSchema.parse({ create, details: { version: 1 }, payment: { version: 1, cashServiceCents: 0 } }).payment).toMatchObject({ cashServiceCents: 0, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0 });
+    expect(createDetailedWorkRecordSchema.safeParse({ create, details: { version: 2 } }).success).toBe(false);
+    expect(createDetailedWorkRecordSchema.safeParse({ create, details: { version: 1 }, payment: { version: 2, cashServiceCents: 60 } }).success).toBe(false);
+  });
+  it("零实收允许未选项目和时长，有实收和占位仍拒绝", () => {
+    const unassigned = { employeeMembershipId: create.employeeMembershipId, startAt: create.startAt, durationMinutes: null };
+    expect(createDetailedWorkRecordSchema.safeParse({ create: unassigned, details: { version: 1 } }).success).toBe(true);
+    expect(createDetailedWorkRecordSchema.safeParse({ create: unassigned, details: { version: 1 }, payment: { version: 1, cashServiceCents: 0 } }).success).toBe(true);
+    expect(createDetailedWorkRecordSchema.safeParse({ create: { ...unassigned, durationMinutes: 60 }, details: { version: 1 } }).success).toBe(true);
+    expect(createDetailedWorkRecordSchema.safeParse({ create: unassigned, details: { version: 1 }, payment: { version: 1, cashServiceCents: 100 } }).success).toBe(false);
+    expect(createDetailedWorkRecordSchema.safeParse({ create: unassigned, details: { version: 1 }, payment: { version: 1, giftCardServiceCents: 100, giftCardSerialNumber: "gift" } }).success).toBe(false);
+    expect(createDetailedWorkRecordSchema.safeParse({ create: { employeeMembershipId: create.employeeMembershipId, startAt: create.startAt, isPlaceholder: true }, details: { version: 1 } }).success).toBe(false);
+    expect(createDetailedWorkRecordSchema.safeParse({ create, details: { version: 1 }, payment: { version: 1, cashServiceCents: -1 } }).success).toBe(false);
   });
 });

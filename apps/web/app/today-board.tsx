@@ -21,6 +21,7 @@ import {
 } from "../lib/daily-ranking";
 import { financeClosingHref } from "../lib/navigation";
 import { formatUsd } from "../lib/money";
+import { newWorkRecord } from "../lib/new-work-record";
 import { hasConfirmedPaymentMismatch } from "../lib/record-payment";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
 import { activeWorkRecord } from "../lib/work-status";
@@ -140,6 +141,7 @@ export function TodayBoard({
   const [quickDispatchExcluded, setQuickDispatchExcluded] = useState(false);
   const [startTimeValid, setStartTimeValid] = useState(true);
   const [startTime, setStartTime] = useState(currentStoreTime(currentDay.timezone));
+  const [creatingRecord, setCreatingRecord] = useState<WorkRecord | null>(null);
   const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
   const [deletingPlaceholder, setDeletingPlaceholder] = useState<WorkRecord | null>(null);
   const [closingEmployee, setClosingEmployee] = useState<{ id: string; displayName: string } | null>(null);
@@ -322,6 +324,21 @@ export function TodayBoard({
     const result = await apiRequest<{ removed: boolean }>(path, { method: "PATCH", idempotent: true, body: { version: row.version, isHidden } });
     setNotice(result.removed ? `已移除 ${row.membership.displayName} 的当天上班记录` : isHidden ? `已隐藏 ${row.membership.displayName}` : `已恢复 ${row.membership.displayName}`);
     await onReload();
+  }
+
+  function openDetailedRecord() {
+    if (!startTimeValid) throw new Error("请填写有效的开始时间");
+    if (!quickEmployeeId || board.isClosed) return;
+    setCreatingRecord(newWorkRecord({
+      employeeMembershipId: quickEmployeeId,
+      businessDate: currentDay.businessDate,
+      storeTimezoneSnapshot: currentDay.timezone,
+      businessCutoffSnapshot: currentDay.businessCutoffLocal,
+      startAt: businessTimeToIso(currentDay.businessDate, startTime, currentDay.timezone),
+      isHighlighted: quickHighlighted,
+      isDispatchExcluded: quickDispatchExcluded,
+    }));
+    setQuickEmployeeId(null);
   }
 
   async function saveQuickRecord(selection: number | "PLACEHOLDER") {
@@ -642,7 +659,10 @@ export function TodayBoard({
                 <button className="highlight-toggle placeholder-toggle" type="button" disabled={busy || board.isClosed} onClick={() => run(() => saveQuickRecord("PLACEHOLDER"))}>占位</button>
                 <button className={`highlight-toggle dispatch-excluded-toggle${quickDispatchExcluded ? " active" : ""}`} type="button" aria-pressed={quickDispatchExcluded} disabled={busy || board.isClosed} onClick={() => setQuickDispatchExcluded((current) => !current)}>不算排工</button>
                 <button className={`highlight-toggle${quickHighlighted ? " active" : ""}`} type="button" aria-pressed={quickHighlighted} disabled={busy || board.isClosed} onClick={() => setQuickHighlighted((current) => !current)}><span aria-hidden="true">★</span>{quickHighlighted ? "已高亮" : "高亮标记"}</button>
-                <button className="close-button" type="button" disabled={busy} onClick={() => setQuickEmployeeId(null)}>关闭</button>
+                <div className="quick-modal-navigation">
+                  <button className="secondary-action" type="button" disabled={busy || board.isClosed} onClick={() => run(async () => openDetailedRecord())}>详细记工</button>
+                  <button className="close-button" type="button" disabled={busy} onClick={() => setQuickEmployeeId(null)}>关闭</button>
+                </div>
               </div>
             </div>
             <div className="quick-modal-content">
@@ -670,19 +690,20 @@ export function TodayBoard({
         timezone={currentDay.timezone} canDelete={isCurrentBusinessDay || canManage} isClosed={board.isClosed}
         onClose={() => setDeletingPlaceholder(null)} onDeleted={() => setNotice("占位已删除")} onChanged={onReload} />}
 
-      {editingRecord && (
+      {(creatingRecord || editingRecord) && (
         <RecordEditor
           storeId={membership.store.id}
           timezone={currentDay.timezone}
           businessDate={currentDay.businessDate}
           autoDiscountSettings={store}
-          record={editingRecord}
+          record={(creatingRecord ?? editingRecord)!}
+          isNew={creatingRecord !== null}
           catalog={catalog}
           members={members}
           canManage={canManage}
           isClosed={board.isClosed}
-          onClose={() => setEditingRecord(null)}
-          onSaved={() => setNotice("记工修改已保存")}
+          onClose={() => { setEditingRecord(null); setCreatingRecord(null); }}
+          onSaved={() => setNotice(creatingRecord ? "记工已保存" : "记工修改已保存")}
           onChanged={onReload}
         />
       )}

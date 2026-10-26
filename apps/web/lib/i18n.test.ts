@@ -25,9 +25,11 @@ describe("bilingual UI translation", () => {
   it("translates fixed labels and preserves surrounding whitespace", () => {
     expect(translateText("  店铺设置 ", "en-US")).toBe("  Store settings ");
     expect(translateText("现金大费", "en-US")).toBe("Cash service fees");
+    expect(translateText("详细记工", "en-US")).toBe("Detailed entry");
+    expect(translateText("改为待结账", "en-US")).toBe("Set payment pending");
     expect(translateText("空白按 0", "en-US")).toBe("Blank = 0");
-    expect(translateText("刷卡、现金和礼物卡大费至少填一项。各类小费可以留空，系统会按 0 处理。", "en-US"))
-      .toContain("card, cash, or gift-card");
+    expect(translateText("实收金额全为 0 或空白时保存为待结账；录入付款后，大费至少填一项，小费空白按 0 处理。", "en-US"))
+      .toContain("Zero or blank receipts save as pending");
     expect(translateText("✓ 成员资料与默认提成已保存", "en-US"))
       .toBe("✓ Member details and default commission saved");
     expect(translateText("✓ 成员资料与默认提成已保存，今日记工小结已同步", "en-US"))
@@ -74,8 +76,8 @@ describe("bilingual UI translation", () => {
     expect(translateText("现金 50 美元", "en-US")).toBe("Cash 50 dollars");
     expect(translateText("记工卡片的付款金额中，细线框内是刷卡，未加框是现金；混合付款按“框内刷卡金额 + 无框现金金额”显示，例如刷卡 $30、现金 $50 会显示为 `[30]+50`。礼物卡付款会直接标出“礼卡”。", "en-US"))
       .toContain("outlined amount is a card payment");
-    expect(translateText("付款尚未填写；点击保存只保存记工，之后仍可补录付款。", "en-US"))
-      .toContain("work-record changes only");
+    expect(translateText("实收金额全为 0 或空白，可不选项目保存为待结账，之后仍可补录付款。", "en-US"))
+      .toContain("Save keeps payment pending");
     expect(translateText("点击保存会校验付款信息；完整时同时确认付款。小费留空按 0 处理。", "en-US"))
       .toContain("Blank tips are treated as 0");
     expect(translateText("实收服务费与应收金额不一致", "en-US"))

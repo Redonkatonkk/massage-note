@@ -79,6 +79,7 @@ const actionText: Record<string, string> = {
   "work_record.updated": "修改记工",
   "work_record.commission_refreshed": "按最新提成重算当日记工",
   "work_record.payment_confirmed": "确认付款",
+  "work_record.payment_pending": "改为待结账",
   "work_record.deleted": "删除记工",
   "work_record.restored": "恢复记工",
   "gift_card.sale_created": "新增礼物卡销售",

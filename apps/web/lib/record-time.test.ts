@@ -54,3 +54,9 @@ describe("clock edits keep the selected service date", () => {
     expect(sameDayRecordTimeAfterDuration("2026-09-14T23:00", 90, "America/New_York")).toBe("2026-09-14T00:30");
   });
 });
+
+
+it("未指定时长时不虚构结束时间，明确结束时间仍保留", () => {
+  expect(automaticRecordEnd("2026-10-26T10:00", "", 0, "America/New_York")).toBe("");
+  expect(automaticRecordEnd("2026-10-26T10:00", "2026-10-26T11:00", 0, "America/New_York")).toBe("2026-10-26T11:00");
+});

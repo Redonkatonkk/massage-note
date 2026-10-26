@@ -13,6 +13,7 @@ import { Prisma } from "@massage-note/database";
 import type {
   ConfirmedPayment,
   CreateWorkRecordInput,
+  CreateDetailedWorkRecordInput,
   DeleteWorkRecordInput,
   RestoreWorkRecordInput,
   UpdateWorkRecordInput,
@@ -176,7 +177,7 @@ export class WorkRecordsService {
 
       if (input.isPlaceholder || input.durationMinutes !== undefined) {
         const isPlaceholder = input.isPlaceholder === true;
-        const endAt = isPlaceholder ? null : new Date(startAt.getTime() + input.durationMinutes! * 60_000);
+        const endAt = isPlaceholder || input.durationMinutes == null ? null : new Date(startAt.getTime() + input.durationMinutes * 60_000);
         const record = await transaction.workRecord.create({
           data: {
             storeId,
@@ -186,7 +187,7 @@ export class WorkRecordsService {
             businessCutoffSnapshot: store.businessCutoffLocal,
             startAt,
             endAt,
-            actualDurationMinutes: isPlaceholder ? null : input.durationMinutes!,
+            actualDurationMinutes: isPlaceholder ? null : input.durationMinutes ?? null,
             status: isPlaceholder ? "PLACEHOLDER" : "PENDING_PAYMENT",
             isHighlighted: !isPlaceholder && (input.isHighlighted ?? false),
             isDispatchExcluded: !isPlaceholder && (input.isDispatchExcluded ?? false),
@@ -221,7 +222,7 @@ export class WorkRecordsService {
               status: record.status,
               version: record.version,
               ...(!isPlaceholder ? {
-                endAt: endAt!.toISOString(),
+                endAt: endAt?.toISOString() ?? null,
                 durationMinutes: input.durationMinutes,
                 isHighlighted: record.isHighlighted,
                 isDispatchExcluded: record.isDispatchExcluded,
@@ -597,7 +598,8 @@ export class WorkRecordsService {
             mayOverrideCommission,
           );
           const originalServiceDuration = record.serviceSnapshot?.durationMinutes ?? record.actualDurationMinutes ?? 0;
-          const serviceDurationChanged = service.durationMinutes !== originalServiceDuration;
+          const serviceDuration = service?.durationMinutes ?? originalServiceDuration;
+          const serviceDurationChanged = serviceDuration !== originalServiceDuration;
           const addons = await this.buildDesiredAddons(
             transaction,
             storeId,
@@ -619,11 +621,11 @@ export class WorkRecordsService {
             0,
           );
           const configuredDurationDeltaMinutes =
-            service.durationMinutes - originalServiceDuration +
+            serviceDuration - originalServiceDuration +
             nextAddonDurationMinutes - previousAddonDurationMinutes;
           const endAt =
             input.endAt === undefined
-              ? record.endAt
+              ? service === null && record.actualDurationMinutes === null ? null : record.endAt
                 ? new Date(
                     startAt.getTime() +
                       Math.max(
@@ -635,7 +637,7 @@ export class WorkRecordsService {
                 : serviceDurationChanged || configuredDurationDeltaMinutes !== 0
                   ? new Date(
                       startAt.getTime() +
-                        (service.durationMinutes + nextAddonDurationMinutes) * 60_000,
+                        (serviceDuration + nextAddonDurationMinutes) * 60_000,
                     )
                   : null
               : input.endAt === null
@@ -651,7 +653,7 @@ export class WorkRecordsService {
             ? Math.round((endAt.getTime() - startAt.getTime()) / 60_000)
             : null;
           const grossFeeBaseCents =
-            service.amountCents +
+            (service?.amountCents ?? 0n) +
             addons.reduce((total, addon) => total + addon.amountCents, 0n);
           const manualDiscounts = await this.buildDesiredDiscounts(
             transaction,
@@ -663,7 +665,7 @@ export class WorkRecordsService {
           const automaticDiscountSuppressed =
             input.automaticDiscountSuppressed ??
             record.automaticDiscountSuppressed;
-          const discounts = automaticDiscountSuppressed
+          const discounts = automaticDiscountSuppressed || service === null
             ? manualDiscounts
             : this.applyMondayThursdayAutoDiscount(
                 store,
@@ -673,9 +675,9 @@ export class WorkRecordsService {
                 input.isHighlighted ?? record.isHighlighted,
               );
           let manualPriceFlag = record.manualPriceFlag;
-          if (service.isCustom) {
+          if (service?.isCustom) {
             manualPriceFlag = false;
-          } else if (input.serviceItemId || input.mainServiceAmountCents !== undefined) {
+          } else if (service && (input.serviceItemId || input.mainServiceAmountCents !== undefined)) {
             const template = service.sourceServiceItemId
               ? await transaction.serviceItemPriceOption.findFirst({
                   where: {
@@ -706,8 +708,8 @@ export class WorkRecordsService {
             }
           }
           const finance = calculateWorkRecordFinance({
-            mainServiceAmountCents: service.amountCents,
-            mainServiceCommissionBps: service.commissionBps,
+            mainServiceAmountCents: service?.amountCents ?? 0n,
+            mainServiceCommissionBps: service?.commissionBps ?? 0,
             addons: addons.map((addon) => ({
               amountCents: addon.amountCents,
               commissionBps: addon.commissionBps,
@@ -787,7 +789,7 @@ export class WorkRecordsService {
             await this.throwRecordConflict(transaction, recordId, storeId);
           }
 
-          await transaction.workRecordServiceSnapshot.upsert({
+          if (service) await transaction.workRecordServiceSnapshot.upsert({
             where: { workRecordId: recordId },
             create: { workRecordId: recordId, ...service },
             update: service,
@@ -1095,12 +1097,52 @@ export class WorkRecordsService {
     );
   }
 
-  async save(actor: User, storeId: string, recordId: string, input: SaveWorkRecordInput, key: string, requestId: string) {
+  async createDetailed(actor: User, storeId: string, input: CreateDetailedWorkRecordInput, key: string, requestId: string) {
     await this.access.requireActiveMembership(actor.id, storeId);
+    return this.idempotency.execute({ storeId, userId: actor.id, key, route: "/api/v1/stores/:storeId/work-records/detailed", payload: input, responseCode: 201 }, async (transaction) => {
+      const created = await this.create(actor, storeId, input.create, `detailed-${key}`, requestId, transaction);
+      const details = { ...input.details, version: created.version };
+      if (input.payment) {
+        return this.save(actor, storeId, created.id, { details, payment: { ...input.payment, version: created.version } }, `detailed-${key}`, requestId, transaction);
+      }
+      return this.update(actor, storeId, created.id, details, `detailed-${key}`, requestId, transaction);
+    });
+  }
+
+  async save(actor: User, storeId: string, recordId: string, input: SaveWorkRecordInput, key: string, requestId: string, parentTransaction?: Prisma.TransactionClient) {
+    const membership = await this.access.requireActiveMembership(actor.id, storeId, parentTransaction);
     return this.idempotency.execute({ storeId, userId: actor.id, key, route: "/api/v1/stores/:storeId/work-records/:recordId/save", payload: { recordId, input }, responseCode: 200 }, async (transaction) => {
       const updated = await this.update(actor, storeId, recordId, input.details, `save-${key}`, requestId, transaction);
-      return this.confirmPayment(actor, storeId, recordId, { ...input.payment, version: updated.version }, `save-${key}`, requestId, transaction);
-    });
+      const allZero = [input.payment.cashServiceCents, input.payment.cardServiceCents, input.payment.cashTipCents,
+        input.payment.cardTipCents, input.payment.giftCardServiceCents, input.payment.giftCardTipCents].every(value => value === 0);
+      if (!allZero) return this.confirmPayment(actor, storeId, recordId, { ...input.payment, version: updated.version }, `save-${key}`, requestId, transaction);
+
+      const changed = await transaction.workRecord.updateMany({
+        where: { id: recordId, storeId, deletedAt: null, version: updated.version },
+        data: {
+          status: "PENDING_PAYMENT",
+          cashServiceCents: null, cardServiceCents: null, giftCardServiceCents: null,
+          cashTipCents: null, cardTipCents: null, giftCardTipCents: null,
+          giftCardSerialNumber: null, giftCardIsOnline: false,
+          totalTipCents: null, actualServiceCollectedCents: null, customerTotalPaidCents: null,
+          paymentDifferenceCents: null, employeeTotalIncomeCents: null,
+          cashAllocatedServiceWageCents: null, cashAcquiredServiceWageCents: null, cashWageShortfallCents: null,
+          tipSettledManualFlag: false, largeFeeSettledManualFlag: false,
+          updatedBy: actor.id, version: { increment: 1 },
+        },
+      });
+      if (changed.count !== 1) await this.throwRecordConflict(transaction, recordId, storeId);
+      await transaction.paymentBreakdown.deleteMany({ where: { workRecordId: recordId } });
+      const pending = await transaction.workRecord.findUniqueOrThrow({ where: { id: recordId }, include: recordInclude });
+      await transaction.auditLog.create({ data: {
+        storeId, actorUserId: this.auditSource === "langbot" ? null : actor.id, actorMembershipId: membership.id,
+        source: this.auditSource, action: "work_record.payment_pending", entityType: "work_record", entityId: recordId,
+        businessDate: pending.businessDate, requestId,
+        beforeJson: { status: updated.status, version: updated.version },
+        afterJson: { status: pending.status, version: pending.version },
+      } });
+      return pending;
+    }, parentTransaction);
   }
 
   async confirmPayment(
@@ -1335,7 +1377,7 @@ export class WorkRecordsService {
     input: UpdateWorkRecordInput,
     employeeOrTimeChanged: boolean,
     mayOverrideCommission: boolean,
-  ): Promise<DesiredServiceSnapshot> {
+  ): Promise<DesiredServiceSnapshot | null> {
     if (
       input.mainServiceCommissionBps !== undefined &&
       !mayOverrideCommission
@@ -1346,7 +1388,10 @@ export class WorkRecordsService {
       });
     }
     if (!current && !input.serviceItemId && !input.customService) {
-      throw new BadRequestException({ code: "SERVICE_SELECTION_REQUIRED", messageZh: "请先选择项目" });
+      if (input.mainServiceAmountCents !== undefined || input.mainServiceCommissionBps !== undefined) {
+        throw new BadRequestException({ code: "SERVICE_SELECTION_REQUIRED", messageZh: "请先选择项目" });
+      }
+      return null;
     }
     let sourceServiceItemId = current?.sourceServiceItemId ?? null;
     let isCustom = current?.isCustom ?? false;

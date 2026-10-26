@@ -10,7 +10,7 @@ export function recordTimeError(start: string, end: string): string | null {
 
 /** Preserve recorded actual duration; fill missing end times from service snapshots. */
 export function automaticRecordEnd(start: string, end: string, durationMinutes: number, timezone: string): string {
-  return end || sameDayRecordTimeAfterDuration(start, durationMinutes, timezone);
+  return end || (durationMinutes > 0 ? sameDayRecordTimeAfterDuration(start, durationMinutes, timezone) : "");
 }
 
 /** Calculate a clock value from a duration without retaining an earlier adjustment. */

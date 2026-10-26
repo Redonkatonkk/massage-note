@@ -46,6 +46,7 @@ interface RecordEditorProps {
     | "mondayThursdayAutoDiscountAmountCents"
   >;
   record: WorkRecord;
+  isNew?: boolean;
   catalog: CatalogResponse;
   members: StoreMember[];
   canManage: boolean;
@@ -140,6 +141,7 @@ export function RecordEditor({
   businessDate,
   autoDiscountSettings,
   record,
+  isNew = false,
   catalog,
   members,
   canManage,
@@ -156,7 +158,7 @@ export function RecordEditor({
   const dayClosed = closedBusinessDate !== null;
   const [recordVersion, setRecordVersion] = useState(record.version);
   const service = record.serviceSnapshot;
-  const initialServiceDuration = service?.durationMinutes ?? record.actualDurationMinutes ?? 60;
+  const initialServiceDuration = service?.durationMinutes ?? record.actualDurationMinutes;
   const initialStart = localDateTimeValue(record.startAt, timezone);
   const initialEnd = record.endAt ? localDateTimeValue(record.endAt, timezone) : "";
   const initialAddons = useMemo<AddonDraft[]>(
@@ -186,16 +188,16 @@ export function RecordEditor({
   const [startTimeValid, setStartTimeValid] = useState(true);
   const [endTimeValid, setEndTimeValid] = useState(true);
   const [startAt, setStartAt] = useState(initialStart);
-  const [endAt, setEndAt] = useState(() => automaticRecordEnd(initialStart, initialEnd, initialServiceDuration + initialAddons.reduce((sum, item) => sum + addonDurationValue(item), 0), timezone));
+  const [endAt, setEndAt] = useState(() => automaticRecordEnd(initialStart, initialEnd, (initialServiceDuration ?? 0) + initialAddons.reduce((sum, item) => sum + addonDurationValue(item), 0), timezone));
   const [serviceChoice, setServiceChoice] = useState(
     service ? service.sourceServiceItemId ?? "__custom__" : "__unassigned__",
   );
   const [serviceName, setServiceName] = useState(service?.name ?? "");
   const [serviceShortName, setServiceShortName] = useState(service?.shortName ?? "");
   const [serviceDuration, setServiceDuration] = useState(
-    initialServiceDuration.toString(),
+    initialServiceDuration?.toString() ?? "",
   );
-  const lastValidServiceDuration = useRef(initialServiceDuration);
+  const lastValidServiceDuration = useRef(initialServiceDuration ?? 0);
   const [serviceAmount, setServiceAmount] = useState(
     dollars(service?.amountCents ?? null),
   );
@@ -238,6 +240,7 @@ export function RecordEditor({
   const draftKey = `massage_note_record_draft_${record.id}`;
 
   useEffect(() => {
+    if (isNew) { setDraftLoaded(true); return; }
     try {
       const raw = browserStorage.getItem(draftKey);
       if (raw) {
@@ -251,7 +254,7 @@ export function RecordEditor({
           setEndAt(automaticRecordEnd(
             typeof draft.startAt === "string" ? draft.startAt : initialStart,
             typeof draft.endAt === "string" ? draft.endAt : initialEnd,
-            ((typeof draft.serviceDuration === "string" ? serviceDurationValue(draft.serviceDuration) : null) ?? initialServiceDuration) + (Array.isArray(draft.addons) ? draft.addons as AddonDraft[] : initialAddons).reduce((sum, item) => sum + addonDurationValue(item), 0),
+            ((typeof draft.serviceDuration === "string" ? serviceDurationValue(draft.serviceDuration) : null) ?? initialServiceDuration ?? 0) + (Array.isArray(draft.addons) ? draft.addons as AddonDraft[] : initialAddons).reduce((sum, item) => sum + addonDurationValue(item), 0),
             timezone,
           ));
           if (typeof draft.serviceChoice === "string") setServiceChoice(draft.serviceChoice);
@@ -297,12 +300,12 @@ export function RecordEditor({
     } finally {
       setDraftLoaded(true);
     }
-  }, [draftKey, record.version]);
+  }, [draftKey, record.version, isNew]);
 
   useEffect(() => {
-    if (!draftLoaded || !draftDirty) return;
+    if (isNew || !draftLoaded || !draftDirty) return;
     browserStorage.setItem(draftKey, JSON.stringify({ storeId, savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardIsOnline, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note }));
-  }, [draftLoaded, draftDirty, draftKey, storeId, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardIsOnline, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note]);
+  }, [isNew, draftLoaded, draftDirty, draftKey, storeId, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardIsOnline, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note]);
 
   const initialAddonSignature = JSON.stringify(
     initialAddons.map(({ key: _key, ...item }) => item),
@@ -318,12 +321,12 @@ export function RecordEditor({
 
   function changeStartAt(value: string) {
     setStartAt(value);
-    if (value) setEndAt(sameDayRecordTimeAfterDuration(value, configuredDuration(), timezone));
+    if (value && configuredDuration() > 0) setEndAt(sameDayRecordTimeAfterDuration(value, configuredDuration(), timezone));
   }
 
   function changeEndAt(value: string) {
     setEndAt(value);
-    if (value) setStartAt(sameDayRecordTimeAfterDuration(value, -configuredDuration(), timezone));
+    if (value && configuredDuration() > 0) setStartAt(sameDayRecordTimeAfterDuration(value, -configuredDuration(), timezone));
   }
 
   function changeServiceDuration(value: string) {
@@ -336,6 +339,10 @@ export function RecordEditor({
 
   function chooseService(value: string) {
     setServiceChoice(value);
+    if (value === "__unassigned__") {
+      setServiceName(""); setServiceShortName(""); setServiceAmount(""); setServiceCommission("");
+      return;
+    }
     if (value === "__custom__") return;
     const item = catalog.serviceItems.find((candidate) => candidate.id === value);
     if (!item) return;
@@ -500,7 +507,6 @@ export function RecordEditor({
   }
 
   function buildUpdate(version: number) {
-    if (serviceChoice === "__unassigned__") throw new Error("请先选择项目");
     const payload: Record<string, unknown> = {
       version,
       note,
@@ -514,18 +520,32 @@ export function RecordEditor({
     if (endAt !== initialEnd) {
       payload.endAt = endAt ? zonedLocalToIso(endAt, timezone) : null;
     }
-    const amountCents = cents(serviceAmount, "主要项目金额");
-    if (amountCents !== service?.amountCents) payload.mainServiceAmountCents = amountCents;
-    const originalChoice = service ? service.sourceServiceItemId ?? "__custom__" : "__unassigned__";
-    if (
-      serviceChoice !== "__custom__" &&
-      (serviceChoice !== originalChoice ||
-        Number(serviceDuration) !== service?.durationMinutes)
-    ) {
-      payload.serviceItemId = serviceChoice;
-      payload.serviceDurationMinutes = Number(serviceDuration);
-    } else if (serviceChoice !== originalChoice) {
-      if (serviceChoice === "__custom__") {
+    if (serviceChoice !== "__unassigned__") {
+      const amountCents = cents(serviceAmount, "主要项目金额");
+      if (amountCents !== service?.amountCents) payload.mainServiceAmountCents = amountCents;
+      const originalChoice = service ? service.sourceServiceItemId ?? "__custom__" : "__unassigned__";
+      if (
+        serviceChoice !== "__custom__" &&
+        (serviceChoice !== originalChoice ||
+          Number(serviceDuration) !== service?.durationMinutes)
+      ) {
+        payload.serviceItemId = serviceChoice;
+        payload.serviceDurationMinutes = Number(serviceDuration);
+      } else if (serviceChoice !== originalChoice) {
+        if (serviceChoice === "__custom__") {
+          payload.customService = {
+            name: serviceName.trim(),
+            shortName: serviceShortName.trim(),
+            amountCents,
+            durationMinutes: Number(serviceDuration),
+          };
+        }
+      } else if (
+        serviceChoice === "__custom__" &&
+        (serviceName !== service?.name ||
+          serviceShortName !== service?.shortName ||
+          Number(serviceDuration) !== service?.durationMinutes)
+      ) {
         payload.customService = {
           name: serviceName.trim(),
           shortName: serviceShortName.trim(),
@@ -533,23 +553,11 @@ export function RecordEditor({
           durationMinutes: Number(serviceDuration),
         };
       }
-    } else if (
-      serviceChoice === "__custom__" &&
-      (serviceName !== service?.name ||
-        serviceShortName !== service?.shortName ||
-        Number(serviceDuration) !== service?.durationMinutes)
-    ) {
-      payload.customService = {
-        name: serviceName.trim(),
-        shortName: serviceShortName.trim(),
-        amountCents,
-        durationMinutes: Number(serviceDuration),
-      };
-    }
-    if (canManage && (service !== null || serviceCommission.trim() !== "")) {
-      const commissionBps = percentToBps(serviceCommission, "主要项目提成");
-      if (commissionBps !== service?.commissionBps) {
-        payload.mainServiceCommissionBps = commissionBps;
+      if (canManage && (service !== null || serviceCommission.trim() !== "")) {
+        const commissionBps = percentToBps(serviceCommission, "主要项目提成");
+        if (commissionBps !== service?.commissionBps) {
+          payload.mainServiceCommissionBps = commissionBps;
+        }
       }
     }
     const addonSignature = JSON.stringify(addons.map(({ key: _key, ...item }) => item));
@@ -635,37 +643,60 @@ export function RecordEditor({
     void onChanged();
   }
 
-  async function saveAndConfirmPayment() {
-    const servicePayments: Record<string, number> = {};
-    if (cashService !== "") servicePayments.cashServiceCents = cents(cashService, "现金大费");
-    if (cardService !== "") servicePayments.cardServiceCents = cents(cardService, "刷卡大费");
-    let giftCardPayment: Record<string, string | number | boolean | null> = {
-      giftCardServiceCents: 0,
-      giftCardTipCents: 0,
-    };
-    if (usesGiftCard) {
-      const serialNumber = giftCardSerialNumber.trim();
-      if (!serialNumber) throw new Error(giftCardIsOnline ? "请填写用户名" : "使用礼物卡时必须填写序列号");
-      const giftCardServiceCents = giftCardService === "" ? 0 : cents(giftCardService, "礼物卡大费");
-      const giftCardTipCents = giftCardTip === "" ? 0 : cents(giftCardTip, "礼物卡小费");
-      if (giftCardServiceCents + giftCardTipCents <= 0) {
-        throw new Error("使用礼物卡时，大费或小费金额必须大于 0");
+  async function saveDetailedRecord() {
+    const details = buildUpdate(recordVersion);
+    let payment: Record<string, unknown> = { version: recordVersion, cashServiceCents: 0, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0, giftCardServiceCents: 0, giftCardTipCents: 0, giftCardSerialNumber: null };
+    if (willConfirmPayment) {
+      const servicePayments: Record<string, number> = {};
+      if (cashService !== "") servicePayments.cashServiceCents = cents(cashService, "现金大费");
+      if (cardService !== "") servicePayments.cardServiceCents = cents(cardService, "刷卡大费");
+      let giftCardPayment: Record<string, string | number | boolean | null> = {
+        giftCardServiceCents: 0,
+        giftCardTipCents: 0,
+      };
+      if (usesGiftCard) {
+        const serialNumber = giftCardSerialNumber.trim();
+        if (!serialNumber) throw new Error(giftCardIsOnline ? "请填写用户名" : "使用礼物卡时必须填写序列号");
+        const giftCardServiceCents = giftCardService === "" ? 0 : cents(giftCardService, "礼物卡大费");
+        const giftCardTipCents = giftCardTip === "" ? 0 : cents(giftCardTip, "礼物卡小费");
+        if (giftCardServiceCents + giftCardTipCents <= 0) {
+          throw new Error("使用礼物卡时，大费或小费金额必须大于 0");
+        }
+        servicePayments.giftCardServiceCents = giftCardServiceCents;
+        giftCardPayment = { giftCardSerialNumber: serialNumber, giftCardIsOnline, giftCardServiceCents, giftCardTipCents };
       }
-      servicePayments.giftCardServiceCents = giftCardServiceCents;
-      giftCardPayment = { giftCardSerialNumber: serialNumber, giftCardIsOnline, giftCardServiceCents, giftCardTipCents };
+      const tipPayments = {
+        cashTipCents: cashTip === "" ? 0 : cents(cashTip, "现金小费"),
+        cardTipCents: cardTip === "" ? 0 : cents(cardTip, "刷卡小费"),
+      };
+      if (Object.keys(servicePayments).length === 0) {
+        throw new Error("现金、刷卡和礼物卡大费至少填写一项；免费服务请填写 0");
+      }
+      payment = { version: recordVersion, ...servicePayments, ...tipPayments, ...giftCardPayment };
     }
-    const tipPayments = {
-      cashTipCents: cashTip === "" ? 0 : cents(cashTip, "现金小费"),
-      cardTipCents: cardTip === "" ? 0 : cents(cardTip, "刷卡小费"),
-    };
-    if (Object.keys(servicePayments).length === 0) {
-      throw new Error("现金、刷卡和礼物卡大费至少填写一项；免费服务请填写 0");
+    if (isNew) {
+      await apiRequest(`/stores/${storeId}/work-records/detailed`, {
+        method: "POST", idempotent: true,
+        body: {
+          create: {
+            employeeMembershipId: employeeId,
+            startAt: zonedLocalToIso(startAt, timezone),
+            ...(serviceChoice === "__unassigned__" ? { durationMinutes: serviceDurationValue(serviceDuration) } : {}),
+            serviceItemId: details.serviceItemId,
+            serviceDurationMinutes: details.serviceDurationMinutes,
+            customService: details.customService,
+            isHighlighted,
+            isDispatchExcluded,
+          },
+          details,
+          ...(willConfirmPayment ? { payment } : {}),
+        },
+      });
+    } else {
+      await apiRequest(`/stores/${storeId}/work-records/${record.id}/save`, {
+        method: "POST", idempotent: true, body: { details, payment },
+      });
     }
-    await apiRequest(`/stores/${storeId}/work-records/${record.id}/save`, {
-      method: "POST",
-      idempotent: true,
-      body: { details: buildUpdate(recordVersion), payment: { version: recordVersion, ...servicePayments, ...tipPayments, ...giftCardPayment } },
-    });
     await finish();
   }
 
@@ -689,12 +720,12 @@ export function RecordEditor({
 
   async function saveRecord() {
     if (dayClosed) return;
-    if (serviceChoice === "__unassigned__") throw new Error("请先选择项目");
+    if (serviceChoice === "__unassigned__" && willConfirmPayment) throw new Error("请先选择项目");
     if (!startTimeValid || !endTimeValid) throw new Error("请选择有效的开始和结束时间");
     const timeError = recordTimeError(startAt, endAt);
     if (timeError) throw new Error(timeError);
-    if (willConfirmPayment) {
-      await saveAndConfirmPayment();
+    if (isNew || willConfirmPayment || record.status === "CONFIRMED") {
+      await saveDetailedRecord();
       return;
     }
     await saveDetails();
@@ -765,7 +796,7 @@ export function RecordEditor({
       <section ref={editorElement} tabIndex={-1} className="record-editor" role="dialog" aria-modal="true" aria-labelledby="record-title" onFocusCapture={selectEditorInput} onClick={selectEditorInput} onChangeCapture={() => setDraftDirty(true)} onKeyDown={saveOnEnter}>
         <header className="modal-heading sticky-heading">
           <div>
-            <p className="eyebrow">记工详情</p>
+            <p className="eyebrow">{isNew ? "详细记工" : "记工详情"}</p>
             <h2 id="record-title">{service?.name ?? "记工记录"}</h2>
           </div>
           <div className="modal-heading__actions">
@@ -794,7 +825,7 @@ export function RecordEditor({
             <WorkTimeInput value={startAt.slice(11)} onChange={(value) => changeStartAt(`${startAt.slice(0, 10)}T${value}`)} onValidityChange={setStartTimeValid} />
           </div>
           <div className="field-label" role="group" aria-label="结束时间">结束时间
-            <WorkTimeInput value={endAt.slice(11)} onChange={(value) => changeEndAt(`${startAt.slice(0, 10)}T${value}`)} onValidityChange={setEndTimeValid} />
+            <WorkTimeInput value={endAt.slice(11)} optional={serviceChoice === "__unassigned__"} onChange={(value) => changeEndAt(value ? `${startAt.slice(0, 10)}T${value}` : "")} onValidityChange={setEndTimeValid} />
           </div>
         </div>
         {timeNotice && <p className="form-error" role="alert">{timeNotice}</p>}
@@ -803,7 +834,7 @@ export function RecordEditor({
           <div className="editor-grid">
           <label className="field-label">主要项目
             <select value={serviceChoice} onChange={(event) => chooseService(event.target.value)}>
-              {!service && <option value="__unassigned__" disabled>请选择项目</option>}
+              {!service && <option value="__unassigned__">暂不选择项目</option>}
               {serviceChoice !== "__custom__" && serviceChoice !== "__unassigned__" && !catalog.serviceItems.some((item) => item.id === serviceChoice && item.isEnabled && !item.deletedAt) && (
                 <option value={serviceChoice}>{service?.name ?? "历史项目"}（历史项目）</option>
               )}
@@ -888,7 +919,7 @@ export function RecordEditor({
 
         <section className="editor-section">
           <h3>客人付款</h3>
-          <p className="field-help">刷卡、现金和礼物卡大费至少填一项。各类小费可以留空，系统会按 0 处理。</p>
+          <p className="field-help">实收金额全为 0 或空白时保存为待结账；录入付款后，大费至少填一项，小费空白按 0 处理。</p>
           <div className="payment-method-rows">
             <div className="payment-method-row" role="group" aria-label="刷卡">
               <strong><span>刷卡</span><span aria-hidden="true">：</span></strong>
@@ -919,8 +950,8 @@ export function RecordEditor({
         </section>
 
         <section className="amount-explainer" aria-label="本单金额摘要">
-          <div><span>大费总额（按当前填写）</span><strong>{draftGross === null ? (serviceChoice === "__unassigned__" ? "请先选择项目" : "请检查金额") : formatUsd(draftGross)}</strong></div>
-          <div><span>折后大费业绩（按当前填写）</span><strong>{draftDiscounted === null ? (serviceChoice === "__unassigned__" ? "请先选择项目" : "请检查金额") : formatUsd(draftDiscounted)}</strong></div>
+          <div><span>大费总额（按当前填写）</span><strong>{draftGross === null ? (serviceChoice === "__unassigned__" ? "未填写" : "请检查金额") : formatUsd(draftGross)}</strong></div>
+          <div><span>折后大费业绩（按当前填写）</span><strong>{draftDiscounted === null ? (serviceChoice === "__unassigned__" ? "未填写" : "请检查金额") : formatUsd(draftDiscounted)}</strong></div>
           <div><span>实收服务费（按当前填写）</span><strong>{draftServicePaid === null ? "未填写" : formatUsd(draftServicePaid)}</strong></div>
           <div><span>当前已保存员工大费工资</span><strong>{service ? formatUsd(record.totalLargeFeeWageCents) : "未填写"}</strong></div>
         </section>
@@ -932,7 +963,7 @@ export function RecordEditor({
             ? "这个营业日已经日结，请先取消日结再保存。"
             : willConfirmPayment
             ? "点击保存会校验付款信息；完整时同时确认付款。小费留空按 0 处理。"
-            : "付款尚未填写；点击保存只保存记工，之后仍可补录付款。"}
+            : "实收金额全为 0 或空白，可不选项目保存为待结账，之后仍可补录付款。"}
         </p>
         {!dayClosed && <p className="record-save-help">也可按 Enter 保存；备注框内按 Enter 换行。</p>}
 
@@ -943,11 +974,11 @@ export function RecordEditor({
           document.body,
         )}
         <footer className="editor-actions">
-          <button className="delete-record" type="button" disabled={busy || dayClosed} onClick={() => run(async () => {
+          {!isNew && <button className="delete-record" type="button" disabled={busy || dayClosed} onClick={() => run(async () => {
             if (!window.confirm("确认删除这条记工吗？删除后普通页面将隐藏，店长或经理可以恢复。")) return;
             await apiRequest(`/stores/${storeId}/work-records/${record.id}`, { method: "DELETE", idempotent: true, body: { version: record.version } });
             await finish();
-          })}>删除记录</button>
+          })}>删除记录</button>}
           <span />
           <div className="editor-save-actions">
             {dayClosed && canManage && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(reopenDay)}>取消日结</button>}

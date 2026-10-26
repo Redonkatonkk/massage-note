@@ -14,6 +14,7 @@ import {
   confirmPaymentSchema,
   saveWorkRecordSchema,
   createWorkRecordSchema,
+  createDetailedWorkRecordSchema,
   deleteWorkRecordSchema,
   idempotencyKeySchema,
   restoreWorkRecordSchema,
@@ -47,6 +48,17 @@ export class WorkRecordsController {
       parseRequest(idempotencyKeySchema, idempotencyKey),
       response.locals.requestId as string,
     );
+  }
+
+  @Post("detailed")
+  createDetailed(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("storeId") storeId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.workRecords.createDetailed(user, parseRequest(uuidSchema, storeId), parseRequest(createDetailedWorkRecordSchema, body), parseRequest(idempotencyKeySchema, idempotencyKey), response.locals.requestId as string);
   }
 
   @Get("deleted")

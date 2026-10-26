@@ -5,12 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatUsd } from "../lib/money";
 import { ApiError, apiRequest } from "../lib/api";
 import type { BoardStatistics, StoreDetails, StoreMember, WorkRecord } from "../lib/types";
+import { newWorkRecord } from "../lib/new-work-record";
 import { TodayBoard } from "./today-board";
 
 vi.mock("../lib/api", async (original) => ({ ...await original<typeof import("../lib/api")>(), apiRequest: vi.fn() }));
 vi.mock("../lib/time", async (original) => ({ ...await original<typeof import("../lib/time")>(), currentStoreTime: () => "10:00" }));
 vi.mock("./record-track", () => ({ RecordTrack: ({ children }: { children: ReactNode }) => <div className="record-track">{children}</div> }));
-vi.mock("./record-editor", () => ({ RecordEditor: ({ isClosed }: { isClosed: boolean }) => <div className="normal-record-editor" data-readonly={isClosed} /> }));
+vi.mock("./record-editor", () => ({ RecordEditor: ({ isClosed, isNew, record, onClose }: { isClosed: boolean; isNew?: boolean; record: WorkRecord; onClose: () => void }) => <div className="normal-record-editor" data-readonly={isClosed} data-new={isNew} data-record={JSON.stringify(record)}>{isNew && <button onClick={onClose}>取消详细记工</button>}</div> }));
 vi.mock("./board-employee-picker", () => ({ BoardEmployeePicker: () => null }));
 vi.mock("./board-weekly-dispatch", () => ({ BoardWeeklyDispatch: () => null }));
 vi.mock("./gift-card-sales", () => ({ GiftCardSales: () => null }));
@@ -222,7 +223,7 @@ describe("快速记工占位", () => {
   it("占位在高亮左侧，点击直接保存且不提交服务或其他标记", async () => {
     await render(); await click("新增记工");
     const modal = document.querySelector(".quick-work-modal")!;
-    expect([...modal.querySelectorAll(".modal-heading__actions button")].map((node) => node.textContent)).toEqual(["占位", "不算排工", "★高亮标记", "关闭"]);
+    expect([...modal.querySelectorAll(".modal-heading__actions button")].map((node) => node.textContent)).toEqual(["占位", "不算排工", "★高亮标记", "详细记工", "关闭"]);
     await click("★高亮标记"); await click("不算排工"); await click("占位");
     expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, body: { employeeMembershipId: "employee", startAt: "2026-10-06T14:00:00.000Z", isPlaceholder: true } }]]);
     expect(document.querySelector(".quick-work-modal")).toBeNull();
@@ -394,14 +395,110 @@ describe("未选项目的记工详情", () => {
     expect(selection.value).toBe("__unassigned__");
     expect(fields.querySelector<HTMLInputElement>('input[readonly]')!.value).toBe(String(durationMinutes));
     expect(fields.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!.value).toBe("");
-    request.mockClear(); await pressEnter(document.activeElement!);
-    expect(request).not.toHaveBeenCalled();
-    expect(document.querySelector(".record-error-toast")!.textContent).toContain("请先选择项目");
+    request.mockClear(); request.mockResolvedValue({ ...record, version: record.version });
+    await pressEnter(document.activeElement!);
+    expect(request).toHaveBeenCalledWith("/stores/store/work-records/ordinary", expect.objectContaining({ method: "PATCH", body: expect.objectContaining({ version: record.version }) }));
+    expect(request.mock.calls.at(-1)![1]!.body).not.toHaveProperty("serviceItemId");
     await act(async () => { selection.value = "service"; selection.dispatchEvent(new Event("change", { bubbles: true })); });
     expect(fields.querySelectorAll<HTMLSelectElement>("select")[1]!.value).toBe(String(durationMinutes));
-    request.mockResolvedValue({ ...record, version: 2 }); await pressEnter(fields.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!);
+    request.mockClear(); request.mockResolvedValue({ ...record, version: 2 }); await pressEnter(fields.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!);
     const payload = request.mock.calls.find(([, options]) => options?.method === "PATCH")![1]!.body;
     expect(payload).toMatchObject({ serviceItemId: "service", serviceDurationMinutes: durationMinutes, mainServiceAmountCents: durationMinutes * 100 });
     expect(payload).not.toHaveProperty("mainServiceCommissionBps");
+  });
+});
+
+
+describe("快速记工进入详细记工", () => {
+  it("详细记工位于关闭上方，沿用时间和标记，打开或取消均不写入", async () => {
+    await render(); await click("新增记工"); await click("★高亮标记"); await click("不算排工");
+    expect([...document.querySelectorAll(".quick-modal-navigation button")].map(node => node.textContent)).toEqual(["详细记工", "关闭"]);
+    await inputValue(document.querySelector<HTMLInputElement>("#start-time")!, "11");
+    await click("详细记工");
+    expect(document.querySelector(".quick-work-modal")).toBeNull();
+    const editor = document.querySelector<HTMLElement>(".normal-record-editor")!;
+    expect(editor.dataset.new).toBe("true");
+    expect(JSON.parse(editor.dataset.record!)).toMatchObject({ employeeMembershipId: "employee", startAt: "2026-10-06T15:00:00.000Z", isHighlighted: true, isDispatchExcluded: true, serviceSnapshot: null });
+    expect(writes()).toHaveLength(0);
+    await click("取消详细记工");
+    expect(document.querySelector(".normal-record-editor")).toBeNull();
+    expect(writes()).toHaveLength(0);
+  });
+  it("时间无效时保留快速记工并提示错误", async () => {
+    await render(); await click("新增记工");
+    await inputValue(document.querySelector<HTMLInputElement>("#start-time")!, "99");
+    await click("详细记工");
+    expect(document.querySelector(".normal-record-editor")).toBeNull();
+    expect(document.querySelector(".quick-work-modal [role=alert]")!.textContent).toContain("有效的开始时间");
+    expect(writes()).toHaveLength(0);
+  });
+});
+
+describe("详细记工新建与零实收", () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
+  async function editor(isNew: boolean) {
+    const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
+    const record = isNew ? newWorkRecord({ employeeMembershipId: "employee", startAt: ordinary.startAt, businessDate: "2026-10-06", storeTimezoneSnapshot: store.timezone, businessCutoffSnapshot: "04:00", isHighlighted: true, isDispatchExcluded: true }) : { ...ordinary, cashServiceCents: 6000, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0 };
+    await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={record} isNew={isNew} catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={vi.fn()} onSaved={vi.fn()} onChanged={reload} />));
+    return record;
+  }
+  it.each(["", "0"])("新建完整表单只在保存时写入一次，实收 %j 保存待结账", async amount => {
+    await editor(true);
+    expect(writes()).toHaveLength(0);
+    expect(document.querySelector(".delete-record")).toBeNull();
+    const service = document.querySelector<HTMLSelectElement>(".record-service-section select")!;
+    await act(async () => { service.value = "service"; service.dispatchEvent(new Event("change", { bubbles: true })); });
+    for (const input of document.querySelectorAll<HTMLInputElement>(".payment-method-rows input")) await inputValue(input, amount);
+    await pressEnter(document.querySelector<HTMLInputElement>('[aria-label="现金大费（美元）"]')!);
+    expect(writes()).toHaveLength(1);
+    expect(writes()[0]).toEqual(["/stores/store/work-records/detailed", expect.objectContaining({ method: "POST", idempotent: true, body: expect.objectContaining({ create: expect.objectContaining({ employeeMembershipId: "employee", serviceItemId: "service", serviceDurationMinutes: 60, isHighlighted: true }), details: expect.objectContaining({ version: 1 }) }) })]);
+    expect(writes()[0]![1]!.body).not.toHaveProperty("payment");
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem("massage_note_record_draft_new")).toBeNull();
+  });
+  it.each(["", "0"])("未选项目且实收 %j 也能保存，保留预填 60 分钟", async amount => {
+    await editor(true);
+    const fields = document.querySelector(".record-service-section")!;
+    expect(fields.querySelector<HTMLSelectElement>("select")!.value).toBe("__unassigned__");
+    expect(fields.querySelector<HTMLInputElement>("input[readonly]")!.value).toBe("60");
+    expect([...document.querySelectorAll<HTMLInputElement>('[aria-label="结束时间"] input')].map(input => input.value)).toEqual(["11", "00"]);
+    for (const input of document.querySelectorAll<HTMLInputElement>(".payment-method-rows input")) await inputValue(input, amount);
+    await pressEnter(document.activeElement!);
+    expect(writes()).toHaveLength(1);
+    expect(writes()[0]).toEqual(["/stores/store/work-records/detailed", expect.objectContaining({ body: expect.objectContaining({ create: expect.objectContaining({ durationMinutes: 60 }), details: expect.objectContaining({ version: 1 }) }) })]);
+    expect(writes()[0]![1]!.body).not.toHaveProperty("payment");
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+  it("新表单可取消已选项目，保留 60 分钟并清空报价后保存待结账", async () => {
+    await editor(true);
+    const select = document.querySelector<HTMLSelectElement>(".record-service-section select")!;
+    for (const value of ["service", "__unassigned__"]) await act(async () => { select.value = value; select.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(document.querySelector<HTMLInputElement>('.record-service-section input[inputmode="decimal"]')!.value).toBe("");
+    await click("保存");
+    expect(writes()[0]![1]!.body).toMatchObject({ create: { durationMinutes: 60 } });
+    expect(writes()[0]![1]!.body).not.toHaveProperty("payment");
+  });
+  it("未选项目时实收为正仍阻止保存", async () => {
+    await editor(true);
+    await inputValue(document.querySelector<HTMLInputElement>('[aria-label="现金大费（美元）"]')!, "60");
+    await click("保存");
+    expect(writes()).toHaveLength(0);
+    expect(document.querySelector(".record-error-toast")!.textContent).toContain("请先选择项目");
+  });
+  it("已结账记录四项清零后走原子保存并清除旧付款", async () => {
+    await editor(false);
+    for (const input of document.querySelectorAll<HTMLInputElement>(".payment-method-rows input")) await inputValue(input, "0");
+    expect(document.querySelector(".record-save-help")!.textContent).toContain("待结账");
+    await click("保存");
+    expect(writes()).toEqual([["/stores/store/work-records/ordinary/save", expect.objectContaining({ body: expect.objectContaining({ payment: { version: ordinary.version, cashServiceCents: 0, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0, giftCardServiceCents: 0, giftCardTipCents: 0, giftCardSerialNumber: null } }) })]]);
+  });
+  it("完整表单新建可直接录入付款", async () => {
+    await editor(true);
+    const service = document.querySelector<HTMLSelectElement>(".record-service-section select")!;
+    await act(async () => { service.value = "service"; service.dispatchEvent(new Event("change", { bubbles: true })); });
+    await inputValue(document.querySelector<HTMLInputElement>('[aria-label="现金大费（美元）"]')!, "60");
+    await click("保存");
+    expect(writes()[0]).toEqual(["/stores/store/work-records/detailed", expect.objectContaining({ body: expect.objectContaining({ payment: expect.objectContaining({ cashServiceCents: 6000, cashTipCents: 0 }) }) })]);
   });
 });

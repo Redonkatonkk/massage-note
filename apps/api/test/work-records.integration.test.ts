@@ -1507,4 +1507,64 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
       .rejects.toMatchObject({ response: { code: "BUSINESS_DAY_CLOSED" } });
   });
 
+  it("详细新建仅在保存时原子写入项目、加项、备注和可选付款，失败无残留且重放不重复", async () => {
+    const input = {
+      create: { employeeMembershipId, startAt: "2026-10-19T14:00:00.000Z", serviceItemId, serviceDurationMinutes: 60 },
+      details: { version: 1, note: "详细新建", addons: [{ isCustom: true, name: "热石", shortName: "热石", amountCents: 1500, durationMinutes: 15 }] },
+    };
+    const key = randomUUID();
+    const created = await workRecords.createDetailed(actor(ownerId), storeId, input, key, "detailed-create");
+    const replayed = await workRecords.createDetailed(actor(ownerId), storeId, input, key, "detailed-replay");
+    expect(replayed.id).toBe(created.id);
+    expect(created).toMatchObject({ status: "PENDING_PAYMENT", note: "详细新建", actualDurationMinutes: 75, addonTotalCents: 1500n, payment: null });
+    expect(created.addonSnapshots).toHaveLength(1);
+    const count = await prisma.workRecord.count({ where: { storeId } });
+    await expect(workRecords.createDetailed(actor(ownerId), storeId, { ...input, details: { version: 1, endAt: "2026-10-19T13:00:00.000Z" } }, randomUUID(), "detailed-rollback"))
+      .rejects.toMatchObject({ response: { code: "END_BEFORE_START" } });
+    expect(await prisma.workRecord.count({ where: { storeId } })).toBe(count);
+    await expect(workRecords.createDetailed(actor(employeeId), storeId, input, randomUUID(), "detailed-history"))
+      .rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("详细保存全零实收回到待结账并移除旧付款，礼物卡实收仍确认，锁与版本继续生效", async () => {
+    const payment = { version: 1, cashServiceCents: 0, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0, giftCardSerialNumber: "zero-receipt-user", giftCardIsOnline: true, giftCardServiceCents: 6000, giftCardTipCents: 0 };
+    const input = { create: { employeeMembershipId, startAt: "2026-10-18T14:00:00.000Z", serviceItemId, serviceDurationMinutes: 60 }, details: { version: 1 }, payment };
+    const paid = await workRecords.createDetailed(actor(ownerId), storeId, input, randomUUID(), "detailed-paid");
+    expect(paid).toMatchObject({ status: "CONFIRMED", giftCardServiceCents: 6000n });
+    expect(paid.payment).not.toBeNull();
+    const zeroInput = { details: { version: paid.version, note: "等待收款" }, payment: { ...payment, version: paid.version, giftCardSerialNumber: null, giftCardIsOnline: false, giftCardServiceCents: 0 } };
+    const key = randomUUID();
+    const pending = await workRecords.save(actor(ownerId), storeId, paid.id, zeroInput, key, "save-zero");
+    expect(pending).toMatchObject({ status: "PENDING_PAYMENT", note: "等待收款", cashServiceCents: null, cardServiceCents: null, cashTipCents: null, cardTipCents: null, giftCardServiceCents: null, giftCardTipCents: null, giftCardSerialNumber: null, totalTipCents: null, customerTotalPaidCents: null, employeeTotalIncomeCents: null, cashAllocatedServiceWageCents: null, payment: null });
+    expect(pending.serviceSnapshot).not.toBeNull();
+    expect((await workRecords.save(actor(ownerId), storeId, paid.id, zeroInput, key, "save-zero-replay")).version).toBe(pending.version);
+    await expect(workRecords.save(actor(ownerId), storeId, paid.id, zeroInput, randomUUID(), "save-zero-stale"))
+      .rejects.toBeInstanceOf(ConflictException);
+    await prisma.businessDayClosing.create({ data: { storeId, businessDate: pending.businessDate, cycleNo: 1, status: "CLOSED", warningSnapshotJson: {}, totalsSnapshotJson: {}, closedBy: ownerId } });
+    await expect(workRecords.save(actor(ownerId), storeId, paid.id, { details: { version: pending.version }, payment: { ...zeroInput.payment, version: pending.version } }, randomUUID(), "save-zero-closed"))
+      .rejects.toMatchObject({ response: { code: "BUSINESS_DAY_CLOSED" } });
+  });
+
+  it("零实收时可新建和修改未选项目、未填时长的待结账记录，补全后正常收款", async () => {
+    const input = { create: { employeeMembershipId, startAt: "2026-10-17T14:00:00.000Z", durationMinutes: null }, details: { version: 1, note: "稍后补全", isDispatchExcluded: true } };
+    const key = randomUUID();
+    const created = await workRecords.createDetailed(actor(ownerId), storeId, input, key, "empty-details-create");
+    expect(created).toMatchObject({ status: "PENDING_PAYMENT", serviceSnapshot: null, actualDurationMinutes: null, endAt: null, note: "稍后补全", isDispatchExcluded: true, mainServiceAmountCents: 0n, mainServiceWageCents: 0n, payment: null });
+    expect((await workRecords.createDetailed(actor(ownerId), storeId, input, key, "empty-details-replay")).id).toBe(created.id);
+    const updated = await workRecords.update(actor(ownerId), storeId, created.id, { version: created.version, note: "仍待补全", startAt: "2026-10-17T15:00:00.000Z" }, randomUUID(), "empty-details-update");
+    expect(updated).toMatchObject({ status: "PENDING_PAYMENT", serviceSnapshot: null, actualDurationMinutes: null, endAt: null, note: "仍待补全" });
+    const zero = { version: updated.version, cashServiceCents: 0, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0, giftCardServiceCents: 0, giftCardTipCents: 0, giftCardSerialNumber: null };
+    const pending = await workRecords.save(actor(ownerId), storeId, created.id, { details: { version: updated.version }, payment: zero }, randomUUID(), "empty-details-zero");
+    expect(pending).toMatchObject({ status: "PENDING_PAYMENT", serviceSnapshot: null, actualDurationMinutes: null, endAt: null, payment: null });
+    await expect(workRecords.save(actor(ownerId), storeId, created.id, { details: { version: pending.version }, payment: { ...zero, version: pending.version, cashServiceCents: 10000 } }, randomUUID(), "empty-details-no-service-pay"))
+      .rejects.toMatchObject({ response: { code: "SERVICE_SELECTION_REQUIRED" } });
+    expect((await prisma.workRecord.findUniqueOrThrow({ where: { id: created.id } })).version).toBe(pending.version);
+    const paid = await workRecords.save(actor(ownerId), storeId, created.id, { details: { version: pending.version, serviceItemId, serviceDurationMinutes: 60 }, payment: { ...zero, version: pending.version, cashServiceCents: 10000 } }, randomUUID(), "empty-details-complete");
+    expect(paid).toMatchObject({ status: "CONFIRMED", serviceSnapshot: { sourceServiceItemId: serviceItemId, durationMinutes: 60 }, actualDurationMinutes: 60, endAt: new Date("2026-10-17T16:00:00.000Z") });
+    await expect(workRecords.update(actor(ownerId), storeId, created.id, { version: pending.version, note: "旧版本" }, randomUUID(), "empty-details-stale"))
+      .rejects.toBeInstanceOf(ConflictException);
+    await expect(workRecords.createDetailed(actor(employeeId), storeId, input, randomUUID(), "empty-details-history"))
+      .rejects.toBeInstanceOf(ForbiddenException);
+  });
+
 });

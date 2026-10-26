@@ -59,7 +59,7 @@ export const createWorkRecordSchema = z.object({
   employeeMembershipId: uuidSchema,
   startAt: instantSchema,
   isPlaceholder: z.boolean().optional(),
-  durationMinutes: z.number().int().min(1).max(720).optional(),
+  durationMinutes: z.number().int().min(1).max(720).nullable().optional(),
   serviceItemId: uuidSchema.optional(),
   serviceDurationMinutes: z.number().int().min(1).max(720).optional(),
   customService: z
@@ -196,3 +196,16 @@ export const saveWorkRecordSchema = z.object({
   message: "记工与付款必须使用同一版本", path: ["payment", "version"],
 });
 export type SaveWorkRecordInput = z.output<typeof saveWorkRecordSchema>;
+
+
+export const createDetailedWorkRecordSchema = z.object({
+  create: createWorkRecordSchema,
+  details: updateWorkRecordSchema,
+  payment: confirmPaymentSchema.optional(),
+}).refine(value => !value.create.isPlaceholder && (value.create.durationMinutes === undefined || value.payment === undefined ||
+  [value.payment.cashServiceCents, value.payment.cardServiceCents, value.payment.cashTipCents, value.payment.cardTipCents, value.payment.giftCardServiceCents, value.payment.giftCardTipCents].every(amount => amount === 0)), {
+  message: "有实收时必须选择预设或自定义项目", path: ["create"],
+}).refine(value => value.details.version === 1 && (value.payment === undefined || value.payment.version === 1), {
+  message: "新建记工使用初始版本 1", path: ["details", "version"],
+});
+export type CreateDetailedWorkRecordInput = z.output<typeof createDetailedWorkRecordSchema>;

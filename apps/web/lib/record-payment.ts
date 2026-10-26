@@ -12,13 +12,14 @@ interface PaymentDraftState {
   giftCardTip: string;
 }
 
-export function shouldConfirmPaymentOnSave({
-  status,
-  usesGiftCard,
-  ...paymentFields
-}: PaymentDraftState): boolean {
-  if (status === "CONFIRMED" || usesGiftCard) return true;
-  return Object.values(paymentFields).some((value) => value.trim() !== "");
+export function shouldConfirmPaymentOnSave(payment: PaymentDraftState): boolean {
+  const amounts = [payment.cashService, payment.cardService, payment.cashTip, payment.cardTip,
+    ...(payment.usesGiftCard ? [payment.giftCardService, payment.giftCardTip] : [])];
+  // Invalid nonempty amounts still enter the validation flow rather than being silently ignored.
+  return amounts.some((value) => {
+    const text = value.trim();
+    return text !== "" && (!/^\d+(?:\.\d{0,2})?$/.test(text) || Number(text) !== 0);
+  });
 }
 
 export function hasConfirmedPaymentMismatch(

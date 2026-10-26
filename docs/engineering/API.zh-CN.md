@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.37.1`
+> 适用版本：`1.38.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -62,7 +62,7 @@
 | POST | `/stores/:storeId/boards/:businessDate/reorder` | 原子调整每日员工行顺序 |
 | POST | `/stores/:storeId/boards/:businessDate/rank` | 店长或经理按最近一次可见出勤名次生成今天或未来日期员工顺序（过去日期返回 DAILY_RANKING_PAST_DAY_NOT_ALLOWED）；使用营业日锁、表格版本和幂等键 |
 | POST | `/stores/:storeId/boards/:businessDate/rows/:rowId/remove` | 移除尚无当天活动的误加员工 |
-| POST | `/stores/:storeId/work-records` | 快速创建预设、自定义记工或占位；每日排位不会增加记工字段或限制记工入口 |
+| POST | `/stores/:storeId/work-records` | 创建仅时长待结账记工、预设／自定义项目或占位；每日排位不会增加记工字段或限制记工入口 |
 | GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改高亮／不算排工及其他字段与软删除 |
 | POST | `/stores/:storeId/work-records/:recordId/save` | 详情与付款原子保存；body 为 `{ details, payment }`，两者必须带相同基准 `version`，需幂等键 |
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡/礼物卡大费和小费拆分；使用礼物卡时提交序列号，或通过 `giftCardIsOnline: true` 将同字段作为用户名 |
@@ -140,7 +140,9 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 }
 ```
 
-快速创建或把记工切换到预设项目时提交 `serviceItemId` 和 `serviceDurationMinutes`。若项目只有一个档位，服务端为旧客户端兼容可补选该档位；项目有多个档位时缺少时长会返回 `SERVICE_PRICE_OPTION_REQUIRED`。更新记工且没有明确提交 `endAt` 时，服务端会在修改 `startAt` 后保留当前实际工作时长，并按主要项目及额外项目新旧配置分钟数的总差值调整结束时间；明确提交的 `endAt` 仍优先。记工保存的仍是名称、时长、价格和提成快照，后续修改或删除价格档位不会改变历史记录。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
+创建预设项目或在记工详情补选预设项目时提交 `serviceItemId` 和 `serviceDurationMinutes`。若项目只有一个档位，服务端为旧客户端兼容可补选该档位；项目有多个档位时缺少时长会返回 `SERVICE_PRICE_OPTION_REQUIRED`。更新记工且没有明确提交 `endAt` 时，服务端会在修改 `startAt` 后保留当前实际工作时长，并按主要项目及额外项目新旧配置分钟数的总差值调整结束时间；明确提交的 `endAt` 仍优先。记工保存的仍是名称、时长、价格和提成快照，后续修改或删除价格档位不会改变历史记录。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
+
+快速记工提交 `{ employeeMembershipId, startAt, durationMinutes: 120 }`，可附带 `isHighlighted` 与 `isDispatchExcluded`。`durationMinutes` 为 1–720 的整数，不得与 `serviceItemId`、`serviceDurationMinutes`、`customService` 或占位模式混用。保存为 `PENDING_PAYMENT`，`serviceSnapshot: null`，按时长计算结束时间，不建立项目、提成、加项、折扣或付款快照。数据库必填金额列暂存零，客户端显示未填写，不表示免费服务。PATCH/save 前须补选预设或自定义项目；未选项目直接 confirm-payment 返回 `SERVICE_SELECTION_REQUIRED`。版本、权限、营业日锁、幂等与原子保存沿用现有规则。个人日结记录通过可选的 `serviceSelected: false` 让当前模板显示未填写价格，缺少该标记的旧快照保持原显示。保留原因：仅时长记工明确了服务时段，但尚未形成财务事实。
 
 店铺设置可通过同一次 `PATCH /stores/:storeId` 写入周一至周四自动折扣；三个字段必须一起提交。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
@@ -222,7 +224,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 ### 记工占位
 
-`POST /stores/:storeId/work-records` 可提交 `{ employeeMembershipId, startAt, isPlaceholder: true }` 创建占位；禁止同时提交 `serviceItemId`、`serviceDurationMinutes`、`customService` 、`isHighlighted` 或 `isDispatchExcluded`，包括显式 `false` 标记。省略 `isPlaceholder` 或提交 `false` 时仍使用原普通记工校验。保留原因：占位不选择项目，高亮会影响业务规则，两个创建分支须明确区分。
+`POST /stores/:storeId/work-records` 可提交 `{ employeeMembershipId, startAt, isPlaceholder: true }` 创建占位；禁止同时提交 `serviceItemId`、`serviceDurationMinutes`、`durationMinutes`、`customService` 、`isHighlighted` 或 `isDispatchExcluded`，包括显式 `false` 标记。省略 `isPlaceholder` 或提交 `false` 时仍使用原普通记工校验。保留原因：占位不选择项目，高亮会影响业务规则，两个创建分支须明确区分。
 
 占位响应 `status: "PLACEHOLDER"`，`startAt` 仅用于日期归属与看板卡片顺序，必填金额为零，结束时间、时长及付款字段为空，项目快照为空、加项和折扣数组为空。看板 `workRecords` 保留占位，但工数及所有财务、日结、经营分析、工资、机器人查询和工作占用排除占位；仅有占位不产生财务日历标记。保留原因：占位要持久同步并能查看历史，不能形成服务或收款事实。
 

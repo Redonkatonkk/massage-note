@@ -128,16 +128,26 @@ describe("记工项目来源契约", () => {
     expect(createWorkRecordSchema.safeParse({ ...input, isDispatchExcluded: "true" }).success).toBe(false);
     expect(updateWorkRecordSchema.safeParse({ version: 2, isDispatchExcluded: 1 }).success).toBe(false);
   });
-  it("占位只接收员工和占位时间，普通记工仍要求项目", () => {
+  it("占位只接收员工和占位时间，其他记录要求项目或时长", () => {
     const input = { employeeMembershipId: membershipId, startAt: "2026-10-06T14:00:00-04:00", isPlaceholder: true };
     expect(createWorkRecordSchema.parse(input)).toEqual(input);
     expect(createWorkRecordSchema.safeParse({ ...input, isPlaceholder: false }).success).toBe(false);
     expect(createWorkRecordSchema.safeParse({ ...input, isPlaceholder: false, serviceItemId: itemId }).success).toBe(true);
   });
 
+  it("只记时长不关联任何项目，保留标记并拒绝混用项目", () => {
+    const input = { employeeMembershipId: membershipId, startAt: "2026-10-26T14:00:00-04:00", durationMinutes: 120, isHighlighted: true, isDispatchExcluded: true };
+    expect(createWorkRecordSchema.parse(input)).toEqual(input);
+    for (const durationMinutes of [0, -1, 721, 1.5]) expect(createWorkRecordSchema.safeParse({ ...input, durationMinutes }).success).toBe(false);
+    for (const extra of [{ serviceItemId: itemId }, { serviceDurationMinutes: 60 }, { customService: { name: "项目", shortName: "项", amountCents: 0, durationMinutes: 60 } }, { isPlaceholder: true }]) {
+      expect(createWorkRecordSchema.safeParse({ ...input, ...extra }).success).toBe(false);
+    }
+  });
+
   it.each([
     { serviceItemId: itemId },
     { serviceDurationMinutes: 60 },
+    { durationMinutes: 60 },
     { customService: { name: "自定义", shortName: "自定", amountCents: 0, durationMinutes: 60 } },
     { isHighlighted: true },
     { isHighlighted: false },

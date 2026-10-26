@@ -1,6 +1,7 @@
 import { imageLocaleName, formatImageTime, type ImageLocale } from "./image-format.js";
 
 export interface ClosingRecord {
+  serviceSelected?: boolean;
   id?: string;
   startAt: string | null;
   endAt: string | null;
@@ -67,14 +68,14 @@ export function createEmployeeClosingTemplate(snapshot: ClosingSnapshot, locale:
   }).map(({ record, index }) => {
     const confirmed = record.status === "CONFIRMED";
     return {
-      key: record.id ?? String(index), title: record.serviceShortName || record.serviceName,
+      key: record.id ?? String(index), title: record.serviceSelected === false ? (en ? "Select service" : "待选项目") : record.serviceShortName || record.serviceName,
       time: `${formatImageTime(record.startAt, snapshot.storeTimezone, locale)}–${formatImageTime(record.endAt, snapshot.storeTimezone, locale)}`,
       addon: record.addons.length ? `${en ? "Add-on" : "加项"}：${record.addons.map(addon => addon.shortName || addon.name).join(" ＋ ")}` : "",
       highlighted: record.isHighlighted ?? false,
       discount: (record.discountTotalCents ?? 0) > 0 ? `off${new Intl.NumberFormat(imageLocaleName(locale), { maximumFractionDigits: 2 }).format(record.discountTotalCents! / 100)}` : "",
       pending: !confirmed,
       pendingText: en ? "Pending checkout · excluded from totals" : "待结账 · 未计入汇总",
-      gross: money(record.grossFeeBaseCents),
+      gross: record.serviceSelected === false ? (en ? "Not entered" : "未填写") : money(record.grossFeeBaseCents),
       service: paymentParts([record.cashServiceCents, record.cardServiceCents, record.giftCardServiceCents], confirmed),
       tips: paymentParts([record.cashTipCents, record.cardTipCents, record.giftCardTipCents], confirmed),
       income: confirmed && record.employeeIncomeCents !== null ? money(record.employeeIncomeCents) : unknown,

@@ -20,15 +20,16 @@ export function RecoveryPanel({ storeId, records, giftCardSales, busy, run, relo
     void run(async () => { await apiRequest(`/stores/${storeId}/gift-card-sales/${sale.id}/restore`, { method: "POST", idempotent: true, body: { version: sale.version } }); await reload(); });
   };
   const recordAction = (record: DeletedWorkRecord) => <button className="primary-action compact" disabled={busy} type="button" onClick={() => restoreRecord(record)}>{record.status === "PLACEHOLDER" ? "恢复占位" : "恢复记工"}</button>;
-  const recordName = (record: DeletedWorkRecord) => record.status === "PLACEHOLDER" ? "占位" : record.serviceSnapshot?.shortName ?? "自定义项目";
+  const recordName = (record: DeletedWorkRecord) => record.status === "PLACEHOLDER" ? "占位" : record.serviceSnapshot?.shortName ?? "待选项目";
+  const recordAmount = (record: DeletedWorkRecord) => record.status === "PLACEHOLDER" ? "—" : record.serviceSnapshot ? formatUsd(record.grossFeeBaseCents) : "未填写";
   const saleAction = (sale: DeletedGiftCardSale) => <button className="primary-action compact" disabled={busy} type="button" onClick={() => restoreSale(sale)}>恢复卖卡记录</button>;
 
   return <section className="manage-section">
     <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">软删除记录</p><h2>记工回收站</h2></div><span className="status-chip">{records.length} 条</span></div>
       <p className="field-help">恢复后会重新显示在主表；普通记工重新计入财务，占位不计入记工数或任何金额。若该营业日已日结，请先到财务页面取消日结。</p>
-      {records.length === 0 ? <p className="empty-state">目前没有已删除的记工记录。</p> : <ResponsiveDataView desktop={<div className="table-scroll"><table className="data-table"><thead><tr><th>营业日</th><th>员工</th><th>项目</th><th>开始时间</th><th>大费基数</th><th>删除时间</th><th>删除原因</th><th>操作</th></tr></thead><tbody>{records.map(record => <tr key={record.id}><td>{record.businessDate.slice(0, 10)}</td><td>{record.employee.displayName}</td><td>{recordName(record)}</td><td>{time(record.startAt)}</td><td>{record.status === "PLACEHOLDER" ? "—" : formatUsd(record.grossFeeBaseCents)}</td><td>{record.deletedAt ? time(record.deletedAt) : "—"}</td><td>{record.deleteReason || "未填写"}</td><td>{recordAction(record)}</td></tr>)}</tbody></table></div>}>
+      {records.length === 0 ? <p className="empty-state">目前没有已删除的记工记录。</p> : <ResponsiveDataView desktop={<div className="table-scroll"><table className="data-table"><thead><tr><th>营业日</th><th>员工</th><th>项目</th><th>开始时间</th><th>大费基数</th><th>删除时间</th><th>删除原因</th><th>操作</th></tr></thead><tbody>{records.map(record => <tr key={record.id}><td>{record.businessDate.slice(0, 10)}</td><td>{record.employee.displayName}</td><td>{recordName(record)}</td><td>{time(record.startAt)}</td><td>{recordAmount(record)}</td><td>{record.deletedAt ? time(record.deletedAt) : "—"}</td><td>{record.deleteReason || "未填写"}</td><td>{recordAction(record)}</td></tr>)}</tbody></table></div>}>
         <ul className="mobile-data-list">{records.map(record => <li key={record.id}><MobileDataCard title={record.employee.displayName} subtitle={`${record.businessDate.slice(0, 10)} · ${recordName(record)}`} actions={recordAction(record)}>
-          <RecordFacts items={[...(record.status === "PLACEHOLDER" ? [] : [{ label: "大费基数", value: formatUsd(record.grossFeeBaseCents) }]), { label: "开始时间", value: time(record.startAt) }, { label: "删除时间", value: record.deletedAt ? time(record.deletedAt) : "—" }, { label: "删除原因", value: record.deleteReason || "未填写", wide: true }]} />
+          <RecordFacts items={[...(record.status === "PLACEHOLDER" ? [] : [{ label: "大费基数", value: recordAmount(record) }]), { label: "开始时间", value: time(record.startAt) }, { label: "删除时间", value: record.deletedAt ? time(record.deletedAt) : "—" }, { label: "删除原因", value: record.deleteReason || "未填写", wide: true }]} />
         </MobileDataCard></li>)}</ul>
       </ResponsiveDataView>}
     </section>

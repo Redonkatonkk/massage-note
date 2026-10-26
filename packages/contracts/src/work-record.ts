@@ -59,6 +59,7 @@ export const createWorkRecordSchema = z.object({
   employeeMembershipId: uuidSchema,
   startAt: instantSchema,
   isPlaceholder: z.boolean().optional(),
+  durationMinutes: z.number().int().min(1).max(720).optional(),
   serviceItemId: uuidSchema.optional(),
   serviceDurationMinutes: z.number().int().min(1).max(720).optional(),
   customService: z
@@ -76,8 +77,8 @@ export const createWorkRecordSchema = z.object({
       context.addIssue({ code: "custom", path: [field], message: "占位只能提交员工和占位时间" });
     }
   }
-}).refine((value) => value.isPlaceholder || Boolean(value.serviceItemId) !== Boolean(value.customService), {
-  message: "预设项目和自定义项目必须且只能选择一种",
+}).refine((value) => value.isPlaceholder || Number(Boolean(value.serviceItemId)) + Number(Boolean(value.customService)) + Number(value.durationMinutes !== undefined) === 1, {
+  message: "请选择预设项目、自定义项目或仅记时长中的一种",
   path: ["serviceItemId"],
 }).refine((value) => value.isPlaceholder || value.serviceItemId || value.serviceDurationMinutes === undefined, {
   message: "项目时长只能与预设项目一起提交",

@@ -1679,10 +1679,8 @@ h2 {
 }
 
 .quick-modal > *,
-.quick-preset-fields > *,
-.quick-custom-grid > *,
-.service-picker > *,
-.service-picker label span > * {
+.duration-picker > *,
+.duration-picker button > * {
   min-width: 0;
   max-width: 100%;
 }
@@ -1753,135 +1751,63 @@ h2 {
 .board-delivery-dialog.placeholder-delete-dialog { width: min(480px, calc(100vw - 32px)); }
 
 .field-label,
-.service-picker legend {
+.duration-picker legend {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
 }
 
-.service-picker {
+.duration-picker {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin: 0;
+  margin: 18px 0 0;
   padding: 0;
   border: 0;
 }
 
-.service-picker legend {
+.duration-picker legend,
+.duration-picker .empty-note {
   grid-column: 1 / -1;
 }
 
-.service-picker label {
-  position: relative;
+.duration-picker button {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 68px;
+  align-content: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: center;
   cursor: pointer;
 }
 
-/* Keep the native radio's focus box inside its visible, scrolling option. */
-.service-picker input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.service-picker label span {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  min-height: 68px;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 2px solid var(--line);
-  border-radius: var(--radius-control);
-}
-
-.service-picker label span > * {
+.duration-picker button > * {
   overflow-wrap: anywhere;
 }
 
-.service-picker label span small {
-  text-align: right;
-}
-
-.service-picker input:checked + span {
+.duration-picker button:hover:not(:disabled) {
   border-color: var(--brand);
   background: var(--brand-soft);
 }
 
-.service-picker input:focus-visible + span {
+.duration-picker button:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--brand) 40%, transparent);
   outline-offset: 3px;
 }
 
-.service-picker small {
-  color: var(--muted);
+.duration-picker button:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
-.quick-preset-fields {
-  display: grid;
-  gap: 18px;
-}
-
-.duration-picker {
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-
-.service-picker.duration-picker--three-options {
+.duration-picker--three-options {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.service-picker.duration-picker--three-options label span {
-  grid-template-columns: 1fr;
-  align-content: center;
-  gap: 4px;
-  padding: 12px 8px;
-  text-align: center;
-}
-
-.service-picker.duration-picker--three-options label span small {
-  text-align: center;
-}
-
-.quick-mode-switch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 18px;
-  padding: 4px;
-  border-radius: var(--radius-control);
-  background: var(--surface-soft);
-}
-
-.quick-mode-switch button {
-  min-height: 44px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--muted);
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.quick-mode-switch button.active {
-  background: var(--surface);
-  color: var(--brand);
-  box-shadow: none;
-}
-
-.quick-custom-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.quick-custom-grid .field-help {
-  grid-column: 1 / -1;
-  margin: 0;
 }
 
 .modal-note {
@@ -2055,10 +1981,6 @@ h2 {
     border-radius: var(--radius-dialog) var(--radius-dialog) 0 0;
   }
 
-  .quick-custom-grid {
-    grid-template-columns: 1fr;
-  }
-
   .gift-card-sales__header {
     align-items: flex-start;
   }
@@ -2082,20 +2004,6 @@ h2 {
   .gift-card-sale-form > .gift-card-identity-field,
   .gift-card-sale-total {
     grid-column: auto;
-  }
-
-  .quick-custom-grid .field-help {
-    grid-column: auto;
-  }
-
-  .service-picker label span {
-    grid-template-columns: 1fr;
-    align-content: center;
-    gap: 4px;
-  }
-
-  .service-picker label span small {
-    text-align: left;
   }
 
   .modal-backdrop {

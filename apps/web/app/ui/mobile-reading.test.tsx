@@ -72,6 +72,18 @@ describe("mobile reading order and protected actions in actual components", () =
     expect(request).toHaveBeenCalledWith("/stores/store/work-records/record/restore", { method: "POST", idempotent: true, body: { version: 9 } });
     expect(auditFacts({ status: "PLACEHOLDER", grossFeeBaseCents: 0, cashServiceCents: null, commissionBps: 0, isHighlighted: false, isDispatchExcluded: false, durationMinutes: null, serviceName: null, note: "" })).toEqual([{ label: "状态", value: "占位" }]);
   });
+  it("shows unselected services with unfilled prices in recovery and finance", async () => {
+    const unassigned = { ...record, status: "PENDING_PAYMENT" as const, serviceSnapshot: null, grossFeeBaseCents: 0 };
+    await mount(<RecoveryPanel storeId="store" records={[unassigned]} giftCardSales={[]} busy={false} run={run} reload={reload} />);
+    const recovered = mobileCards()[0]!;
+    expect(recovered.querySelector("header p")!.textContent).toContain("待选项目");
+    expect(fact(recovered, "大费基数")).toBe("未填写");
+    const dom = new JSDOM(renderToStaticMarkup(<FinanceRecordCards details={{ ...finance, records: [{ ...finance.records[0]!, status: "PENDING_PAYMENT", serviceSnapshot: null, mainServiceAmountCents: 0, grossFeeBaseCents: 0, selectedLargeFeeWageCents: 0 }] }} />));
+    const card = dom.window.document.querySelector("article")!;
+    expect(card.querySelector("header p")!.textContent).toContain("待选项目");
+    for (const label of ["主要项目", "大费基数", "折后大费", "所选大费工资"]) expect(fact(card, label)).toBe("未填写");
+    dom.window.close();
+  });
   it("shows deletion context before restore, and preserves confirmation, version and idempotency", async () => {
     await mount(recovery()); const [work, gift] = mobileCards();
     expect(work!.querySelector("h3")?.textContent).toBe(name);

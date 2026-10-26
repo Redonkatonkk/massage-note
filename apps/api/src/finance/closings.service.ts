@@ -672,11 +672,12 @@ export class ClosingsService {
           status: record.status,
           startAt: record.startAt.toISOString(),
           endAt: record.endAt?.toISOString() ?? null,
-          serviceName: record.serviceSnapshot?.name ?? "自定义项目",
+          serviceSelected: record.serviceSnapshot !== null,
+          serviceName: record.serviceSnapshot?.name ?? "待选项目",
           serviceShortName:
             record.serviceSnapshot?.shortName ??
             record.serviceSnapshot?.name ??
-            "自定义",
+            "待选项目",
           addons: record.addonSnapshots.map((addon) => ({
             name: addon.name,
             shortName: addon.shortName,

@@ -9,7 +9,7 @@ import { WorkTimeInput } from "./work-time-input";
 import { automaticRecordEnd, sameDayRecordTimeAfterDuration, recordTimeError } from "../lib/record-time";
 import { browserStorage } from "../lib/browser-storage";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
 import { closedRecordBusinessDate, reopenRecordBusinessDay } from "../lib/record-closing";
@@ -149,11 +149,14 @@ export function RecordEditor({
   onChanged,
 }: RecordEditorProps) {
   const actionInFlight = useRef(false);
+  const editorElement = useRef<HTMLElement>(null);
+  useEffect(() => { editorElement.current?.focus({ preventScroll: true }); }, [record.id]);
   const [blockedBusinessDate, setBlockedBusinessDate] = useState<string | null>(null);
   const closedBusinessDate = blockedBusinessDate ?? (isClosed ? record.businessDate.slice(0, 10) : null);
   const dayClosed = closedBusinessDate !== null;
   const [recordVersion, setRecordVersion] = useState(record.version);
   const service = record.serviceSnapshot;
+  const initialServiceDuration = service?.durationMinutes ?? record.actualDurationMinutes ?? 60;
   const initialStart = localDateTimeValue(record.startAt, timezone);
   const initialEnd = record.endAt ? localDateTimeValue(record.endAt, timezone) : "";
   const initialAddons = useMemo<AddonDraft[]>(
@@ -183,21 +186,21 @@ export function RecordEditor({
   const [startTimeValid, setStartTimeValid] = useState(true);
   const [endTimeValid, setEndTimeValid] = useState(true);
   const [startAt, setStartAt] = useState(initialStart);
-  const [endAt, setEndAt] = useState(() => automaticRecordEnd(initialStart, initialEnd, (service?.durationMinutes ?? 60) + initialAddons.reduce((sum, item) => sum + addonDurationValue(item), 0), timezone));
+  const [endAt, setEndAt] = useState(() => automaticRecordEnd(initialStart, initialEnd, initialServiceDuration + initialAddons.reduce((sum, item) => sum + addonDurationValue(item), 0), timezone));
   const [serviceChoice, setServiceChoice] = useState(
-    service?.sourceServiceItemId ?? "__custom__",
+    service ? service.sourceServiceItemId ?? "__custom__" : "__unassigned__",
   );
   const [serviceName, setServiceName] = useState(service?.name ?? "");
   const [serviceShortName, setServiceShortName] = useState(service?.shortName ?? "");
   const [serviceDuration, setServiceDuration] = useState(
-    service?.durationMinutes.toString() ?? "60",
+    initialServiceDuration.toString(),
   );
-  const lastValidServiceDuration = useRef(service?.durationMinutes ?? 60);
+  const lastValidServiceDuration = useRef(initialServiceDuration);
   const [serviceAmount, setServiceAmount] = useState(
-    dollars(service?.amountCents ?? record.mainServiceAmountCents),
+    dollars(service?.amountCents ?? null),
   );
   const [serviceCommission, setServiceCommission] = useState(
-    ((service?.commissionBps ?? 0) / 100).toFixed(2),
+    service ? (service.commissionBps / 100).toFixed(2) : "",
   );
   const [addons, setAddons] = useState(initialAddons);
   const [discounts, setDiscounts] = useState(initialDiscounts);
@@ -248,7 +251,7 @@ export function RecordEditor({
           setEndAt(automaticRecordEnd(
             typeof draft.startAt === "string" ? draft.startAt : initialStart,
             typeof draft.endAt === "string" ? draft.endAt : initialEnd,
-            ((typeof draft.serviceDuration === "string" ? serviceDurationValue(draft.serviceDuration) : null) ?? (service?.durationMinutes ?? 60)) + (Array.isArray(draft.addons) ? draft.addons as AddonDraft[] : initialAddons).reduce((sum, item) => sum + addonDurationValue(item), 0),
+            ((typeof draft.serviceDuration === "string" ? serviceDurationValue(draft.serviceDuration) : null) ?? initialServiceDuration) + (Array.isArray(draft.addons) ? draft.addons as AddonDraft[] : initialAddons).reduce((sum, item) => sum + addonDurationValue(item), 0),
             timezone,
           ));
           if (typeof draft.serviceChoice === "string") setServiceChoice(draft.serviceChoice);
@@ -336,7 +339,7 @@ export function RecordEditor({
     if (value === "__custom__") return;
     const item = catalog.serviceItems.find((candidate) => candidate.id === value);
     if (!item) return;
-    const option = defaultServicePriceOption(item.priceOptions);
+    const option = (!service ? item.priceOptions.find((option) => option.durationMinutes === Number(serviceDuration)) : undefined) ?? defaultServicePriceOption(item.priceOptions);
     if (!option) return;
     setServiceName(item.fullName);
     setServiceShortName(item.shortName);
@@ -497,6 +500,7 @@ export function RecordEditor({
   }
 
   function buildUpdate(version: number) {
+    if (serviceChoice === "__unassigned__") throw new Error("请先选择项目");
     const payload: Record<string, unknown> = {
       version,
       note,
@@ -512,7 +516,7 @@ export function RecordEditor({
     }
     const amountCents = cents(serviceAmount, "主要项目金额");
     if (amountCents !== service?.amountCents) payload.mainServiceAmountCents = amountCents;
-    const originalChoice = service?.sourceServiceItemId ?? "__custom__";
+    const originalChoice = service ? service.sourceServiceItemId ?? "__custom__" : "__unassigned__";
     if (
       serviceChoice !== "__custom__" &&
       (serviceChoice !== originalChoice ||
@@ -542,7 +546,7 @@ export function RecordEditor({
         durationMinutes: Number(serviceDuration),
       };
     }
-    if (canManage) {
+    if (canManage && (service !== null || serviceCommission.trim() !== "")) {
       const commissionBps = percentToBps(serviceCommission, "主要项目提成");
       if (commissionBps !== service?.commissionBps) {
         payload.mainServiceCommissionBps = commissionBps;
@@ -685,6 +689,7 @@ export function RecordEditor({
 
   async function saveRecord() {
     if (dayClosed) return;
+    if (serviceChoice === "__unassigned__") throw new Error("请先选择项目");
     if (!startTimeValid || !endTimeValid) throw new Error("请选择有效的开始和结束时间");
     const timeError = recordTimeError(startAt, endAt);
     if (timeError) throw new Error(timeError);
@@ -694,6 +699,18 @@ export function RecordEditor({
     }
     await saveDetails();
     await finish();
+  }
+
+  function saveOnEnter(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Enter" || event.defaultPrevented || event.repeat ||
+      event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 ||
+      event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest(
+      'textarea, button, select, a[href], [contenteditable]:not([contenteditable="false"]), input[type="checkbox"], input[type="radio"]',
+    )) return;
+    event.preventDefault();
+    if (!busy && !dayClosed) void run(saveRecord);
   }
 
   const draftMainAmount = draftCents(serviceAmount);
@@ -745,7 +762,7 @@ export function RecordEditor({
 
   return (
     <div className="modal-backdrop modal-backdrop--editor" role="presentation">
-      <section className="record-editor" role="dialog" aria-modal="true" aria-labelledby="record-title" onFocusCapture={selectEditorInput} onClick={selectEditorInput} onChangeCapture={() => setDraftDirty(true)}>
+      <section ref={editorElement} tabIndex={-1} className="record-editor" role="dialog" aria-modal="true" aria-labelledby="record-title" onFocusCapture={selectEditorInput} onClick={selectEditorInput} onChangeCapture={() => setDraftDirty(true)} onKeyDown={saveOnEnter}>
         <header className="modal-heading sticky-heading">
           <div>
             <p className="eyebrow">记工详情</p>
@@ -786,7 +803,8 @@ export function RecordEditor({
           <div className="editor-grid">
           <label className="field-label">主要项目
             <select value={serviceChoice} onChange={(event) => chooseService(event.target.value)}>
-              {serviceChoice !== "__custom__" && !catalog.serviceItems.some((item) => item.id === serviceChoice && item.isEnabled && !item.deletedAt) && (
+              {!service && <option value="__unassigned__" disabled>请选择项目</option>}
+              {serviceChoice !== "__custom__" && serviceChoice !== "__unassigned__" && !catalog.serviceItems.some((item) => item.id === serviceChoice && item.isEnabled && !item.deletedAt) && (
                 <option value={serviceChoice}>{service?.name ?? "历史项目"}（历史项目）</option>
               )}
               {catalog.serviceItems.filter((item) => item.isEnabled && !item.deletedAt).map((item) => (
@@ -802,7 +820,8 @@ export function RecordEditor({
               <label className="field-label">时长（分钟）<input type="text" inputMode="numeric" value={serviceDuration} onChange={(event) => changeCustomServiceDuration(event.target.value)} /></label>
             </>
           )}
-          {serviceChoice !== "__custom__" && (
+          {serviceChoice === "__unassigned__" && <label className="field-label">时长（分钟）<input value={serviceDuration} readOnly /></label>}
+          {serviceChoice !== "__custom__" && serviceChoice !== "__unassigned__" && (
             <label className="field-label">项目时长与价格
               <select value={serviceDuration} onChange={(event) => chooseServiceDuration(event.target.value)}>
                 {!hasCurrentDuration && <option value={serviceDuration}>{serviceDuration} 分钟（历史档位）</option>}
@@ -812,8 +831,8 @@ export function RecordEditor({
               </select>
             </label>
           )}
-          <label className="field-label">主要项目金额（美元）<input inputMode="decimal" value={serviceAmount} onChange={(event) => setServiceAmount(event.target.value)} /></label>
-          <label className="field-label">本单主要项目提成（%）<input inputMode="decimal" value={serviceCommission} disabled={!canManage} onChange={(event) => setServiceCommission(event.target.value)} /><small>{canManage ? "修改会保留审计记录" : "只有店长或经理可以修改"}</small></label>
+          <label className="field-label">主要项目金额（美元）<input inputMode="decimal" value={serviceAmount} disabled={serviceChoice === "__unassigned__"} onChange={(event) => setServiceAmount(event.target.value)} /></label>
+          <label className="field-label">本单主要项目提成（%）<input inputMode="decimal" value={serviceCommission} placeholder="按项目规则计算" disabled={!canManage || serviceChoice === "__unassigned__"} onChange={(event) => setServiceCommission(event.target.value)} /><small>{canManage ? "修改会保留审计记录" : "只有店长或经理可以修改"}</small></label>
         </div>
 
         </section>
@@ -900,10 +919,10 @@ export function RecordEditor({
         </section>
 
         <section className="amount-explainer" aria-label="本单金额摘要">
-          <div><span>大费总额（按当前填写）</span><strong>{draftGross === null ? "请检查金额" : formatUsd(draftGross)}</strong></div>
-          <div><span>折后大费业绩（按当前填写）</span><strong>{draftDiscounted === null ? "请检查金额" : formatUsd(draftDiscounted)}</strong></div>
+          <div><span>大费总额（按当前填写）</span><strong>{draftGross === null ? (serviceChoice === "__unassigned__" ? "请先选择项目" : "请检查金额") : formatUsd(draftGross)}</strong></div>
+          <div><span>折后大费业绩（按当前填写）</span><strong>{draftDiscounted === null ? (serviceChoice === "__unassigned__" ? "请先选择项目" : "请检查金额") : formatUsd(draftDiscounted)}</strong></div>
           <div><span>实收服务费（按当前填写）</span><strong>{draftServicePaid === null ? "未填写" : formatUsd(draftServicePaid)}</strong></div>
-          <div><span>当前已保存员工大费工资</span><strong>{formatUsd(record.totalLargeFeeWageCents)}</strong></div>
+          <div><span>当前已保存员工大费工资</span><strong>{service ? formatUsd(record.totalLargeFeeWageCents) : "未填写"}</strong></div>
         </section>
         {mismatchNotice && <p className="mismatch-warning" role="status">{mismatchNotice}</p>}
 
@@ -915,6 +934,7 @@ export function RecordEditor({
             ? "点击保存会校验付款信息；完整时同时确认付款。小费留空按 0 处理。"
             : "付款尚未填写；点击保存只保存记工，之后仍可补录付款。"}
         </p>
+        {!dayClosed && <p className="record-save-help">也可按 Enter 保存；备注框内按 Enter 换行。</p>}
 
         {error && createPortal(
           <div className="record-error-toast" role="alert" aria-atomic="true">
@@ -931,7 +951,7 @@ export function RecordEditor({
           <span />
           <div className="editor-save-actions">
             {dayClosed && canManage && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(reopenDay)}>取消日结</button>}
-            <button className="primary-action" type="button" disabled={busy || dayClosed} onClick={() => run(saveRecord)}>{busy ? "处理中…" : "保存"}</button>
+            <button className="primary-action" type="button" aria-keyshortcuts="Enter" disabled={busy || dayClosed} onClick={() => run(saveRecord)}>{busy ? "处理中…" : "保存"}</button>
           </div>
         </footer>
       </section>

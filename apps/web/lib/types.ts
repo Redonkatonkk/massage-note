@@ -703,6 +703,7 @@ export interface EmployeeClosingPreview {
 }
 
 export interface EmployeeClosingRecord {
+  serviceSelected?: boolean;
   isHighlighted?: boolean;
   discountTotalCents?: number;
   id: string;

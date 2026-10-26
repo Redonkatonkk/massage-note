@@ -174,7 +174,9 @@ export class WorkRecordsService {
         businessDate,
       );
 
-      if (input.isPlaceholder) {
+      if (input.isPlaceholder || input.durationMinutes !== undefined) {
+        const isPlaceholder = input.isPlaceholder === true;
+        const endAt = isPlaceholder ? null : new Date(startAt.getTime() + input.durationMinutes! * 60_000);
         const record = await transaction.workRecord.create({
           data: {
             storeId,
@@ -183,7 +185,11 @@ export class WorkRecordsService {
             storeTimezoneSnapshot: deviceTimezone(store.timezone),
             businessCutoffSnapshot: store.businessCutoffLocal,
             startAt,
-            status: "PLACEHOLDER",
+            endAt,
+            actualDurationMinutes: isPlaceholder ? null : input.durationMinutes!,
+            status: isPlaceholder ? "PLACEHOLDER" : "PENDING_PAYMENT",
+            isHighlighted: !isPlaceholder && (input.isHighlighted ?? false),
+            isDispatchExcluded: !isPlaceholder && (input.isDispatchExcluded ?? false),
             mainServiceAmountCents: 0n,
             grossFeeBaseCents: 0n,
             discountedFeePerformanceCents: 0n,
@@ -195,13 +201,16 @@ export class WorkRecordsService {
           include: recordInclude,
         });
         await ensureBoardRow(transaction, storeId, businessDate, employee.id, actor.id);
+        if (!isPlaceholder) {
+          await this.reopenCashSettlements(transaction, storeId, [businessDate], actor.id, actorMembership.id, requestId);
+        }
         await transaction.auditLog.create({
           data: {
             storeId,
             actorUserId: this.auditSource === "langbot" ? null : actor.id,
             actorMembershipId: actorMembership.id,
             source: this.auditSource,
-            action: "work_record.placeholder_created",
+            action: isPlaceholder ? "work_record.placeholder_created" : "work_record.created",
             entityType: "work_record",
             entityId: record.id,
             businessDate: record.businessDate,
@@ -211,6 +220,12 @@ export class WorkRecordsService {
               startAt: startAt.toISOString(),
               status: record.status,
               version: record.version,
+              ...(!isPlaceholder ? {
+                endAt: endAt!.toISOString(),
+                durationMinutes: input.durationMinutes,
+                isHighlighted: record.isHighlighted,
+                isDispatchExcluded: record.isDispatchExcluded,
+              } : {}),
             },
             requestId,
           },
@@ -481,7 +496,7 @@ export class WorkRecordsService {
           });
           if (!record) this.throwRecordNotFound();
           this.assertNotPlaceholder(record);
-          if (!record.serviceSnapshot) {
+          if (!record.serviceSnapshot && record.status !== "PENDING_PAYMENT") {
             throw new ConflictException({
               code: "SERVICE_SNAPSHOT_MISSING",
               messageZh: "记工缺少主要项目快照，无法修改",
@@ -581,8 +596,8 @@ export class WorkRecordsService {
             employeeOrTimeChanged,
             mayOverrideCommission,
           );
-          const serviceDurationChanged =
-            service.durationMinutes !== record.serviceSnapshot.durationMinutes;
+          const originalServiceDuration = record.serviceSnapshot?.durationMinutes ?? record.actualDurationMinutes ?? 0;
+          const serviceDurationChanged = service.durationMinutes !== originalServiceDuration;
           const addons = await this.buildDesiredAddons(
             transaction,
             storeId,
@@ -604,7 +619,7 @@ export class WorkRecordsService {
             0,
           );
           const configuredDurationDeltaMinutes =
-            service.durationMinutes - record.serviceSnapshot.durationMinutes +
+            service.durationMinutes - originalServiceDuration +
             nextAddonDurationMinutes - previousAddonDurationMinutes;
           const endAt =
             input.endAt === undefined
@@ -1135,8 +1150,8 @@ export class WorkRecordsService {
         );
         if (!record.serviceSnapshot) {
           throw new ConflictException({
-            code: "SERVICE_SNAPSHOT_MISSING",
-            messageZh: "记工缺少主要项目快照，无法确认付款",
+            code: "SERVICE_SELECTION_REQUIRED",
+            messageZh: "请先选择项目再确认付款",
           });
         }
 
@@ -1316,7 +1331,7 @@ export class WorkRecordsService {
       durationMinutes: number;
       commissionBps: number;
       commissionSource: string;
-    },
+    } | null,
     input: UpdateWorkRecordInput,
     employeeOrTimeChanged: boolean,
     mayOverrideCommission: boolean,
@@ -1330,16 +1345,19 @@ export class WorkRecordsService {
         messageZh: "普通员工不能修改提成比例",
       });
     }
-    let sourceServiceItemId = current.sourceServiceItemId;
-    let isCustom = current.isCustom;
-    let name = current.name;
-    let shortName = current.shortName;
+    if (!current && !input.serviceItemId && !input.customService) {
+      throw new BadRequestException({ code: "SERVICE_SELECTION_REQUIRED", messageZh: "请先选择项目" });
+    }
+    let sourceServiceItemId = current?.sourceServiceItemId ?? null;
+    let isCustom = current?.isCustom ?? false;
+    let name = current?.name ?? "";
+    let shortName = current?.shortName ?? "";
     let amountCents = input.mainServiceAmountCents === undefined
-      ? current.amountCents
+      ? (current?.amountCents ?? 0n)
       : BigInt(input.mainServiceAmountCents);
-    let durationMinutes = current.durationMinutes;
-    let commissionBps = current.commissionBps;
-    let commissionSource = current.commissionSource;
+    let durationMinutes = current?.durationMinutes ?? 0;
+    let commissionBps = current?.commissionBps ?? 0;
+    let commissionSource = current?.commissionSource ?? "";
 
     if (input.serviceItemId) {
       const { item, option } = await this.resolveServiceSelection(
@@ -1387,7 +1405,7 @@ export class WorkRecordsService {
       durationMinutes = input.customService.durationMinutes;
       commissionBps = commission.bps;
       commissionSource = commission.source;
-    } else if (employeeOrTimeChanged) {
+    } else if (employeeOrTimeChanged && current) {
       if (current.sourceServiceItemId) {
         const item = await transaction.serviceItem.findFirst({
           where: { id: current.sourceServiceItemId, storeId },

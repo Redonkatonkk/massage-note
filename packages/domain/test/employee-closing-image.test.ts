@@ -78,6 +78,14 @@ describe("个人日结统一记工卡模板", () => {
     expect(items.find(item => hasClass(item, "record-income"))!.y).toBeGreaterThan(Math.max(...items.filter(item => hasClass(item, "payment-detail")).map(item => item.lastY)));
   });
 
+  it.each(locales)("%s 未选项目不显示零元价格，保留待结账与时间", locale => {
+    const { svg } = createEmployeeClosingSvg(snapshot([record({ serviceSelected: false, status: "PENDING_PAYMENT", grossFeeBaseCents: 0, addons: [] })]), locale);
+    const items = texts(svg);
+    expect(items.find(item => hasClass(item, "record-title"))!.value).toBe(locale === "zh_CN" ? "待选项目" : "Select service");
+    expect(items.find(item => hasClass(item, "record-gross"))!.value).toBe(locale === "zh_CN" ? "未填写" : "Not entered");
+    expect(items.find(item => hasClass(item, "pending-note"))!.value).toContain(locale === "zh_CN" ? "未计入汇总" : "excluded from totals");
+  });
+
   it.each(locales)("%s 待结账排除收入，未知付款和零付款不同", locale => {
     const data = snapshot([
       record({ status: "PENDING_PAYMENT", employeeIncomeCents: 888888, cashServiceCents: null, cardServiceCents: null, giftCardServiceCents: null, cashTipCents: null, cardTipCents: null, giftCardTipCents: null }),

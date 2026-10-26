@@ -4,6 +4,12 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.38.0 — 2026-10-26
+
+- Simplify quick entry to all enabled services’ unique durations, sorted by minutes; clicking saves a pending record with only time and duration, without selecting a service, price or commission. Remove the service/custom-service selector and confirmation button; Placeholder also saves immediately.
+- Require service selection in record details, retaining the selected duration when supported, then save catalog/custom pricing, commission and optional payment atomically. Show unassigned services and unfilled amounts on the board, finance details, recovery and personal statements.
+- Add Enter to save details while preserving notes, composition, control activation, daily closing locks and duplicate-write protection. Add contract, component, image and database regressions and synchronize bilingual documentation. Web/API updates are required; no database migration. Update the Messages agent for unpriced pending-service attachments.
+
 ## 1.37.1 — 2026-10-25
 
 - Keep Monthly summary and Business analytics stable while reading: stop automatic report reloads on realtime events, reconnects, foreground recovery and idle timers. Add Refresh actions that update dependent comparisons, averages, subtotals and open analytics details; keep filters, retries and operational finance synchronization.

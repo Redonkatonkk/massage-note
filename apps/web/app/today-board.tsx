@@ -22,7 +22,6 @@ import {
 import { financeClosingHref } from "../lib/navigation";
 import { formatUsd } from "../lib/money";
 import { hasConfirmedPaymentMismatch } from "../lib/record-payment";
-import { defaultServicePriceOption } from "../lib/service-price-option";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
 import { activeWorkRecord } from "../lib/work-status";
 import type {
@@ -137,21 +136,8 @@ export function TodayBoard({
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [quickEmployeeId, setQuickEmployeeId] = useState<string | null>(null);
-  const initialService = catalog.serviceItems.find(
-    (item) => item.isEnabled && !item.deletedAt && item.priceOptions.length > 0,
-  );
-  const [selectedService, setSelectedService] = useState(initialService?.id ?? "");
-  const [selectedServiceDuration, setSelectedServiceDuration] = useState(
-    defaultServicePriceOption(initialService?.priceOptions ?? [])?.durationMinutes.toString() ?? "",
-  );
-  const [quickMode, setQuickMode] = useState<"PRESET" | "CUSTOM">("PRESET");
   const [quickHighlighted, setQuickHighlighted] = useState(false);
   const [quickDispatchExcluded, setQuickDispatchExcluded] = useState(false);
-  const [quickPlaceholder, setQuickPlaceholder] = useState(false);
-  const [customServiceName, setCustomServiceName] = useState("");
-  const [customServiceShortName, setCustomServiceShortName] = useState("");
-  const [customServiceAmount, setCustomServiceAmount] = useState("");
-  const [customServiceDuration, setCustomServiceDuration] = useState("");
   const [startTimeValid, setStartTimeValid] = useState(true);
   const [startTime, setStartTime] = useState(currentStoreTime(currentDay.timezone));
   const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
@@ -216,33 +202,10 @@ export function TodayBoard({
     return () => window.clearInterval(timer);
   }, [currentDay.serverTime, isCurrentBusinessDay]);
 
-  const activeServices = useMemo(
-    () => catalog.serviceItems.filter(
-      (item) => item.isEnabled && !item.deletedAt && item.priceOptions.length > 0,
-    ),
-    [catalog.serviceItems],
-  );
-
-  useEffect(() => {
-    if (activeServices.some((item) => item.id === selectedService)) return;
-    const service = activeServices[0];
-    setSelectedService(service?.id ?? "");
-    setSelectedServiceDuration(defaultServicePriceOption(service?.priceOptions ?? [])?.durationMinutes.toString() ?? "");
-  }, [activeServices, selectedService]);
-
-  const selectedServiceItem = activeServices.find(
-    (item) => item.id === selectedService,
-  );
-
-  useEffect(() => {
-    setSelectedServiceDuration((current) =>
-      selectedServiceItem?.priceOptions.some(
-        (option) => option.durationMinutes.toString() === current,
-      )
-        ? current
-        : (defaultServicePriceOption(selectedServiceItem?.priceOptions ?? [])?.durationMinutes.toString() ?? ""),
-    );
-  }, [selectedServiceItem]);
+  const quickDurations = useMemo(() => [...new Set(catalog.serviceItems
+    .filter((service) => service.isEnabled && !service.deletedAt)
+    .flatMap((service) => service.priceOptions.map((option) => option.durationMinutes)))]
+    .sort((a, b) => a - b), [catalog.serviceItems]);
 
   const visibleRows = useMemo(
     () => board.rows.filter((row) => !row.isHidden || !canManage || showHidden),
@@ -361,85 +324,29 @@ export function TodayBoard({
     await onReload();
   }
 
-  async function saveQuickRecord() {
+  async function saveQuickRecord(selection: number | "PLACEHOLDER") {
     if (!startTimeValid) throw new Error("请填写有效的开始时间");
-    if (!quickEmployeeId) return;
+    if (!quickEmployeeId || board.isClosed) return;
     const startAt = businessTimeToIso(currentDay.businessDate, startTime, currentDay.timezone);
-    if (quickPlaceholder) {
-      await apiRequest(`/stores/${membership.store.id}/work-records`, {
-        method: "POST", idempotent: true,
-        body: { employeeMembershipId: quickEmployeeId, startAt, isPlaceholder: true },
-      });
-      setQuickEmployeeId(null);
-      setQuickPlaceholder(false);
-      setNotice("占位已保存");
-      await onReload();
-      return;
-    }
-    let serviceSelection:
-      | { serviceItemId: string; serviceDurationMinutes: number }
-      | {
-          customService: {
-            name: string;
-            shortName: string;
-            amountCents: number;
-            durationMinutes: number;
-          };
-        };
-    if (quickMode === "PRESET") {
-      if (!selectedService) throw new Error("请选择一个预设项目");
-      const durationMinutes = Number(selectedServiceDuration);
-      if (!Number.isInteger(durationMinutes)) throw new Error("请选择项目时长");
-      serviceSelection = {
-        serviceItemId: selectedService,
-        serviceDurationMinutes: durationMinutes,
-      };
-    } else {
-      const amountText = customServiceAmount.trim();
-      const amount = Number(amountText);
-      const amountCents = Math.round(amount * 100);
-      const durationMinutes = Number(customServiceDuration);
-      if (!customServiceName.trim()) throw new Error("请填写自定义项目名称");
-      if (!customServiceShortName.trim()) throw new Error("请填写自定义项目简称");
-      if (
-        !/^\d+(?:\.\d{1,2})?$/.test(amountText) ||
-        !Number.isSafeInteger(amountCents) ||
-        amountCents < 0
-      ) {
-        throw new Error("项目金额请填写非负数，最多保留两位小数");
-      }
-      if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 720) {
-        throw new Error("项目时长必须是 1 至 720 分钟的整数");
-      }
-      serviceSelection = {
-        customService: {
-          name: customServiceName.trim(),
-          shortName: customServiceShortName.trim(),
-          amountCents,
-          durationMinutes,
-        },
-      };
-    }
+    const durationMinutes = selection === "PLACEHOLDER" ? null : selection;
+    if (durationMinutes !== null && !quickDurations.includes(durationMinutes)) throw new Error("请选择项目时长");
     await apiRequest(`/stores/${membership.store.id}/work-records`, {
       method: "POST",
       idempotent: true,
       body: {
         employeeMembershipId: quickEmployeeId,
         startAt,
-        isHighlighted: quickHighlighted,
-        isDispatchExcluded: quickDispatchExcluded,
-        ...serviceSelection,
+        ...(durationMinutes !== null ? {
+          durationMinutes,
+          isHighlighted: quickHighlighted,
+          isDispatchExcluded: quickDispatchExcluded,
+        } : { isPlaceholder: true }),
       },
     });
     setQuickEmployeeId(null);
-    setQuickMode("PRESET");
     setQuickHighlighted(false);
     setQuickDispatchExcluded(false);
-    setCustomServiceName("");
-    setCustomServiceShortName("");
-    setCustomServiceAmount("");
-    setCustomServiceDuration("");
-    setNotice("记工已保存，可稍后打开详情填写付款");
+    setNotice(selection === "PLACEHOLDER" ? "占位已保存" : "记工已保存，可稍后打开详情填写付款");
     await onReload();
   }
 
@@ -612,7 +519,7 @@ export function TodayBoard({
                   <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
                       if (record === null) return (
-                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickMode("PRESET"); setSelectedServiceDuration(defaultServicePriceOption(selectedServiceItem?.priceOptions ?? [])?.durationMinutes.toString() ?? ""); setQuickHighlighted(false); setQuickDispatchExcluded(false); setQuickPlaceholder(false); setQuickEmployeeId(row.membershipId); }}>
+                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickHighlighted(false); setQuickDispatchExcluded(false); setQuickEmployeeId(row.membershipId); }}>
                           <span aria-hidden="true"><UiIcon name="plus" /></span>新增记工
                         </button>
                       );
@@ -642,7 +549,7 @@ export function TodayBoard({
                         onClick={() => setEditingRecord(record)}
                       >
                         <span className="record-card__topline">
-                          <strong>{record.serviceSnapshot?.shortName ?? "项目"}</strong>
+                          <strong>{record.serviceSnapshot?.shortName ?? "待选项目"}</strong>
                           <span className="record-card__badges">
                             {record.addonSnapshots.length > 0 && <span className="record-addon-badge" aria-label="有加项" title="有加项">＋</span>}
                             {record.discountSnapshots.length > 0 && (
@@ -659,11 +566,11 @@ export function TodayBoard({
                         <span className="record-time">{displayTime(record.startAt, currentDay.timezone)}–{displayTime(record.endAt, currentDay.timezone)}</span>
                         <span className="record-money">
                           <span className="record-service-amount">
-                            <b>{compactPaymentAmount(record.grossFeeBaseCents)}</b>
+                            <b>{record.serviceSnapshot ? compactPaymentAmount(record.grossFeeBaseCents) : "未填写"}</b>
                             <span className={`record-service-payment-box${record.status === "PENDING_PAYMENT" ? " record-service-payment-box--pending" : ""}`}>
                               <span>{record.status === "PENDING_PAYMENT" ? "应收" : "实收"}</span>
                               {record.status === "PENDING_PAYMENT" ? (
-                                <span className="record-service-due">{compactPaymentAmount(record.discountedFeePerformanceCents)}</span>
+                                <span className="record-service-due">{record.serviceSnapshot ? compactPaymentAmount(record.discountedFeePerformanceCents) : "未填写"}</span>
                               ) : (
                                 <PaymentBreakdown status={record.status} cashCents={record.cashServiceCents} cardCents={record.cardServiceCents} giftCardCents={record.giftCardServiceCents} zeroLabel="0" />
                               )}
@@ -732,49 +639,26 @@ export function TodayBoard({
             <div className="modal-heading">
               <div><p className="eyebrow">快速记工</p><h2 id="quick-modal-title">{members.find((item) => item.id === quickEmployeeId)?.displayName}</h2></div>
               <div className="modal-heading__actions">
-                <button className={`highlight-toggle placeholder-toggle${quickPlaceholder ? " active" : ""}`} type="button" aria-pressed={quickPlaceholder} disabled={busy} onClick={() => setQuickPlaceholder((current) => !current)}>占位</button>
-                <button className={`highlight-toggle dispatch-excluded-toggle${quickDispatchExcluded && !quickPlaceholder ? " active" : ""}`} type="button" aria-pressed={quickDispatchExcluded && !quickPlaceholder} disabled={busy || quickPlaceholder} onClick={() => setQuickDispatchExcluded((current) => !current)}>不算排工</button>
-                <button className={`highlight-toggle${quickHighlighted && !quickPlaceholder ? " active" : ""}`} type="button" aria-pressed={quickHighlighted && !quickPlaceholder} disabled={busy || quickPlaceholder} onClick={() => setQuickHighlighted((current) => !current)}><span aria-hidden="true">★</span>{quickHighlighted && !quickPlaceholder ? "已高亮" : "高亮标记"}</button>
+                <button className="highlight-toggle placeholder-toggle" type="button" disabled={busy || board.isClosed} onClick={() => run(() => saveQuickRecord("PLACEHOLDER"))}>占位</button>
+                <button className={`highlight-toggle dispatch-excluded-toggle${quickDispatchExcluded ? " active" : ""}`} type="button" aria-pressed={quickDispatchExcluded} disabled={busy || board.isClosed} onClick={() => setQuickDispatchExcluded((current) => !current)}>不算排工</button>
+                <button className={`highlight-toggle${quickHighlighted ? " active" : ""}`} type="button" aria-pressed={quickHighlighted} disabled={busy || board.isClosed} onClick={() => setQuickHighlighted((current) => !current)}><span aria-hidden="true">★</span>{quickHighlighted ? "已高亮" : "高亮标记"}</button>
                 <button className="close-button" type="button" disabled={busy} onClick={() => setQuickEmployeeId(null)}>关闭</button>
               </div>
             </div>
             <div className="quick-modal-content">
               <label className="field-label" htmlFor="start-time">开始时间</label>
               <WorkTimeInput id="start-time" value={startTime} onChange={setStartTime} onValidityChange={setStartTimeValid} />
-              {!quickPlaceholder && <><div className="quick-mode-switch" role="group" aria-label="项目类型">
-                <button className={quickMode === "PRESET" ? "active" : ""} type="button" onClick={() => setQuickMode("PRESET")}>预设项目</button>
-                <button className={quickMode === "CUSTOM" ? "active" : ""} type="button" onClick={() => setQuickMode("CUSTOM")}>＋ 自定义项目</button>
-              </div>
-              {quickMode === "PRESET" ? (
-                <div className="quick-preset-fields">
-                  <fieldset className="service-picker">
-                    <legend>选择项目</legend>
-                    {activeServices.map((service) => (
-                      <label key={service.id}><input type="radio" name="service" checked={selectedService === service.id} onChange={() => { setSelectedService(service.id); setSelectedServiceDuration(defaultServicePriceOption(service.priceOptions)?.durationMinutes.toString() ?? ""); }} /><span><strong>{service.shortName}</strong><small>{service.fullName}</small></span></label>
-                    ))}
-                    {activeServices.length === 0 && <p className="empty-note">没有启用中的预设项目，可切换到自定义项目。</p>}
-                  </fieldset>
-                  {selectedServiceItem && (
-                    <fieldset className={`service-picker duration-picker${selectedServiceItem.priceOptions.length === 3 ? " duration-picker--three-options" : ""}`}>
-                      <legend>选择时长与价格</legend>
-                      {selectedServiceItem.priceOptions.map((option) => (
-                        <label key={option.id}><input type="radio" name="service-duration" checked={selectedServiceDuration === option.durationMinutes.toString()} onChange={() => setSelectedServiceDuration(option.durationMinutes.toString())} /><span><strong>{option.durationMinutes} 分钟</strong><small>{money(option.priceCents)}</small></span></label>
-                      ))}
-                    </fieldset>
-                  )}
-                </div>
-              ) : (
-                <div className="quick-custom-grid">
-                  <label className="field-label">项目名称<input autoFocus maxLength={120} value={customServiceName} onChange={(event) => setCustomServiceName(event.target.value)} /></label>
-                  <label className="field-label">项目简称<input maxLength={30} value={customServiceShortName} onChange={(event) => setCustomServiceShortName(event.target.value)} /></label>
-                  <label className="field-label">金额（美元）<input inputMode="decimal" placeholder="例如 80" value={customServiceAmount} onChange={(event) => setCustomServiceAmount(event.target.value)} /></label>
-                  <label className="field-label">时长（分钟）<input type="number" min="1" max="720" inputMode="numeric" placeholder="例如 60" value={customServiceDuration} onChange={(event) => setCustomServiceDuration(event.target.value)} /></label>
-                  <p className="field-help">自定义项目无需审批，提成按该员工默认比例；未设置时使用全店默认比例。系统会保留审计记录。</p>
-                </div>
-              )}</>}
-              <p className="modal-note">{quickPlaceholder ? "此工跳过该员工，只在主表占位，不计入记工数或任何金额。时间仅用于日期归属和排序。" : "保存后先显示为浅橙色“待结账”，付款和小费可以稍后补充。"}</p>
+              <fieldset className={`duration-picker${quickDurations.length === 3 ? " duration-picker--three-options" : ""}`} disabled={busy || board.isClosed}>
+                <legend>选择时长</legend>
+                {quickDurations.map((durationMinutes) => (
+                  <button key={durationMinutes} type="button" onClick={() => run(() => saveQuickRecord(durationMinutes))}>
+                    <strong>{durationMinutes} 分钟</strong>
+                  </button>
+                ))}
+                {quickDurations.length === 0 && <p className="empty-note">没有可用时长，请先在项目设置中添加。</p>}
+              </fieldset>
+              <p className="modal-note">点击时长即保存记工，点击占位即保存占位；请先调整时间及标记。付款和小费可稍后在详情补充。</p>
               {error && <p className="form-error" role="alert">{error}</p>}
-              <button className="save-record" type="button" disabled={busy || board.isClosed || (!quickPlaceholder && quickMode === "PRESET" && (!selectedService || !selectedServiceDuration))} onClick={() => run(saveQuickRecord)}>{busy ? "正在保存…" : quickPlaceholder ? "保存占位" : "保存记工"}</button>
             </div>
           </section>
         </div>,

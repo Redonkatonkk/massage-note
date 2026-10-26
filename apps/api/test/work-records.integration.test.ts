@@ -1468,4 +1468,43 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
       wageCents: 7_440n,
     });
   });
+  it("仅时长记工不建立项目快照，幂等且补选项目与付款原子保存", async () => {
+    const input = { employeeMembershipId, startAt: "2026-10-20T14:00:00.000Z", durationMinutes: 120, isHighlighted: true, isDispatchExcluded: true };
+    const key = randomUUID();
+    const created = await workRecords.create(actor(ownerId), storeId, input, key, "duration-create");
+    const replayed = await workRecords.create(actor(ownerId), storeId, input, key, "duration-replay");
+    expect(replayed.id).toBe(created.id);
+    expect(created).toMatchObject({ status: "PENDING_PAYMENT", actualDurationMinutes: 120, endAt: new Date("2026-10-20T16:00:00.000Z"), serviceSnapshot: null, addonSnapshots: [], discountSnapshots: [], payment: null, mainServiceAmountCents: 0n, mainServiceWageCents: 0n, isHighlighted: true, isDispatchExcluded: true });
+    const preview = await closings.previewMember(actor(ownerId), storeId, "2026-10-20", employeeMembershipId);
+    expect(preview.records.find(record => record.id === created.id)).toMatchObject({ serviceSelected: false, serviceName: "待选项目" });
+    const payment = { version: created.version, cashServiceCents: 10000, cardServiceCents: 0, giftCardServiceCents: 0, giftCardSerialNumber: null, cashTipCents: 0, cardTipCents: 0, giftCardTipCents: 0 };
+    await expect(workRecords.confirmPayment(actor(ownerId), storeId, created.id, payment, randomUUID(), "unselected-pay"))
+      .rejects.toMatchObject({ response: { code: "SERVICE_SELECTION_REQUIRED" } });
+    await expect(workRecords.update(actor(ownerId), storeId, created.id, { version: created.version, mainServiceAmountCents: 10000 }, randomUUID(), "unselected-update"))
+      .rejects.toMatchObject({ response: { code: "SERVICE_SELECTION_REQUIRED" } });
+    const invalid = { details: { version: created.version, serviceItemId: randomUUID(), serviceDurationMinutes: 60 }, payment };
+    await expect(workRecords.save(actor(ownerId), storeId, created.id, invalid, randomUUID(), "unselected-invalid-service"))
+      .rejects.toBeInstanceOf(NotFoundException);
+    expect(await prisma.workRecord.findUniqueOrThrow({ where: { id: created.id }, include: { serviceSnapshot: true } }))
+      .toMatchObject({ version: created.version, serviceSnapshot: null, status: "PENDING_PAYMENT" });
+    const saved = await workRecords.save(actor(ownerId), storeId, created.id, { details: { version: created.version, serviceItemId, serviceDurationMinutes: 60 }, payment }, randomUUID(), "unselected-save");
+    expect(saved).toMatchObject({ status: "CONFIRMED", actualDurationMinutes: 60, serviceSnapshot: { sourceServiceItemId: serviceItemId, durationMinutes: 60 } });
+    expect(saved.serviceSnapshot!.commissionBps).toBeGreaterThan(0);
+    expect(saved.mainServiceAmountCents).toBeGreaterThan(0n);
+    await expect(workRecords.update(actor(ownerId), storeId, created.id, { version: created.version, serviceItemId, serviceDurationMinutes: 60 }, randomUUID(), "unselected-stale"))
+      .rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it("仅时长记工可补为自定义项目，历史权限和日结锁继续生效", async () => {
+    const input = { employeeMembershipId, startAt: "2026-10-21T14:00:00.000Z", durationMinutes: 30 };
+    await expect(workRecords.create(actor(employeeId), storeId, input, randomUUID(), "duration-history-forbidden"))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    const created = await workRecords.create(actor(ownerId), storeId, input, randomUUID(), "duration-custom-create");
+    const updated = await workRecords.update(actor(ownerId), storeId, created.id, { version: created.version, customService: { name: "自定义服务", shortName: "自定", durationMinutes: 30, amountCents: 7500 } }, randomUUID(), "duration-custom-update");
+    expect(updated).toMatchObject({ status: "PENDING_PAYMENT", actualDurationMinutes: 30, serviceSnapshot: { isCustom: true, sourceServiceItemId: null, amountCents: 7500n } });
+    await prisma.businessDayClosing.create({ data: { storeId, businessDate: created.businessDate, cycleNo: 1, status: "CLOSED", warningSnapshotJson: {}, totalsSnapshotJson: {}, closedBy: ownerId } });
+    await expect(workRecords.create(actor(ownerId), storeId, input, randomUUID(), "duration-closed-create"))
+      .rejects.toMatchObject({ response: { code: "BUSINESS_DAY_CLOSED" } });
+  });
+
 });

@@ -47,6 +47,21 @@ function button(text: string, scope: ParentNode = document): HTMLButtonElement {
 }
 async function click(text: string, scope: ParentNode = document) { await act(async () => button(text, scope).click()); }
 function writes() { return request.mock.calls.filter(([, options]) => options?.method === "POST" || options?.method === "DELETE"); }
+function durationButton(minutes: number): HTMLButtonElement {
+  return [...document.querySelectorAll<HTMLButtonElement>(".duration-picker button")].find(node => node.querySelector("strong")?.textContent === `${minutes} 分钟`)!;
+}
+async function chooseDuration(minutes: number) { await act(async () => durationButton(minutes).click()); }
+async function inputValue(input: HTMLInputElement, value: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+async function pressEnter(target: Element, options: KeyboardEventInit = {}) {
+  const event = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, ...options });
+  await act(async () => { target.dispatchEvent(event); });
+  return event;
+}
 
 it.each([true, false])("总收入读取服务端结果并显示原收入公式，宽屏=%s", async wideLayout => {
   props.wideLayout = wideLayout;
@@ -125,40 +140,63 @@ describe("项目时长默认值", () => {
   function priceOptions(durations: number[]) {
     return durations.map((durationMinutes, position) => ({ id: `option-${position}`, durationMinutes, priceCents: durationMinutes * 100 + 1000, position }));
   }
-  function quickDuration() {
-    return document.querySelector<HTMLInputElement>('input[name="service-duration"]:checked')?.nextElementSibling?.querySelector("strong")?.textContent;
-  }
-  async function chooseQuick(label: string) {
-    const option = [...document.querySelectorAll(".quick-work-modal .service-picker label")].find(item => item.querySelector("strong")?.textContent === label)!;
-    await act(async () => option.querySelector<HTMLInputElement>("input")!.click());
-  }
-
-  it.each([
-    [[30, 60, 90], 60], [[90, 30, 60], 60], [[90, 30], 90], [[30, 60, 90, 120], 60],
-  ] as const)("快速记工按 %j 档位选择默认 %i 分钟，只有三档采用三列", async (durations, expected) => {
-    props.catalog.serviceItems[0]!.priceOptions = priceOptions([...durations]);
+  it.each([[30, 60, 90], [90, 30], [30, 60, 90, 120]])("快速记工展示全部 %j 分钟档位，点击直接保存，只有三档采用三列", async (...durations) => {
+    props.catalog.serviceItems[0]!.priceOptions = priceOptions(durations);
     await render(); await click("新增记工");
-    expect(quickDuration()).toBe(`${expected} 分钟`);
-    expect(document.querySelector(".duration-picker")!.classList.contains("duration-picker--three-options")).toBe(durations.length === 3);
-    expect(document.querySelectorAll(".duration-picker label")).toHaveLength(durations.length);
-    await click("保存记工");
-    expect(writes()[0]![1]!.body).toMatchObject({ serviceDurationMinutes: expected });
+    const modal = document.querySelector(".quick-work-modal")!;
+    expect(modal.querySelectorAll('input[type="radio"], .quick-mode-switch, .save-record')).toHaveLength(0);
+    expect(modal.textContent).not.toContain("选择项目");
+    expect(writes()).toHaveLength(0);
+    expect(modal.querySelector(".duration-picker")!.classList.contains("duration-picker--three-options")).toBe(durations.length === 3);
+    expect([...modal.querySelectorAll(".duration-picker strong")].map(node => node.textContent)).toEqual([...durations].sort((a, b) => a - b).map(value => `${value} 分钟`));
+    await chooseDuration(durations[0]!);
+    expect(writes()[0]![1]!.body).toMatchObject({ durationMinutes: durations[0] });
+    expect(document.querySelector(".quick-work-modal")).toBeNull();
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it("切换项目与重新打开优先 60 分钟，手动改选可保存，刷新目录保留有效选择", async () => {
+  it("合并时长并去重，忽略停用及删除项目，只提交时长而不关联项目", async () => {
     const service = props.catalog.serviceItems[0]!;
-    service.priceOptions = priceOptions([30, 60, 90]);
-    props.catalog.serviceItems.push({ ...service, id: "body", fullName: "全身按摩", shortName: "全身", priceOptions: priceOptions([90, 30, 60]) }, { ...service, id: "no-hour", fullName: "短项目", shortName: "短项", priceOptions: priceOptions([90, 30]) });
-    await render(); await click("新增记工"); await chooseQuick("30 分钟"); await chooseQuick("全身");
-    expect(quickDuration()).toBe("60 分钟");
-    await chooseQuick("90 分钟");
-    props.catalog = structuredClone(props.catalog); await render();
-    expect(quickDuration()).toBe("90 分钟");
-    await click("保存记工");
-    expect(writes()[0]![1]!.body).toMatchObject({ serviceItemId: "body", serviceDurationMinutes: 90 });
-    await click("新增记工"); expect(quickDuration()).toBe("60 分钟");
-    await chooseQuick("短项"); expect(quickDuration()).toBe("90 分钟");
-    await chooseQuick("全身"); expect(quickDuration()).toBe("60 分钟");
+    service.priceOptions = priceOptions([60, 90]);
+    props.catalog.serviceItems.push(
+      { ...service, id: "body", priceOptions: priceOptions([30, 60, 120]).map(option => ({ ...option, priceCents: option.priceCents + 5000 })) },
+      { ...service, id: "disabled", isEnabled: false, priceOptions: priceOptions([15]) },
+      { ...service, id: "deleted", deletedAt: "2026-10-01", priceOptions: priceOptions([180]) },
+    );
+    await render(); await click("新增记工");
+    expect([...document.querySelectorAll(".duration-picker strong")].map(node => node.textContent)).toEqual(["30 分钟", "60 分钟", "90 分钟", "120 分钟"]);
+    expect(document.querySelectorAll(".duration-picker small")).toHaveLength(0);
+    await chooseDuration(30);
+    expect(writes().at(-1)![1]!.body).toMatchObject({ durationMinutes: 30 });
+    await click("新增记工"); await chooseDuration(60);
+    expect(writes().at(-1)![1]!.body).toMatchObject({ durationMinutes: 60 });
+    await click("新增记工"); await chooseDuration(120);
+    expect(writes().at(-1)![1]!.body).toMatchObject({ durationMinutes: 120 });
+    for (const [, options] of writes()) {
+      expect(options!.body).not.toHaveProperty("serviceItemId");
+      expect(options!.body).not.toHaveProperty("customService");
+    }
+  });
+
+  it("无效时间不写入；失败保留选择入口和标记，提交中阻止重复写入", async () => {
+    await render(); await click("新增记工"); await click("★高亮标记");
+    const hour = document.querySelector<HTMLInputElement>('#start-time')!;
+    await inputValue(hour, "99"); await chooseDuration(60);
+    expect(writes()).toHaveLength(0);
+    expect(document.querySelector(".quick-work-modal [role=alert]")!.textContent).toContain("有效的开始时间");
+    await inputValue(hour, "10");
+    request.mockRejectedValueOnce(new ApiError(409, { code: "BUSINESS_DAY_CLOSED", messageZh: "已经日结" }));
+    await chooseDuration(60);
+    expect(document.querySelector(".quick-work-modal [role=alert]")!.textContent).toBe("已经日结");
+    expect(button("★已高亮").getAttribute("aria-pressed")).toBe("true");
+    let resolveSave!: (value: unknown) => void;
+    request.mockImplementationOnce(() => new Promise(resolve => { resolveSave = resolve; }));
+    await act(async () => { durationButton(60).click(); durationButton(60).click(); });
+    expect(writes()).toHaveLength(2);
+    expect(durationButton(60).matches(":disabled")).toBe(true);
+    await act(async () => resolveSave({}));
+    expect(document.querySelector(".quick-work-modal")).toBeNull();
+    expect(writes().at(-1)![1]!.body).toMatchObject({ isHighlighted: true });
   });
 
   it.each([[[30, 60, 90], 60], [[90, 30], 90]] as const)("详情切换到 %j 档位默认 %i 分钟，同步价格和结束时间", async (durations, expected) => {
@@ -181,23 +219,22 @@ describe("项目时长默认值", () => {
 });
 
 describe("快速记工占位", () => {
-  it("在高亮左侧切换占位，隐藏项目并保留时间，退出恢复普通草稿和高亮", async () => {
+  it("占位在高亮左侧，点击直接保存且不提交服务或其他标记", async () => {
     await render(); await click("新增记工");
     const modal = document.querySelector(".quick-work-modal")!;
     expect([...modal.querySelectorAll(".modal-heading__actions button")].map((node) => node.textContent)).toEqual(["占位", "不算排工", "★高亮标记", "关闭"]);
-    await click("★高亮标记"); await click("＋ 自定义项目");
-    const name = modal.querySelector<HTMLInputElement>(".quick-custom-grid input")!;
-    await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(name, "保留草稿"); name.dispatchEvent(new Event("input", { bubbles: true })); });
-    await click("占位");
-    expect(modal.querySelector(".work-time-field")).not.toBeNull(); expect(modal.querySelector(".quick-mode-switch")).toBeNull(); expect(modal.querySelector(".quick-custom-grid")).toBeNull();
-    expect(button("★高亮标记", modal).disabled).toBe(true); expect(button("保存占位", modal).disabled).toBe(false);
-    await click("占位");
-    expect(modal.querySelector<HTMLInputElement>(".quick-custom-grid input")!.value).toBe("保留草稿"); expect(button("★已高亮", modal).disabled).toBe(false); expect(button("保存记工", modal)).toBeDefined();
-    expect(writes()).toEqual([]);
+    await click("★高亮标记"); await click("不算排工"); await click("占位");
+    expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, body: { employeeMembershipId: "employee", startAt: "2026-10-06T14:00:00.000Z", isPlaceholder: true } }]]);
+    expect(document.querySelector(".quick-work-modal")).toBeNull();
+    await click("新增记工");
+    expect(button("★高亮标记").getAttribute("aria-pressed")).toBe("false");
+    expect(button("不算排工").getAttribute("aria-pressed")).toBe("false");
   });
-  it("没有项目也能占位，创建只提交员工、时间和占位标记", async () => {
+  it("没有项目也能点击占位，创建只提交员工、时间和占位标记", async () => {
     props.catalog.serviceItems = []; await render(); await click("新增记工");
-    expect(button("保存记工").disabled).toBe(true); await click("占位"); await click("保存占位");
+    expect(document.querySelectorAll(".duration-picker button")).toHaveLength(0);
+    expect(document.querySelector(".duration-picker .empty-note")!.textContent).toContain("没有可用时长");
+    await click("占位");
     expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, body: { employeeMembershipId: "employee", startAt: "2026-10-06T14:00:00.000Z", isPlaceholder: true } }]]);
     expect(document.querySelector(".quick-work-modal")).toBeNull(); expect(reload).toHaveBeenCalledTimes(1); expect(container.textContent).toContain("占位已保存");
   });
@@ -236,17 +273,12 @@ describe("快速记工占位", () => {
 
 
 describe("不算排工", () => {
-  it("快速记工独立切换、占位暂停选择，保存只提交新标记并在再次打开时重置", async () => {
+  it("快速记工独立切换，点击时长提交新标记并在再次打开时重置", async () => {
     await render(); await click("新增记工"); await click("不算排工");
     expect(button("不算排工").getAttribute("aria-pressed")).toBe("true");
     expect(button("★高亮标记").getAttribute("aria-pressed")).toBe("false");
-    await click("占位");
-    expect(button("不算排工").disabled).toBe(true);
-    expect(button("不算排工").getAttribute("aria-pressed")).toBe("false");
-    await click("占位");
-    expect(button("不算排工").getAttribute("aria-pressed")).toBe("true");
-    await click("保存记工");
-    expect(writes()[0]![1]!.body).toMatchObject({ isDispatchExcluded: true, isHighlighted: false, serviceItemId: "service", serviceDurationMinutes: 60 });
+    await chooseDuration(60);
+    expect(writes()[0]![1]!.body).toMatchObject({ isDispatchExcluded: true, isHighlighted: false, durationMinutes: 60 });
     await click("新增记工");
     expect(button("不算排工").getAttribute("aria-pressed")).toBe("false");
   });
@@ -286,5 +318,90 @@ describe("不算排工", () => {
       expect(options!.body).not.toHaveProperty("isHighlighted");
     }
     expect(localStorage.getItem(draftKey)).toBeNull();
+  });
+});
+
+
+describe("详情回车保存", () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
+  async function renderEditor(isClosed = false) {
+    const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
+    const record = { ...ordinary, status: "PENDING_PAYMENT" as const };
+    request.mockResolvedValue(record);
+    await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={record} catalog={props.catalog} members={props.members} canManage isClosed={isClosed} onClose={vi.fn()} onSaved={vi.fn()} onChanged={reload} />));
+  }
+  it("打开后即可按回车保存详情，付款全空仍待结账", async () => {
+    await renderEditor();
+    expect(document.activeElement).toBe(document.querySelector(".record-editor"));
+    const event = await pressEnter(document.activeElement!);
+    expect(event.defaultPrevented).toBe(true);
+    expect(request).toHaveBeenCalledWith("/stores/store/work-records/ordinary", expect.objectContaining({ method: "PATCH", body: expect.objectContaining({ version: ordinary.version }) }));
+    expect(writes()).toHaveLength(0);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+  it("回车沿用付款校验，纠正后与详情同时保存付款", async () => {
+    await renderEditor();
+    const input = document.querySelector<HTMLInputElement>('[aria-label="现金大费（美元）"]')!;
+    await inputValue(input, "-1"); await pressEnter(input);
+    expect(request).not.toHaveBeenCalled();
+    expect(document.querySelector(".record-error-toast")!.textContent).toContain("非负金额");
+    await inputValue(input, "60"); await pressEnter(input);
+    expect(request).toHaveBeenCalledWith("/stores/store/work-records/ordinary/save", expect.objectContaining({ method: "POST", body: expect.objectContaining({ details: expect.objectContaining({ version: ordinary.version }), payment: expect.objectContaining({ version: ordinary.version, cashServiceCents: 6000, cashTipCents: 0 }) }) }));
+  });
+  it("备注、控件和输入法保留原回车行为，重复键及组合键不保存", async () => {
+    await renderEditor();
+    const input = document.querySelector<HTMLInputElement>('[aria-label="现金大费（美元）"]')!;
+    for (const selector of ['textarea', 'select', 'button.delete-record', 'input[type="checkbox"]']) {
+      expect((await pressEnter(document.querySelector(selector)!)).defaultPrevented).toBe(false);
+    }
+    for (const options of [{ isComposing: true }, { keyCode: 229 }, { repeat: true }, { shiftKey: true }, { ctrlKey: true }, { metaKey: true }, { altKey: true }]) {
+      expect((await pressEnter(input, options)).defaultPrevented).toBe(false);
+    }
+    expect(request).not.toHaveBeenCalled();
+  });
+  it("日结及保存进行中不能按回车重复写入", async () => {
+    await renderEditor(true);
+    await pressEnter(document.querySelector<HTMLInputElement>('[aria-label="现金大费（美元）"]')!);
+    expect(request).not.toHaveBeenCalled();
+    await act(async () => root.render(null)); await renderEditor();
+    let resolveSave!: (value: unknown) => void;
+    request.mockImplementationOnce(() => new Promise(resolve => { resolveSave = resolve; }));
+    const input = document.querySelector<HTMLInputElement>('[aria-label="现金大费（美元）"]')!;
+    await pressEnter(input); await pressEnter(input);
+    expect(request).toHaveBeenCalledTimes(1);
+    await act(async () => resolveSave({ ...ordinary, version: ordinary.version + 1 }));
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe("未选项目的记工详情", () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
+  it.each([30, 120])("只记 %i 分钟时不伪装自定义项目，补选后保留匹配时长且不覆盖提成", async durationMinutes => {
+    const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
+    props.catalog.serviceItems[0]!.priceOptions = [30, 60, 120].map(minutes => ({ id: String(minutes), durationMinutes: minutes, priceCents: minutes * 100, position: minutes }));
+    const record = { ...ordinary, status: "PENDING_PAYMENT" as const, serviceSnapshot: null, actualDurationMinutes: durationMinutes, mainServiceAmountCents: 0, grossFeeBaseCents: 0, endAt: new Date(Date.parse(ordinary.startAt) + durationMinutes * 60000).toISOString() };
+    props.board.rows[0]!.workRecords = [record];
+    await render();
+    const card = container.querySelector(".record-card")!;
+    expect(card.textContent).toContain("待选项目");
+    expect(card.querySelector(".record-service-due")!.textContent).toBe("未填写");
+    await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={record} catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={vi.fn()} onSaved={vi.fn()} onChanged={reload} />));
+    const fields = document.querySelector(".record-service-section")!;
+    const selection = fields.querySelector<HTMLSelectElement>("select")!;
+    expect(selection.value).toBe("__unassigned__");
+    expect(fields.querySelector<HTMLInputElement>('input[readonly]')!.value).toBe(String(durationMinutes));
+    expect(fields.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!.value).toBe("");
+    request.mockClear(); await pressEnter(document.activeElement!);
+    expect(request).not.toHaveBeenCalled();
+    expect(document.querySelector(".record-error-toast")!.textContent).toContain("请先选择项目");
+    await act(async () => { selection.value = "service"; selection.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(fields.querySelectorAll<HTMLSelectElement>("select")[1]!.value).toBe(String(durationMinutes));
+    request.mockResolvedValue({ ...record, version: 2 }); await pressEnter(fields.querySelector<HTMLInputElement>('input[inputmode="decimal"]')!);
+    const payload = request.mock.calls.find(([, options]) => options?.method === "PATCH")![1]!.body;
+    expect(payload).toMatchObject({ serviceItemId: "service", serviceDurationMinutes: durationMinutes, mainServiceAmountCents: durationMinutes * 100 });
+    expect(payload).not.toHaveProperty("mainServiceCommissionBps");
   });
 });

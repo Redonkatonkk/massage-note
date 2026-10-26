@@ -655,14 +655,12 @@ export function TodayBoard({
           <section className="quick-modal quick-work-modal" role="dialog" aria-modal="true" aria-labelledby="quick-modal-title">
             <div className="modal-heading">
               <div><p className="eyebrow">快速记工</p><h2 id="quick-modal-title">{members.find((item) => item.id === quickEmployeeId)?.displayName}</h2></div>
+              <button className="secondary-action quick-detailed-entry" type="button" disabled={busy || board.isClosed} onClick={() => run(async () => openDetailedRecord())}>详细记工</button>
               <div className="modal-heading__actions">
                 <button className="highlight-toggle placeholder-toggle" type="button" disabled={busy || board.isClosed} onClick={() => run(() => saveQuickRecord("PLACEHOLDER"))}>占位</button>
                 <button className={`highlight-toggle dispatch-excluded-toggle${quickDispatchExcluded ? " active" : ""}`} type="button" aria-pressed={quickDispatchExcluded} disabled={busy || board.isClosed} onClick={() => setQuickDispatchExcluded((current) => !current)}>不算排工</button>
                 <button className={`highlight-toggle${quickHighlighted ? " active" : ""}`} type="button" aria-pressed={quickHighlighted} disabled={busy || board.isClosed} onClick={() => setQuickHighlighted((current) => !current)}><span aria-hidden="true">★</span>{quickHighlighted ? "已高亮" : "高亮标记"}</button>
-                <div className="quick-modal-navigation">
-                  <button className="secondary-action" type="button" disabled={busy || board.isClosed} onClick={() => run(async () => openDetailedRecord())}>详细记工</button>
-                  <button className="close-button" type="button" disabled={busy} onClick={() => setQuickEmployeeId(null)}>关闭</button>
-                </div>
+                <button className="close-button" type="button" disabled={busy} onClick={() => setQuickEmployeeId(null)}>关闭</button>
               </div>
             </div>
             <div className="quick-modal-content">

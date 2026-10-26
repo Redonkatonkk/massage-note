@@ -4,6 +4,11 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.39.2 — 2026-10-26
+
+- Restore Close as the last direct button in the original quick-entry action row. Place Detailed entry separately in the header above it, removing the shared vertical wrapper that displaced Close and enlarged the action row.
+- Synchronize bilingual design/product documentation and DOM/responsive checks. NAS requires a Web update; no API, database or Messages agent changes.
+
 ## 1.39.1 — 2026-10-26
 
 - Allow detail saves without a service when receipts are zero or blank; keep new detailed forms prefilled with 60 minutes. Support an explicit unknown duration through `durationMinutes: null`, preserving null end/duration fields on existing incomplete records.

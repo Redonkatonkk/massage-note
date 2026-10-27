@@ -12,6 +12,7 @@ uniform vec2 trail[16];
 uniform float trailOpacity;
 uniform vec4 bounds;
 uniform vec3 inkColor;
+uniform vec3 lightColor;
 uniform float impact;
 out vec4 outColor;
 
@@ -27,9 +28,11 @@ void main() {
   float edge = roundedBox(delta, shapeRect.zw * 0.5, corner);
   float fill = 1.0 - smoothstep(-0.8, 0.8, edge);
   float radial = length(delta);
-  float ring = 1.0 - smoothstep(2.0, 3.4, abs(radial - shapeRect.z * 0.38));
-  float glow = exp(-abs(radial - shapeRect.z * 0.38) * 0.22) * 0.15;
-  float orbAlpha = min(1.0, ring + fill * 0.12 + glow);
+  float ringRadius = shapeRect.z * 0.38;
+  float ringDistance = abs(radial - ringRadius);
+  float ring = 1.0 - smoothstep(1.0, 1.8, ringDistance);
+  float glow = exp(-ringDistance * 0.55) * 0.12 * smoothstep(ringRadius - 4.0, ringRadius - 2.0, radial);
+  float orbAlpha = min(1.0, ring + glow);
   float tail = 0.0;
 
   if (trailOpacity > 0.001) {
@@ -39,10 +42,10 @@ void main() {
       vec2 segment = b - a;
       float along = clamp(dot(pixel - a, segment) / max(dot(segment, segment), 0.01), 0.0, 1.0);
       float age = (float(i) + along) / 15.0;
-      float radius = mix(7.5, 0.7, age);
+      float radius = mix(3.2, 0.25, age);
       float distanceToTail = length(pixel - mix(a, b, along));
-      float ribbon = (1.0 - smoothstep(radius - 0.7, radius + 1.2, distanceToTail)) * pow(1.0 - age, 1.5) * 0.65;
-      float haze = exp(-distanceToTail / max(radius, 1.0)) * pow(1.0 - age, 2.0) * 0.12;
+      float ribbon = (1.0 - smoothstep(max(0.0, radius - 0.5), radius + 0.8, distanceToTail)) * pow(1.0 - age, 1.4) * 0.75;
+      float haze = exp(-distanceToTail / max(radius, 0.75) * 1.25) * pow(1.0 - age, 2.0) * 0.09;
       tail = max(tail, ribbon + haze);
     }
   }
@@ -54,10 +57,12 @@ void main() {
   vec2 uv = clamp(delta / shapeRect.zw + 0.5, 0.0, 1.0);
   vec4 captured = texture(src, vec2(uv.x, 1.0 - uv.y));
   float headAlpha = mix(orbAlpha, fill * captured.a, textureMix) * opacity;
-  float tailAlpha = tail * trailOpacity;
+  // Join the trail at the rear rim; never draw it through the ring's hollow center.
+  float tailAlpha = tail * trailOpacity * smoothstep(ringRadius - 0.5, ringRadius + 1.8, radial);
   float alpha = headAlpha + tailAlpha * (1.0 - headAlpha);
-  vec3 headColor = mix(inkColor, captured.rgb, textureMix);
-  vec3 premultiplied = headColor * headAlpha + inkColor * tailAlpha * (1.0 - headAlpha);
+  vec3 headColor = mix(mix(inkColor, lightColor, 0.86), captured.rgb, textureMix);
+  vec3 tailColor = mix(inkColor, lightColor, 0.70);
+  vec3 premultiplied = headColor * headAlpha + tailColor * tailAlpha * (1.0 - headAlpha);
   outColor = vec4(premultiplied / max(alpha, 0.0001), alpha);
 }
 `;

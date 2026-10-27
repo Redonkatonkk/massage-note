@@ -4,6 +4,11 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.47.1 — 2026-10-27
+
+- Remove the stray white mode capsule during saving by hiding the entire live form with composited opacity, including descendants with explicit visibility and active entrance keyframes. Restore original opacity and priority on cancellation or graphics fallback.
+- Refine the orbiting ring with a thinner light-green outline, a transparent center and a narrower fading trail that joins its rear rim. Retain the large autonomous orbit, saved-card transition, submission locks and page position. NAS requires a Web update; no API, database or Messages agent changes.
+
 ## 1.47.0 — 2026-10-27
 
 - Replace the saving rope with a VFX-JS Canvas transition: freeze the visible form, condense it into a ring over 260ms, then orbit automatically at screen center while the write and refresh are pending. Use a 120–200px orbit diameter, a 1.2-second revolution and a tapered trail spanning about 390ms; pointer movement does not drive the effect.

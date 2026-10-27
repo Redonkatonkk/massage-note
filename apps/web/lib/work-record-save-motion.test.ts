@@ -74,6 +74,7 @@ it("captures the form into VFX-JS, condenses to a ring and keeps a large autonom
   expect(options.shader).toBe(WORK_RECORD_SAVE_SHADER); expect(options.overflow).toBe(true);
   expect(options.uniforms.shapeRect()).toEqual([380, 350, 560, 500]);
   expect(dialog.inert).toBe(true); expect(dialog.getAttribute("aria-busy")).toBe("true"); expect(dialog.style.visibility).toBe("hidden");
+  expect(dialog.style.opacity).toBe("0"); expect(dialog.style.getPropertyPriority("opacity")).toBe("important");
   await vi.advanceTimersByTimeAsync(260); expect(overlay()!.dataset.phase).toBe("waiting");
   await vi.advanceTimersByTimeAsync(300);
   const first = [...sourceUniforms().shapeRect()];
@@ -87,6 +88,22 @@ it("captures the form into VFX-JS, condenses to a ring and keeps a large autonom
   expect(sourceUniforms().shapeRect()[1]).toBeGreaterThan(475);
   await vi.advanceTimersByTimeAsync(1800); expect(overlay()!.dataset.phase).toBe("waiting");
   expect(vfx.add).toHaveBeenCalledOnce(); expect(scrollIntoView).not.toHaveBeenCalled(); expect(animate).not.toHaveBeenCalled();
+});
+
+it("hides an explicitly visible mode capsule with its parent, including during entrance animations", async () => {
+  dialog.innerHTML = '<div class="quick-mode-switch"><span class="quick-mode-switch__capsule" style="visibility:visible;background:white">Mode</span></div>';
+  dialog.style.animation = "mn-enter 180ms ease-out";
+  const capsule = dialog.querySelector<HTMLElement>("span")!;
+  await start(); await vi.advanceTimersByTimeAsync(900);
+  // visibility:hidden alone is insufficient: the real capsule still resolves to visible.
+  expect(getComputedStyle(capsule).visibility).toBe("visible");
+  expect(getComputedStyle(dialog).opacity).toBe("0"); expect(dialog.style.getPropertyPriority("opacity")).toBe("important");
+  const snapshot = vfx.add.mock.calls[0]![0] as HTMLElement;
+  expect(snapshot.querySelector<HTMLElement>("span")!.style.visibility).toBe("visible");
+  expect(snapshot.parentElement!.style.opacity).toBe("0");
+  cancelWorkRecordSaveMotion(dialog);
+  expect(dialog.style.opacity).toBe(""); expect(dialog.style.visibility).toBe("");
+  expect(capsule.style.visibility).toBe("visible"); expect(dialog.style.animation).toBe("mn-enter 180ms ease-out");
 });
 
 it("caps the orbit to a narrow phone while keeping a visible circular path", async () => {
@@ -178,11 +195,13 @@ it.each(["missing", "offscreen"])("%s destinations use local completion without 
 
 it("failed writes restore the filled form, focus and accessibility state", async () => {
   dialog.style.visibility = "visible"; dialog.setAttribute("aria-busy", "false");
+  dialog.style.setProperty("opacity", ".85", "important");
   const input = dialog.querySelector("input")!; input.focus();
   await start(); await vi.advanceTimersByTimeAsync(1200);
   cancelWorkRecordSaveMotion(dialog);
   expect(overlay()).toBeNull(); expect(dialog.inert).not.toBe(true); expect(dialog.style.visibility).toBe("visible");
   expect(dialog.getAttribute("aria-busy")).toBe("false"); expect(input.value).toBe("retained draft"); expect(document.activeElement).toBe(input);
+  expect(dialog.style.opacity).toBe("0.85"); expect(dialog.style.getPropertyPriority("opacity")).toBe("important");
   expect(vfx.destroy).toHaveBeenCalledOnce(); expect(vi.getTimerCount()).toBe(0);
 });
 
@@ -209,6 +228,7 @@ it.each(["webgl", "capture", "draw", "offscreen", "context"])("%s failure leaves
   await start();
   if (kind === "context") document.querySelector("canvas")!.dispatchEvent(new Event("webglcontextlost"));
   expect(overlay()!.dataset.renderer).toBe("fallback"); expect(dialog.inert).toBe(true); expect(dialog.style.visibility).toBe("");
+  expect(dialog.style.opacity).toBe(""); expect(dialog.style.getPropertyPriority("opacity")).toBe("");
   await finishFlight();
   expect(overlay()).toBeNull(); expect(dialog.inert).not.toBe(true); expect(dialog.style.visibility).toBe("hidden");
 });

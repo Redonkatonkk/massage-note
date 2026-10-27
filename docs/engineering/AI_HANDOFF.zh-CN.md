@@ -2,7 +2,7 @@
 
 **[English](AI_HANDOFF.md)** | **简体中文**
 
-> 最后核对：2026-10-27（America/New_York） · 当前版本：`1.47.0`
+> 最后核对：2026-10-27（America/New_York） · 当前版本：`1.47.1`
 
 ## 接手
 

@@ -101,7 +101,14 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
   if (from.width <= 0 || from.height <= 0) return;
   const controller = new AbortController();
   const { signal } = controller;
-  const previous = { inert: dialog.inert, visibility: dialog.style.visibility, busy: dialog.getAttribute("aria-busy"), focus: document.activeElement };
+  const previous = {
+    inert: dialog.inert, visibility: dialog.style.visibility, opacity: dialog.style.opacity,
+    opacityPriority: dialog.style.getPropertyPriority("opacity"), busy: dialog.getAttribute("aria-busy"), focus: document.activeElement,
+  };
+  // A child's explicit visibility can escape a hidden parent (the mode capsule does this).
+  // Opacity composites the whole subtree; important also overrides dialog entrance keyframes.
+  const hideDialog = () => { dialog.style.visibility = "hidden"; dialog.style.setProperty("opacity", "0", "important"); };
+  const restoreDialog = () => { dialog.style.visibility = previous.visibility; dialog.style.setProperty("opacity", previous.opacity, previous.opacityPriority); };
   const overlay = document.createElement("div");
   overlay.className = "work-record-save-motion"; overlay.setAttribute("role", "status"); overlay.dataset.renderer = "pending";
   const stage = document.createElement("div"); stage.className = "work-record-save-motion__stage"; stage.setAttribute("aria-hidden", "true"); stage.inert = true;
@@ -148,7 +155,8 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
     observer.disconnect(); overlay.remove();
     reduced?.removeEventListener("change", cancel); window.removeEventListener("pagehide", cancel); window.removeEventListener("resize", cancel);
     document.removeEventListener("visibilitychange", onVisibility);
-    dialog.inert = previous.inert; dialog.style.visibility = completed ? "hidden" : previous.visibility;
+    dialog.inert = previous.inert;
+    if (completed) hideDialog(); else restoreDialog();
     if (previous.busy === null) dialog.removeAttribute("aria-busy"); else dialog.setAttribute("aria-busy", previous.busy);
     if (target && targetVisibility !== undefined) target.style.visibility = targetVisibility;
     if (completed && backdrop) backdrop.style.backgroundColor = "transparent";
@@ -161,7 +169,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
     degraded = true; waiting = false; window.clearTimeout(prepareTimer); stopTween?.(false); resolveReady();
     if (frame !== undefined) cancelAnimationFrame(frame);
     releaseRenderer(); stage.replaceChildren(); overlay.dataset.renderer = "fallback";
-    dialog.style.visibility = previous.visibility;
+    restoreDialog();
     if (target && targetVisibility !== undefined) target.style.visibility = targetVisibility;
   };
   const tween = (duration: number, update: (progress: number) => void): Promise<void> => {
@@ -199,6 +207,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
     shapeRect: () => pose.rect, corner: () => pose.corner, textureMix: () => pose.textureMix, opacity: () => pose.opacity,
     trail: () => trail, trailOpacity: () => pose.trailOpacity, impact: () => pose.impact,
     inkColor: workRecordVfxColor("--brand", [49 / 255, 91 / 255, 73 / 255]),
+    lightColor: workRecordVfxColor("--brand-soft", [234 / 255, 240 / 255, 235 / 255]),
     bounds: () => {
       let left = pose.rect[0] - pose.rect[2] / 2 - 55, top = pose.rect[1] - pose.rect[3] / 2 - 55;
       let right = pose.rect[0] + pose.rect[2] / 2 + 55, bottom = pose.rect[1] + pose.rect[3] / 2 + 55;
@@ -323,7 +332,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
         const frozen = frozenSnapshot(dialog, from); stage.append(frozen.slot); sources.push(frozen.snapshot);
         await instance.add(frozen.snapshot, { shader: WORK_RECORD_SAVE_SHADER, overflow: true, uniforms: uniforms(sourcePose) });
         if (signal.aborted || degraded) { instance.remove(frozen.snapshot); return; }
-        window.clearTimeout(prepareTimer); overlay.dataset.renderer = "canvas"; overlay.dataset.phase = "condensing"; dialog.style.visibility = "hidden";
+        window.clearTimeout(prepareTimer); overlay.dataset.renderer = "canvas"; overlay.dataset.phase = "condensing"; hideDialog();
         const start = [...sourcePose.rect] as Pose["rect"];
         const entrance = tween(CONDENSE_MS, value => {
           const t = ease(value);

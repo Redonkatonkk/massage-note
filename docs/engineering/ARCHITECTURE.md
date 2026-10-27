@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](ARCHITECTURE.zh-CN.md)**
 
-> Verified against version: `1.39.4`
+> Verified against version: `1.40.0`
 > This article describes the current implementation; a draft design from the beginning of the project can be found in [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md).
 
 Massage note is a TypeScript modular monolith managed by the pnpm workspace. Web, API and shared packages are developed and tested in the same repository. Production can be run as a Web/API dual container or simultaneously in a Synology single image.
@@ -153,6 +153,8 @@ Kanban reads placeholders and protects its employee rows, statistics and calenda
 <a id="财务与历史数据"></a>
 
 ## Financial and historical data
+
+The domain function `calculateCashChange` computes expected drawer movement from confirmed work records and cash gift-card sales using integer cents. `ClosingsService` captures employee roles and daily-settlement settings in the calculation and writes `store.cashChangeCents` into the existing totals JSON in the closing transaction. `BoardsService` reads the immutable value rather than recomputing it from current settings; missing legacy values stay null. Ordinary employee board responses also omit the raw closing object so its store snapshot cannot expose the new amount. Reason: financial display, historical stability and access control must share the server snapshot.
 
 - The persistent amount uses integer cents; the final calculation of the domain layer uses `bigint`, and the commission uses basis points. Reason: Integer cents avoid floating point errors, and cents are used to accurately express commissions.
 - The formula fact source is `packages/domain/src/finance.ts`, the amount formatting is not the ledger calculation. Reason: Formatting only changes the display and should not produce a second set of accounting algorithms.

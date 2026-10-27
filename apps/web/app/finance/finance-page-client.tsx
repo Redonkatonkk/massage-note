@@ -50,7 +50,7 @@ import { PayrollEntryForm } from "./payroll-entry-form";
 import { EmployeeSubtotalSection } from "./employee-subtotal-section";
 import { dateOnly } from "./date-utils";
 import { MonthlySummaryDashboard } from "./monthly-summary-dashboard";
-import { monthlyQuery, monthlyRanges } from "./monthly-summary";
+import { monthlyQuery, monthlyRanges, type MonthlyHighlightFilter } from "./monthly-summary";
 import { financeNavigationTabs, resolveFinanceTab, type FinanceTab } from "../../lib/app-navigation";
 import { useNavigationTab } from "../use-navigation-tab";
 type FinanceRangeOverride = { dateFrom?: string; dateTo?: string; memberIds?: string[] };
@@ -81,6 +81,7 @@ export function FinancePageClient() {
   const [giftCards, setGiftCards] = useState<GiftCardLedgerResponse | null>(null);
   const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
   const [summaryMonth, setSummaryMonth] = useState("");
+  const [summaryHighlightFilter, setSummaryHighlightFilter] = useState<MonthlyHighlightFilter>("ALL");
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryFailed, setSummaryFailed] = useState(false);
   const [cashDate, setCashDate] = useState("");
@@ -95,10 +96,10 @@ export function FinancePageClient() {
   const financeParams = useCallback((override: FinanceRangeOverride = {}) => {
     if (!day || !summaryMonth) return new URLSearchParams();
     const range = monthlyRanges(summaryMonth, day.businessDate);
-    const params = monthlyQuery(override.dateFrom ?? range.dateFrom, override.dateTo ?? range.dateTo);
+    const params = monthlyQuery(override.dateFrom ?? range.dateFrom, override.dateTo ?? range.dateTo, summaryHighlightFilter);
     if (override.memberIds?.length) params.set("membershipIds", override.memberIds.join(","));
     return params;
-  }, [summaryMonth, day]);
+  }, [summaryMonth, day, summaryHighlightFilter]);
 
   const summaryRequests = useRef(new LatestRequest()).current;
   const detailRequests = useRef(new LatestRequest()).current;
@@ -318,7 +319,7 @@ export function FinancePageClient() {
   useEffect(() => {
     if (!membership || !summaryMonth) return;
     void loadSummary().catch(caught => setError(errorMessage(caught)));
-  }, [membership, summaryMonth]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [membership, summaryMonth, summaryHighlightFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!cashDate || !membership) return;
@@ -435,6 +436,7 @@ export function FinancePageClient() {
           storeId={membership.store.id}
           today={day.businessDate}
           month={summaryMonth}
+          highlightFilter={summaryHighlightFilter}
           summary={summary}
           loading={summaryLoading}
           failed={summaryFailed}
@@ -442,6 +444,10 @@ export function FinancePageClient() {
           canViewStoreTrend={canManage}
           onMonthChange={(month) => { setSummaryMonth(month); setDetails(null); }}
           onRetry={() => void run(loadSummary)}
+          onQuery={(filter) => {
+            if (filter === summaryHighlightFilter) void run(loadSummary);
+            else { setSummaryHighlightFilter(filter); setDetails(null); }
+          }}
           onViewDetails={(title) => void run(async () => { setDetailsTitle(title); setDetails(null); await loadDetails(); })}
         >
           {summary && <EmployeeSubtotalSection

@@ -67,6 +67,23 @@ export interface StoreIncomeInput {
   giftCardRedemptionCents: Cents;
 }
 
+/** Expected drawer movement after daily wages are paid; cash tips bypass the drawer. */
+export function calculateCashChange(input: {
+  giftCardSaleCashCents: Cents;
+  records: readonly (Pick<WorkRecordFinance,
+    "cashServiceCents" | "cashAllocatedServiceWageCents" | "totalLargeFeeWageCents" | "cardTipCents" | "giftCardTipCents"
+  > & { role: string; dailySettlementEnabled: boolean })[];
+}): bigint {
+  return input.records.reduce((total, record) => {
+    const received = cents(record.cashServiceCents);
+    if (record.role !== "EMPLOYEE") return total + received;
+    const payout = record.dailySettlementEnabled
+      ? cents(record.totalLargeFeeWageCents) + cents(record.cardTipCents) + cents(record.giftCardTipCents)
+      : cents(record.cashAllocatedServiceWageCents);
+    return total + received - payout;
+  }, cents(input.giftCardSaleCashCents));
+}
+
 export interface DailyTurnoverInput {
   discountedFeePerformanceCents: Cents;
   giftCardSalesAmountCents: Cents;

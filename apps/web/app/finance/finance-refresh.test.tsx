@@ -84,3 +84,52 @@ it("keeps daily closing live and unsubscribes when returning to a report", async
   });
   expect(request).not.toHaveBeenCalled();
 });
+
+it("queries the selected highlights across the complete monthly report, details and export", async () => {
+  window.history.replaceState(null, "", "/finance?tab=summary");
+  await act(async () => root.render(<FinancePageClient />));
+  const choices = [...container.querySelectorAll<HTMLInputElement>('.monthly-finance__filters input[type="checkbox"]')];
+  expect(choices.map(input => input.checked)).toEqual([true, true]);
+  for (const [nonHighlighted, highlighted, filter] of [[true, false, "EXCLUDE_HIGHLIGHTED"], [false, true, "ONLY_HIGHLIGHTED"], [true, true, "ALL"]] as const) {
+    request.mockClear();
+    await act(async () => {
+      if (choices[0]!.checked !== nonHighlighted) choices[0]!.click();
+      if (choices[1]!.checked !== highlighted) choices[1]!.click();
+    });
+    expect(request).not.toHaveBeenCalled();
+    await click("查询");
+    const reports = request.mock.calls.filter(([path]) => /\/finance\/(summary|analytics)\?/.test(String(path)));
+    expect(reports).toHaveLength(4);
+    expect(reports.every(([path]) => new URL(String(path), "http://local").searchParams.get("highlightFilter") === filter)).toBe(true);
+    expect(container.querySelector(".form-error")).toBeNull();
+    expect(new URL(container.querySelector<HTMLAnchorElement>(".export-link")!.href).searchParams.get("highlightFilter")).toBe(filter);
+    await act(async () => container.querySelector<HTMLButtonElement>(".monthly-finance__metrics button")!.click());
+    const detailsPath = request.mock.calls.find(([path]) => String(path).includes("/finance/details?"))![0];
+    expect(new URL(String(detailsPath), "http://local").searchParams.get("highlightFilter")).toBe(filter);
+    request.mockClear();
+    await click("查询");
+    expect(request.mock.calls.filter(([path]) => /\/finance\/(summary|analytics)\?/.test(String(path)))).toHaveLength(4);
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    request.mockClear();
+    await click("刷新");
+    expect(request.mock.calls.filter(([path]) => /\/finance\/(summary|analytics)\?/.test(String(path)))).toHaveLength(4);
+    expect(request.mock.calls.every(([path]) => new URL(String(path), "http://local").searchParams.get("highlightFilter") === filter)).toBe(true);
+  }
+});
+
+it("retries a failed monthly query using its applied highlight condition", async () => {
+  window.history.replaceState(null, "", "/finance?tab=summary");
+  await act(async () => root.render(<FinancePageClient />));
+  await act(async () => container.querySelector<HTMLInputElement>('.monthly-finance__filters input[type="checkbox"]')!.click());
+  request.mockRejectedValueOnce(new Error("Summary offline"));
+  await click("查询");
+  expect(container.querySelector(".monthly-finance__metrics")!.textContent).not.toContain("US$");
+  expect(container.querySelector(".export-link")).toBeNull();
+  expect(container.textContent).toContain("本月财务暂时无法读取");
+  request.mockClear();
+  await click("重新加载");
+  const reports = request.mock.calls.filter(([path]) => /\/finance\/(summary|analytics)\?/.test(String(path)));
+  expect(reports).toHaveLength(4);
+  expect(reports.every(([path]) => new URL(String(path), "http://local").searchParams.get("highlightFilter") === "ONLY_HIGHLIGHTED")).toBe(true);
+  expect(container.querySelector(".export-link")).not.toBeNull();
+});

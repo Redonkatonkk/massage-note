@@ -14,6 +14,7 @@ import type {
 } from "@massage-note/contracts";
 import {
   calculatePersonalClosingCashToSubmit,
+  calculateCashChange,
   calculatePersonalClosingPaymentDividends,
   calculateStoreIncome,
   canReadEmployeeFinance,
@@ -450,7 +451,7 @@ export class ClosingsService {
         },
         orderBy: { startAt: "asc" },
         include: {
-          employee: { select: { id: true, displayName: true, role: true } },
+          employee: { select: { id: true, displayName: true, role: true, dailySettlementEnabled: true } },
           serviceSnapshot: {
             select: { name: true, shortName: true },
           },
@@ -734,6 +735,18 @@ export class ClosingsService {
     const storeTotals = {
       ...workRecordTotals,
       ...safeGiftCardSaleTotals,
+      cashChangeCents: this.safeNumber(calculateCashChange({
+        giftCardSaleCashCents: giftCardSaleTotals.giftCardSaleCashCents,
+        records: records.filter(record => record.status === "CONFIRMED").map(record => ({
+          role: record.employee.role,
+          dailySettlementEnabled: record.employee.dailySettlementEnabled,
+          cashServiceCents: record.cashServiceCents ?? 0n,
+          cashAllocatedServiceWageCents: record.cashAllocatedServiceWageCents ?? 0n,
+          totalLargeFeeWageCents: record.totalLargeFeeWageCents,
+          cardTipCents: record.cardTipCents ?? 0n,
+          giftCardTipCents: record.giftCardTipCents ?? 0n,
+        })),
+      })),
       itemCount:
         workRecordTotals.recordCount + safeGiftCardSaleTotals.giftCardSaleCount,
       customerTotalPaidCents:

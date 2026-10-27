@@ -508,13 +508,18 @@ export class BoardsService {
       statistics.giftCardSalesAmountCents += sale.amountCents;
     }
     statistics.storeIncomeCents = calculateStoreIncome(statistics);
+    const mayReadStoreFinance = hasStoreCapability(actorMembership.role, "FINANCE_READ_STORE");
+    const snapshot = closing?.totalsSnapshotJson;
+    const snapshotStore = snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? snapshot.store : null;
+    const savedCashChange = snapshotStore && typeof snapshotStore === "object" && !Array.isArray(snapshotStore) ? snapshotStore.cashChangeCents : null;
+    const cashChangeCents = mayReadStoreFinance && typeof savedCashChange === "number" && Number.isSafeInteger(savedCashChange) ? savedCashChange : null;
     return {
       id: board?.id ?? null,
       storeId,
       businessDate,
       version: board?.version ?? 0,
       isClosed: Boolean(closing),
-      closing: personalHistoryMembershipId ? null : closing,
+      closing: mayReadStoreFinance ? closing : null,
       rows,
       giftCardSales: giftCardSales.sort((left, right) =>
         left.serialNumber.localeCompare(right.serialNumber, "zh-CN", {
@@ -525,6 +530,7 @@ export class BoardsService {
       nextGiftCardSerialNumber: String(store.nextGiftCardSerialNumber),
       statistics: {
         ...statistics,
+        cashChangeCents,
         recentClosedRevenue,
         revenueCents: calculateRevenue({ ...statistics, giftCardServiceCents }),
         totalIncomeCents: calculateBoardTotalIncome({

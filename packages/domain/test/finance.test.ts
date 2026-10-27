@@ -7,6 +7,7 @@ import {
   calculateDailyTurnover,
   calculateDailyCashSettlement,
   calculateDailyFullSettlement,
+  calculateCashChange,
   calculatePersonalClosingCashToSubmit,
   calculatePersonalClosingPaymentDividends,
   calculatePayrollBalance,
@@ -16,6 +17,29 @@ import {
   calculateWorkRecordFinance,
   type WorkRecordFinanceInput,
 } from "../src/index.js";
+
+describe("钱匣应有现金变化", () => {
+  const record = { role: "EMPLOYEE", dailySettlementEnabled: false, cashServiceCents: 5001n,
+    cashAllocatedServiceWageCents: 3001n, totalLargeFeeWageCents: 6001n, cardTipCents: 501n, giftCardTipCents: 200n };
+  it("混合付款只扣现金对应工资，卖卡现金直接进入钱匣并保留美分", () => {
+    expect(calculateCashChange({ records: [record], giftCardSaleCashCents: 1501n })).toBe(3501n);
+  });
+  it("每日结清只扣一次全部工资和非现金小费，允许现金净流出", () => {
+    expect(calculateCashChange({ records: [{ ...record, dailySettlementEnabled: true }], giftCardSaleCashCents: 0n })).toBe(-1701n);
+  });
+  it("店长经理的现金流入照计，任何结清设置都不扣工资", () => {
+    expect(calculateCashChange({ records: ["OWNER", "MANAGER"].map(role => ({ ...record, role, dailySettlementEnabled: true })), giftCardSaleCashCents: 0n })).toBe(10002n);
+  });
+  it("普通员工扣应发分配工资，不把应发限制为当日现金实收", () => {
+    expect(calculateCashChange({ records: [{ ...record, cashServiceCents: 100n }], giftCardSaleCashCents: 0n })).toBe(-2901n);
+  });
+  it("全额刷卡每日结清仍现金发工资，现金小费不进入公式", () => {
+    const cashTipsReceivedDirectly = { ...record, cashServiceCents: 0n, cashAllocatedServiceWageCents: 0n, cashTipCents: 9999n, dailySettlementEnabled: true };
+    expect(calculateCashChange({ records: [cashTipsReceivedDirectly], giftCardSaleCashCents: 0n })).toBe(-6702n);
+    expect(calculateCashChange({ records: [], giftCardSaleCashCents: 0n })).toBe(0n);
+    expect(calculateCashChange({ records: [record], giftCardSaleCashCents: 0n })).toBe(2000n);
+  });
+});
 
 describe("每日流水", () => {
   it("按折后大费加卖卡收入再减礼物卡核销计算", () => {

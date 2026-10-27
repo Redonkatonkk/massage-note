@@ -112,6 +112,7 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .board-overview .summary-strip > .overview-metric + .overview-metric { border-left: 1px solid var(--line); }
 .overview-metric .overview-metric__label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .8rem; font-weight: 400; line-height: 1.45; }
 .overview-metric__label .ui-icon { width: 16px; height: 16px; color: var(--muted); }
+.overview-metric__note { color: var(--muted); font-size: .75rem; line-height: 1.45; overflow-wrap: anywhere; }
 .board-overview .overview-metric > strong { margin-top: 0; color: var(--ink); font-size: clamp(1.35rem, 2vw, 1.8rem); font-weight: 600; letter-spacing: -.04em; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .board-summary-details > summary { color: var(--muted); font-weight: 500; }
 .board-section-heading { display: flex; align-items: center; gap: 9px; margin: 24px 0 12px; }
@@ -201,6 +202,10 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .monthly-finance__month-picker input { width: 100%; min-width: 0; min-height: var(--control-height); }
 .monthly-finance__actions .export-link { gap: 8px; }
 .monthly-finance__actions .ui-icon { width: 18px; height: 18px; }
+.monthly-finance__filters, .monthly-finance__highlight-options { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; }
+.monthly-finance__highlight-options label { display: inline-flex; align-items: center; gap: 8px; min-height: var(--control-height); color: var(--ink); cursor: pointer; }
+.monthly-finance__highlight-options input { width: 18px; height: 18px; margin: 0; accent-color: var(--brand); }
+.monthly-finance__filters p { margin: 0; color: var(--muted); font-size: .875rem; }
 .monthly-finance__metric, .monthly-finance__panel { border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); }
 .monthly-finance__metric { padding: 20px; }
 .monthly-finance__metric > button { width: 100%; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }

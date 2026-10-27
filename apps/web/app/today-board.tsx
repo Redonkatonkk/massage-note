@@ -20,7 +20,8 @@ import {
   dailyRankingActionLabel,
 } from "../lib/daily-ranking";
 import { financeClosingHref } from "../lib/navigation";
-import { formatUsd } from "../lib/money";
+import { formatUsd, formatUsdPrecise } from "../lib/money";
+import { useLanguage } from "./language-provider";
 import { newWorkRecord } from "../lib/new-work-record";
 import { hasConfirmedPaymentMismatch } from "../lib/record-payment";
 import { businessTimeToIso, currentStoreTime, displayTime } from "../lib/time";
@@ -74,6 +75,14 @@ interface TodayBoardProps {
 
 function money(cents: number | null): string {
   return cents === null ? "未填写" : formatUsd(cents);
+}
+
+function CashChangeMetric({ cents }: { cents: number | null }) {
+  const { locale } = useLanguage();
+  const value = cents == null ? "—" : `${cents > 0 ? "+" : cents < 0 ? "-" : ""}${formatUsdPrecise(Math.abs(cents), locale)}`;
+  return <OverviewMetric icon="wallet" label="现金变化" value={value}
+    title="现金大费实收＋卖卡现金实收－员工应发现金；店长经理不扣工资，现金小费不计入，按日结时保存的应发金额计算。"
+    note={cents == null ? "旧日结未记录，重新日结后生成" : "正数增加，负数减少"} />;
 }
 
 function PaymentBreakdown({
@@ -455,7 +464,7 @@ export function TodayBoard({
           <OverviewMetric icon="chart" title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
           {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric icon="clock" label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
           <OverviewMetric icon="discount" label="折扣总额" value={money(board.statistics.discountTotalCents)} />
-          <OverviewMetric icon="gift" title="礼物卡销售实际收款" label="礼物卡总额" value={money(board.statistics.giftCardSalesAmountCents)} />
+          {board.isClosed ? <CashChangeMetric cents={board.statistics.cashChangeCents} /> : <OverviewMetric icon="gift" title="礼物卡销售实际收款" label="礼物卡总额" value={money(board.statistics.giftCardSalesAmountCents)} />}
           <OverviewMetric icon="wallet" title="营业额＋现金小费＋刷卡小费－员工应得" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
           <OverviewMetric icon="trend" title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
         </div>
@@ -469,7 +478,7 @@ export function TodayBoard({
           <div className="summary-strip board-extra-metrics">
             {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric icon="clock" label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
             <OverviewMetric icon="discount" label="折扣总额" value={money(board.statistics.discountTotalCents)} />
-            <OverviewMetric icon="gift" title="礼物卡销售实际收款" label="礼物卡总额" value={money(board.statistics.giftCardSalesAmountCents)} />
+            {board.isClosed ? <CashChangeMetric cents={board.statistics.cashChangeCents} /> : <OverviewMetric icon="gift" title="礼物卡销售实际收款" label="礼物卡总额" value={money(board.statistics.giftCardSalesAmountCents)} />}
             <OverviewMetric icon="wallet" title="营业额＋现金小费＋刷卡小费－员工应得" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
           </div>
         </details>

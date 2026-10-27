@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](UI_DESIGN.zh-CN.md)**
 
-> Applies to version: `1.39.4` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
+> Applies to version: `1.40.0` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
 
 This article is the design basis for subsequent AI modifications to the front end and generation of salary settlement and individual daily statement images. Aesthetic judgment comes from store working scenes, user feedback on adjacent panels, highlight colors, member operations, phone reading and generated pictures, and existing implementations. New requirements from users are given priority; specific business rules are subject to [Product Document](../product/PRODUCT.md). For specific style values, check the source code entry below. Reason: The design rationale needs to be sustained and needs to be able to be revised with clear feedback.
 
@@ -150,7 +150,7 @@ The finance and settings page headers directly display the title and task descri
 ## Page layout
 
 
-Monthly Summary uses four equal cards for monthly turnover, store income, total income and service count. A wide daily trailing 30-day revenue comparison sits beside payment shares; the three-month metric table takes its own full-width row. Remove the employee earnings comparison panel and keep employee subtotals last. At 1100px use four metrics and paired trend/payment panels; below 600px use single-column metrics and labeled comparison records showing all three date ranges. Keep shared green semantic colors, system fonts, surfaces and radii. Reason: wider month comparisons improve reading and preserve the distinction between rolling averages, monthly results and individual reconciliation.
+Monthly Summary places a wrapping row of Non-highlighted / Highlighted native checkboxes and a Search button immediately below the month/export toolbar. Both options default to selected; edits apply only on Search, and an empty selection disables Search with an explanation. Keep export and report sections on the applied condition. Monthly Summary uses four equal cards for monthly turnover, store income, total income and service count. A wide daily trailing 30-day revenue comparison sits beside payment shares; the three-month metric table takes its own full-width row. Remove the employee earnings comparison panel and keep employee subtotals last. At 1100px use four metrics and paired trend/payment panels; below 600px use single-column metrics and labeled comparison records showing all three date ranges. Keep shared green semantic colors, system fonts, surfaces and radii. Reason: wider month comparisons improve reading and preserve the distinction between rolling averages, monthly results and individual reconciliation.
 
 
 Average revenue curves use the minimum and maximum of the visible series as their vertical bounds, excluding missing samples. Keep a positive span for a single or constant value. Mark the maximum with its amount, date, and series; recompute when curve choices change. Hover, focus, and click readouts also show the actual daily revenue, including zero and an explicit not-closed state; actual revenue does not enter the average scale. Other charts retain their existing axes. Reason: small changes in averages should remain readable without treating missing samples as zero.
@@ -230,3 +230,7 @@ The user selected the work record card version on 2026-10-12: Page, webpage PNG 
 ## Data operations
 
 The existing audit tab/link becomes Data operations. Owners first see peer export/import sections, followed by the original operation history; managers see history only. Demo export is selected by default and states that real amounts/dates remain. Import presents source/target, date range and counts before the full recovery download, saved-backup checkbox and exact target-name confirmation. Narrow screens stack the sections naturally. Reason: replacement needs a clear target and recovery path without changing familiar audit reading.
+
+### Homepage cash-change metric
+
+Before closing, keep Gift card total. After closing, replace that metric in both desktop and mobile layouts with Cash change from the server snapshot, using the shared metric surface and wallet icon. Show an explicit + or - before the currency and preserve cents; zero has no sign. Add the visible note that positive adds cash and negative removes cash. Missing older snapshots show a dash and explain that reopening and closing again generates the value. Reason: money-drawer reconciliation needs direction, exact cents and a clear distinction between missing history and zero.

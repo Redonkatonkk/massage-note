@@ -475,7 +475,7 @@ export interface BoardResponse {
   rows: BoardRow[];
   giftCardSales: GiftCardSale[];
   nextGiftCardSerialNumber: string;
-  statistics: BoardStatistics & { revenueCents: number; totalIncomeCents: number; recentClosedRevenue: { dayCount: number; averageCents: number } | null };
+  statistics: BoardStatistics & { cashChangeCents: number | null; revenueCents: number; totalIncomeCents: number; recentClosedRevenue: { dayCount: number; averageCents: number } | null };
   ranking: {
     enabled: boolean;
     rankedAt: string | null;
@@ -631,6 +631,7 @@ export interface ClosingWarning {
 }
 
 export interface ClosingTotals {
+  cashChangeCents?: number;
   itemCount: number;
   recordCount: number;
   grossFeeBaseCents: number;
@@ -650,6 +651,7 @@ export interface ClosingTotals {
 }
 
 export interface ClosingEmployeeTotals extends Omit<ClosingTotals,
+  | "cashChangeCents"
   | "itemCount"
   | "giftCardSaleCount"
   | "giftCardSaleCashCents"

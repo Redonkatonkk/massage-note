@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { User } from "@massage-note/database";
+import { deviceTimeContext } from "../src/common/device-time.js";
 import { BoardsService } from "../src/boards/boards.service.js";
 import type { PrismaService } from "../src/database/prisma.service.js";
 import type { StoreAccessService } from "../src/stores/store-access.service.js";
@@ -59,7 +60,7 @@ function averageFixture(role: "OWNER" | "MANAGER" | "EMPLOYEE" = "OWNER", closed
       ]),
     },
     businessDayClosing: {
-      findFirst: vi.fn().mockResolvedValue(closed ? { id: "closing" } : null),
+      findFirst: vi.fn().mockResolvedValue(closed ? { id: "closing", totalsSnapshotJson: {} as Record<string, unknown> } : null),
       findMany: vi.fn().mockResolvedValue([
         { businessDate: new Date("2026-09-12") },
         { businessDate: new Date("2026-08-14") },
@@ -156,4 +157,29 @@ it.each(["OWNER", "MANAGER", "EMPLOYEE"] as const)("%s 看板不读取店铺支�
   expect(result.statistics.totalIncomeCents).toBe(94001n);
   expect(result.statistics).not.toHaveProperty("dailyExpenseCents");
   expect(test.prisma.expenseItem.findMany).not.toHaveBeenCalled();
+});
+
+
+describe("日结现金变化快照读取", () => {
+  it.each([12345, -501, 0])("直接读取冻结的正负零快照，不根据记录重算：%s", async cashChangeCents => {
+    const test = averageFixture();
+    test.prisma.businessDayClosing.findFirst.mockResolvedValue({ id: "closing", totalsSnapshotJson: { store: { cashChangeCents } } });
+    expect((await test.read()).statistics.cashChangeCents).toBe(cashChangeCents);
+    test.prisma.workRecord.findMany.mockResolvedValue([]);
+    expect((await test.read()).statistics.cashChangeCents).toBe(cashChangeCents);
+    test.prisma.businessDayClosing.findFirst.mockResolvedValue(null);
+    expect((await test.read()).statistics.cashChangeCents).toBeNull();
+  });
+  it.each([{}, { store: {} }, { store: { cashChangeCents: "100" } }, { store: { cashChangeCents: 0.5 } }])("旧或无效快照保留缺失值：%j", async totalsSnapshotJson => {
+    const test = averageFixture();
+    test.prisma.businessDayClosing.findFirst.mockResolvedValue({ id: "closing", totalsSnapshotJson });
+    expect((await test.read()).statistics.cashChangeCents).toBeNull();
+  });
+  it.each(["2026-09-12T12:00:00Z", "2026-09-13T12:00:00Z"])("员工当天与历史请求均不返回全店指标或嵌套日结快照：%s", async now => {
+    const test = averageFixture("EMPLOYEE");
+    test.prisma.businessDayClosing.findFirst.mockResolvedValue({ id: "closing", totalsSnapshotJson: { store: { cashChangeCents: 12345 } } });
+    const board = await deviceTimeContext.run({ now: new Date(now), timezone: "UTC" }, test.read);
+    expect(board.statistics.cashChangeCents).toBeNull();
+    expect(board.closing).toBeNull();
+  });
 });

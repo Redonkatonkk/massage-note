@@ -1,4 +1,7 @@
 import type { FinanceAnalyticsResponse } from "@massage-note/contracts";
+import type { FinanceSummaryResponse } from "../../lib/types";
+
+export type MonthlyHighlightFilter = FinanceSummaryResponse["filters"]["highlightFilter"];
 
 export function shiftMonth(month: string, offset: number): string {
   const date = new Date(`${month}-01T00:00:00Z`);
@@ -25,8 +28,8 @@ export function monthlyRanges(month: string, today: string) {
   };
 }
 
-export function monthlyQuery(dateFrom: string, dateTo: string): URLSearchParams {
-  return new URLSearchParams({ dateFrom, dateTo, paymentMethod: "ALL", amountType: "ALL", highlightFilter: "ALL" });
+export function monthlyQuery(dateFrom: string, dateTo: string, highlightFilter: MonthlyHighlightFilter = "ALL"): URLSearchParams {
+  return new URLSearchParams({ dateFrom, dateTo, paymentMethod: "ALL", amountType: "ALL", highlightFilter });
 }
 
 /** A zero or negative baseline has no meaningful growth percentage. */

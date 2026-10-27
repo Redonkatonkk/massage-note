@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.39.4`
+> Applies to version: `1.40.0`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -519,3 +519,7 @@ The file has `format: "massage-note-store"`, `formatVersion: 1`, application ver
 Preview stores only actor, target, hashes, expiry and completion metadata. Confirm rechecks Owner access, exact target name, recovery download, file checksum and target fingerprint. A changed/expired preview returns 409; an invalid file returns 400. The same key and request replay the completed result. A fixed-order write lock covers mutable import tables, including background writers; reads continue, lock wait is bounded to five seconds, and the transaction to sixty seconds. Constraint failures roll back the entire replacement. Append-only audit/outbox privileges remain intact.
 
 The target store ID/code and current Owner account remain; the source Owner profile binds to that account, while other member profiles have no login binding. Sending is disabled, delivery credentials revoked, robot groups removed and pending AI changes cancelled. Original target audits remain, imported history is deduplicated by origin ID, and operation names remain readable through actor snapshots. One import audit triggers a full client refresh; imported historical rows do not generate individual events. See [operations](../operations/OPERATIONS.md#store-data-files) for backup scope and recovery instructions.
+
+### Homepage cash change
+
+`GET /stores/:storeId/boards/:businessDate` adds `statistics.cashChangeCents` as a signed integer number of cents or `null`. Owner/Manager receive the active closing's `totalsSnapshotJson.store.cashChangeCents`; open days, legacy snapshots and employee views return null. Employee views also return `closing: null`, including the current day. Store closing previews add `storeTotals.cashChangeCents`; new manual, forced and automatic closings save it atomically. The value uses expected wages, is independent of cash-settled status and remains fixed until the day is reopened and closed again. Cash receipts include gift-card cash sales; ordinary employee payouts use cash-allocated wages, daily-full payouts use all service wages plus card/gift-card tips. Owner/manager wages and cash tips are excluded. Reason: clients must distinguish missing history from zero and must not recalculate or expose store totals.

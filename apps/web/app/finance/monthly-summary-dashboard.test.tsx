@@ -33,9 +33,9 @@ function summary(month = "2026-10", end = "22", turnover = 12501): FinanceSummar
     balances: [],
   };
 }
-const onMonthChange = vi.fn(), onViewDetails = vi.fn(), onRetry = vi.fn();
-async function render(data: FinanceSummaryResponse | null = summary(), month = "2026-10", failed = false, canViewStoreTrend = true) {
-  await act(async () => root.render(<MonthlySummaryDashboard storeId="store" today="2026-10-22" month={month} summary={data} loading={!data && !failed} failed={failed} busy={false} canViewStoreTrend={canViewStoreTrend} onMonthChange={onMonthChange} onViewDetails={onViewDetails} onRetry={onRetry}><section data-subtotal>Employee subtotal</section></MonthlySummaryDashboard>));
+const onMonthChange = vi.fn(), onViewDetails = vi.fn(), onRetry = vi.fn(), onQuery = vi.fn();
+async function render(data: FinanceSummaryResponse | null = summary(), month = "2026-10", failed = false, canViewStoreTrend = true, highlightFilter: FinanceSummaryResponse["filters"]["highlightFilter"] = "ALL") {
+  await act(async () => root.render(<MonthlySummaryDashboard storeId="store" today="2026-10-22" month={month} highlightFilter={highlightFilter} summary={data} loading={!data && !failed} failed={failed} busy={false} canViewStoreTrend={canViewStoreTrend} onMonthChange={onMonthChange} onViewDetails={onViewDetails} onRetry={onRetry} onQuery={onQuery}><section data-subtotal>Employee subtotal</section></MonthlySummaryDashboard>));
 }
 const click = async (element: Element) => act(async () => { element.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
 
@@ -112,6 +112,43 @@ it("does not show a stale month's amounts, export or employee subtotal while swi
   expect(container.querySelector("[data-subtotal]")).toBeNull();
   expect(container.querySelector(".export-link")).toBeNull();
   expect(container.textContent).toContain("Loading monthly finances");
+});
+
+it("places both selected highlight options below the toolbar and applies them only on Search", async () => {
+  await render();
+  const form = container.querySelector<HTMLFormElement>(".monthly-finance__filters")!;
+  expect(container.querySelector(".monthly-finance__toolbar")!.nextElementSibling).toBe(form);
+  const [nonHighlighted, highlighted] = [...form.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+  expect([...form.querySelectorAll("label")].map(label => label.textContent)).toEqual(["Non-highlighted", "Highlighted"]);
+  expect([nonHighlighted!.checked, highlighted!.checked]).toEqual([true, true]);
+  request.mockClear();
+  await click(highlighted!);
+  expect(request).not.toHaveBeenCalled();
+  expect(onQuery).not.toHaveBeenCalled();
+  await click(form.querySelector("button")!);
+  expect(onQuery).toHaveBeenLastCalledWith("EXCLUDE_HIGHLIGHTED");
+  await click(nonHighlighted!);
+  expect(form.querySelector("button")!.disabled).toBe(true);
+  expect(form.querySelector('[role="status"]')!.textContent).toBe("Select at least one option.");
+  await act(async () => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(onQuery).toHaveBeenCalledTimes(1);
+  await click(highlighted!);
+  await click(form.querySelector("button")!);
+  expect(onQuery).toHaveBeenLastCalledWith("ONLY_HIGHLIGHTED");
+  await click(nonHighlighted!);
+  await click(form.querySelector("button")!);
+  expect(onQuery).toHaveBeenLastCalledWith("ALL");
+});
+
+it("hides amounts, export and subtotals from a different applied highlight filter", async () => {
+  const data = summary();
+  await render(data);
+  request.mockClear();
+  await render(data, "2026-10", false, true, "ONLY_HIGHLIGHTED");
+  expect(container.querySelector(".monthly-finance__metrics")!.textContent).not.toContain("$125.01");
+  expect(container.querySelector("[data-subtotal]")).toBeNull();
+  expect(container.querySelector(".export-link")).toBeNull();
+  expect(request).not.toHaveBeenCalled();
 });
 
 it("keeps comparison errors distinct from zero and supports retry", async () => {

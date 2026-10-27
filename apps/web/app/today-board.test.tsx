@@ -20,6 +20,8 @@ vi.mock("./employee-closing", () => ({ EmployeeClosingModal: () => null }));
 vi.mock("./closing-delivery-queue", () => ({ ClosingDeliveryQueueButton: () => null }));
 vi.mock("./ranking-explanation", () => ({ RankingExplanationButton: () => null }));
 const request = vi.mocked(apiRequest);
+const language = vi.hoisted(() => ({ locale: "zh-CN" as "zh-CN" | "en-US" }));
+vi.mock("./language-provider", () => ({ useLanguage: () => language }));
 const stats: BoardStatistics = { recordCount: 0, grossFeeBaseCents: 0, discountTotalCents: 0, discountedFeePerformanceCents: 0, totalTipCents: 0, totalLargeFeeWageCents: 0, employeeIncomeCents: 0, giftCardSaleCount: 0, giftCardCashCents: 0, giftCardCardCents: 0, giftCardSalesAmountCents: 0, giftCardRedemptionCents: 0, storeIncomeCents: 0 };
 const employee: StoreMember = { id: "employee", displayName: "Alexandria · 姓名很长的员工", role: "EMPLOYEE", isServiceProvider: true, employmentType: "PART_TIME", status: "ACTIVE", version: 1, defaultCommissionBps: 6000, closingDeliveryEnabled: false, closingDeliveryPhoneE164: null, closingImageLocale: null, deletedAt: null };
 const store: StoreDetails = { id: "store", storeCode: "123456", name: "门店", timezone: "America/New_York", businessCutoffLocal: "04:00", status: "ACTIVE", globalCommissionBps: 6000, mondayThursdayAutoDiscountEnabled: false, mondayThursdayAutoDiscountThresholdCents: 6000, mondayThursdayAutoDiscountAmountCents: 1000, giftCardAutoDiscountEnabled: false, giftCardAutoDiscountThresholdCents: 10000, giftCardAutoDiscountBps: 1000, closingDefaultLocale: "zh_CN", version: 1, ownerMembershipId: "owner", ownerMembership: null, automaticDispatchEnabled: false };
@@ -31,12 +33,13 @@ let props: ComponentProps<typeof TodayBoard>;
 const reload = vi.fn(async () => {});
 
 beforeEach(() => {
+  language.locale = "zh-CN";
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   request.mockReset(); request.mockResolvedValue({ deliveries: [], batchAllowed: true, batchBlockedReason: null, agent: null }); reload.mockClear();
   props = { wideLayout: false, heading: "门店", accountActions: null, dateControls: null, returnToToday: null, calendar: null, loadError: "", membership: { id: "owner", role: "OWNER", displayName: "店主", isServiceProvider: true, store }, store, currentDay: { businessDate: "2026-10-06", timezone: store.timezone, businessCutoffLocal: "04:00", serverTime: "2026-10-06T16:00:00.000Z" }, isCurrentBusinessDay: true, isFutureBusinessDay: false,
-    board: { id: "board", storeId: store.id, businessDate: "2026-10-06", version: 1, isClosed: false, rows: [{ id: "row", membershipId: employee.id, position: 0, isHidden: false, version: 1, membership: employee, shifts: [], workRecords: [], statistics: stats }], giftCardSales: [], nextGiftCardSerialNumber: "1", statistics: { ...stats, revenueCents: 0, totalIncomeCents: 0, recentClosedRevenue: null }, ranking: { enabled: false, rankedAt: null, explanation: null } },
+    board: { id: "board", storeId: store.id, businessDate: "2026-10-06", version: 1, isClosed: false, rows: [{ id: "row", membershipId: employee.id, position: 0, isHidden: false, version: 1, membership: employee, shifts: [], workRecords: [], statistics: stats }], giftCardSales: [], nextGiftCardSerialNumber: "1", statistics: { ...stats, revenueCents: 0, totalIncomeCents: 0, cashChangeCents: null, recentClosedRevenue: null }, ranking: { enabled: false, rankedAt: null, explanation: null } },
     catalog: { serviceItems: [{ id: "service", position: 0, fullName: "足部按摩", shortName: "足疗", priceOptions: [{ id: "option", durationMinutes: 60, priceCents: 6000, position: 0 }], defaultCommissionBps: null, isEnabled: true, deletedAt: null, version: 1 }], addonItems: [], discountItems: [] }, members: [employee], onReload: reload };
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
@@ -505,5 +508,39 @@ describe("详细记工新建与零实收", () => {
     await inputValue(document.querySelector<HTMLInputElement>('[aria-label="现金大费（美元）"]')!, "60");
     await click("保存");
     expect(writes()[0]).toEqual(["/stores/store/work-records/detailed", expect.objectContaining({ body: expect.objectContaining({ payment: expect.objectContaining({ cashServiceCents: 6000, cashTipCents: 0 }) }) })]);
+  });
+});
+
+
+describe("日结后的现金变化", () => {
+  it.each([true, false])("桌面和手机指标在日结后替换礼物卡总额，并在取消后恢复：%s", async wideLayout => {
+    props.wideLayout = wideLayout;
+    await render();
+    expect(container.textContent).toContain("礼物卡总额");
+    expect(container.textContent).not.toContain("现金变化");
+    props.board = { ...props.board, isClosed: true, statistics: { ...props.board.statistics, cashChangeCents: 12345 } };
+    await render();
+    expect(container.textContent).not.toContain("礼物卡总额");
+    const metrics = [...container.querySelectorAll(".overview-metric")].filter(node => node.textContent?.includes("现金变化"));
+    expect(metrics).toHaveLength(2);
+    for (const metric of metrics) expect(metric.querySelector("strong")?.textContent).toBe("+US$123.45");
+    props.board = { ...props.board, isClosed: false };
+    await render();
+    expect(container.textContent).toContain("礼物卡总额");
+    expect(container.textContent).not.toContain("现金变化");
+  });
+  it.each([[12345, "+$123.45"], [-12345, "-$123.45"], [0, "$0.00"], [null, "—"]] as const)("英文保留正负号、美分、零及旧日结缺失：%s", async (cashChangeCents, expected) => {
+    language.locale = "en-US";
+    props.board = { ...props.board, isClosed: true, statistics: { ...props.board.statistics, cashChangeCents } };
+    await render();
+    const metric = [...container.querySelectorAll(".overview-metric")].find(node => node.textContent?.includes("现金变化"))!;
+    expect(metric.querySelector("strong")?.textContent).toBe(expected);
+    expect(metric.textContent).toContain(cashChangeCents === null ? "旧日结未记录，重新日结后生成" : "正数增加，负数减少");
+  });
+  it("普通员工没有全店现金变化指标", async () => {
+    props.membership = { ...props.membership, role: "EMPLOYEE", id: employee.id };
+    props.board = { ...props.board, isClosed: true };
+    await render();
+    expect(container.querySelector(".board-overview")).toBeNull();
   });
 });

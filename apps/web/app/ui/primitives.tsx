@@ -28,6 +28,6 @@ export function BrandMark() {
   return <svg className="brand-mark" width="42" height="42" viewBox="0 0 42 42" fill="none" aria-hidden="true" focusable="false"><rect width="42" height="42" rx="14" fill="currentColor" /><path d="M11 28V14l10 10 10-10v14" stroke="var(--surface)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M21 10v3" stroke="var(--surface)" strokeWidth="2.5" strokeLinecap="round" /></svg>;
 }
 
-export function OverviewMetric({ label, value, icon, title }: { label: string; value: string; icon: IconName; title?: string }) {
-  return <div className="overview-metric" title={title}><span className="overview-metric__label"><UiIcon name={icon} />{label}</span><strong>{value}</strong></div>;
+export function OverviewMetric({ label, value, icon, title, note }: { label: string; value: string; icon: IconName; title?: string; note?: string }) {
+  return <div className="overview-metric" title={title}><span className="overview-metric__label"><UiIcon name={icon} />{label}</span><strong>{value}</strong>{note && <small className="overview-metric__note">{note}</small>}</div>;
 }

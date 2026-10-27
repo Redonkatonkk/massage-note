@@ -4,6 +4,13 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.40.0 — 2026-10-26
+
+- Replace the homepage Gift card total metric after closing with signed Cash change, including cash gift-card sales and expected employee payouts; exclude owner/manager wages and direct cash tips. Freeze the value in closing snapshots, preserve cents, protect store-only data and explain missing legacy values.
+- Add Non-highlighted / Highlighted checkboxes below the monthly summary toolbar, both selected by default, and a Search button that applies selections and reloads data even when criteria are unchanged. Require at least one selection.
+- Apply the highlight condition consistently to server summaries, three-month comparisons, averages, employee subtotals, details and CSV exports. Preserve manual refresh, retries and stale-response isolation; synchronize bilingual help and documentation.
+- NAS requires Web/API updates; no database migration or Messages agent update.
+
 ## 1.39.4 — 2026-10-26
 
 - Preserve actual Mac Messages receipts separately from task completion for daily closings, range settlements and employee summaries. Display delivered, sent without confirmation and Mac-reported failure consistently.

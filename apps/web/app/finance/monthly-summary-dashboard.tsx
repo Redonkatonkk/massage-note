@@ -9,7 +9,7 @@ import type { FinanceSummaryResponse } from "../../lib/types";
 import { useLanguage } from "../language-provider";
 import { UiIcon, type IconName } from "../ui/primitives";
 import { Chart } from "./analytics-chart";
-import { monthlyAverageDays, monthlyChange, monthlyComparisonPeriods, monthlyQuery, monthlyRanges, shiftMonth } from "./monthly-summary";
+import { monthlyAverageDays, monthlyChange, monthlyComparisonPeriods, monthlyQuery, monthlyRanges, shiftMonth, type MonthlyHighlightFilter } from "./monthly-summary";
 
 type Totals = FinanceSummaryResponse["totals"];
 type Metric = { key: keyof Totals; label: string; caption: string; icon: IconName };
@@ -30,10 +30,11 @@ function useMonthlyRequest<T>(path: string | null, revision: FinanceSummaryRespo
   return { data: scoped?.data ?? null, error: scoped?.error ?? "", loading: Boolean(path && revision && (!scoped || scoped.loading)), retry: () => setAttempt(value => value + 1) };
 }
 
-export function MonthlySummaryDashboard({ storeId, today, month, summary, loading, failed, busy, canViewStoreTrend, onMonthChange, onRetry, onViewDetails, children }: {
+export function MonthlySummaryDashboard({ storeId, today, month, highlightFilter, summary, loading, failed, busy, canViewStoreTrend, onMonthChange, onRetry, onQuery, onViewDetails, children }: {
   storeId: string;
   today: string;
   month: string;
+  highlightFilter: MonthlyHighlightFilter;
   summary: FinanceSummaryResponse | null;
   loading: boolean;
   failed: boolean;
@@ -41,20 +42,24 @@ export function MonthlySummaryDashboard({ storeId, today, month, summary, loadin
   canViewStoreTrend: boolean;
   onMonthChange: (month: string) => void;
   onRetry: () => void;
+  onQuery: (filter: MonthlyHighlightFilter) => void;
   onViewDetails: (title: string) => void;
   children?: ReactNode;
 }) {
   const { locale } = useLanguage();
   const t = (zh: string, en: string) => locale === "en-US" ? en : zh;
   const money = (value: number) => formatUsdPrecise(value, locale);
+  const [includeNonHighlighted, setIncludeNonHighlighted] = useState(highlightFilter !== "ONLY_HIGHLIGHTED");
+  const [includeHighlighted, setIncludeHighlighted] = useState(highlightFilter !== "EXCLUDE_HIGHLIGHTED");
+  const hasSelection = includeNonHighlighted || includeHighlighted;
   const ranges = monthlyRanges(month, today);
-  // A month switch must never label the previous month's response as the new month.
-  const current = summary?.filters.dateFrom === ranges.dateFrom && summary.filters.dateTo === ranges.dateTo ? summary : null;
+  // Keep amounts, exports and subtotals scoped to the applied month and highlight filter.
+  const current = summary?.filters.dateFrom === ranges.dateFrom && summary.filters.dateTo === ranges.dateTo && summary.filters.highlightFilter === highlightFilter ? summary : null;
   const periods = monthlyComparisonPeriods(month, today);
   const previousPeriod = periods[1]!, earlierPeriod = periods[2]!;
-  const previousResult = useMonthlyRequest<FinanceSummaryResponse>(`/stores/${storeId}/finance/summary?${monthlyQuery(previousPeriod.dateFrom, previousPeriod.dateTo)}`, current);
-  const earlierResult = useMonthlyRequest<FinanceSummaryResponse>(`/stores/${storeId}/finance/summary?${monthlyQuery(earlierPeriod.dateFrom, earlierPeriod.dateTo)}`, current);
-  const averageResult = useMonthlyRequest<FinanceAnalyticsResponse>(canViewStoreTrend ? `/stores/${storeId}/finance/analytics?${new URLSearchParams({ dateFrom: ranges.previousFrom, dateTo: ranges.dateTo, highlightFilter: "ALL" })}` : null, current);
+  const previousResult = useMonthlyRequest<FinanceSummaryResponse>(`/stores/${storeId}/finance/summary?${monthlyQuery(previousPeriod.dateFrom, previousPeriod.dateTo, highlightFilter)}`, current);
+  const earlierResult = useMonthlyRequest<FinanceSummaryResponse>(`/stores/${storeId}/finance/summary?${monthlyQuery(earlierPeriod.dateFrom, earlierPeriod.dateTo, highlightFilter)}`, current);
+  const averageResult = useMonthlyRequest<FinanceAnalyticsResponse>(canViewStoreTrend ? `/stores/${storeId}/finance/analytics?${new URLSearchParams({ dateFrom: ranges.previousFrom, dateTo: ranges.dateTo, highlightFilter })}` : null, current);
   const previous = previousResult.data;
   const metrics: Metric[] = [
     { key: "totalTurnoverCents", label: t("月度总流水", "Monthly turnover"), caption: t("折后大费＋卖卡－礼卡核销", "Discounted services + card sales − redemptions"), icon: "wallet" },
@@ -113,9 +118,20 @@ export function MonthlySummaryDashboard({ storeId, today, month, summary, loadin
           <button type="button" className="secondary-action" disabled={busy || month >= today.slice(0, 7)} aria-label={t("下一个月", "Next month")} onClick={() => onMonthChange(shiftMonth(month, 1))}>›</button>
         </div>
         {month !== today.slice(0, 7) && <button className="secondary-action" type="button" disabled={busy} onClick={() => onMonthChange(today.slice(0, 7))}>{t("回到本月", "This month")}</button>}
-        {current && !isPortfolioDemo && <a className="primary-action export-link" href={`${apiBase}/stores/${storeId}/finance/export.csv?${monthlyQuery(ranges.dateFrom, ranges.dateTo)}`} download><UiIcon name="log" />{t("导出本月", "Export month")}</a>}
+        {current && !isPortfolioDemo && <a className="primary-action export-link" href={`${apiBase}/stores/${storeId}/finance/export.csv?${monthlyQuery(ranges.dateFrom, ranges.dateTo, highlightFilter)}`} download><UiIcon name="log" />{t("导出本月", "Export month")}</a>}
       </div>
     </header>
+    <form className="monthly-finance__filters" onSubmit={event => {
+      event.preventDefault();
+      if (hasSelection && !busy && !loading) onQuery(includeNonHighlighted && includeHighlighted ? "ALL" : includeHighlighted ? "ONLY_HIGHLIGHTED" : "EXCLUDE_HIGHLIGHTED");
+    }}>
+      <div className="monthly-finance__highlight-options" role="group" aria-label={t("高亮记工筛选", "Record highlight filter")}>
+        <label><input type="checkbox" checked={includeNonHighlighted} disabled={busy || loading} onChange={event => setIncludeNonHighlighted(event.target.checked)} />{t("非高亮", "Non-highlighted")}</label>
+        <label><input type="checkbox" checked={includeHighlighted} disabled={busy || loading} onChange={event => setIncludeHighlighted(event.target.checked)} />{t("高亮", "Highlighted")}</label>
+      </div>
+      <button className="secondary-action" type="submit" disabled={busy || loading || !hasSelection}>{t("查询", "Search")}</button>
+      {!hasSelection && <p role="status">{t("请至少选择一项。", "Select at least one option.")}</p>}
+    </form>
     <div className="monthly-finance__context"><p>{t("对比范围", "Comparison")}: {periods.slice(1).map(period => `${period.dateFrom} — ${period.dateTo}`).join(" · ")}{ranges.partial ? t(" · 同期（按日历日期对齐）", " · Same day-of-month ranges") : t(" · 完整自然月", " · Full calendar months")}</p><p>{t("汇总金额含未日结记录；均线仅使用已日结样本。总收入尚未扣除固定支出。", "Summary amounts include open days; averages use closed-day samples only. Total income is before operating expenses.")}</p></div>
     {current && current.totals.incompleteRecordCount > 0 && <div className="monthly-finance__status"><p>{t(`${current.totals.incompleteRecordCount} 单尚未结账，收入可能继续变化。`, `${current.totals.incompleteRecordCount} services await payment; amounts may change.`)}</p><button className="secondary-action" type="button" disabled={busy} onClick={() => onViewDetails(t("待结账记工", "Pending service records"))}>{t("核对记工", "Review services")}</button></div>}
     {failed && <div className="monthly-finance__status" role="alert"><p>{t("本月财务暂时无法读取。", "Monthly finances are unavailable.")}</p><button type="button" className="secondary-action" onClick={onRetry}>{t("重新加载", "Retry")}</button></div>}

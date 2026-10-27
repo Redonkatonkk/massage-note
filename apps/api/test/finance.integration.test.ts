@@ -10,6 +10,7 @@ import { deviceTimeContext } from "../src/common/device-time.js";
 import { IdempotencyService } from "../src/common/idempotency.service.js";
 import { PrismaService } from "../src/database/prisma.service.js";
 import { CashSettlementsService } from "../src/finance/cash-settlements.service.js";
+import { BoardsService } from "../src/boards/boards.service.js";
 import { ClosingsService } from "../src/finance/closings.service.js";
 import { ClosingDeliveriesService } from "../src/finance/closing-deliveries.service.js";
 import { FinanceQueriesService } from "../src/finance/finance-queries.service.js";
@@ -27,6 +28,7 @@ const closingDeliveries = new ClosingDeliveriesService(prisma, access, closings)
 const cash = new CashSettlementsService(prisma, access, idempotency);
 const payroll = new PayrollSettlementsService(prisma, access, idempotency);
 const finance = new FinanceQueriesService(prisma, access);
+const boards = new BoardsService(prisma, access, idempotency);
 const storeId = randomUUID();
 const ownerId = randomUUID();
 const managerId = randomUUID();
@@ -114,6 +116,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
 
   afterAll(async () => {
     if (enabled) {
+      await prisma.giftCardSale.deleteMany({ where: { storeId } });
       await prisma.payrollSettlement.deleteMany({ where: { storeId } });
       await prisma.dailyCashSettlement.deleteMany({ where: { storeId } });
       await prisma.paymentBreakdown.deleteMany({
@@ -1069,6 +1072,57 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     await payroll.remove(actor(managerId), storeId, created.id, { version: 4 }, `${key}-cleanup`, key);
     const final = await finance.myBalance(actor(employeeId), storeId);
     expect(final.payrollPaidCents).toBe(before.payrollPaidCents);
+  });
+
+
+  it("现金变化保存冻结快照，结清状态不影响，取消重结使用新设置且只计有效已确认记录", async () => {
+    const date = "2026-02-15";
+    await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { dailySettlementEnabled: false } });
+    const created = await workRecords.create(actor(managerId), storeId, {
+      employeeMembershipId, serviceItemId, startAt: `${date}T15:00:00.000Z`,
+    }, "cash-change-create", "cash-change");
+    await workRecords.confirmPayment(actor(managerId), storeId, created.id, {
+      version: created.version, cashServiceCents: 5000, cardServiceCents: 5000,
+      cashTipCents: 999, cardTipCents: 501, giftCardTipCents: 200, giftCardSerialNumber: "cash-change-card",
+    }, "cash-change-payment", "cash-change");
+    const sale = { storeId, businessDate: new Date(date), serialNumber: "cash-change-sale", serialNumberNormalized: "cash-change-sale",
+      faceValueCents: 4001n, cashCents: 1501n, cardCents: 2500n, amountCents: 4001n,
+      operatorMembershipId: managerMembershipId, createdBy: managerId, updatedBy: managerId };
+    await prisma.giftCardSale.create({ data: sale });
+    await prisma.giftCardSale.create({ data: { ...sale, serialNumber: "cash-change-deleted", serialNumberNormalized: "cash-change-deleted",
+      deletedAt: new Date(), deletedBy: managerId, deleteReason: "test deleted sale" } });
+    const read = (userId = managerId) => boards.getBoard(actor(userId), storeId, date);
+    expect((await read()).statistics.cashChangeCents).toBeNull();
+    const first = await closings.close(actor(managerId), storeId, date, { force: false }, "cash-change-close", "cash-change");
+    expect(first.preview.storeTotals.cashChangeCents).toBe(3501);
+    expect(first.closing.totalsSnapshotJson).toMatchObject({ store: { cashChangeCents: 3501 } });
+    expect((await read(ownerId)).statistics.cashChangeCents).toBe(3501);
+    const employeeView = await read(employeeId);
+    expect(employeeView.statistics.cashChangeCents).toBeNull();
+    expect(employeeView.closing).toBeNull();
+    await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { dailySettlementEnabled: true } });
+    expect((await read()).statistics.cashChangeCents).toBe(3501);
+    const row = (await cash.list(actor(managerId), storeId, date)).rows[0]!;
+    await cash.settle(actor(managerId), storeId, date, employeeMembershipId, { version: row.version, dailySettlementEnabled: true }, "cash-change-settle", "cash-change");
+    expect((await read()).statistics.cashChangeCents).toBe(3501);
+    await closings.cancel(actor(managerId), storeId, date, { version: first.closing.version }, "cash-change-cancel", "cash-change");
+    expect((await read()).statistics.cashChangeCents).toBeNull();
+    const pending = await workRecords.create(actor(managerId), storeId, {
+      employeeMembershipId, serviceItemId, startAt: `${date}T17:00:00.000Z`,
+    }, "cash-change-pending", "cash-change");
+    const removed = await workRecords.create(actor(managerId), storeId, {
+      employeeMembershipId, serviceItemId, startAt: `${date}T18:00:00.000Z`,
+    }, "cash-change-removed", "cash-change");
+    await workRecords.confirmPayment(actor(managerId), storeId, removed.id, {
+      version: removed.version, cashServiceCents: 10000, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0,
+    }, "cash-change-removed-payment", "cash-change");
+    await prisma.workRecord.update({ where: { id: removed.id }, data: { deletedAt: new Date(), deletedBy: managerId, deleteReason: "test deleted record" } });
+    const second = await closings.close(actor(managerId), storeId, date, { force: true, forceReason: "test pending excluded" }, "cash-change-reclose", "cash-change");
+    expect(second.preview.warnings).toEqual(expect.arrayContaining([expect.objectContaining({ recordIds: expect.arrayContaining([pending.id]) })]));
+    expect((await read()).statistics.cashChangeCents).toBe(-200);
+    await prisma.businessDayClosing.update({ where: { id: second.closing.id }, data: { totalsSnapshotJson: { store: {} } } });
+    expect((await read()).statistics.cashChangeCents).toBeNull();
+    await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { dailySettlementEnabled: false } });
   });
 
 });

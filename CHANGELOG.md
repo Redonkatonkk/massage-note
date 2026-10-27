@@ -4,6 +4,12 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.41.0 — 2026-10-27
+
+- Restore a service dropdown between quick-entry start time and duration, defaulting to the first enabled service in Store settings order. Show that service’s durations and save its catalog price/commission snapshots as pending payment; carry the selection into Detailed entry.
+- Cover service ordering, switching, unavailable services, placeholders, duplicate-write protection and detailed-entry defaults in component regressions; synchronize bilingual help and documentation.
+- NAS requires a Web update; no API contract, database migration or Messages agent changes.
+
 ## 1.40.2 — 2026-10-27
 
 - Standardize USD amounts to the $ symbol in both languages across pages, charts, expense totals, shared settlement images and AI answers. Preserve rounding, cents, signs and stored amounts.

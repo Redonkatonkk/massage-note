@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](DEVELOPMENT.zh-CN.md)**
 
-> Applies to version: `1.40.2`
+> Applies to version: `1.41.0`
 
 This guide describes the current repository’s development workflow. See [`PRODUCT.md`](../product/PRODUCT.md) for business rules, [`ARCHITECTURE.md`](ARCHITECTURE.md) for code boundaries, and [`API.md`](API.md) for HTTP details.
 

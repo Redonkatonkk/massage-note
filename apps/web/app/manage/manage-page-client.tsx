@@ -391,7 +391,7 @@ function CatalogPanel({ storeId, canManage, catalog, busy, run, reload }: { stor
   return <section className="manage-section"><section className="manage-card">
     <div className="manage-heading"><div><p className="eyebrow">价格与规则</p><h2>项目目录</h2></div><span className="status-chip">{active} 项启用</span></div>
     <p className="field-help">按分类维护服务。调整项目顺序后，今日记工与详情选择框会同步采用新顺序。</p>
-    <CatalogGroup title="主要项目" description="一个项目可维护多组时长与价格；快速记工合并全部时长，项目及价格在详情补选。" type="SERVICE" items={catalog.serviceItems} emptyText="还没有主要项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
+    <CatalogGroup title="主要项目" description="一个项目可维护多组时长与价格；快速记工默认选择首个启用项目，显示所选项目的时长。" type="SERVICE" items={catalog.serviceItems} emptyText="还没有主要项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
     <CatalogGroup title="额外项目" description="维护热石等服务加项的金额、时长与默认提成。" type="ADDON" items={catalog.addonItems} emptyText="还没有额外项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
     <CatalogGroup title="折扣项目" description="可设置固定金额或百分比折扣；折扣由店铺承担，不会降低员工项目提成。" type="DISCOUNT" items={catalog.discountItems} emptyText="还没有折扣项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
   </section></section>;

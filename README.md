@@ -6,7 +6,7 @@
 
 **[Latest release](https://github.com/Redonkatonkk/massage-note/releases/latest)** · **[Changelog](CHANGELOG.md)**
 
-Current version: `1.40.2`
+Current version: `1.41.0`
 
 A full-stack TypeScript application for massage shop operations in the United States, with an English/Chinese interface for phones, tablets, and desktops. It connects service records, split payments, employee commissions, daily closing, payroll tracking, and business analytics in one auditable workflow.
 

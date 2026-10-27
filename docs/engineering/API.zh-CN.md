@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.40.2`
+> 适用版本：`1.41.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -143,9 +143,9 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 创建预设项目或在记工详情补选预设项目时提交 `serviceItemId` 和 `serviceDurationMinutes`。若项目只有一个档位，服务端为旧客户端兼容可补选该档位；项目有多个档位时缺少时长会返回 `SERVICE_PRICE_OPTION_REQUIRED`。更新记工且没有明确提交 `endAt` 时，服务端会在修改 `startAt` 后保留当前实际工作时长，并按主要项目及额外项目新旧配置分钟数的总差值调整结束时间；明确提交的 `endAt` 仍优先。记工保存的仍是名称、时长、价格和提成快照，后续修改或删除价格档位不会改变历史记录。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
-快速记工提交 `{ employeeMembershipId, startAt, durationMinutes: 120 }`，可附带 `isHighlighted` 与 `isDispatchExcluded`。`durationMinutes` 为 1–720 的整数，未知时长可明确传 `null`，不得与 `serviceItemId`、`serviceDurationMinutes`、`customService` 或占位模式混用。保存为 `PENDING_PAYMENT`，`serviceSnapshot: null`，按时长计算结束时间，不建立项目、提成、加项、折扣或付款快照。数据库必填金额列暂存零，客户端显示未填写，不表示免费服务。零实收的 PATCH/save 可以不选项目；未选项目直接 confirm-payment 返回 `SERVICE_SELECTION_REQUIRED`。版本、权限、营业日锁、幂等与原子保存沿用现有规则。个人日结记录通过可选的 `serviceSelected: false` 让当前模板显示未填写价格，缺少该标记的旧快照保持原显示。保留原因：仅时长记工明确了服务时段，但尚未形成财务事实。
+Web 快速记工下拉框默认选择目录顺序中的首个启用项目，提交 `{ employeeMembershipId, startAt, serviceItemId, serviceDurationMinutes }`，可附带 `isHighlighted` 与 `isDispatchExcluded`；复用预设项目路径保存价格及提成快照，保持待结账，占位不提交项目字段。无需接口契约变更。仅时长 API 仍支持提交 `{ employeeMembershipId, startAt, durationMinutes: 120 }`，可附带 `isHighlighted` 与 `isDispatchExcluded`。`durationMinutes` 为 1–720 的整数，未知时长可明确传 `null`，不得与 `serviceItemId`、`serviceDurationMinutes`、`customService` 或占位模式混用。保存为 `PENDING_PAYMENT`，`serviceSnapshot: null`，按时长计算结束时间，不建立项目、提成、加项、折扣或付款快照。数据库必填金额列暂存零，客户端显示未填写，不表示免费服务。零实收的 PATCH/save 可以不选项目；未选项目直接 confirm-payment 返回 `SERVICE_SELECTION_REQUIRED`。版本、权限、营业日锁、幂等与原子保存沿用现有规则。个人日结记录通过可选的 `serviceSelected: false` 让当前模板显示未填写价格，缺少该标记的旧快照保持原显示。保留原因：仅时长记工明确了服务时段，但尚未形成财务事实。
 
-“详细记工”仅打开本地表单，保存时调用 `POST /stores/:storeId/work-records/detailed`：`create` 沿用创建字段，支持仅时长或未知时长的待结账记录，`details` 沿用 PATCH 且 `version: 1`，可选 `payment` 沿用付款契约且 `version: 1`。服务端在同一事务创建并保存全部详情及付款，失败不留下记录；省略付款时即使未选项目也保存待结账。Web 新建详情仍预填 60 分钟；`durationMinutes: null` 让 `endAt` 与 `actualDurationMinutes` 保留空值，不虚构时长。未选项目时修改备注等信息仍不创建项目快照、也不补算未知时间；有实收须先补选项目。既有 `/work-records/:recordId/save` 允许现金／刷卡／礼物卡大费和小费全零，此时设为 `PENDING_PAYMENT`，删除付款明细，清空收款、小费、收入和现金分配字段及人工结算标记；项目／提成快照保留，普通写入仍回退相关现金结清。礼物卡有实收时仍确认付款；显式 confirm-payment 保留原契约。保留原因：完整新建及已付款退回待结账须保持原子、版本、权限、日结锁和幂等。
+“详细记工”仅打开本地表单，保存时调用 `POST /stores/:storeId/work-records/detailed`：`create` 沿用创建字段，支持仅时长或未知时长的待结账记录，`details` 沿用 PATCH 且 `version: 1`，可选 `payment` 沿用付款契约且 `version: 1`。服务端在同一事务创建并保存全部详情及付款，失败不留下记录；省略付款时即使未选项目也保存待结账。Web 新建详情沿用快速记工所选项目，有 60 分钟档位时优先使用，否则使用该项目第一档，并同步报价及结束时间；无项目时仍预填 60 分钟。`durationMinutes: null` 让 `endAt` 与 `actualDurationMinutes` 保留空值，不虚构时长。未选项目时修改备注等信息仍不创建项目快照、也不补算未知时间；有实收须先补选项目。既有 `/work-records/:recordId/save` 允许现金／刷卡／礼物卡大费和小费全零，此时设为 `PENDING_PAYMENT`，删除付款明细，清空收款、小费、收入和现金分配字段及人工结算标记；项目／提成快照保留，普通写入仍回退相关现金结清。礼物卡有实收时仍确认付款；显式 confirm-payment 保留原契约。保留原因：完整新建及已付款退回待结账须保持原子、版本、权限、日结锁和幂等。
 
 店铺设置可通过同一次 `PATCH /stores/:storeId` 写入周一至周四自动折扣；三个字段必须一起提交。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 

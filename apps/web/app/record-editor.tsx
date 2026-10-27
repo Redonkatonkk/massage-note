@@ -47,6 +47,7 @@ interface RecordEditorProps {
   >;
   record: WorkRecord;
   isNew?: boolean;
+  initialServiceItemId?: string | undefined;
   catalog: CatalogResponse;
   members: StoreMember[];
   canManage: boolean;
@@ -142,6 +143,7 @@ export function RecordEditor({
   autoDiscountSettings,
   record,
   isNew = false,
+  initialServiceItemId,
   catalog,
   members,
   canManage,
@@ -158,9 +160,12 @@ export function RecordEditor({
   const dayClosed = closedBusinessDate !== null;
   const [recordVersion, setRecordVersion] = useState(record.version);
   const service = record.serviceSnapshot;
-  const initialServiceDuration = service?.durationMinutes ?? record.actualDurationMinutes;
+  const initialItem = isNew ? catalog.serviceItems.find((item) => item.id === initialServiceItemId && item.isEnabled && !item.deletedAt) : undefined;
+  const initialOption = initialItem ? defaultServicePriceOption(initialItem.priceOptions) : undefined;
+  const initialServiceDuration = service?.durationMinutes ?? initialOption?.durationMinutes ?? record.actualDurationMinutes;
   const initialStart = localDateTimeValue(record.startAt, timezone);
-  const initialEnd = record.endAt ? localDateTimeValue(record.endAt, timezone) : "";
+  const initialEnd = initialOption ? sameDayRecordTimeAfterDuration(initialStart, initialOption.durationMinutes, timezone)
+    : record.endAt ? localDateTimeValue(record.endAt, timezone) : "";
   const initialAddons = useMemo<AddonDraft[]>(
     () =>
       record.addonSnapshots.map((item) => ({
@@ -190,16 +195,16 @@ export function RecordEditor({
   const [startAt, setStartAt] = useState(initialStart);
   const [endAt, setEndAt] = useState(() => automaticRecordEnd(initialStart, initialEnd, (initialServiceDuration ?? 0) + initialAddons.reduce((sum, item) => sum + addonDurationValue(item), 0), timezone));
   const [serviceChoice, setServiceChoice] = useState(
-    service ? service.sourceServiceItemId ?? "__custom__" : "__unassigned__",
+    service ? service.sourceServiceItemId ?? "__custom__" : initialOption ? initialItem!.id : "__unassigned__",
   );
-  const [serviceName, setServiceName] = useState(service?.name ?? "");
-  const [serviceShortName, setServiceShortName] = useState(service?.shortName ?? "");
+  const [serviceName, setServiceName] = useState(service?.name ?? initialItem?.fullName ?? "");
+  const [serviceShortName, setServiceShortName] = useState(service?.shortName ?? initialItem?.shortName ?? "");
   const [serviceDuration, setServiceDuration] = useState(
     initialServiceDuration?.toString() ?? "",
   );
   const lastValidServiceDuration = useRef(initialServiceDuration ?? 0);
   const [serviceAmount, setServiceAmount] = useState(
-    dollars(service?.amountCents ?? null),
+    dollars(service?.amountCents ?? initialOption?.priceCents ?? null),
   );
   const [serviceCommission, setServiceCommission] = useState(
     service ? (service.commissionBps / 100).toFixed(2) : "",

@@ -146,6 +146,7 @@ export function TodayBoard({
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [quickEmployeeId, setQuickEmployeeId] = useState<string | null>(null);
+  const [quickServiceId, setQuickServiceId] = useState("");
   const [quickHighlighted, setQuickHighlighted] = useState(false);
   const [quickDispatchExcluded, setQuickDispatchExcluded] = useState(false);
   const [startTimeValid, setStartTimeValid] = useState(true);
@@ -213,10 +214,12 @@ export function TodayBoard({
     return () => window.clearInterval(timer);
   }, [currentDay.serverTime, isCurrentBusinessDay]);
 
-  const quickDurations = useMemo(() => [...new Set(catalog.serviceItems
+  const quickServices = useMemo(() => catalog.serviceItems
     .filter((service) => service.isEnabled && !service.deletedAt)
-    .flatMap((service) => service.priceOptions.map((option) => option.durationMinutes)))]
-    .sort((a, b) => a - b), [catalog.serviceItems]);
+    .sort((a, b) => a.position - b.position), [catalog.serviceItems]);
+  const quickService = quickServices.find((service) => service.id === quickServiceId) ?? quickServices[0];
+  const quickDurations = [...new Set(quickService?.priceOptions.map((option) => option.durationMinutes) ?? [])]
+    .sort((a, b) => a - b);
 
   const visibleRows = useMemo(
     () => board.rows.filter((row) => !row.isHidden || !canManage || showHidden),
@@ -363,7 +366,8 @@ export function TodayBoard({
         employeeMembershipId: quickEmployeeId,
         startAt,
         ...(durationMinutes !== null ? {
-          durationMinutes,
+          serviceItemId: quickService!.id,
+          serviceDurationMinutes: durationMinutes,
           isHighlighted: quickHighlighted,
           isDispatchExcluded: quickDispatchExcluded,
         } : { isPlaceholder: true }),
@@ -545,7 +549,7 @@ export function TodayBoard({
                   <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
                       if (record === null) return (
-                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickHighlighted(false); setQuickDispatchExcluded(false); setQuickEmployeeId(row.membershipId); }}>
+                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickHighlighted(false); setQuickDispatchExcluded(false); setQuickEmployeeId(row.membershipId); }}>
                           <span aria-hidden="true"><UiIcon name="plus" /></span>新增记工
                         </button>
                       );
@@ -675,6 +679,11 @@ export function TodayBoard({
             <div className="quick-modal-content">
               <label className="field-label" htmlFor="start-time">开始时间</label>
               <WorkTimeInput id="start-time" value={startTime} onChange={setStartTime} onValidityChange={setStartTimeValid} />
+              <label className="field-label" htmlFor="quick-service">选择项目</label>
+              <select id="quick-service" value={quickService?.id ?? ""} disabled={busy || board.isClosed || quickServices.length === 0} onChange={(event) => setQuickServiceId(event.target.value)}>
+                {quickServices.length === 0 && <option value="">没有可用项目，请先在项目设置中添加。</option>}
+                {quickServices.map((service) => <option key={service.id} value={service.id}>{service.fullName}</option>)}
+              </select>
               <fieldset className={`duration-picker${quickDurations.length === 3 ? " duration-picker--three-options" : ""}`} disabled={busy || board.isClosed}>
                 <legend>选择时长</legend>
                 {quickDurations.map((durationMinutes) => (
@@ -684,7 +693,7 @@ export function TodayBoard({
                 ))}
                 {quickDurations.length === 0 && <p className="empty-note">没有可用时长，请先在项目设置中添加。</p>}
               </fieldset>
-              <p className="modal-note">点击时长即保存记工，点击占位即保存占位；请先调整时间及标记。付款和小费可稍后在详情补充。</p>
+              <p className="modal-note">请先选择项目并调整时间及标记，点击时长即保存记工，点击占位即保存占位。付款和小费可稍后在详情补充。</p>
               {error && <p className="form-error" role="alert">{error}</p>}
             </div>
           </section>
@@ -705,6 +714,7 @@ export function TodayBoard({
           autoDiscountSettings={store}
           record={(creatingRecord ?? editingRecord)!}
           isNew={creatingRecord !== null}
+          initialServiceItemId={creatingRecord ? quickService?.id : undefined}
           catalog={catalog}
           members={members}
           canManage={canManage}

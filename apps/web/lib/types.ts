@@ -73,7 +73,15 @@ export interface WeeklyDispatchConfig { version: number; effectiveFrom: string |
 
 export type ClosingDeliveryStatus = "QUEUED" | "CLAIMED" | "SENT" | "FAILED" | "CANCELLED";
 
-export interface ClosingDeliveryItem {
+export interface MessagesReceiptFields {
+  deliveryStatus?: "MISSING" | "PENDING" | "SENT" | "DELIVERED" | "FAILED" | null;
+  deliveryMessageGuid?: string | null;
+  deliveryErrorCode?: number | null;
+  deliveryService?: string | null;
+  deliveryCheckedAt?: string | null;
+}
+
+export interface ClosingDeliveryItem extends MessagesReceiptFields {
   id: string;
   closingId: string | null;
   membershipId: string;
@@ -136,7 +144,7 @@ export interface EmployeeSettlementCalendar {
   days: Array<{ dailySettlementEnabled?: boolean; businessDate: string; hasCash: boolean; hasNonCash: boolean; cashSettled: boolean; nonCashSettled: boolean; cashUnsettledCents: number; nonCashUnsettledCents: number }>;
 }
 
-export interface EmployeeSettlementDelivery {
+export interface EmployeeSettlementDelivery extends MessagesReceiptFields {
   id: string; membershipId: string | null; periodStart: string; periodEnd: string;
   documentType: "RANGE_SETTLEMENT" | "EMPLOYEE_SUMMARY";
   paymentScope: EmployeeSettlementPaymentScope; amountType?: EmployeeSettlementAmountType; status: ClosingDeliveryStatus;

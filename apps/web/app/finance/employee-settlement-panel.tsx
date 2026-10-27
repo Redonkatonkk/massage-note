@@ -17,7 +17,7 @@ import { SettlementSummary } from "./settlement-summary";
 import { useLanguage } from "../language-provider";
 import { dateOnly } from "./date-utils";
 import { MobileDataCard, RecordFacts, ResponsiveDataView } from "../ui/responsive-data-view";
-import { messagesDeliveryNotice, messagesSubmittedLabel } from "../../lib/messages-delivery";
+import { messagesDeliveryNotice, messagesSubmittedLabel, messagesReceiptLabel, messagesStatusClass, messagesReceiptError, needsMessagesPolling } from "../../lib/messages-delivery";
 
 const money = (value: number) => formatUsdPrecise(value);
 const scopeLabel = (scope: EmployeeSettlementPaymentScope) => scope === "CASH" ? "现金" : scope === "NON_CASH" ? "刷卡＋礼物卡" : "全部";
@@ -41,13 +41,15 @@ function paymentNotice(record: EmployeeSettlementPreview["records"][number], sco
 
 function DeliveryHistoryModal({ value, busy, action, close }: { value: EmployeeSettlementDeliveryList | null; busy: boolean; action: (delivery: EmployeeSettlementDelivery, kind: "cancel" | "retry" | "retry-detail") => void; close: () => void }) {
   const stage = (item: EmployeeSettlementDelivery) => {
+    const receiptLabel = messagesReceiptLabel(item);
+    if (receiptLabel) return receiptLabel;
     if (item.status === "SENT") return messagesSubmittedLabel;
     if (item.status === "FAILED") return "长图发送失败";
     if (item.status === "CANCELLED") return "已取消";
     if (item.detailSentAt) return "长图已提交";
     return item.status === "CLAIMED" ? "正在发送长图" : "长图待发送";
   };
-  const deliveryAction = (item: EmployeeSettlementDelivery) => item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={() => action(item, "cancel")}>取消</button> : item.status === "FAILED" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry")}>重试长图</button> : item.status === "SENT" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry-detail")}>重发长图</button> : null;
+  const deliveryAction = (item: EmployeeSettlementDelivery) => item.deliveryStatus === "DELIVERED" ? null : item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={() => action(item, "cancel")}>取消</button> : item.status === "FAILED" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry")}>重试长图</button> : item.status === "SENT" ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry-detail")}>重发长图</button> : null;
   return (
     <div className="modal-backdrop settlement-delivery-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
       <section className="settlement-delivery-modal" role="dialog" aria-modal="true" aria-labelledby="settlement-delivery-title">
@@ -63,12 +65,12 @@ function DeliveryHistoryModal({ value, busy, action, close }: { value: EmployeeS
           <ResponsiveDataView desktop={<div className="table-scroll settlement-delivery-table">
             <table className="data-table">
               <thead><tr><th>员工</th><th>区间</th><th>分类</th><th>附件进度</th><th>接收号码</th><th>尝试</th><th>错误</th><th>操作</th></tr></thead>
-              <tbody>{value.deliveries.map((item) => <tr key={item.id}><td>{item.membership?.displayName ?? "员工小计汇总"}</td><td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td><td>{scopeLabel(item.paymentScope)} · {amountLabel(item.amountType)}</td><td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{stage(item)}</span></td><td>{item.recipientPhoneE164}</td><td>{item.attemptCount}</td><td>{item.lastError || "—"}</td><td>{deliveryAction(item) ?? "—"}</td></tr>)}</tbody>
+              <tbody>{value.deliveries.map((item) => <tr key={item.id}><td>{item.membership?.displayName ?? "员工小计汇总"}</td><td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td><td>{scopeLabel(item.paymentScope)} · {amountLabel(item.amountType)}</td><td><span className={`delivery-row-status ${messagesStatusClass(item)}`}>{stage(item)}</span></td><td>{item.recipientPhoneE164}</td><td>{item.attemptCount}</td><td>{messagesReceiptError(item) || "—"}</td><td>{deliveryAction(item) ?? "—"}</td></tr>)}</tbody>
             </table>
           </div>}>
-            <ul className="mobile-data-list">{value.deliveries.map(item => <li key={item.id}><MobileDataCard title={item.membership?.displayName ?? "员工小计汇总"} subtitle={`${dateOnly(item.periodStart)} 至 ${dateOnly(item.periodEnd)}`} status={<span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{stage(item)}</span>} actions={deliveryAction(item)}>
+            <ul className="mobile-data-list">{value.deliveries.map(item => <li key={item.id}><MobileDataCard title={item.membership?.displayName ?? "员工小计汇总"} subtitle={`${dateOnly(item.periodStart)} 至 ${dateOnly(item.periodEnd)}`} status={<span className={`delivery-row-status ${messagesStatusClass(item)}`}>{stage(item)}</span>} actions={deliveryAction(item)}>
               <RecordFacts items={[{ label: "工资来源", value: scopeLabel(item.paymentScope) }, { label: "工资类型", value: amountLabel(item.amountType) }, { label: "接收号码", value: item.recipientPhoneE164 }, { label: "尝试", value: item.attemptCount }]} />
-              {item.lastError && <p className="form-error">{item.lastError}</p>}
+              {messagesReceiptError(item) && <p className="form-error">{messagesReceiptError(item)}</p>}
             </MobileDataCard></li>)}</ul>
           </ResponsiveDataView>
         )}
@@ -284,7 +286,7 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
   }
   const loadDeliveries = useCallback(async () => setDeliveries(await apiRequest<EmployeeSettlementDeliveryList>(`/stores/${storeId}/employee-settlements/deliveries`)), [storeId]);
   useEffect(() => { void loadDeliveries().catch(() => undefined); }, [loadDeliveries]);
-  useEffect(() => { if (!deliveries?.deliveries.some((item) => item.status === "QUEUED" || item.status === "CLAIMED")) return; const timer = window.setInterval(() => void loadDeliveries().catch(() => undefined), 10_000); return () => window.clearInterval(timer); }, [deliveries, loadDeliveries]);
+  useEffect(() => { if (!deliveries?.deliveries.some(needsMessagesPolling)) return; const timer = window.setInterval(() => void loadDeliveries().catch(() => undefined), 10_000); return () => window.clearInterval(timer); }, [deliveries, loadDeliveries]);
   useEffect(() => { if (!deliveryHistoryOpen) return; const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setDeliveryHistoryOpen(false); }; window.addEventListener("keydown", closeOnEscape); return () => window.removeEventListener("keydown", closeOnEscape); }, [deliveryHistoryOpen]);
   const generate = useCallback(async () => {
     if (!membershipId || !dateTo) return;

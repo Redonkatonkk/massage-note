@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Headers, Param, Post, Query, Res, UseGuards } from "@nestjs/common";
-import { closingDeliveryAuthorizeSchema, closingDeliveryCompleteSchema, closingDeliveryFailureSchema, createEmployeeSettlementDeliverySchema, createEmployeeSummaryDeliverySchema, employeeSettlementAttachmentSchema, employeeSettlementQuerySchema, idempotencyKeySchema, uuidSchema } from "@massage-note/contracts";
+import { closingDeliveryAuthorizeSchema, closingDeliveryCompleteSchema, closingDeliveryFailureSchema, closingDeliveryReceiptSchema, createEmployeeSettlementDeliverySchema, createEmployeeSummaryDeliverySchema, employeeSettlementAttachmentSchema, employeeSettlementQuerySchema, idempotencyKeySchema, uuidSchema } from "@massage-note/contracts";
 import type { Response } from "express";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { SessionAuthGuard } from "../auth/session-auth.guard.js";
@@ -87,7 +87,17 @@ export class EmployeeSettlementDeliveryAgentController {
   @Post("jobs/:deliveryId/complete")
   complete(@Headers("authorization") authorization: string | undefined, @Param("deliveryId") deliveryId: string, @Body() body: unknown) {
     const input = parseRequest(closingDeliveryCompleteSchema, body);
-    return this.settlements.complete(authorization, parseRequest(uuidSchema, deliveryId), input.leaseToken);
+    return this.settlements.complete(authorization, parseRequest(uuidSchema, deliveryId), input.leaseToken, input.receipt);
+  }
+
+  @Get("jobs/receipts")
+  receiptCandidates(@Headers("authorization") authorization: string | undefined) {
+    return this.settlements.receiptCandidates(authorization);
+  }
+
+  @Post("jobs/:deliveryId/receipt")
+  receipt(@Headers("authorization") authorization: string | undefined, @Param("deliveryId") deliveryId: string, @Body() body: unknown) {
+    return this.settlements.receipt(authorization, parseRequest(uuidSchema, deliveryId), parseRequest(closingDeliveryReceiptSchema, body));
   }
 
   @Post("jobs/:deliveryId/fail")

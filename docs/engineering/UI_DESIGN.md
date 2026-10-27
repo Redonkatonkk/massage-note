@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](UI_DESIGN.zh-CN.md)**
 
-> Applies to version: `1.39.3` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
+> Applies to version: `1.39.4` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
 
 This article is the design basis for subsequent AI modifications to the front end and generation of salary settlement and individual daily statement images. Aesthetic judgment comes from store working scenes, user feedback on adjacent panels, highlight colors, member operations, phone reading and generated pictures, and existing implementations. New requirements from users are given priority; specific business rules are subject to [Product Document](../product/PRODUCT.md). For specific style values, check the source code entry below. Reason: The design rationale needs to be sustained and needs to be able to be revised with clear feedback.
 

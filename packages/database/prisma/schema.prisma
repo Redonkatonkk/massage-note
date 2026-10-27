@@ -757,6 +757,11 @@ model EmployeeClosingDelivery {
   lastErrorCode          String?                @map("last_error_code")
   lastError              String?                @map("last_error")
   sentAt                 DateTime?              @map("sent_at") @db.Timestamptz(3)
+  deliveryStatus        String?                @map("delivery_status")
+  deliveryMessageGuid   String?                @map("delivery_message_guid")
+  deliveryErrorCode     Int?                   @map("delivery_error_code")
+  deliveryService       String?                @map("delivery_service")
+  deliveryCheckedAt     DateTime?              @map("delivery_checked_at") @db.Timestamptz(3)
   createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -796,6 +801,11 @@ model EmployeeSettlementDelivery {
   lastErrorCode         String?                 @map("last_error_code")
   lastError             String?                @map("last_error")
   sentAt                DateTime?               @map("sent_at") @db.Timestamptz(3)
+  deliveryStatus        String?                 @map("delivery_status")
+  deliveryMessageGuid   String?                 @map("delivery_message_guid")
+  deliveryErrorCode     Int?                    @map("delivery_error_code")
+  deliveryService       String?                 @map("delivery_service")
+  deliveryCheckedAt     DateTime?               @map("delivery_checked_at") @db.Timestamptz(3)
   createdAt             DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
 

@@ -4,6 +4,12 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.39.4 — 2026-10-26
+
+- Preserve actual Mac Messages receipts separately from task completion for daily closings, range settlements and employee summaries. Display delivered, sent without confirmation and Mac-reported failure consistently.
+- Recheck recent completed/ambiguous tasks every minute without resending, including manual retries in Messages; keep pending web histories refreshed, isolate attempts and audit changed receipts. Add contract, agent, component and database regressions.
+- Requires Web/API deployment, the additive delivery-receipt migration and a separate Mac agent update. Older agents remain compatible and unconfirmed.
+
 ## 1.39.3 — 2026-10-26
 
 - Move Close to the right of Detailed entry on the same quick-entry header row; keep the three record flags below. Synchronize bilingual help and layout documentation.

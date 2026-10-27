@@ -8,7 +8,7 @@ import { apiRequest, errorMessage } from "../../lib/api";
 import { formatCommissionRate } from "../../lib/employee-subtotal";
 import { formatUsdPrecise } from "../../lib/money";
 import type { EmployeeSettlementDelivery, EmployeeSettlementDeliveryList, FinanceSummaryResponse } from "../../lib/types";
-import { messagesDeliveryNotice, messagesSubmittedLabel } from "../../lib/messages-delivery";
+import { messagesDeliveryNotice, messagesSubmittedLabel, messagesReceiptLabel, messagesStatusClass, messagesReceiptError, needsMessagesPolling } from "../../lib/messages-delivery";
 
 type EmployeeSubtotal = FinanceSummaryResponse["employees"][number];
 
@@ -18,7 +18,9 @@ const paymentLabel = (value: FinanceSummaryResponse["filters"]["paymentMethod"])
 const amountLabel = (value: FinanceSummaryResponse["filters"]["amountType"]) => value === "SERVICE" ? "仅大费" : value === "TIP" ? "仅小费" : "大费＋小费";
 
 function deliveryStage(item: EmployeeSettlementDelivery) {
-  if (item.status === "SENT") return messagesSubmittedLabel;
+  const receiptLabel = messagesReceiptLabel(item);
+    if (receiptLabel) return receiptLabel;
+    if (item.status === "SENT") return messagesSubmittedLabel;
   if (item.status === "FAILED") return "发送失败";
   if (item.status === "CANCELLED") return "已取消";
   return item.status === "CLAIMED" ? "正在发送" : "等待发送";
@@ -56,10 +58,10 @@ function EmployeeSummaryDeliveryHistory({
                   <td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td>
                   <td>{paymentLabel(item.paymentScope)}</td>
                   <td>{displayUsPhone(item.recipientPhoneE164)}</td>
-                  <td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{deliveryStage(item)}</span></td>
+                  <td><span className={`delivery-row-status ${messagesStatusClass(item)}`}>{deliveryStage(item)}</span></td>
                   <td>{item.attemptCount}</td>
-                  <td>{item.lastError || "—"}</td>
-                  <td>{item.status === "QUEUED"
+                  <td>{messagesReceiptError(item) || "—"}</td>
+                  <td>{item.deliveryStatus === "DELIVERED" ? "—" : item.status === "QUEUED"
                     ? <button className="table-action danger" type="button" disabled={busy} onClick={() => action(item, "cancel")}>取消</button>
                     : item.status === "FAILED"
                       ? <button className="table-action" type="button" disabled={busy} onClick={() => action(item, "retry")}>重试</button>
@@ -142,7 +144,7 @@ export function EmployeeSubtotalSection({
   useEffect(() => { setRecipientPhone((current) => current || displayUsPhone(ownerPhone)); }, [ownerPhone]);
   useEffect(() => { if (canSend) void loadDeliveries().catch(() => undefined); }, [canSend, loadDeliveries]);
   useEffect(() => {
-    if (!deliveries?.deliveries.some((item) => item.status === "QUEUED" || item.status === "CLAIMED")) return;
+    if (!deliveries?.deliveries.some(needsMessagesPolling)) return;
     const timer = window.setInterval(() => void loadDeliveries().catch(() => undefined), 10_000);
     return () => window.clearInterval(timer);
   }, [deliveries, loadDeliveries]);

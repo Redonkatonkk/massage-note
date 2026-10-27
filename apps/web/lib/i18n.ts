@@ -645,11 +645,14 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "短信队列": "SMS queue",
   "已发送": "Sent",
   "已提交": "Submitted",
+  "已送达": "Delivered",
+  "已发出·未确认送达": "Sent · delivery unconfirmed",
+  "Mac 报告未送达": "Mac reports not delivered",
+  "送达状态由 Mac 信息 App 同步，手动重试后会继续核对。短信可能没有送达回执；若手机与 Mac 状态不同，请核对后再重发。": "Delivery status syncs from Messages on the Mac and is checked again after manual retries. SMS may have no delivery receipt. If your phone and Mac disagree, check the actual status before resending.",
   "已提交·未确认送达": "Submitted · delivery unconfirmed",
   "长图已提交": "Long image submitted",
   "提交时间": "Submitted at",
   "提交时间／错误": "Submitted at / error",
-  "网页记录的是发送任务进度。送达请以信息 App 的实际状态为准；若显示失败，核对后再重发。": "This page tracks sending tasks. Check the actual status in Messages; if it shows a failure, review it before resending.",
   "短信发送队列详情": "SMS delivery queue details",
   "查看短信队列详情": "View SMS queue details",
   "发送员工小结": "Send employee closings",
@@ -1844,6 +1847,7 @@ Object.assign(ENGLISH_TRANSLATIONS, {
 });
 
 const DYNAMIC_TRANSLATIONS: Array<[RegExp, (...groups: string[]) => string]> = [
+  [/^信息 App 报告未送达（错误 (\d+)），请核对后再重发。$/u, (code) => `Messages reports not delivered (error ${code}). Check before resending.`],
   [/^已接入 (\d+) 个群$/u, (count) => `${count} ${count === "1" ? "group" : "groups"} connected`],
   [/^(\d+) 个群$/u, (count) => `${count} ${count === "1" ? "group" : "groups"}`],
   [/^(\d+) 位员工$/u, (count) => `${count} ${count === "1" ? "employee" : "employees"}`],

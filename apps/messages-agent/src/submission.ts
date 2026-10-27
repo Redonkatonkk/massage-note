@@ -16,6 +16,7 @@ export async function submitAndConfirmMessages(
     await save();
   }
   const state = await monitorMessagesDelivery(phone, submission.attachmentPath, submission.previousMessageGuid);
+  submission.observation = state;
   if (!journal.accepted.includes(jobId)) journal.accepted.push(jobId);
   await save();
   return state;

@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.39.3`
+> 适用版本：`1.39.4`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -295,6 +295,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 - SSE 同实例同店共享 2 秒 outbox 轮询，每个连接仍独立验证成员及账号状态，慢轮询不会被取消；同账号多个连接均收通知。每轮发送 `heartbeat`，新连接及每 30 秒发出不带事件 ID 的 `store.changed`（`reason: resync`），覆盖共享游标之前的状态与延迟提交事务。接口及事件 payload 保持兼容，客户端恢复连接后完整读取 REST。响应显式设置 `X-Accel-Buffering: no` 与禁缓存/转换指令；没有订阅时释放店铺轮询。保留原因：业务、审计与状态必须共同提交，独立连接和租约仍需鉴权。
 - 发送代理的授权、检查点、完成和失败回写均检查未过期租约及当前令牌；租约失效返回 `DELIVERY_LEASE_INVALID`。
 - 发送接口字段保持兼容：`SENT`／`sentAt` 是任务完成及提交时间，不证明收件手机送达。新版 Mac 代理先观察精确附件和号码对应的新消息状态，明确发送失败以 `MESSAGES_DELIVERY_FAILED`、`retryable: true` 回写；仍由服务端限制最多三次重试，Mac 的持久退避将实际再次领取延后至少五分钟。保留原因：历史代理只有指令接受回执，异步失败不能与任务提交混为一谈，也不能绕过已有重试上限。
+- 任务完成字段（`SENT`／`sentAt`）保持兼容，本身不证明送达。完成请求可选 `receipt`，包含 `messageGuid`、`state`（`SENT` 或 `DELIVERED`）、`errorCode: 0` 和可空 `service`。列表新增可空的 `deliveryStatus`、`deliveryMessageGuid`、`deliveryErrorCode`、`deliveryService`、`deliveryCheckedAt`；只有真实 `DELIVERED` 回执才显示已送达。`/closing-delivery-agent` 和 `/employee-settlement-delivery-agent` 均提供 `GET jobs/receipts`，按最早核对时间返回最近 30 天内最多 20 条已结束任务；`POST jobs/:id/receipt` 接收 `{ attemptCount, receipt }`，观察状态支持 `MISSING`、`PENDING`、`SENT`、`DELIVERED`、`FAILED`。店铺凭证、尝试次数和任务状态共同隔离旧回执，重试清空旧回执，回执变化与审计事务保存。复查不排队发送，缺少元数据也不会清除已知结果。保留原因：延迟送达及信息 App 手动重试应更新网页，不能把指令提交当作收件事实或造成重复发送。
 - 员工小计发送的幂等内容包含日期、员工列表、付款方式、金额类型、高亮筛选及接收号码；相同键更换筛选返回 `IDEMPOTENCY_KEY_REUSED`。
 
 ### 完整微信记工与数据查询

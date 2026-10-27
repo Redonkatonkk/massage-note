@@ -39,12 +39,29 @@ function stopAgent() {
 
 const job = { id: "00000000-0000-4000-8000-000000000001", leaseToken: "00000000-0000-4000-8000-000000000002", phoneE164: "+13105551234", locale: "zh_CN", snapshot: {} };
 describe("agent recovery without real messages", () => {
+  it("完成请求携带真实送达回执，并在日志中持久保存以便中断恢复", async () => {
+    const receipt = { messageGuid: "new-message", state: "DELIVERED", errorCode: 0, service: "RCS" };
+    fixture.send.mockResolvedValue({ service: "RCS", previousMessageGuid: null });
+    fixture.state.mockResolvedValue(receipt);
+    let completion: unknown;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      let payload: unknown = url.endsWith("/receipts") ? [] : null;
+      if (url.endsWith("/closing-delivery-agent/jobs/claim")) payload = job;
+      else if (url.endsWith("/authorize")) payload = { authorized: true };
+      else if (url.endsWith("/complete")) { completion = JSON.parse(String(init.body)); stopAgent(); }
+      return new Response(JSON.stringify(payload));
+    }));
+    await import("../src/index.js");
+    expect(completion).toEqual({ leaseToken: job.leaseToken, receipt });
+    expect(fixture.journal.submitted?.[job.id]?.observation).toEqual(receipt);
+    expect(fixture.send).toHaveBeenCalledOnce();
+  });
   it("信息 App 接受后又明确失败时回写可重试失败，持久保留五分钟退避", async () => {
     fixture.send.mockResolvedValue({ service: "SMS", previousMessageGuid: null });
     fixture.state.mockResolvedValue({ messageGuid: "new-message", state: "FAILED", errorCode: 100, service: "SMS" });
     let failure: Record<string, unknown> | undefined;
     vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
-      let payload: unknown = null;
+      let payload: unknown = url.endsWith("/receipts") ? [] : null;
       if (url.endsWith("/closing-delivery-agent/jobs/claim")) payload = job;
       else if (url.endsWith("/authorize")) payload = { authorized: true };
       else if (url.endsWith("/fail")) { failure = JSON.parse(String(init.body)); stopAgent(); }
@@ -65,7 +82,7 @@ describe("agent recovery without real messages", () => {
     });
     let failure: Record<string, unknown> | undefined;
     vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
-      let payload: unknown = null;
+      let payload: unknown = url.endsWith("/receipts") ? [] : null;
       if (url.endsWith("/closing-delivery-agent/jobs/claim")) payload = job;
       else if (url.endsWith("/authorize")) payload = { authorized: true };
       else if (url.endsWith("/fail")) { failure = JSON.parse(String(init.body)); stopAgent(); }
@@ -80,7 +97,7 @@ describe("agent recovery without real messages", () => {
     fixture.journal.started = [job.id];
     let failure: Record<string, unknown> | undefined;
     vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
-      let payload: unknown = null;
+      let payload: unknown = url.endsWith("/receipts") ? [] : null;
       if (url.endsWith("/closing-delivery-agent/jobs/claim")) payload = job;
       else if (url.endsWith("/fail")) { failure = JSON.parse(String(init.body)); stopAgent(); }
       return new Response(JSON.stringify(payload));
@@ -95,7 +112,7 @@ describe("agent recovery without real messages", () => {
     fixture.journal.accepted = [job.id];
     const checkpoints: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
-      let payload: unknown = null;
+      let payload: unknown = url.endsWith("/receipts") ? [] : null;
       if (url.endsWith("/employee-settlement-delivery-agent/jobs/claim")) payload = { ...job, documentType: "RANGE_SETTLEMENT", detailSent: false };
       else if (url.endsWith("/authorize")) payload = { authorized: true };
       else if (url.endsWith("/checkpoint")) checkpoints.push(JSON.parse(String(init.body)).attachment);

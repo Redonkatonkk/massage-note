@@ -5,6 +5,7 @@ import {
   closingDeliveryAuthorizeSchema,
   closingDeliveryCompleteSchema,
   closingDeliveryFailureSchema,
+  closingDeliveryReceiptSchema,
   idempotencyKeySchema,
   uuidSchema,
 } from "@massage-note/contracts";
@@ -83,7 +84,17 @@ export class ClosingDeliveryAgentController {
   @Post("jobs/:deliveryId/complete")
   complete(@Headers("authorization") authorization: string | undefined, @Param("deliveryId") deliveryId: string, @Body() body: unknown) {
     const input = parseRequest(closingDeliveryCompleteSchema, body);
-    return this.deliveries.complete(authorization, parseRequest(uuidSchema, deliveryId), input.leaseToken);
+    return this.deliveries.complete(authorization, parseRequest(uuidSchema, deliveryId), input.leaseToken, input.receipt);
+  }
+
+  @Get("jobs/receipts")
+  receiptCandidates(@Headers("authorization") authorization: string | undefined) {
+    return this.deliveries.receiptCandidates(authorization);
+  }
+
+  @Post("jobs/:deliveryId/receipt")
+  receipt(@Headers("authorization") authorization: string | undefined, @Param("deliveryId") deliveryId: string, @Body() body: unknown) {
+    return this.deliveries.receipt(authorization, parseRequest(uuidSchema, deliveryId), parseRequest(closingDeliveryReceiptSchema, body));
   }
 
   @Post("jobs/:deliveryId/fail")

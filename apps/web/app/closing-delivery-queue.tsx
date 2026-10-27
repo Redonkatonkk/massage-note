@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import type { ClosingDeliveryItem, ClosingDeliveryList, ClosingDeliveryStatus } from "../lib/types";
 import { useLanguage } from "./language-provider";
 import { MobileDataCard, RecordFacts, ResponsiveDataView } from "./ui/responsive-data-view";
-import { messagesDeliveryNotice, messagesSubmittedLabel } from "../lib/messages-delivery";
+import { messagesDeliveryNotice, messagesSubmittedLabel, messagesReceiptLabel, messagesStatusClass, messagesReceiptError } from "../lib/messages-delivery";
 
 const statusLabels: Record<ClosingDeliveryStatus, string> = {
   QUEUED: "排队",
@@ -38,8 +38,12 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
         <summary>
           <span className="delivery-status-strip" aria-label="员工小结发送状态">
             {(Object.keys(statusLabels) as ClosingDeliveryStatus[]).map((status) => {
-              const count = deliveries.filter((item) => item.status === status).length;
+              const count = deliveries.filter((item) => item.status === status && !messagesReceiptLabel(item)).length;
               return count > 0 ? <span key={status}>{statusLabels[status]} <strong>{count}</strong></span> : null;
+            })}
+            {["已送达", "已发出·未确认送达", "Mac 报告未送达"].map(label => {
+              const count = deliveries.filter(item => messagesReceiptLabel(item) === label).length;
+              return count > 0 ? <span key={label}>{label} <strong>{count}</strong></span> : null;
             })}
           </span>
           <span className="delivery-queue-summary-label">查看短信队列详情</span>
@@ -58,19 +62,19 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
                   <td>{item.closing ? `第 ${item.closing.cycleNo} 次` : "未日结"}</td>
                   <td>{item.kind === "INITIAL" ? "首次" : "补发"}</td>
                   <td>{item.locale === "zh_CN" ? "中文" : "English"}</td>
-                  <td><span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{statusLabels[item.status]}</span></td>
+                  <td><span className={`delivery-row-status ${messagesStatusClass(item)}`}>{messagesReceiptLabel(item) ?? statusLabels[item.status]}</span></td>
                   <td>{item.attemptCount}</td>
                   <td>{formatTime(item.createdAt)}</td>
-                  <td>{item.status === "SENT" ? formatTime(item.sentAt) : item.lastError || "—"}</td>
+                  <td>{messagesReceiptError(item) || (item.status === "SENT" ? formatTime(item.sentAt) : "—")}</td>
                   <td>{cancelAction(item) ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>}>
-          <ul className="mobile-data-list">{deliveries.map(item => <li key={item.id}><MobileDataCard title={item.membership.displayName} subtitle={`${item.closing ? `第 ${item.closing.cycleNo} 次日结` : "未日结"} · ${item.kind === "INITIAL" ? "首次" : "补发"}`} status={<span className={`delivery-row-status is-${item.status.toLowerCase()}`}>{statusLabels[item.status]}</span>} actions={cancelAction(item)}>
+          <ul className="mobile-data-list">{deliveries.map(item => <li key={item.id}><MobileDataCard title={item.membership.displayName} subtitle={`${item.closing ? `第 ${item.closing.cycleNo} 次日结` : "未日结"} · ${item.kind === "INITIAL" ? "首次" : "补发"}`} status={<span className={`delivery-row-status ${messagesStatusClass(item)}`}>{messagesReceiptLabel(item) ?? statusLabels[item.status]}</span>} actions={cancelAction(item)}>
             <RecordFacts items={[{ label: "接收号码", value: <span className={item.recipientPhoneE164 ? "delivery-phone" : "delivery-phone invalid"}>{item.recipientPhoneE164 || "号码缺失"}</span> }, { label: "语言", value: item.locale === "zh_CN" ? "中文" : "English" }]} />
-            {item.status !== "SENT" && item.lastError && <p className="form-error">{item.lastError}</p>}
+            {messagesReceiptError(item) && <p className="form-error">{messagesReceiptError(item)}</p>}
             <details className="mobile-data-card__details"><summary>发送详情</summary><RecordFacts items={[{ label: "排队时间", value: formatTime(item.createdAt) }, { label: "提交时间", value: formatTime(item.sentAt) }, { label: "尝试", value: item.attemptCount }]} /></details>
           </MobileDataCard></li>)}</ul>
         </ResponsiveDataView>
@@ -85,7 +89,7 @@ export function ClosingDeliveryQueueButton({ compact = false, ...props }: Closin
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   // Resolve the portal target only after hydration and keep the modal at body level.
   useEffect(() => setPortalTarget(document.body), []);
-  const sentCount = props.value.deliveries.filter((item) => item.status === "SENT").length;
+  const sentCount = props.value.deliveries.filter((item) => item.status === "SENT" || item.deliveryStatus === "DELIVERED").length;
   const sentLabel = `${t("已提交")} ${sentCount}`;
 
   return <>

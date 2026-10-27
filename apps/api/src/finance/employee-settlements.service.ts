@@ -2,6 +2,8 @@ import { idempotencyRequestHash } from "../common/idempotency.service.js";
 import { claimedDeliveryWhere, deliveryFailureState, requireDeliveryLease } from "./delivery-lease.js";
 import { randomUUID } from "node:crypto";
 import { authenticateDeliveryAgent } from "./delivery-agent.js";
+import { clearDeliveryReceipt, deliveryReceiptData, receiptCandidatesWhere, receiptCandidateSelect, receiptCandidateOrder, recordDeliveryReceipt } from "./delivery-receipt.js";
+import type { ClosingDeliveryReceiptInput, MessagesReceipt } from "@massage-note/contracts";
 import { isE164Phone } from "./delivery-recipient.js";
 import {
   BadRequestException,
@@ -49,6 +51,7 @@ export class EmployeeSettlementsService {
           id: true, membershipId: true, documentType: true, periodStart: true, periodEnd: true,
           paymentScope: true, amountType: true, status: true, recipientPhoneE164: true, locale: true,
           attemptCount: true, summarySentAt: true, detailSentAt: true, sentAt: true,
+          deliveryStatus: true, deliveryMessageGuid: true, deliveryErrorCode: true, deliveryService: true, deliveryCheckedAt: true,
           lastErrorCode: true, lastError: true, createdAt: true, updatedAt: true,
           membership: { select: { displayName: true } },
         },
@@ -72,6 +75,7 @@ export class EmployeeSettlementsService {
           id: true, membershipId: true, documentType: true, periodStart: true, periodEnd: true,
           paymentScope: true, amountType: true, status: true, recipientPhoneE164: true, locale: true,
           attemptCount: true, summarySentAt: true, detailSentAt: true, sentAt: true,
+          deliveryStatus: true, deliveryMessageGuid: true, deliveryErrorCode: true, deliveryService: true, deliveryCheckedAt: true,
           lastErrorCode: true, lastError: true, createdAt: true, updatedAt: true,
           membership: { select: { displayName: true } },
         },
@@ -277,7 +281,7 @@ export class EmployeeSettlementsService {
     return this.prisma.$transaction(async (transaction) => {
       const changed = await transaction.employeeSettlementDelivery.updateMany({
         where: { id: deliveryId, storeId, status: "FAILED" },
-        data: { status: "QUEUED", nextAttemptAt: new Date(), lastError: null, lastErrorCode: null, leaseToken: null, leaseExpiresAt: null },
+        data: { ...clearDeliveryReceipt, status: "QUEUED", nextAttemptAt: new Date(), lastError: null, lastErrorCode: null, leaseToken: null, leaseExpiresAt: null },
       });
       if (changed.count !== 1) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_NOT_RETRYABLE", messageZh: "只有失败的结算短信任务可以重试" });
       await transaction.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: manager.id, source: "api", action: "employee_settlement.delivery_retried", entityType: "employee_settlement_delivery", entityId: deliveryId, requestId } });
@@ -296,6 +300,7 @@ export class EmployeeSettlementsService {
           status: { in: ["SENT", "FAILED"] },
         },
         data: {
+          ...clearDeliveryReceipt,
           status: "QUEUED",
           detailSentAt: null,
           sentAt: null,
@@ -335,7 +340,7 @@ export class EmployeeSettlementsService {
     const leaseToken = randomUUID();
     const changed = await this.prisma.employeeSettlementDelivery.updateMany({
       where: { id: candidate.id, OR: [{ status: "QUEUED" }, { status: "CLAIMED", leaseExpiresAt: { lt: now } }] },
-      data: { status: "CLAIMED", leaseToken, leaseExpiresAt: new Date(now.getTime() + 10 * 60_000), attemptCount: { increment: 1 } },
+      data: { ...clearDeliveryReceipt, status: "CLAIMED", leaseToken, leaseExpiresAt: new Date(now.getTime() + 10 * 60_000), attemptCount: { increment: 1 } },
     });
     if (changed.count !== 1) return null;
     const job = await this.prisma.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: candidate.id } });
@@ -364,16 +369,26 @@ export class EmployeeSettlementsService {
     return { recorded: true, attachment, sentAt };
   }
 
-  async complete(authorization: string | undefined, deliveryId: string, leaseToken: string) {
+  async complete(authorization: string | undefined, deliveryId: string, leaseToken: string, receipt?: MessagesReceipt) {
     const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
     if (!job.detailSentAt) throw new ConflictException({ code: "SETTLEMENT_ATTACHMENTS_INCOMPLETE", messageZh: "结算长图发送后才能完成任务" });
     const sentAt = new Date();
     await this.prisma.$transaction(async (transaction) => {
-      requireDeliveryLease(await transaction.employeeSettlementDelivery.updateMany({ where: claimedDeliveryWhere(agent.storeId, job.id, leaseToken), data: { status: "SENT", sentAt, leaseToken: null, leaseExpiresAt: null, lastError: null, lastErrorCode: null } }));
+      requireDeliveryLease(await transaction.employeeSettlementDelivery.updateMany({ where: claimedDeliveryWhere(agent.storeId, job.id, leaseToken), data: { ...(receipt ? deliveryReceiptData(receipt) : {}), status: "SENT", sentAt, leaseToken: null, leaseExpiresAt: null, lastError: null, lastErrorCode: null } }));
       await transaction.auditLog.create({ data: { storeId: job.storeId, actorUserId: null, actorMembershipId: null, source: "messages_agent", action: "employee_settlement.delivery_sent", entityType: "employee_settlement_delivery", entityId: job.id, afterJson: { membershipId: job.membershipId, sentAt: sentAt.toISOString() }, requestId: `agent:settlement:${job.id}` } });
     });
     return { sent: true, sentAt };
+  }
+
+  async receiptCandidates(authorization: string | undefined) {
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
+    return this.prisma.employeeSettlementDelivery.findMany({ where: receiptCandidatesWhere(agent.storeId), select: receiptCandidateSelect, orderBy: receiptCandidateOrder, take: 20 });
+  }
+
+  async receipt(authorization: string | undefined, deliveryId: string, input: ClosingDeliveryReceiptInput) {
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
+    return this.prisma.$transaction(transaction => recordDeliveryReceipt(transaction, "settlement", agent.storeId, deliveryId, input));
   }
 
   async fail(authorization: string | undefined, deliveryId: string, input: ClosingDeliveryFailureInput) {

@@ -12,6 +12,7 @@ import { messagesStagerReady, stageMessagesAttachment } from "./stager.js";
 import { agentErrorMessage } from "./errors.js";
 import { MessagesDeliveryFailed } from "./delivery-monitor.js";
 import { submitAndConfirmMessages } from "./submission.js";
+import { syncDeliveryReceipts } from "./receipt-sync.js";
 
 const { version } = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
 
@@ -69,7 +70,7 @@ if (process.argv.includes("--diagnose")) {
 async function processJob(job: Job, journal: Journal) {
   if (journal.completed.includes(job.id)) return;
   if (journal.accepted.includes(job.id)) {
-    await request(`/closing-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
+    await request(`/closing-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, receipt: journal.submitted?.[job.id]?.observation }) });
     journal.completed.push(job.id); await saveJournal(journalPath, journal); return;
   }
   if (journal.started?.includes(job.id) && !journal.submitted?.[job.id]) {
@@ -94,7 +95,7 @@ async function processJob(job: Job, journal: Journal) {
     if (!ready.authorized) return;
     sendStarted = true;
     await submitAndConfirmMessages(job.id, job.phoneE164, stagedPath, "IMAGE", journal, () => saveJournal(journalPath, journal));
-    await request(`/closing-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
+    await request(`/closing-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, receipt: journal.submitted?.[job.id]?.observation }) });
     journal.completed.push(job.id); await saveJournal(journalPath, journal);
   } catch (error) {
     await reportJobFailure("closing-delivery-agent", job, error, sendStarted, journal);
@@ -110,7 +111,7 @@ async function completeSettlementJob(job: SettlementJob, journal: Journal) {
     await request(`/employee-settlement-delivery-agent/jobs/${job.id}/checkpoint`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, attachment: "SUMMARY" }) });
     await request(`/employee-settlement-delivery-agent/jobs/${job.id}/checkpoint`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, attachment: "DETAIL" }) });
   }
-  await request(`/employee-settlement-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
+  await request(`/employee-settlement-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, receipt: journal.submitted?.[job.id]?.observation }) });
   journal.completed.push(job.id);
   await saveJournal(journalPath, journal);
 }
@@ -185,6 +186,14 @@ process.on("SIGINT", () => { stopped = true; });
 
 const journal = await loadJournal(journalPath);
 await heartbeat();
+let receiptsRunning = false;
+async function syncReceipts() {
+  if (!messagesReady || receiptsRunning) return;
+  receiptsRunning = true;
+  try { await syncDeliveryReceipts(request, journal); }
+  catch (error) { process.stderr.write(`receipt sync: ${agentErrorMessage(error)}\n`); }
+  finally { receiptsRunning = false; }
+}
 let heartbeatRunning = false;
 const heartbeatTimer = setInterval(() => {
   if (heartbeatRunning) return;
@@ -192,6 +201,9 @@ const heartbeatTimer = setInterval(() => {
   void heartbeat().finally(() => { heartbeatRunning = false; });
 }, 60_000);
 heartbeatTimer.unref();
+const receiptTimer = setInterval(() => { void syncReceipts(); }, 60_000);
+receiptTimer.unref();
+void syncReceipts();
 const persistCooldown = async (until: string) => {
   journal.nextClaimAt = until;
   await saveJournal(journalPath, journal);
@@ -226,4 +238,4 @@ while (!stopped) {
   }
   if (!handledJob) await new Promise((resolve) => setTimeout(resolve, 10_000));
 }
-} finally { clearInterval(heartbeatTimer); }
+} finally { clearInterval(heartbeatTimer); clearInterval(receiptTimer); }

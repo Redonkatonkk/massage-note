@@ -176,7 +176,7 @@ describe("bilingual UI translation", () => {
 
   it("translates placeholders and keeps them out of recovery financial wording", () => {
     expect(translateText("占位", "en-US")).toBe("Placeholder");
-    expect(translateText("保存占位", "en-US")).toBe("Save placeholder");
+    expect(translateText("确认", "en-US")).toBe("Confirm");
     expect(translateText("确认恢复 Amy 的这张占位小卡吗？恢复后只在主表占位，不计入财务。", "en-US")).toContain("excluded from financial totals");
   });
 

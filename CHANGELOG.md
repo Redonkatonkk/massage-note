@@ -6,6 +6,7 @@ For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page sav
 
 ## 1.43.0 — 2026-10-27
 
+- Align the placeholder translation regression with its current Confirm label.
 - After successful quick entry, placeholder confirmation, detailed creation or editing, refresh the record and animate the dialog into its saved board card over 300ms, fading the backdrop and briefly pulsing the destination. Keep submission locked until the motion finishes.
 - Respect reduced motion; use a local shrink/fade if the destination is unavailable, bound interrupted animations, and leave failed writes open for correction. Cancellation and deletion keep their existing close behavior.
 - NAS requires a Web update; no API contract, database migration or Messages agent changes.

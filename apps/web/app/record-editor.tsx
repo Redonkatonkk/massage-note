@@ -14,6 +14,7 @@ import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
 import { closedRecordBusinessDate, reopenRecordBusinessDay } from "../lib/record-closing";
 import { shouldConfirmPaymentOnSave } from "../lib/record-payment";
+import { absorbWorkRecordDialog } from "../lib/work-record-save-motion";
 import { defaultServicePriceOption } from "../lib/service-price-option";
 import {
   localDateTimeValue,
@@ -641,11 +642,21 @@ export function RecordEditor({
     }
   }
 
-  function finish() {
+  async function finish(savedRecordId: string | undefined, animate = true) {
     browserStorage.removeItem(draftKey);
-    onSaved();
-    onClose();
-    void onChanged();
+    if (!animate) {
+      onSaved();
+      onClose();
+      await onChanged();
+      return;
+    }
+    try {
+      await onChanged();
+    } finally {
+      await absorbWorkRecordDialog(editorElement.current, savedRecordId);
+      onSaved();
+      onClose();
+    }
   }
 
   async function saveDetailedRecord() {
@@ -679,8 +690,9 @@ export function RecordEditor({
       }
       payment = { version: recordVersion, ...servicePayments, ...tipPayments, ...giftCardPayment };
     }
+    let saved: WorkRecord;
     if (isNew) {
-      await apiRequest(`/stores/${storeId}/work-records/detailed`, {
+      saved = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/detailed`, {
         method: "POST", idempotent: true,
         body: {
           create: {
@@ -698,11 +710,11 @@ export function RecordEditor({
         },
       });
     } else {
-      await apiRequest(`/stores/${storeId}/work-records/${record.id}/save`, {
+      saved = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/${record.id}/save`, {
         method: "POST", idempotent: true, body: { details, payment },
       });
     }
-    await finish();
+    await finish(saved?.id ?? (isNew ? undefined : record.id));
   }
 
   const willConfirmPayment = shouldConfirmPaymentOnSave({
@@ -733,8 +745,8 @@ export function RecordEditor({
       await saveDetailedRecord();
       return;
     }
-    await saveDetails();
-    await finish();
+    const saved = await saveDetails();
+    await finish(saved?.id ?? record.id);
   }
 
   function saveOnEnter(event: KeyboardEvent<HTMLElement>) {
@@ -982,7 +994,7 @@ export function RecordEditor({
           {!isNew && <button className="delete-record" type="button" disabled={busy || dayClosed} onClick={() => run(async () => {
             if (!window.confirm("确认删除这条记工吗？删除后普通页面将隐藏，店长或经理可以恢复。")) return;
             await apiRequest(`/stores/${storeId}/work-records/${record.id}`, { method: "DELETE", idempotent: true, body: { version: record.version } });
-            await finish();
+            await finish(undefined, false);
           })}>删除记录</button>}
           <span />
           <div className="editor-save-actions">

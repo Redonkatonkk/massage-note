@@ -7,9 +7,11 @@ import { ApiError, apiRequest } from "../lib/api";
 import type { BoardStatistics, StoreDetails, StoreMember, WorkRecord } from "../lib/types";
 import { newWorkRecord } from "../lib/new-work-record";
 import { TodayBoard } from "./today-board";
+import { absorbWorkRecordDialog } from "../lib/work-record-save-motion";
 
 vi.mock("../lib/api", async (original) => ({ ...await original<typeof import("../lib/api")>(), apiRequest: vi.fn() }));
 vi.mock("../lib/time", async (original) => ({ ...await original<typeof import("../lib/time")>(), currentStoreTime: () => "10:00" }));
+vi.mock("../lib/work-record-save-motion", () => ({ absorbWorkRecordDialog: vi.fn(async () => {}) }));
 vi.mock("./record-track", () => ({ RecordTrack: ({ children }: { children: ReactNode }) => <div className="record-track">{children}</div> }));
 vi.mock("./record-editor", () => ({ RecordEditor: ({ isClosed, isNew, initialServiceItemId, record, onClose }: { isClosed: boolean; isNew?: boolean; initialServiceItemId?: string; record: WorkRecord; onClose: () => void }) => <div className="normal-record-editor" data-readonly={isClosed} data-new={isNew} data-service={initialServiceItemId} data-record={JSON.stringify(record)}>{isNew && <button onClick={onClose}>取消详细记工</button>}</div> }));
 vi.mock("./board-employee-picker", () => ({ BoardEmployeePicker: () => null }));
@@ -20,6 +22,7 @@ vi.mock("./employee-closing", () => ({ EmployeeClosingModal: () => null }));
 vi.mock("./closing-delivery-queue", () => ({ ClosingDeliveryQueueButton: () => null }));
 vi.mock("./ranking-explanation", () => ({ RankingExplanationButton: () => null }));
 const request = vi.mocked(apiRequest);
+const saveMotion = vi.mocked(absorbWorkRecordDialog);
 const language = vi.hoisted(() => ({ locale: "zh-CN" as "zh-CN" | "en-US" }));
 vi.mock("./language-provider", () => ({ useLanguage: () => language }));
 const stats: BoardStatistics = { recordCount: 0, grossFeeBaseCents: 0, discountTotalCents: 0, discountedFeePerformanceCents: 0, totalTipCents: 0, totalLargeFeeWageCents: 0, employeeIncomeCents: 0, giftCardSaleCount: 0, giftCardCashCents: 0, giftCardCardCents: 0, giftCardSalesAmountCents: 0, giftCardRedemptionCents: 0, storeIncomeCents: 0 };
@@ -38,6 +41,7 @@ beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   request.mockReset(); request.mockResolvedValue({ deliveries: [], batchAllowed: true, batchBlockedReason: null, agent: null }); reload.mockClear();
+  saveMotion.mockReset().mockResolvedValue(undefined);
   props = { wideLayout: false, heading: "门店", accountActions: null, dateControls: null, returnToToday: null, calendar: null, loadError: "", membership: { id: "owner", role: "OWNER", displayName: "店主", isServiceProvider: true, store }, store, currentDay: { businessDate: "2026-10-06", timezone: store.timezone, businessCutoffLocal: "04:00", serverTime: "2026-10-06T16:00:00.000Z" }, isCurrentBusinessDay: true, isFutureBusinessDay: false,
     board: { id: "board", storeId: store.id, businessDate: "2026-10-06", version: 1, isClosed: false, rows: [{ id: "row", membershipId: employee.id, position: 0, isHidden: false, version: 1, membership: employee, shifts: [], workRecords: [], statistics: stats }], giftCardSales: [], nextGiftCardSerialNumber: "1", statistics: { ...stats, revenueCents: 0, totalIncomeCents: 0, cashChangeCents: null, recentClosedRevenue: null }, ranking: { enabled: false, rankedAt: null, explanation: null } },
     catalog: { serviceItems: [{ id: "service", position: 0, fullName: "足部按摩", shortName: "足疗", priceOptions: [{ id: "option", durationMinutes: 60, priceCents: 6000, position: 0 }], defaultCommissionBps: null, isEnabled: true, deletedAt: null, version: 1 }], addonItems: [], discountItems: [] }, members: [employee], onReload: reload };
@@ -148,7 +152,9 @@ describe("项目时长默认值", () => {
     props.catalog.serviceItems[0]!.priceOptions = priceOptions(durations);
     await render(); await click("新增记工");
     const modal = document.querySelector(".quick-work-modal")!;
-    expect(modal.querySelectorAll('input[type="radio"], .quick-mode-switch, .save-record')).toHaveLength(0);
+    expect(modal.querySelectorAll('.save-record')).toHaveLength(0);
+    expect(modal.querySelectorAll('[role=radio][aria-checked=true]')).toHaveLength(1);
+    expect(button("正常排工").getAttribute("aria-checked")).toBe("true");
     const select = modal.querySelector<HTMLSelectElement>("#quick-service")!;
     expect(select.value).toBe("service");
     expect(select.previousElementSibling?.textContent).toBe("选择项目");
@@ -216,7 +222,7 @@ describe("项目时长默认值", () => {
     request.mockRejectedValueOnce(new ApiError(409, { code: "BUSINESS_DAY_CLOSED", messageZh: "已经日结" }));
     await chooseDuration(60);
     expect(document.querySelector(".quick-work-modal [role=alert]")!.textContent).toBe("已经日结");
-    expect(button("★已高亮").getAttribute("aria-pressed")).toBe("true");
+    expect(button("★高亮标记").getAttribute("aria-checked")).toBe("true");
     let resolveSave!: (value: unknown) => void;
     request.mockImplementationOnce(() => new Promise(resolve => { resolveSave = resolve; }));
     await act(async () => { durationButton(60).click(); durationButton(60).click(); });
@@ -247,24 +253,118 @@ describe("项目时长默认值", () => {
   });
 });
 
+describe("保存后收进记工卡片", () => {
+  it("删除仍立即关闭，不等待刷新或播放保存动画", async () => {
+    const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
+    const closed = vi.fn();
+    let finishRefresh!: () => void;
+    reload.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve; }));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={ordinary} catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={closed} onSaved={vi.fn()} onChanged={reload} />));
+    await click("删除记录");
+    expect(closed).toHaveBeenCalledOnce(); expect(saveMotion).not.toHaveBeenCalled();
+    await act(async () => finishRefresh());
+  });
+  it.each(["service", "placeholder"])("%s 创建后先刷新卡片，动画完成前保留弹窗并阻止重复提交", async kind => {
+    await render(); await click("新增记工");
+    if (kind === "placeholder") await click("占位");
+    const saved = { ...ordinary, id: "saved-record" };
+    request.mockResolvedValueOnce(saved);
+    let finishMotion!: () => void;
+    saveMotion.mockImplementationOnce(() => new Promise(resolve => { finishMotion = resolve; }));
+    const modal = document.querySelector<HTMLElement>(".quick-work-modal")!;
+    await act(async () => { (kind === "placeholder" ? button("确认") : durationButton(60)).click(); });
+    expect(reload).toHaveBeenCalledOnce();
+    expect(saveMotion).toHaveBeenCalledWith(modal, saved.id);
+    expect(reload.mock.invocationCallOrder[0]).toBeLessThan(saveMotion.mock.invocationCallOrder[0]!);
+    expect(document.querySelector(".quick-work-modal")).toBe(modal);
+    expect(button("关闭").disabled).toBe(true);
+    await act(async () => { (kind === "placeholder" ? button("确认") : durationButton(60)).click(); });
+    expect(writes()).toHaveLength(1);
+    await act(async () => finishMotion());
+    expect(document.querySelector(".quick-work-modal")).toBeNull();
+  });
+
+  it.each([true, false])("详细记工新建=%s 等待保存动画再关闭，失败保持表单", async isNew => {
+    const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
+    const value = { ...ordinary, status: "PENDING_PAYMENT" as const };
+    const closed = vi.fn(); const saved = vi.fn();
+    await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={value} isNew={isNew} catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={closed} onSaved={saved} onChanged={reload} />));
+    request.mockRejectedValueOnce(new ApiError(409, { code: "WORK_RECORD_VERSION_CONFLICT", messageZh: "版本冲突" }));
+    await click("保存");
+    expect(saveMotion).not.toHaveBeenCalled(); expect(closed).not.toHaveBeenCalled();
+    request.mockResolvedValue({ ...value, id: "saved-record" });
+    let finishMotion!: () => void;
+    saveMotion.mockImplementationOnce(() => new Promise(resolve => { finishMotion = resolve; }));
+    await click("保存");
+    expect(saveMotion).toHaveBeenCalledWith(document.querySelector(".record-editor"), "saved-record");
+    expect(closed).not.toHaveBeenCalled(); expect(saved).not.toHaveBeenCalled();
+    expect(button("关闭").disabled).toBe(true);
+    await act(async () => finishMotion());
+    expect(saved).toHaveBeenCalledOnce(); expect(closed).toHaveBeenCalledOnce();
+    expect(reload).toHaveBeenCalledOnce();
+  });
+});
+
 describe("快速记工占位", () => {
-  it("占位在高亮左侧，点击直接保存且不提交服务或其他标记", async () => {
+  it.each(["正常排工", "不算排工", "★高亮标记"])("切换到 %s 只保存对应模式，取消后重新打开恢复正常", async mode => {
+    await render(); await click("新增记工");
+    await click("★高亮标记"); await click("不算排工"); await click("占位"); await click(mode);
+    expect(document.querySelectorAll('.quick-mode-switch [aria-checked="true"]')).toHaveLength(1);
+    expect(document.querySelector(".quick-work-modal")!.getAttribute("data-quick-mode")).toBe(mode === "正常排工" ? "NORMAL" : mode === "不算排工" ? "DISPATCH_EXCLUDED" : "HIGHLIGHTED");
+    await chooseDuration(60);
+    expect(writes()[0]![1]!.body).toMatchObject({ isHighlighted: mode === "★高亮标记", isDispatchExcluded: mode === "不算排工" });
+    await click("新增记工"); await click("★高亮标记"); await click("关闭"); await click("新增记工");
+    expect(button("正常排工").getAttribute("aria-checked")).toBe("true");
+  });
+  it("占位校验时间，失败保留模式，保存时禁用模式并阻止重复写入", async () => {
+    await render(); await click("新增记工"); await click("占位");
+    await inputValue(document.querySelector<HTMLInputElement>("#start-time")!, "99"); await click("确认");
+    expect(writes()).toHaveLength(0);
+    await inputValue(document.querySelector<HTMLInputElement>("#start-time")!, "10");
+    request.mockRejectedValueOnce(new ApiError(409, { code: "BUSINESS_DAY_CLOSED", messageZh: "已经日结" }));
+    await click("确认");
+    expect(button("占位").getAttribute("aria-checked")).toBe("true");
+    expect(document.querySelector(".quick-work-modal")!.getAttribute("data-quick-mode")).toBe("PLACEHOLDER");
+    expect(document.querySelector(".quick-work-modal [role=alert]")!.textContent).toBe("已经日结");
+    let finish!: (result: unknown) => void;
+    request.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    await act(async () => { button("确认").click(); button("确认").click(); });
+    expect(writes()).toHaveLength(2);
+    expect([...document.querySelectorAll<HTMLButtonElement>('.quick-mode-switch button')].every(option => option.disabled)).toBe(true);
+    await act(async () => finish({}));
+    expect(document.querySelector(".quick-work-modal")).toBeNull();
+  });
+  it("四种模式互斥，占位需单独保存且不提交服务或其他标记", async () => {
     await render(); await click("新增记工");
     const modal = document.querySelector(".quick-work-modal")!;
-    expect([...modal.querySelectorAll(".modal-heading__actions button")].map((node) => node.textContent)).toEqual(["占位", "不算排工", "★高亮标记"]);
+    expect([...modal.querySelectorAll(".modal-heading__actions button")].map((node) => node.textContent)).toEqual(["正常排工", "占位", "不算排工", "★高亮标记"]);
     await click("★高亮标记"); await click("不算排工"); await click("占位");
-    expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, body: { employeeMembershipId: "employee", startAt: "2026-10-06T14:00:00.000Z", isPlaceholder: true } }]]);
+    expect(writes()).toHaveLength(0);
+    expect(modal.querySelectorAll('[role=radio][aria-checked=true]')).toHaveLength(1);
+    expect(button("占位").getAttribute("aria-checked")).toBe("true");
+    expect(button("详细记工").disabled).toBe(true);
+    expect(modal.querySelector("#quick-service, .duration-picker")).toBeNull();
+    const content = modal.querySelector(".quick-modal-content")!;
+    expect([...content.querySelectorAll(".field-label")].map(label => label.textContent)).toEqual(["开始时间"]);
+    expect(content.querySelectorAll(".work-time-field")).toHaveLength(1);
+    expect([...content.querySelectorAll("button")].map(control => control.textContent)).toEqual(["确认"]);
+    await inputValue(content.querySelector<HTMLInputElement>("#start-time")!, "11");
+    expect(writes()).toHaveLength(0);
+    await click("确认");
+    expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, body: { employeeMembershipId: "employee", startAt: "2026-10-06T15:00:00.000Z", isPlaceholder: true } }]]);
     expect(document.querySelector(".quick-work-modal")).toBeNull();
     await click("新增记工");
-    expect(button("★高亮标记").getAttribute("aria-pressed")).toBe("false");
-    expect(button("不算排工").getAttribute("aria-pressed")).toBe("false");
+    expect(button("★高亮标记").getAttribute("aria-checked")).toBe("false");
+    expect(button("不算排工").getAttribute("aria-checked")).toBe("false");
+    expect(button("正常排工").getAttribute("aria-checked")).toBe("true");
   });
   it("没有项目也能点击占位，创建只提交员工、时间和占位标记", async () => {
     props.catalog.serviceItems = []; await render(); await click("新增记工");
     expect(document.querySelectorAll(".duration-picker button")).toHaveLength(0);
     expect(document.querySelector<HTMLSelectElement>("#quick-service")!.disabled).toBe(true);
     expect(document.querySelector(".duration-picker .empty-note")!.textContent).toContain("没有可用时长");
-    await click("占位");
+    await click("占位"); await click("确认");
     expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, body: { employeeMembershipId: "employee", startAt: "2026-10-06T14:00:00.000Z", isPlaceholder: true } }]]);
     expect(document.querySelector(".quick-work-modal")).toBeNull(); expect(reload).toHaveBeenCalledTimes(1); expect(container.textContent).toContain("占位已保存");
   });
@@ -303,14 +403,15 @@ describe("快速记工占位", () => {
 
 
 describe("不算排工", () => {
-  it("快速记工独立切换，点击时长提交新标记并在再次打开时重置", async () => {
+  it("快速记工选择排工模式，点击时长提交新标记并在再次打开时重置", async () => {
     await render(); await click("新增记工"); await click("不算排工");
-    expect(button("不算排工").getAttribute("aria-pressed")).toBe("true");
-    expect(button("★高亮标记").getAttribute("aria-pressed")).toBe("false");
+    expect(button("不算排工").getAttribute("aria-checked")).toBe("true");
+    expect(button("★高亮标记").getAttribute("aria-checked")).toBe("false");
     await chooseDuration(60);
     expect(writes()[0]![1]!.body).toMatchObject({ isDispatchExcluded: true, isHighlighted: false, serviceItemId: "service", serviceDurationMinutes: 60 });
     await click("新增记工");
-    expect(button("不算排工").getAttribute("aria-pressed")).toBe("false");
+    expect(button("不算排工").getAttribute("aria-checked")).toBe("false");
+    expect(button("正常排工").getAttribute("aria-checked")).toBe("true");
   });
   it("普通样式的小卡与高亮混排，取消标记回左侧，历史只读保持分组", async () => {
     props.board.rows[0]!.workRecords = [ordinary, { ...ordinary, id: "excluded", isDispatchExcluded: true }, { ...ordinary, id: "highlight", isHighlighted: true }];
@@ -453,7 +554,7 @@ describe("快速记工进入详细记工", () => {
     const editor = document.querySelector<HTMLElement>(".normal-record-editor")!;
     expect(editor.dataset.new).toBe("true");
     expect(editor.dataset.service).toBe("service");
-    expect(JSON.parse(editor.dataset.record!)).toMatchObject({ employeeMembershipId: "employee", startAt: "2026-10-06T15:00:00.000Z", isHighlighted: true, isDispatchExcluded: true, serviceSnapshot: null });
+    expect(JSON.parse(editor.dataset.record!)).toMatchObject({ employeeMembershipId: "employee", startAt: "2026-10-06T15:00:00.000Z", isHighlighted: false, isDispatchExcluded: true, serviceSnapshot: null });
     expect(writes()).toHaveLength(0);
     await click("取消详细记工");
     expect(document.querySelector(".normal-record-editor")).toBeNull();

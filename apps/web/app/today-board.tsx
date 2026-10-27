@@ -51,6 +51,8 @@ import { RecordEditor } from "./record-editor";
 import { PlaceholderDeleteDialog } from "./placeholder-delete-dialog";
 import { AutoCloseDetails } from "./auto-close-details";
 import { OverviewMetric, UiIcon } from "./ui/primitives";
+import { QuickWorkModeSwitch, type QuickWorkMode } from "./quick-work-mode-switch";
+import { absorbWorkRecordDialog } from "../lib/work-record-save-motion";
 
 interface TodayBoardProps {
   wideLayout: boolean;
@@ -147,8 +149,8 @@ export function TodayBoard({
   const [showHidden, setShowHidden] = useState(false);
   const [quickEmployeeId, setQuickEmployeeId] = useState<string | null>(null);
   const [quickServiceId, setQuickServiceId] = useState("");
-  const [quickHighlighted, setQuickHighlighted] = useState(false);
-  const [quickDispatchExcluded, setQuickDispatchExcluded] = useState(false);
+  const [quickMode, setQuickMode] = useState<QuickWorkMode>("NORMAL");
+  const quickDialog = useRef<HTMLElement>(null);
   const [startTimeValid, setStartTimeValid] = useState(true);
   const [startTime, setStartTime] = useState(currentStoreTime(currentDay.timezone));
   const [creatingRecord, setCreatingRecord] = useState<WorkRecord | null>(null);
@@ -340,15 +342,15 @@ export function TodayBoard({
 
   function openDetailedRecord() {
     if (!startTimeValid) throw new Error("请填写有效的开始时间");
-    if (!quickEmployeeId || board.isClosed) return;
+    if (!quickEmployeeId || board.isClosed || quickMode === "PLACEHOLDER") return;
     setCreatingRecord(newWorkRecord({
       employeeMembershipId: quickEmployeeId,
       businessDate: currentDay.businessDate,
       storeTimezoneSnapshot: currentDay.timezone,
       businessCutoffSnapshot: currentDay.businessCutoffLocal,
       startAt: businessTimeToIso(currentDay.businessDate, startTime, currentDay.timezone),
-      isHighlighted: quickHighlighted,
-      isDispatchExcluded: quickDispatchExcluded,
+      isHighlighted: quickMode === "HIGHLIGHTED",
+      isDispatchExcluded: quickMode === "DISPATCH_EXCLUDED",
     }));
     setQuickEmployeeId(null);
   }
@@ -356,10 +358,11 @@ export function TodayBoard({
   async function saveQuickRecord(selection: number | "PLACEHOLDER") {
     if (!startTimeValid) throw new Error("请填写有效的开始时间");
     if (!quickEmployeeId || board.isClosed) return;
+    if ((selection === "PLACEHOLDER") !== (quickMode === "PLACEHOLDER")) return;
     const startAt = businessTimeToIso(currentDay.businessDate, startTime, currentDay.timezone);
     const durationMinutes = selection === "PLACEHOLDER" ? null : selection;
     if (durationMinutes !== null && !quickDurations.includes(durationMinutes)) throw new Error("请选择项目时长");
-    await apiRequest(`/stores/${membership.store.id}/work-records`, {
+    const saved = await apiRequest<WorkRecord>(`/stores/${membership.store.id}/work-records`, {
       method: "POST",
       idempotent: true,
       body: {
@@ -368,16 +371,19 @@ export function TodayBoard({
         ...(durationMinutes !== null ? {
           serviceItemId: quickService!.id,
           serviceDurationMinutes: durationMinutes,
-          isHighlighted: quickHighlighted,
-          isDispatchExcluded: quickDispatchExcluded,
+          isHighlighted: quickMode === "HIGHLIGHTED",
+          isDispatchExcluded: quickMode === "DISPATCH_EXCLUDED",
         } : { isPlaceholder: true }),
       },
     });
-    setQuickEmployeeId(null);
-    setQuickHighlighted(false);
-    setQuickDispatchExcluded(false);
-    setNotice(selection === "PLACEHOLDER" ? "占位已保存" : "记工已保存，可稍后打开详情填写付款");
-    await onReload();
+    try {
+      await onReload();
+    } finally {
+      await absorbWorkRecordDialog(quickDialog.current, saved?.id);
+      setQuickEmployeeId(null);
+      setQuickMode("NORMAL");
+      setNotice(selection === "PLACEHOLDER" ? "占位已保存" : "记工已保存，可稍后打开详情填写付款");
+    }
   }
 
   async function rankBoard() {
@@ -549,12 +555,12 @@ export function TodayBoard({
                   <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
                       if (record === null) return (
-                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickHighlighted(false); setQuickDispatchExcluded(false); setQuickEmployeeId(row.membershipId); }}>
+                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickMode("NORMAL"); setQuickEmployeeId(row.membershipId); }}>
                           <span aria-hidden="true"><UiIcon name="plus" /></span>新增记工
                         </button>
                       );
                       if (record.status === "PLACEHOLDER") return (
-                        <button className="record-card record-card--placeholder" key={record.id} type="button" aria-label="占位" aria-describedby={`placeholder-time-${record.id}`}
+                        <button className="record-card record-card--placeholder" data-work-record-id={record.id} key={record.id} type="button" aria-label="占位" aria-describedby={`placeholder-time-${record.id}`}
                           disabled={!isCurrentBusinessDay && !canManage} title={!isCurrentBusinessDay && !canManage ? "历史记录只读" : undefined}
                           onClick={() => setDeletingPlaceholder(record)}>
                           <svg className="record-placeholder-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
@@ -573,6 +579,7 @@ export function TodayBoard({
                       <button
                         className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}${record.isHighlighted || record.isDispatchExcluded ? " record-card--right-group" : ""}${record.isHighlighted ? " record-card--highlighted" : ""}${hasNote ? " record-card--has-note" : ""}${hasPaymentMismatch ? " record-card--payment-mismatch" : ""}`}
                         key={record.id}
+                        data-work-record-id={record.id}
                         type="button"
                         disabled={!isCurrentBusinessDay && !canManage}
                         title={!isCurrentBusinessDay && !canManage ? "历史记录只读" : undefined}
@@ -665,35 +672,34 @@ export function TodayBoard({
 
       {quickEmployeeId && createPortal(
         <div className="modal-backdrop" role="presentation">
-          <section className="quick-modal quick-work-modal" role="dialog" aria-modal="true" aria-labelledby="quick-modal-title">
+          <section ref={quickDialog} className="quick-modal quick-work-modal" data-quick-mode={quickMode} role="dialog" aria-modal="true" aria-labelledby="quick-modal-title">
             <div className="modal-heading">
               <div><p className="eyebrow">快速记工</p><h2 id="quick-modal-title">{members.find((item) => item.id === quickEmployeeId)?.displayName}</h2></div>
-              <button className="secondary-action quick-detailed-entry" type="button" disabled={busy || board.isClosed} onClick={() => run(async () => openDetailedRecord())}>详细记工</button>
+              <button className="secondary-action quick-detailed-entry" type="button" disabled={busy || board.isClosed || quickMode === "PLACEHOLDER"} onClick={() => run(async () => openDetailedRecord())}>详细记工</button>
               <button className="close-button" type="button" disabled={busy} onClick={() => setQuickEmployeeId(null)}>关闭</button>
               <div className="modal-heading__actions">
-                <button className="highlight-toggle placeholder-toggle" type="button" disabled={busy || board.isClosed} onClick={() => run(() => saveQuickRecord("PLACEHOLDER"))}>占位</button>
-                <button className={`highlight-toggle dispatch-excluded-toggle${quickDispatchExcluded ? " active" : ""}`} type="button" aria-pressed={quickDispatchExcluded} disabled={busy || board.isClosed} onClick={() => setQuickDispatchExcluded((current) => !current)}>不算排工</button>
-                <button className={`highlight-toggle${quickHighlighted ? " active" : ""}`} type="button" aria-pressed={quickHighlighted} disabled={busy || board.isClosed} onClick={() => setQuickHighlighted((current) => !current)}><span aria-hidden="true">★</span>{quickHighlighted ? "已高亮" : "高亮标记"}</button>
+                <QuickWorkModeSwitch value={quickMode} disabled={busy || board.isClosed} onChange={setQuickMode} />
               </div>
             </div>
             <div className="quick-modal-content">
               <label className="field-label" htmlFor="start-time">开始时间</label>
               <WorkTimeInput id="start-time" value={startTime} onChange={setStartTime} onValidityChange={setStartTimeValid} />
-              <label className="field-label" htmlFor="quick-service">选择项目</label>
-              <select id="quick-service" value={quickService?.id ?? ""} disabled={busy || board.isClosed || quickServices.length === 0} onChange={(event) => setQuickServiceId(event.target.value)}>
-                {quickServices.length === 0 && <option value="">没有可用项目，请先在项目设置中添加。</option>}
-                {quickServices.map((service) => <option key={service.id} value={service.id}>{service.fullName}</option>)}
-              </select>
-              <fieldset className={`duration-picker${quickDurations.length === 3 ? " duration-picker--three-options" : ""}`} disabled={busy || board.isClosed}>
-                <legend>选择时长</legend>
-                {quickDurations.map((durationMinutes) => (
-                  <button key={durationMinutes} type="button" onClick={() => run(() => saveQuickRecord(durationMinutes))}>
-                    <strong>{durationMinutes} 分钟</strong>
-                  </button>
-                ))}
-                {quickDurations.length === 0 && <p className="empty-note">没有可用时长，请先在项目设置中添加。</p>}
-              </fieldset>
-              <p className="modal-note">请先选择项目并调整时间及标记，点击时长即保存记工，点击占位即保存占位。付款和小费可稍后在详情补充。</p>
+              {quickMode === "PLACEHOLDER" ? <button className="primary-action quick-placeholder-save" type="button" disabled={busy || board.isClosed} onClick={() => run(() => saveQuickRecord("PLACEHOLDER"))}>确认</button> : <>
+                <label className="field-label" htmlFor="quick-service">选择项目</label>
+                <select id="quick-service" value={quickService?.id ?? ""} disabled={busy || board.isClosed || quickServices.length === 0} onChange={(event) => setQuickServiceId(event.target.value)}>
+                  {quickServices.length === 0 && <option value="">没有可用项目，请先在项目设置中添加。</option>}
+                  {quickServices.map((service) => <option key={service.id} value={service.id}>{service.fullName}</option>)}
+                </select>
+                <fieldset className={`duration-picker${quickDurations.length === 3 ? " duration-picker--three-options" : ""}`} disabled={busy || board.isClosed}>
+                  <legend>选择时长</legend>
+                  {quickDurations.map((durationMinutes) => (
+                    <button key={durationMinutes} type="button" onClick={() => run(() => saveQuickRecord(durationMinutes))}>
+                      <strong>{durationMinutes} 分钟</strong>
+                    </button>
+                  ))}
+                  {quickDurations.length === 0 && <p className="empty-note">没有可用时长，请先在项目设置中添加。</p>}
+                </fieldset>
+              </>}
               {error && <p className="form-error" role="alert">{error}</p>}
             </div>
           </section>

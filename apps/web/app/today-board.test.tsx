@@ -535,7 +535,8 @@ describe("日结后的现金变化", () => {
     await render();
     const metric = [...container.querySelectorAll(".overview-metric")].find(node => node.textContent?.includes("现金变化"))!;
     expect(metric.querySelector("strong")?.textContent).toBe(expected);
-    expect(metric.textContent).toContain(cashChangeCents === null ? "旧日结未记录，重新日结后生成" : "正数增加，负数减少");
+    if (cashChangeCents === null) expect(metric.textContent).toContain("旧日结未记录，重新日结后生成");
+    else expect(metric.querySelector(".overview-metric__note")).toBeNull();
   });
   it("普通员工没有全店现金变化指标", async () => {
     props.membership = { ...props.membership, role: "EMPLOYEE", id: employee.id };

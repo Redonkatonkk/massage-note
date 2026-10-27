@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](UI_DESIGN.zh-CN.md)**
 
-> Applies to version: `1.40.0` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
+> Applies to version: `1.40.1` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
 
 This article is the design basis for subsequent AI modifications to the front end and generation of salary settlement and individual daily statement images. Aesthetic judgment comes from store working scenes, user feedback on adjacent panels, highlight colors, member operations, phone reading and generated pictures, and existing implementations. New requirements from users are given priority; specific business rules are subject to [Product Document](../product/PRODUCT.md). For specific style values, check the source code entry below. Reason: The design rationale needs to be sustained and needs to be able to be revised with clear feedback.
 
@@ -233,4 +233,4 @@ The existing audit tab/link becomes Data operations. Owners first see peer expor
 
 ### Homepage cash-change metric
 
-Before closing, keep Gift card total. After closing, replace that metric in both desktop and mobile layouts with Cash change from the server snapshot, using the shared metric surface and wallet icon. Show an explicit + or - before the currency and preserve cents; zero has no sign. Add the visible note that positive adds cash and negative removes cash. Missing older snapshots show a dash and explain that reopening and closing again generates the value. Reason: money-drawer reconciliation needs direction, exact cents and a clear distinction between missing history and zero.
+Before closing, keep Gift card total. After closing, replace that metric in both desktop and mobile layouts with Cash change from the server snapshot, using the shared metric surface and wallet icon. Show an explicit + or - before the currency and preserve cents; zero has no sign. Missing older snapshots show a dash and explain that reopening and closing again generates the value. Reason: money-drawer reconciliation needs direction, exact cents and a clear distinction between missing history and zero.

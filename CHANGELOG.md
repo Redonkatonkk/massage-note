@@ -4,6 +4,11 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.40.1 — 2026-10-27
+
+- Remove the explanatory note below recorded Cash change amounts; retain explicit +/− signs, cents and the missing-history notice.
+- NAS requires a Web update; no API, database or Messages agent changes.
+
 ## 1.40.0 — 2026-10-26
 
 - Replace the homepage Gift card total metric after closing with signed Cash change, including cash gift-card sales and expected employee payouts; exclude owner/manager wages and direct cash tips. Freeze the value in closing snapshots, preserve cents, protect store-only data and explain missing legacy values.

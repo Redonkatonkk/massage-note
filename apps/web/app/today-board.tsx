@@ -82,7 +82,7 @@ function CashChangeMetric({ cents }: { cents: number | null }) {
   const value = cents == null ? "—" : `${cents > 0 ? "+" : cents < 0 ? "-" : ""}${formatUsdPrecise(Math.abs(cents), locale)}`;
   return <OverviewMetric icon="wallet" label="现金变化" value={value}
     title="现金大费实收＋卖卡现金实收－员工应发现金；店长经理不扣工资，现金小费不计入，按日结时保存的应发金额计算。"
-    note={cents == null ? "旧日结未记录，重新日结后生成" : "正数增加，负数减少"} />;
+    note={cents == null ? "旧日结未记录，重新日结后生成" : ""} />;
 }
 
 function PaymentBreakdown({

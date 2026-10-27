@@ -316,7 +316,6 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "礼物卡总额": "Gift card total",
   "现金变化": "Cash change",
   "日结前显示礼物卡总额；日结后同位置显示现金变化＝现金大费实收＋卖卡现金实收－员工应发现金。普通员工扣现金分摊工资，每日结清员工扣全部大费工资及刷卡／礼卡小费；店长经理不扣工资，现金小费不计入。正数带 +，负数带 -，保留美分；结果按日结快照固定，旧日结未记录时显示 —，重新日结后生成。": "Before closing, Gift card total is shown. After closing, Cash change = cash service receipts + cash gift-card sales − employee cash wages due. Ordinary employees use cash-allocated wages; daily-full employees use all service wages plus card/gift-card tips. Owner/manager wages and cash tips are excluded. Positive values have +, negative values have -, and cents are preserved. Closing snapshots freeze the result; older unrecorded days show a dash until reopened and closed again.",
-  "正数增加，负数减少": "Positive adds cash; negative removes cash",
   "旧日结未记录，重新日结后生成": "Not recorded in this older closing; reopen and close again to generate",
   "现金大费实收＋卖卡现金实收－员工应发现金；店长经理不扣工资，现金小费不计入，按日结时保存的应发金额计算。": "Cash service receipts + cash gift-card sales − employee cash wages due. Owner/manager wages and cash tips are excluded. Uses amounts saved at daily closing.",
   "礼物卡销售实际收款": "Actual gift card sale receipts",

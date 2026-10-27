@@ -1,6 +1,6 @@
 "use client";
 
-import { useAutoDismissState } from "./use-auto-dismiss-state";
+import { useScreenFeedback } from "./screen-feedback";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -52,7 +52,7 @@ import { PlaceholderDeleteDialog } from "./placeholder-delete-dialog";
 import { AutoCloseDetails } from "./auto-close-details";
 import { OverviewMetric, UiIcon } from "./ui/primitives";
 import { QuickWorkModeSwitch, type QuickWorkMode } from "./quick-work-mode-switch";
-import { absorbWorkRecordDialog } from "../lib/work-record-save-motion";
+import { absorbWorkRecordDialog, beginWorkRecordSaveMotion, cancelWorkRecordSaveMotion, preloadWorkRecordSaveMotion } from "../lib/work-record-save-motion";
 
 interface TodayBoardProps {
   wideLayout: boolean;
@@ -159,9 +159,9 @@ export function TodayBoard({
   const [closingEmployee, setClosingEmployee] = useState<{ id: string; displayName: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const actionInFlight = useRef(false);
-  const [error, setError] = useAutoDismissState("");
-  const [notice, setNotice] = useAutoDismissState("");
+  const { feedback, setNotice, setError } = useScreenFeedback();
   const [deliveryList, setDeliveryList] = useState<ClosingDeliveryList | null>(null);
+  useEffect(() => { if (loadError) setError(loadError); }, [loadError, setError]);
   const [statusNow, setStatusNow] = useState(() => {
     const serverTime = Date.parse(currentDay.serverTime);
     return Number.isFinite(serverTime) ? serverTime : Date.now();
@@ -194,11 +194,14 @@ export function TodayBoard({
 
   useEffect(() => {
     if (!quickEmployeeId) return;
+    preloadWorkRecordSaveMotion();
+    const dialog = quickDialog.current;
     const previousBodyOverflow = document.body.style.overflow;
     const previousHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
     return () => {
+      cancelWorkRecordSaveMotion(dialog);
       document.body.style.overflow = previousBodyOverflow;
       document.documentElement.style.overflow = previousHtmlOverflow;
     };
@@ -261,6 +264,7 @@ export function TodayBoard({
     try {
       await action();
     } catch (caught) {
+      cancelWorkRecordSaveMotion(quickDialog.current);
       setError(errorMessage(caught));
     } finally {
       actionInFlight.current = false;
@@ -362,6 +366,7 @@ export function TodayBoard({
     const startAt = businessTimeToIso(currentDay.businessDate, startTime, currentDay.timezone);
     const durationMinutes = selection === "PLACEHOLDER" ? null : selection;
     if (durationMinutes !== null && !quickDurations.includes(durationMinutes)) throw new Error("请选择项目时长");
+    beginWorkRecordSaveMotion(quickDialog.current);
     const saved = await apiRequest<WorkRecord>(`/stores/${membership.store.id}/work-records`, {
       method: "POST",
       idempotent: true,
@@ -465,7 +470,6 @@ export function TodayBoard({
           {accountActions && <div className="today-header-utilities"><div className="topbar-actions">{accountActions}</div></div>}
         </> : <><div className="today-heading">{heading}</div>{accountActions && <div className="topbar-actions">{accountActions}</div>}</>}
       </header>
-      {loadError && <p className="form-error" role="alert">{loadError}</p>}
       {!wideLayout && <div className="business-day-toolbar business-day-toolbar--compact">{dateControls}{dailyActions}</div>}
 
       {canManage && <section className="board-overview" aria-label="今日全店汇总">
@@ -497,8 +501,7 @@ export function TodayBoard({
 
 
       {board.isClosed && <p className="closed-banner" role="status">{canChangeRowVisibility ? "这个营业日已经日结。可隐藏或恢复员工出勤，影响后续生成顺序；修改记工或员工顺序仍须先取消日结。" : "这个营业日已经日结。记工、员工顺序和显示状态均为只读；如需修改请先取消日结。"}</p>}
-      {notice && <p className="success-banner" role="status">✓ {notice}</p>}
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {feedback}
 
       <div className="board-section-heading"><UiIcon name="log" /><h2>员工记工</h2><span>{visibleRows.length} <span>位员工</span></span></div>
       {employeeRosterActions}
@@ -700,7 +703,6 @@ export function TodayBoard({
                   {quickDurations.length === 0 && <p className="empty-note">没有可用时长，请先在项目设置中添加。</p>}
                 </fieldset>
               </>}
-              {error && <p className="form-error" role="alert">{error}</p>}
             </div>
           </section>
         </div>,
@@ -727,6 +729,7 @@ export function TodayBoard({
           isClosed={board.isClosed}
           onClose={() => { setEditingRecord(null); setCreatingRecord(null); }}
           onSaved={() => setNotice(creatingRecord ? "记工已保存" : "记工修改已保存")}
+          onDeleted={() => setNotice("记工已删除")}
           onChanged={onReload}
         />
       )}

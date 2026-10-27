@@ -14,7 +14,8 @@ import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
 import { closedRecordBusinessDate, reopenRecordBusinessDay } from "../lib/record-closing";
 import { shouldConfirmPaymentOnSave } from "../lib/record-payment";
-import { absorbWorkRecordDialog } from "../lib/work-record-save-motion";
+import { absorbWorkRecordDialog, beginWorkRecordSaveMotion, cancelWorkRecordSaveMotion, preloadWorkRecordSaveMotion } from "../lib/work-record-save-motion";
+import { beginWorkRecordDeleteMotion, preloadWorkRecordDeleteMotion } from "../lib/work-record-delete-motion";
 import { defaultServicePriceOption } from "../lib/service-price-option";
 import {
   localDateTimeValue,
@@ -55,6 +56,7 @@ interface RecordEditorProps {
   isClosed: boolean;
   onClose: () => void;
   onSaved: () => void;
+  onDeleted?: () => void;
   onChanged: () => Promise<void>;
 }
 
@@ -151,14 +153,23 @@ export function RecordEditor({
   isClosed,
   onClose,
   onSaved,
+  onDeleted,
   onChanged,
 }: RecordEditorProps) {
   const actionInFlight = useRef(false);
   const editorElement = useRef<HTMLElement>(null);
+  useEffect(() => { preloadWorkRecordSaveMotion(); }, []);
+  useEffect(() => { if (!isNew) preloadWorkRecordDeleteMotion(); }, [isNew]);
+  useEffect(() => {
+    const dialog = editorElement.current;
+    return () => cancelWorkRecordSaveMotion(dialog);
+  }, []);
   useEffect(() => { editorElement.current?.focus({ preventScroll: true }); }, [record.id]);
   const [blockedBusinessDate, setBlockedBusinessDate] = useState<string | null>(null);
   const closedBusinessDate = blockedBusinessDate ?? (isClosed ? record.businessDate.slice(0, 10) : null);
   const dayClosed = closedBusinessDate !== null;
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
+  useEffect(() => { setDeleteConfirming(false); }, [record.id, dayClosed]);
   const [recordVersion, setRecordVersion] = useState(record.version);
   const service = record.serviceSnapshot;
   const initialItem = isNew ? catalog.serviceItems.find((item) => item.id === initialServiceItemId && item.isEnabled && !item.deletedAt) : undefined;
@@ -610,11 +621,13 @@ export function RecordEditor({
   }
 
   async function saveDetails(): Promise<WorkRecord> {
+    const body = buildUpdate(recordVersion);
+    beginWorkRecordSaveMotion(editorElement.current);
     try {
       const updated = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/${record.id}`, {
         method: "PATCH",
         idempotent: true,
-        body: buildUpdate(recordVersion),
+        body,
       });
       setRecordVersion(updated.version);
       return updated;
@@ -632,6 +645,7 @@ export function RecordEditor({
     try {
       await action();
     } catch (caught) {
+      cancelWorkRecordSaveMotion(editorElement.current);
       if (caught instanceof ApiError && caught.code === "BUSINESS_DAY_CLOSED") {
         setBlockedBusinessDate(closedRecordBusinessDate(caught.latestResource, record.businessDate));
       }
@@ -642,20 +656,32 @@ export function RecordEditor({
     }
   }
 
-  async function finish(savedRecordId: string | undefined, animate = true) {
+  async function finish(savedRecordId: string | undefined) {
     browserStorage.removeItem(draftKey);
-    if (!animate) {
-      onSaved();
-      onClose();
-      await onChanged();
-      return;
-    }
     try {
       await onChanged();
     } finally {
       await absorbWorkRecordDialog(editorElement.current, savedRecordId);
       onSaved();
       onClose();
+    }
+  }
+
+  async function deleteRecord() {
+    try {
+      await apiRequest(`/stores/${storeId}/work-records/${record.id}`, { method: "DELETE", idempotent: true, body: { version: record.version } });
+      const motion = beginWorkRecordDeleteMotion(record.id);
+      browserStorage.removeItem(draftKey);
+      (onDeleted ?? onSaved)();
+      onClose();
+      try {
+        await onChanged();
+      } finally {
+        await motion.finished;
+        motion.cancel();
+      }
+    } finally {
+      setDeleteConfirming(false);
     }
   }
 
@@ -692,24 +718,26 @@ export function RecordEditor({
     }
     let saved: WorkRecord;
     if (isNew) {
-      saved = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/detailed`, {
-        method: "POST", idempotent: true,
-        body: {
-          create: {
-            employeeMembershipId: employeeId,
-            startAt: zonedLocalToIso(startAt, timezone),
-            ...(serviceChoice === "__unassigned__" ? { durationMinutes: serviceDurationValue(serviceDuration) } : {}),
-            serviceItemId: details.serviceItemId,
-            serviceDurationMinutes: details.serviceDurationMinutes,
-            customService: details.customService,
-            isHighlighted,
-            isDispatchExcluded,
-          },
-          details,
-          ...(willConfirmPayment ? { payment } : {}),
+      const body = {
+        create: {
+          employeeMembershipId: employeeId,
+          startAt: zonedLocalToIso(startAt, timezone),
+          ...(serviceChoice === "__unassigned__" ? { durationMinutes: serviceDurationValue(serviceDuration) } : {}),
+          serviceItemId: details.serviceItemId,
+          serviceDurationMinutes: details.serviceDurationMinutes,
+          customService: details.customService,
+          isHighlighted,
+          isDispatchExcluded,
         },
+        details,
+        ...(willConfirmPayment ? { payment } : {}),
+      };
+      beginWorkRecordSaveMotion(editorElement.current);
+      saved = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/detailed`, {
+        method: "POST", idempotent: true, body,
       });
     } else {
+      beginWorkRecordSaveMotion(editorElement.current);
       saved = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/${record.id}/save`, {
         method: "POST", idempotent: true, body: { details, payment },
       });
@@ -991,11 +1019,16 @@ export function RecordEditor({
           document.body,
         )}
         <footer className="editor-actions">
-          {!isNew && <button className="delete-record" type="button" disabled={busy || dayClosed} onClick={() => run(async () => {
-            if (!window.confirm("确认删除这条记工吗？删除后普通页面将隐藏，店长或经理可以恢复。")) return;
-            await apiRequest(`/stores/${storeId}/work-records/${record.id}`, { method: "DELETE", idempotent: true, body: { version: record.version } });
-            await finish(undefined, false);
-          })}>删除记录</button>}
+          {!isNew && <button className={`delete-record${deleteConfirming ? " delete-record--confirming" : ""}`} type="button"
+            aria-label={deleteConfirming ? "确认删除" : "删除记录"} disabled={busy || dayClosed}
+            onBlur={() => setDeleteConfirming(false)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && deleteConfirming) { event.preventDefault(); event.stopPropagation(); setDeleteConfirming(false); }
+            }}
+            onClick={() => { if (deleteConfirming) void run(deleteRecord); else setDeleteConfirming(true); }}>
+            <span className="delete-record__label" aria-hidden={deleteConfirming}>删除记录</span>
+            <span className="delete-record__confirmation" aria-hidden={!deleteConfirming}>确认删除</span>
+          </button>}
           <span />
           <div className="editor-save-actions">
             {dayClosed && canManage && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(reopenDay)}>取消日结</button>}

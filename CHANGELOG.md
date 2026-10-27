@@ -4,6 +4,52 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.47.0 — 2026-10-27
+
+- Replace the saving rope with a VFX-JS Canvas transition: freeze the visible form, condense it into a ring over 260ms, then orbit automatically at screen center while the write and refresh are pending. Use a 120–200px orbit diameter, a 1.2-second revolution and a tapered trail spanning about 390ms; pointer movement does not drive the effect.
+- After successful refresh, continue from the visible ring position, fly along a curved 420ms path to the returned record ID, then collide and unfold its real card texture with a 220ms spring. Preserve page scroll, horizontal-only card reveal, input drafts, focus and submission locks.
+- Share lazy VFX loading, color tokens and GPU disposal with deletion. Bound form/card capture, handle missing destinations, reduced motion, unsupported graphics and interrupted renders, and release pending timers, snapshots and contexts. NAS requires a Web update; no API, database or Messages agent changes.
+
+## 1.46.0 — 2026-10-27
+
+- Replace the SVG deletion effect with lazily loaded VFX-JS 1.1.0 and an MIT-licensed BurnThrough shader adapted from GL Transitions. Render the actual card texture with a bottom-to-top noise field, char and ember zones, then clear it over 500ms.
+- Keep the frozen card independent of realtime refresh and track auto-scroll. Cap render DPR at 2, bound preparation to 250ms and fall back to a bounded fade on unsupported WebGL, capture/shader failure or context loss. Release frames, listeners, textures and GPU context on completion or cancellation. Preserve reduced motion and page position.
+- Include both upstream MIT licenses and shader attribution; verify rendering lifecycle, refresh races and fallback paths through code tests. NAS requires a Web update; no API contract, database migration or Messages agent changes.
+
+## 1.45.4 — 2026-10-27
+
+- Keep the top feedback overlay visible for 2 seconds before its existing 200ms fade. Repeated and replacement messages restart the full lifetime.
+- NAS requires a Web update; no API, database or Messages agent changes.
+
+## 1.45.3 — 2026-10-27
+
+- Place board feedback at the top center with a translucent background and backdrop blur. Retain the 1-second hold, 200ms fade and layout-independent positioning.
+- Replace the native work-record deletion prompt with two clicks on the same button: first animate into a bright-red Confirm delete state, then submit. Overlay both labels to preserve button size; blur, Escape, record/closing changes and failed deletion reset confirmation. Retain write locks and the 500ms card burn.
+- NAS requires a Web update; no API contract, database migration or Messages agent changes.
+
+## 1.45.2 — 2026-10-27
+
+- Move all board action and refresh feedback into one centered overlay, hold it for 1 second, then fade out over 200ms. Repeated messages restart the lifetime; feedback takes no layout space or focus. Keep persistent business states in place.
+- Preserve vertical page position when saving: reveal destination cards only within their horizontal track, use a local fade for destinations outside the vertical viewport, retain scrollbar space and restore placeholder-dialog focus without scrolling. Deletion now reports Work record deleted.
+- NAS requires a Web update; no API contract, database migration or Messages agent changes.
+
+## 1.45.1 — 2026-10-27
+
+- Use a solid green loading rope and increase its resting thickness from 10px to 16px. Resize its actual width and height during rotation and arrival so the rounded caps stay soft; keep the condensing form clipped to rounded corners.
+- NAS requires a Web update; no API, database or Messages agent changes.
+
+## 1.45.0 — 2026-10-27
+
+- After a successful work-record or placeholder deletion, close the dialog and burn its board card from bottom to top over 500ms, with an uneven charred edge, ember glow and sparks. A noninteractive snapshot lets realtime refresh continue during the effect.
+- Skip the effect for reduced motion or unavailable cards; bound interrupted animations and clean up on navigation, scrolling, resizing and preference changes. Failed or canceled deletions do not animate.
+- NAS requires a Web update; no API contract, database migration or Messages agent changes.
+
+## 1.44.0 — 2026-10-27
+
+- Start save feedback immediately after local validation: the entire quick-entry or detail form elastically condenses into a rotating rope at screen center while the write and record refresh are pending. On completion, the rope flies to the saved record and unfolds into its card over 300ms.
+- Restore the filled form and focus on write failure; retain submission locks through all phases. Clean up on unmount, page hide, reduced-motion changes and animation errors; use a local fade if the saved card is unavailable.
+- NAS requires a Web update; no API contract, database migration or Messages agent changes.
+
 ## 1.43.0 — 2026-10-27
 
 - Align the placeholder translation regression with its current Confirm label.

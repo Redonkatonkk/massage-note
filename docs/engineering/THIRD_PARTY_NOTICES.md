@@ -35,3 +35,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## VFX-JS and GL Transitions
+
+Work-record saving and deletion use `@vfx-js/core` pinned to `1.1.0`, loaded on demand in the browser when entry or deletion controls open. The save transition uses the project’s own shader; only the burn shader below derives from GL Transitions. VFX-JS is MIT-licensed, copyright (c) 2020-present The VFX-JS developers. The full upstream license ships at [vfx-js.txt](../../apps/web/public/licenses/vfx-js.txt). Reason: deployed Web assets must retain the dependency's attribution and permission notice.
+
+The [burn shader](../../apps/web/lib/work-record-burn-shader.ts) adapts [BurnThrough.glsl](https://github.com/gl-transitions/gl-transitions/blob/master/transitions/BurnThrough.glsl), authored by `liubailin2020@gmail.com` with noise based on Morgan McGuire's work. GL Transitions is copyright (c) 2017-present gl-transitions contributors; this shader's header explicitly specifies MIT. Adaptations add a bottom-to-top field, transparent destination, char/ember zones and VFX-JS uniforms. The full license and attribution ship at [gl-transitions.txt](../../apps/web/public/licenses/gl-transitions.txt). Source verified: 2026-10-27. Reason: the adapted shader remains upstream-derived code and its license must accompany redistributed assets.

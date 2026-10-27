@@ -7,11 +7,13 @@ import { ApiError, apiRequest } from "../lib/api";
 import type { BoardStatistics, StoreDetails, StoreMember, WorkRecord } from "../lib/types";
 import { newWorkRecord } from "../lib/new-work-record";
 import { TodayBoard } from "./today-board";
-import { absorbWorkRecordDialog } from "../lib/work-record-save-motion";
+import { absorbWorkRecordDialog, beginWorkRecordSaveMotion, cancelWorkRecordSaveMotion } from "../lib/work-record-save-motion";
+import { beginWorkRecordDeleteMotion } from "../lib/work-record-delete-motion";
 
 vi.mock("../lib/api", async (original) => ({ ...await original<typeof import("../lib/api")>(), apiRequest: vi.fn() }));
 vi.mock("../lib/time", async (original) => ({ ...await original<typeof import("../lib/time")>(), currentStoreTime: () => "10:00" }));
-vi.mock("../lib/work-record-save-motion", () => ({ absorbWorkRecordDialog: vi.fn(async () => {}) }));
+vi.mock("../lib/work-record-save-motion", () => ({ absorbWorkRecordDialog: vi.fn(async () => {}), beginWorkRecordSaveMotion: vi.fn(), cancelWorkRecordSaveMotion: vi.fn(), preloadWorkRecordSaveMotion: vi.fn() }));
+vi.mock("../lib/work-record-delete-motion", () => ({ beginWorkRecordDeleteMotion: vi.fn(), preloadWorkRecordDeleteMotion: vi.fn() }));
 vi.mock("./record-track", () => ({ RecordTrack: ({ children }: { children: ReactNode }) => <div className="record-track">{children}</div> }));
 vi.mock("./record-editor", () => ({ RecordEditor: ({ isClosed, isNew, initialServiceItemId, record, onClose }: { isClosed: boolean; isNew?: boolean; initialServiceItemId?: string; record: WorkRecord; onClose: () => void }) => <div className="normal-record-editor" data-readonly={isClosed} data-new={isNew} data-service={initialServiceItemId} data-record={JSON.stringify(record)}>{isNew && <button onClick={onClose}>取消详细记工</button>}</div> }));
 vi.mock("./board-employee-picker", () => ({ BoardEmployeePicker: () => null }));
@@ -23,6 +25,10 @@ vi.mock("./closing-delivery-queue", () => ({ ClosingDeliveryQueueButton: () => n
 vi.mock("./ranking-explanation", () => ({ RankingExplanationButton: () => null }));
 const request = vi.mocked(apiRequest);
 const saveMotion = vi.mocked(absorbWorkRecordDialog);
+const beginMotion = vi.mocked(beginWorkRecordSaveMotion);
+const cancelMotion = vi.mocked(cancelWorkRecordSaveMotion);
+const deleteMotion = vi.mocked(beginWorkRecordDeleteMotion);
+const releaseDeleteMotion = vi.fn();
 const language = vi.hoisted(() => ({ locale: "zh-CN" as "zh-CN" | "en-US" }));
 vi.mock("./language-provider", () => ({ useLanguage: () => language }));
 const stats: BoardStatistics = { recordCount: 0, grossFeeBaseCents: 0, discountTotalCents: 0, discountedFeePerformanceCents: 0, totalTipCents: 0, totalLargeFeeWageCents: 0, employeeIncomeCents: 0, giftCardSaleCount: 0, giftCardCashCents: 0, giftCardCardCents: 0, giftCardSalesAmountCents: 0, giftCardRedemptionCents: 0, storeIncomeCents: 0 };
@@ -42,6 +48,8 @@ beforeEach(() => {
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   request.mockReset(); request.mockResolvedValue({ deliveries: [], batchAllowed: true, batchBlockedReason: null, agent: null }); reload.mockClear();
   saveMotion.mockReset().mockResolvedValue(undefined);
+  beginMotion.mockClear(); cancelMotion.mockClear();
+  deleteMotion.mockReset().mockReturnValue({ finished: Promise.resolve(), cancel: releaseDeleteMotion }); releaseDeleteMotion.mockClear();
   props = { wideLayout: false, heading: "门店", accountActions: null, dateControls: null, returnToToday: null, calendar: null, loadError: "", membership: { id: "owner", role: "OWNER", displayName: "店主", isServiceProvider: true, store }, store, currentDay: { businessDate: "2026-10-06", timezone: store.timezone, businessCutoffLocal: "04:00", serverTime: "2026-10-06T16:00:00.000Z" }, isCurrentBusinessDay: true, isFutureBusinessDay: false,
     board: { id: "board", storeId: store.id, businessDate: "2026-10-06", version: 1, isClosed: false, rows: [{ id: "row", membershipId: employee.id, position: 0, isHidden: false, version: 1, membership: employee, shifts: [], workRecords: [], statistics: stats }], giftCardSales: [], nextGiftCardSerialNumber: "1", statistics: { ...stats, revenueCents: 0, totalIncomeCents: 0, cashChangeCents: null, recentClosedRevenue: null }, ranking: { enabled: false, rankedAt: null, explanation: null } },
     catalog: { serviceItems: [{ id: "service", position: 0, fullName: "足部按摩", shortName: "足疗", priceOptions: [{ id: "option", durationMinutes: 60, priceCents: 6000, position: 0 }], defaultCommissionBps: null, isEnabled: true, deletedAt: null, version: 1 }], addonItems: [], discountItems: [] }, members: [employee], onReload: reload };
@@ -49,7 +57,7 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
 async function render() { await act(async () => root.render(<TodayBoard {...props} />)); }
 function button(text: string, scope: ParentNode = document): HTMLButtonElement {
-  const found = [...scope.querySelectorAll<HTMLButtonElement>("button")].find((node) => node.textContent === text);
+  const found = [...scope.querySelectorAll<HTMLButtonElement>("button")].find((node) => node.getAttribute("aria-label") === text || node.textContent === text);
   if (!found) throw new Error(`Missing button ${text}`);
   return found;
 }
@@ -70,6 +78,21 @@ async function pressEnter(target: Element, options: KeyboardEventInit = {}) {
   await act(async () => { target.dispatchEvent(event); });
   return event;
 }
+
+it("主表操作与读取失败都使用中央浮层，提示不插入页面布局", async () => {
+  props.isCurrentBusinessDay = false; props.board.isClosed = true;
+  await render();
+  const layout = [...container.children].map(node => [node.tagName, node.className]);
+  request.mockResolvedValueOnce({ removed: false });
+  await click("隐藏");
+  expect(document.querySelector(".screen-feedback[role=status]")!.textContent).toContain("已隐藏");
+  expect(container.querySelector(".success-banner, .screen-feedback, .form-error")).toBeNull();
+  expect([...container.children].map(node => [node.tagName, node.className])).toEqual(layout);
+  props.loadError = "读取失败，请刷新后重试"; await render();
+  expect(document.querySelectorAll(".screen-feedback")).toHaveLength(1);
+  expect(document.querySelector(".screen-feedback[role=alert]")!.textContent).toBe(props.loadError);
+  expect([...container.children].map(node => [node.tagName, node.className])).toEqual(layout);
+});
 
 it.each([true, false])("总收入读取服务端结果并显示原收入公式，宽屏=%s", async wideLayout => {
   props.wideLayout = wideLayout;
@@ -135,7 +158,7 @@ describe("历史员工出勤隐藏", () => {
     await render();
     request.mockRejectedValueOnce(new ApiError(409, { code: "BOARD_ROW_VERSION_CONFLICT", messageZh: "员工行已被其他设备修改，请刷新后重试" }));
     await click("隐藏");
-    expect(document.querySelector(".form-error[role=alert]")!.textContent).toContain("请刷新后重试");
+    expect(document.querySelector(".screen-feedback[role=alert]")!.textContent).toContain("请刷新后重试");
     expect(document.querySelector(".employee-row")).not.toBeNull();
     expect(reload).not.toHaveBeenCalled();
   });
@@ -217,11 +240,12 @@ describe("项目时长默认值", () => {
     const hour = document.querySelector<HTMLInputElement>('#start-time')!;
     await inputValue(hour, "99"); await chooseDuration(60);
     expect(writes()).toHaveLength(0);
-    expect(document.querySelector(".quick-work-modal [role=alert]")!.textContent).toContain("有效的开始时间");
+    expect(beginMotion).not.toHaveBeenCalled();
+    expect(document.querySelector(".screen-feedback[role=alert]")!.textContent).toContain("有效的开始时间");
     await inputValue(hour, "10");
     request.mockRejectedValueOnce(new ApiError(409, { code: "BUSINESS_DAY_CLOSED", messageZh: "已经日结" }));
     await chooseDuration(60);
-    expect(document.querySelector(".quick-work-modal [role=alert]")!.textContent).toBe("已经日结");
+    expect(document.querySelector(".screen-feedback[role=alert]")!.textContent).toBe("已经日结");
     expect(button("★高亮标记").getAttribute("aria-checked")).toBe("true");
     let resolveSave!: (value: unknown) => void;
     request.mockImplementationOnce(() => new Promise(resolve => { resolveSave = resolve; }));
@@ -254,27 +278,79 @@ describe("项目时长默认值", () => {
 });
 
 describe("保存后收进记工卡片", () => {
-  it("删除仍立即关闭，不等待刷新或播放保存动画", async () => {
+  it("删除成功后关闭弹窗并焚烧对应小卡，刷新与动画均完成后清理", async () => {
     const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
     const closed = vi.fn();
+    const saved = vi.fn(); const deleted = vi.fn();
+    let finishBurn!: () => void;
+    deleteMotion.mockReturnValueOnce({ finished: new Promise(resolve => { finishBurn = resolve; }), cancel: releaseDeleteMotion });
+    let finishWrite!: () => void;
+    request.mockImplementationOnce(() => new Promise(resolve => { finishWrite = () => resolve(undefined); }));
     let finishRefresh!: () => void;
     reload.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve; }));
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={ordinary} catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={closed} onSaved={vi.fn()} onChanged={reload} />));
+    const confirm = vi.spyOn(window, "confirm");
+    await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={ordinary} catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={closed} onSaved={saved} onDeleted={deleted} onChanged={reload} />));
     await click("删除记录");
+    expect(writes()).toEqual([]); expect(confirm).not.toHaveBeenCalled();
+    expect(button("确认删除").classList.contains("delete-record--confirming")).toBe(true);
+    await click("确认删除");
+    expect(button("确认删除").disabled).toBe(true); await click("确认删除"); expect(writes()).toHaveLength(1);
+    expect(deleteMotion).not.toHaveBeenCalled(); expect(closed).not.toHaveBeenCalled();
+    await act(async () => finishWrite());
     expect(closed).toHaveBeenCalledOnce(); expect(saveMotion).not.toHaveBeenCalled();
+    expect(deleted).toHaveBeenCalledOnce(); expect(saved).not.toHaveBeenCalled();
+    expect(deleteMotion).toHaveBeenCalledExactlyOnceWith(ordinary.id); expect(releaseDeleteMotion).not.toHaveBeenCalled();
     await act(async () => finishRefresh());
+    expect(releaseDeleteMotion).not.toHaveBeenCalled();
+    await act(async () => finishBurn()); expect(releaseDeleteMotion).toHaveBeenCalledOnce();
   });
-  it.each(["service", "placeholder"])("%s 创建后先刷新卡片，动画完成前保留弹窗并阻止重复提交", async kind => {
+  it("删除失败不焚烧、不关闭编辑器，并恢复为需要再次确认的删除按钮", async () => {
+    const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
+    const closed = vi.fn(); const confirm = vi.spyOn(window, "confirm");
+    await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={ordinary} catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={closed} onSaved={vi.fn()} onChanged={reload} />));
+    await click("删除记录"); expect(writes()).toEqual([]);
+    request.mockRejectedValueOnce(new ApiError(409, { code: "WORK_RECORD_VERSION_CONFLICT", messageZh: "版本冲突" }));
+    await click("确认删除");
+    expect(deleteMotion).not.toHaveBeenCalled(); expect(closed).not.toHaveBeenCalled(); expect(reload).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled(); expect(button("删除记录").classList.contains("delete-record--confirming")).toBe(false);
+    await click("删除记录"); expect(writes()).toHaveLength(1);
+    expect(document.querySelector('[role="alert"]')!.textContent).toBe("版本冲突");
+  });
+  it("删除确认失焦或按 Escape 后撤回，重新打开仍须点两次", async () => {
+    const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
+    const closed = vi.fn();
+    const editor = <RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={ordinary} catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={closed} onSaved={vi.fn()} onChanged={reload} />;
+    await act(async () => root.render(editor));
+    await act(async () => button("删除记录").focus()); await click("删除记录");
+    await act(async () => button("保存").focus());
+    expect(button("删除记录").classList.contains("delete-record--confirming")).toBe(false);
+    await click("删除记录");
+    await act(async () => button("确认删除").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    expect(button("删除记录").classList.contains("delete-record--confirming")).toBe(false);
+    await click("删除记录");
+    await act(async () => root.render(<div />)); await act(async () => root.render(editor));
+    expect(button("删除记录").classList.contains("delete-record--confirming")).toBe(false);
+    expect(writes()).toEqual([]); expect(closed).not.toHaveBeenCalled();
+  });
+  it.each(["service", "placeholder"])("%s 点击保存即浓缩，提交及刷新期间保持加载，展开前阻止重复提交", async kind => {
     await render(); await click("新增记工");
     if (kind === "placeholder") await click("占位");
     const saved = { ...ordinary, id: "saved-record" };
-    request.mockResolvedValueOnce(saved);
+    let finishWrite!: (value: WorkRecord) => void;
+    let finishRefresh!: () => void;
+    request.mockImplementationOnce(() => new Promise(resolve => { finishWrite = resolve; }));
+    reload.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve; }));
     let finishMotion!: () => void;
     saveMotion.mockImplementationOnce(() => new Promise(resolve => { finishMotion = resolve; }));
     const modal = document.querySelector<HTMLElement>(".quick-work-modal")!;
     await act(async () => { (kind === "placeholder" ? button("确认") : durationButton(60)).click(); });
+    expect(beginMotion).toHaveBeenCalledWith(modal);
+    expect(reload).not.toHaveBeenCalled(); expect(saveMotion).not.toHaveBeenCalled();
+    expect(button("关闭").disabled).toBe(true);
+    await act(async () => finishWrite(saved));
     expect(reload).toHaveBeenCalledOnce();
+    expect(saveMotion).not.toHaveBeenCalled();
+    await act(async () => finishRefresh());
     expect(saveMotion).toHaveBeenCalledWith(modal, saved.id);
     expect(reload.mock.invocationCallOrder[0]).toBeLessThan(saveMotion.mock.invocationCallOrder[0]!);
     expect(document.querySelector(".quick-work-modal")).toBe(modal);
@@ -293,16 +369,39 @@ describe("保存后收进记工卡片", () => {
     request.mockRejectedValueOnce(new ApiError(409, { code: "WORK_RECORD_VERSION_CONFLICT", messageZh: "版本冲突" }));
     await click("保存");
     expect(saveMotion).not.toHaveBeenCalled(); expect(closed).not.toHaveBeenCalled();
-    request.mockResolvedValue({ ...value, id: "saved-record" });
+    expect(beginMotion).toHaveBeenCalledOnce();
+    expect(cancelMotion).toHaveBeenCalledWith(document.querySelector(".record-editor"));
+    beginMotion.mockClear();
+    let finishWrite!: (value: WorkRecord) => void;
+    let finishRefresh!: () => void;
+    request.mockImplementationOnce(() => new Promise(resolve => { finishWrite = resolve; }));
+    reload.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve; }));
     let finishMotion!: () => void;
     saveMotion.mockImplementationOnce(() => new Promise(resolve => { finishMotion = resolve; }));
     await click("保存");
+    expect(beginMotion).toHaveBeenCalledOnce();
+    expect(reload).not.toHaveBeenCalled(); expect(saveMotion).not.toHaveBeenCalled();
+    await act(async () => finishWrite({ ...value, id: "saved-record" }));
+    expect(reload).toHaveBeenCalledOnce(); expect(saveMotion).not.toHaveBeenCalled();
+    await act(async () => finishRefresh());
     expect(saveMotion).toHaveBeenCalledWith(document.querySelector(".record-editor"), "saved-record");
     expect(closed).not.toHaveBeenCalled(); expect(saved).not.toHaveBeenCalled();
     expect(button("关闭").disabled).toBe(true);
     await act(async () => finishMotion());
     expect(saved).toHaveBeenCalledOnce(); expect(closed).toHaveBeenCalledOnce();
     expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it("离开快速记工页面会清理等待动画", async () => {
+    await render(); await click("新增记工");
+    const dialog = document.querySelector<HTMLElement>(".quick-work-modal")!;
+    let finishWrite!: (value: WorkRecord) => void;
+    request.mockImplementationOnce(() => new Promise(resolve => { finishWrite = resolve; }));
+    await act(async () => durationButton(60).click());
+    expect(beginMotion).toHaveBeenCalledWith(dialog);
+    await act(async () => root.render(null));
+    expect(cancelMotion).toHaveBeenCalledWith(dialog);
+    await act(async () => finishWrite(ordinary));
   });
 });
 
@@ -326,7 +425,7 @@ describe("快速记工占位", () => {
     await click("确认");
     expect(button("占位").getAttribute("aria-checked")).toBe("true");
     expect(document.querySelector(".quick-work-modal")!.getAttribute("data-quick-mode")).toBe("PLACEHOLDER");
-    expect(document.querySelector(".quick-work-modal [role=alert]")!.textContent).toBe("已经日结");
+    expect(document.querySelector(".screen-feedback[role=alert]")!.textContent).toBe("已经日结");
     let finish!: (result: unknown) => void;
     request.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
     await act(async () => { button("确认").click(); button("确认").click(); });
@@ -366,7 +465,7 @@ describe("快速记工占位", () => {
     expect(document.querySelector(".duration-picker .empty-note")!.textContent).toContain("没有可用时长");
     await click("占位"); await click("确认");
     expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, body: { employeeMembershipId: "employee", startAt: "2026-10-06T14:00:00.000Z", isPlaceholder: true } }]]);
-    expect(document.querySelector(".quick-work-modal")).toBeNull(); expect(reload).toHaveBeenCalledTimes(1); expect(container.textContent).toContain("占位已保存");
+    expect(document.querySelector(".quick-work-modal")).toBeNull(); expect(reload).toHaveBeenCalledTimes(1); expect(document.querySelector(".screen-feedback")!.textContent).toContain("占位已保存");
   });
   it("普通、占位与高亮混排，占位卡显示所选时间和整卡对角线且不计工数", async () => {
     props.board.rows[0]!.workRecords = [ordinary, placeholder, { ...ordinary, id: "highlight", isHighlighted: true }]; await render();
@@ -388,6 +487,7 @@ describe("快速记工占位", () => {
     await click("取消", document.querySelector(".placeholder-delete-dialog")!); expect(document.querySelector(".placeholder-delete-dialog")).toBeNull();
     await act(async () => container.querySelector<HTMLButtonElement>(".record-card--placeholder")!.click()); await click("删除占位");
     expect(writes()).toEqual([["/stores/store/work-records/placeholder", { method: "DELETE", idempotent: true, body: { version: 7 } }]]); expect(reload).toHaveBeenCalledTimes(1); expect(document.querySelector(".placeholder-delete-dialog")).toBeNull();
+    expect(deleteMotion).toHaveBeenCalledExactlyOnceWith(placeholder.id); expect(releaseDeleteMotion).toHaveBeenCalledOnce();
   });
   it("历史员工不能操作占位，日结后禁用删除；冲突不覆盖旧版本", async () => {
     props.board.rows[0]!.workRecords = [placeholder]; props.isCurrentBusinessDay = false; props.membership.role = "EMPLOYEE"; await render();
@@ -398,6 +498,7 @@ describe("快速记工占位", () => {
     request.mockRejectedValue(new ApiError(409, { code: "WORK_RECORD_VERSION_CONFLICT", messageZh: "版本冲突" })); await click("删除占位");
     expect(document.querySelector(".placeholder-delete-dialog [role=alert]")!.textContent).toBe("版本冲突"); await click("删除占位");
     expect(writes().map(([, options]) => options!.body)).toEqual([{ version: 7 }, { version: 7 }]); expect(reload).not.toHaveBeenCalled();
+    expect(deleteMotion).not.toHaveBeenCalled();
   });
 });
 
@@ -565,7 +666,7 @@ describe("快速记工进入详细记工", () => {
     await inputValue(document.querySelector<HTMLInputElement>("#start-time")!, "99");
     await click("详细记工");
     expect(document.querySelector(".normal-record-editor")).toBeNull();
-    expect(document.querySelector(".quick-work-modal [role=alert]")!.textContent).toContain("有效的开始时间");
+    expect(document.querySelector(".screen-feedback[role=alert]")!.textContent).toContain("有效的开始时间");
     expect(writes()).toHaveLength(0);
   });
 });

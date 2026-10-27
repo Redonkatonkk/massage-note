@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](PRODUCT.zh-CN.md)**
 
-> Applies to version: `1.43.0`
+> Applies to version: `1.47.0`
 > Check basis: domain functions, shared contracts, API services and their tests. See [API](../engineering/API.md) for the HTTP fields, see [UI Design](../engineering/UI_DESIGN.md) for the layout, and see [Development Guide](../engineering/DEVELOPMENT.md) for the maintenance process.
 
 <a id="产品范围与数据原则"></a>
@@ -67,7 +67,7 @@
 
 ## Work record and payment
 
-- After the server accepts quick entry, placeholder confirmation, detailed creation or editing, refresh the saved record and keep the dialog locked until its 300ms completion animation ends. Only successful writes use this effect; validation/conflict failures keep the form open, and motion failures cannot make a committed record submit again. Reason: visual confirmation must represent a real saved record and preserve duplicate-write protection.
+- Saving quick entry, placeholder confirmation, detailed creation or editing starts a VFX-JS Canvas animation after local validation and before the request. A ring with a visible trail automatically orbits screen center throughout the write and refresh, independently of pointer movement. Only a successful write proceeds to the saved card: a 420ms flight followed by a 220ms impact/unfolding. Failed writes restore the filled form; committed writes close even if graphics fail. Preserve page position and duplicate-write protection throughout; cancellation and deletion retain their own flows. Reason: continuous loading feedback must distinguish a pending write from a saved record without losing drafts, moving the page or permitting duplicate submissions.
 - Quick entry has four exclusive modes in order: Normal rotation, Placeholder, Exclude from rotation, Highlight. Each opening selects Normal; changing mode clears the previous mode and writes nothing. Normal saves neither flag, while the other service modes save only their matching flag. Detailed entry inherits the selected service mode; it is unavailable in Placeholder mode. Reason: a single selected mode must determine the submitted record without combined flags or accidental writes.
 - Quick entry places a service dropdown between start time and duration. Each opening defaults to the first enabled, non-deleted service in Store settings order; durations show only that service’s options, sorted by minutes. Clicking a duration saves the selected service with catalog price and commission snapshots as pending payment. With no available services, duration saving is unavailable while Placeholder and Detailed entry remain available. If a selected service becomes unavailable, use the first available service. Existing duration-only records remain editable; zero or blank receipts may save without a service, while positive receipts require one. Reason: the selected service must determine the saved service, duration and price consistently.
 - Detailed entry and Close share the quick-entry header row, with Close on the right. The full editor inherits the employee, time, selected service, highlight and rotation flag; use 60 minutes when supported or the service’s first option, with its price and end time. Without a service, retain the 60-minute unassigned form. Opening or closing creates no record; Save creates the service, details and optional payment atomically. Reason: entering the detailed flow must preserve the selection without unwanted records or partial writes.

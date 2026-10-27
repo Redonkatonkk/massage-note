@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.43.0`
+> Applies to version: `1.47.0`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.

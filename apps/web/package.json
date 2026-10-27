@@ -1,6 +1,6 @@
 {
   "name": "@massage-note/web",
-  "version": "1.43.0",
+  "version": "1.47.0",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",
@@ -12,6 +12,7 @@
   "dependencies": {
     "@massage-note/contracts": "workspace:*",
     "@massage-note/domain": "workspace:*",
+    "@vfx-js/core": "1.1.0",
     "firebase": "12.13.0",
     "next": "16.2.11",
     "react": "19.2.6",

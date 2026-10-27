@@ -17,6 +17,7 @@
   --danger: #a33d35;
   --danger-soft: #fdf0ee;
   --danger-line: #ecc6c1;
+  --danger-confirm: #d92d20;
   --member-success-soft: var(--success-soft);
   --member-muted-soft: #f0f2ef;
   --member-backdrop: #17221bcc;
@@ -31,6 +32,8 @@
   --highlight-ink: #4f6544;
   --work-mode-placeholder: #f0f1f0;
   --work-mode-excluded: #fff8e3;
+  --work-record-burn-ember: #ed7939;
+  --work-record-burn-glow: #ffe3a0;
   --chart-secondary: #728ba3;
   --chart-loss: #b35d50;
   --radius-control: 6px;
@@ -69,6 +72,7 @@ body {
   max-width: 100%;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
   margin: 0;
@@ -1726,6 +1730,13 @@ h2 {
 .quick-mode-switch__option:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
 .quick-mode-switch__option:disabled { opacity: 0.65; cursor: default; }
 .quick-placeholder-save { width: 100%; margin-top: 20px; }
+
+.work-record-save-motion { position: fixed; inset: 0; z-index: 50; overflow: hidden; pointer-events: none; }
+.work-record-save-motion__stage { position: fixed; inset: 0; overflow: hidden; }
+.work-record-save-motion__slot { position: fixed; }
+.work-record-save-motion__fallback { display: none; position: absolute; left: calc(50% - 24px); top: calc(50% - 24px); width: 48px; height: 48px; border: 4px solid var(--line); border-top-color: var(--brand); border-radius: 50%; animation: spin 900ms linear infinite; }
+.work-record-save-motion[data-renderer="fallback"] .work-record-save-motion__fallback { display: block; }
+.work-record-save-motion__status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .quick-modal-content {
   min-height: 0;

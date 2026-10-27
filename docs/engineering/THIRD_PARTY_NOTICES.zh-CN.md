@@ -33,3 +33,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## VFX-JS 与 GL Transitions
+
+记工保存和删除使用固定版本 `1.1.0` 的 `@vfx-js/core`，仅在浏览器打开记工或删除入口时按需加载；保存转场使用本项目自有着色器，仅下方焚烧着色器改写自 GL Transitions。VFX-JS 采用 MIT 许可，版权为 (c) 2020-present The VFX-JS developers；完整上游许可随静态资源提供于 [vfx-js.txt](../../apps/web/public/licenses/vfx-js.txt)。保留原因：部署的 Web 资源必须保留依赖的署名和许可声明。
+
+[焚烧着色器](../../apps/web/lib/work-record-burn-shader.ts) 改写自 [BurnThrough.glsl](https://github.com/gl-transitions/gl-transitions/blob/master/transitions/BurnThrough.glsl)，作者为 `liubailin2020@gmail.com`，噪声基于 Morgan McGuire 的工作。GL Transitions 版权为 (c) 2017-present gl-transitions contributors，该着色器头部明确采用 MIT 许可；改写增加自下向上的场、透明目标、焦化／余烬分区与 VFX-JS uniform 参数。完整许可及署名随静态资源提供于 [gl-transitions.txt](../../apps/web/public/licenses/gl-transitions.txt)。来源核对：2026-10-27。保留原因：改写着色器仍源于上游代码，分发资源时必须附带其许可。

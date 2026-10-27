@@ -113,6 +113,9 @@ importers:
       '@massage-note/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@vfx-js/core':
+        specifier: 1.1.0
+        version: 1.1.0
       firebase:
         specifier: 12.13.0
         version: 12.13.0
@@ -1278,6 +1281,9 @@ packages:
 
   '@types/tough-cookie@4.0.5':
     resolution: {integrity: sha512-/Ad8+nIOV7Rl++6f1BdKxFSMgmoqEoYbHRpPcx3JEfv8VRsQe9Z4mCXeJBzxs7mbHY/XOZZuXlRNfhpVPbs6ZA==}
+
+  '@vfx-js/core@1.1.0':
+    resolution: {integrity: sha512-sFBwUWzYPXNPGFGUkrhwOV6TBNkctWALGxYCMj2Ph5VSp+SRm0WT/EdyMhrrgG3ZleXkw27qijzJmyNf37TP/g==}
 
   '@vitest/expect@4.1.7':
     resolution: {integrity: sha512-1R+tw0ortHEbZDGMymm+pN7/AFQ/RkFFdtd7EN+VBpynKmLbP8A3rpEXdshBJ7+8hQ9zBJh/i1s0yKNtxAnU7w==}
@@ -4366,6 +4372,8 @@ snapshots:
       '@types/node': 24.10.0
 
   '@types/tough-cookie@4.0.5': {}
+
+  '@vfx-js/core@1.1.0': {}
 
   '@vitest/expect@4.1.7':
     dependencies:

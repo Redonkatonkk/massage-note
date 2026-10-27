@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { displayTime } from "../lib/time";
+import { beginWorkRecordDeleteMotion, preloadWorkRecordDeleteMotion } from "../lib/work-record-delete-motion";
 import type { WorkRecord } from "../lib/types";
 
 export function PlaceholderDeleteDialog({ storeId, record, employeeName, timezone, canDelete, isClosed, onClose, onDeleted, onChanged }: {
@@ -18,9 +19,10 @@ export function PlaceholderDeleteDialog({ storeId, record, employeeName, timezon
   const dayClosed = isClosed || blockedByClosing;
 
   useEffect(() => {
+    preloadWorkRecordDeleteMotion();
     const previousFocus = document.activeElement;
     dialog.current?.showModal();
-    return () => { if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus(); };
+    return () => { if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true }); };
   }, []);
 
   async function remove() {
@@ -32,9 +34,15 @@ export function PlaceholderDeleteDialog({ storeId, record, employeeName, timezon
       await apiRequest(`/stores/${storeId}/work-records/${record.id}`, {
         method: "DELETE", idempotent: true, body: { version: record.version },
       });
+      const motion = beginWorkRecordDeleteMotion(record.id);
       onDeleted();
-      await onChanged();
       onClose();
+      try {
+        await onChanged();
+      } finally {
+        await motion.finished;
+        motion.cancel();
+      }
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "BUSINESS_DAY_CLOSED") setBlockedByClosing(true);
       setError(errorMessage(caught));

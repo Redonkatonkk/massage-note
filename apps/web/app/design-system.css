@@ -621,3 +621,18 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .settlement-options label { display: flex; align-items: center; gap: 8px; min-height: var(--control-height); color: var(--ink); font-size: 1rem; font-weight: 400; cursor: pointer; }
 .settlement-options input { width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; accent-color: var(--brand); }
 .settlement-options:disabled label { color: var(--muted); cursor: default; }
+/* Deleted record snapshots burn from bottom to top without changing track layout. */
+.work-record-delete-motion { position: fixed; inset: 0; z-index: 50; overflow: hidden; pointer-events: none; }
+.work-record-delete-motion__card { position: fixed; }
+
+/* Board actions announce results without inserting height above the work cards. */
+.screen-feedback { position: fixed; z-index: 10000; top: max(24px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); padding: 14px 20px; border-radius: var(--radius-panel); background: color-mix(in srgb, var(--success) 82%, transparent); backdrop-filter: blur(10px); color: var(--surface); font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; pointer-events: none; opacity: 1; transition: opacity 200ms ease-out; }
+.screen-feedback--error { background: color-mix(in srgb, var(--danger) 82%, transparent); }
+.screen-feedback.is-leaving { opacity: 0; }
+
+.record-editor .delete-record { display: inline-grid; place-items: center; transition: background-color 180ms ease-out, border-color 180ms ease-out, color 180ms ease-out; }
+.delete-record__label, .delete-record__confirmation { grid-area: 1 / 1; transition: opacity 180ms ease-out, transform 180ms var(--ease-out); }
+.delete-record__confirmation { opacity: 0; transform: translateY(6px); }
+.delete-record--confirming { border-color: var(--danger-confirm); background: var(--danger-confirm); color: var(--surface); }
+.delete-record--confirming .delete-record__label { opacity: 0; transform: translateY(-6px); }
+.delete-record--confirming .delete-record__confirmation { opacity: 1; transform: translateY(0); }

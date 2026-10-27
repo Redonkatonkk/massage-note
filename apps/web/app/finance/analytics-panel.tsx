@@ -14,6 +14,7 @@ import { apiRequest, errorMessage } from "../../lib/api";
 import { LatestRequest } from "../../lib/latest-request";
 import { createRefreshQueue } from "../../lib/refresh-queue";
 import { useLanguage } from "../language-provider";
+import { formatUsdPrecise } from "../../lib/money";
 import { shiftDate } from "./date-utils";
 
 export function AnalyticsPanel({ storeId, today }: { storeId: string; today: string }) {
@@ -51,7 +52,7 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
     return () => { refresh.dispose(); requests.begin(); };
   }, [storeId, range.from, range.to, highlightFilter, scope, requests]);
   const data = result?.scope === scope ? result.data : null;
-  const money = (cents: string | null) => cents === null ? "—" : new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(Number(cents) / 100);
+  const money = (cents: string | null) => cents === null ? "—" : formatUsdPrecise(Number(cents), locale);
   const dollars = (cents: string | null) => cents === null ? null : Number(cents) / 100;
   const names = en ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] : ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
   const select = (start: string, end: string) => { setFrom(start); setTo(end); setRange({ from: start, to: end }); };

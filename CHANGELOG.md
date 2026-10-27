@@ -4,6 +4,11 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.40.2 — 2026-10-27
+
+- Standardize USD amounts to the $ symbol in both languages across pages, charts, expense totals, shared settlement images and AI answers. Preserve rounding, cents, signs and stored amounts.
+- NAS requires Web/API updates; update the independent Mac Messages agent for newly generated settlement and employee-summary attachments. No database migration.
+
 ## 1.40.1 — 2026-10-27
 
 - Remove the explanatory note below recorded Cash change amounts; retain explicit +/− signs, cents and the missing-history notice.

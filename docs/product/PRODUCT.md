@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](PRODUCT.zh-CN.md)**
 
-> Applies to version: `1.40.1`
+> Applies to version: `1.40.2`
 > Check basis: domain functions, shared contracts, API services and their tests. See [API](../engineering/API.md) for the HTTP fields, see [UI Design](../engineering/UI_DESIGN.md) for the layout, and see [Development Guide](../engineering/DEVELOPMENT.md) for the maintenance process.
 
 <a id="产品范围与数据原则"></a>
@@ -13,6 +13,7 @@
 
 - Provides multiple stores, three roles, Chinese and English responsive Web work records and business accounting, and supports login on phones, iPads, computers and multiple devices. Reason: This is the scope of the product supported by existing pages, member scopes, and live interfaces.
 - The lasting amount uses integer cents, the commission uses cents, and the final financial calculation uses the domain function; the display format does not change the ledger. Reason: Floating point numbers, front-end totals, and model answers cannot be used as amount truth.
+- USD amounts use `$` in both languages, including charts and newly generated statement images; currency codes and stored amounts retain USD semantics. Reason: the currency symbol should be consistent without changing financial data.
 - Ordinary work records and overviews usually display whole dollars; salary settlements, expenses, reconciliation pictures, etc. use the existing precise format, and the editor retains the real cents and does not automatically add `.00`. Reason: `formatUsd` and `formatUsdPrecise` have different purposes, and generally requiring all read-only amounts to be rounded will lose reconciliation precision.
 - The work record saves the name, duration, price, discount, commission and source, salary, time zone and business day snapshot; directory changes do not overwrite the closed historical days. Reason: Historical accounts need to be traced back to the content at the time of occurrence, and the current day's recalculation is allowed and controlled services will be provided.
 - Business objects such as work records, sales cards, wages, directories, and members continue to use soft deletion and recovery; the key is to write and save the operator, before and after values, request number, and transaction audit/outbox. Reason: Recovery and accounting traceability rely on these records; physical removal of inactive employee rows is the clear established exception.

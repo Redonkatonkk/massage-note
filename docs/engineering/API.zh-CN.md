@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.40.1`
+> 适用版本：`1.40.2`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -471,3 +471,5 @@ Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，
 ### 首页现金变化
 
 `GET /stores/:storeId/boards/:businessDate` 新增 `statistics.cashChangeCents`，为有符号整数美分或 `null`。Owner/Manager 读取有效日结的 `totalsSnapshotJson.store.cashChangeCents`；未日结、旧快照缺失及员工视图返回 null。员工视图包含当天在内均返回 `closing: null`。全店日结预览增加 `storeTotals.cashChangeCents`；新的手动、强制及自动日结原子保存该值。金额按应发工资计算，与现金已结状态独立，取消再日结前保持固定。收入含卖卡现金；普通员工扣现金分摊工资，每日结清扣全部大费工资及刷卡／礼卡小费；不扣店长经理工资，不计现金小费。保留原因：调用方须区分历史缺失与真实零，不得重算或暴露全店数据。
+
+AI 金额文本在两种语言下统一使用 `$`，兼容并移除模型输出的 `US$` 前缀，沿用现有整美元舍入规则。币种代码、以美分表示的 API 字段及用户自填内容保持原样。保留原因：展示格式化不能改写财务数据或用户内容。

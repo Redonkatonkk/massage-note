@@ -4,12 +4,14 @@ const usdFormatters: Record<MoneyLocale, Intl.NumberFormat> = {
   "zh-CN": new Intl.NumberFormat("zh-CN", {
     style: "currency",
     currency: "USD",
+    currencyDisplay: "narrowSymbol",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }),
   "en-US": new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
+    currencyDisplay: "narrowSymbol",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }),
@@ -19,12 +21,14 @@ const preciseUsdFormatters: Record<MoneyLocale, Intl.NumberFormat> = {
   "zh-CN": new Intl.NumberFormat("zh-CN", {
     style: "currency",
     currency: "USD",
+    currencyDisplay: "narrowSymbol",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }),
   "en-US": new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
+    currencyDisplay: "narrowSymbol",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }),

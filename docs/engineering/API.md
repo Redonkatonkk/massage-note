@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.40.1`
+> Applies to version: `1.40.2`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -523,3 +523,5 @@ The target store ID/code and current Owner account remain; the source Owner prof
 ### Homepage cash change
 
 `GET /stores/:storeId/boards/:businessDate` adds `statistics.cashChangeCents` as a signed integer number of cents or `null`. Owner/Manager receive the active closing's `totalsSnapshotJson.store.cashChangeCents`; open days, legacy snapshots and employee views return null. Employee views also return `closing: null`, including the current day. Store closing previews add `storeTotals.cashChangeCents`; new manual, forced and automatic closings save it atomically. The value uses expected wages, is independent of cash-settled status and remains fixed until the day is reopened and closed again. Cash receipts include gift-card cash sales; ordinary employee payouts use cash-allocated wages, daily-full payouts use all service wages plus card/gift-card tips. Owner/manager wages and cash tips are excluded. Reason: clients must distinguish missing history from zero and must not recalculate or expose store totals.
+
+AI monetary text uses `$` for USD in both languages, normalizing a model-generated `US$` prefix while retaining the existing whole-dollar rounding. Currency codes, cent-valued API fields and user-authored text are unchanged. Reason: display normalization must not rewrite financial data or user content.

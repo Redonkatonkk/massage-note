@@ -71,8 +71,8 @@ it("无基期仍显示本期，零基期新增与负基期绝对变化有说明�
   expect(card("revenue7").textContent).not.toContain("两期已日结样本天数不同");
   expect(card("revenue30").querySelector(".analytics-overview__change")!.textContent).toBe("环比 新增");
   expect(card("records30").textContent).toContain("上期为零，无法计算比例 · 变化 -1.2");
-  expect(card("income30").textContent).toContain("上期为负数，无法计算比例 · 变化 -US$123.45");
-  expect(card("income30").textContent).toContain("-US$18,000.01");
+  expect(card("income30").textContent).toContain("上期为负数，无法计算比例 · 变化 -$123.45");
+  expect(card("income30").textContent).toContain("-$18,000.01");
   expect(container.textContent).not.toContain("%");
 });
 

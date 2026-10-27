@@ -15,7 +15,7 @@ const unescapeXml = (value: string) => value.replace(/&(lt|gt|amp|quot|apos);/g,
 const attrs = (value: string) => Object.fromEntries([...value.matchAll(/([\w-]+)="([^"]*)"/g)].map((match) => [match[1]!, unescapeXml(match[2]!)]));
 const plain = (value: string) => unescapeXml(value.replace(/<[^>]+>/g, ""));
 const compact = (value: string) => value.replace(/\s/g, "");
-const money = (cents: number, locale: Locale) => new Intl.NumberFormat(locale === "zh_CN" ? "zh-CN" : "en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+const money = (cents: number, locale: Locale) => new Intl.NumberFormat(locale === "zh_CN" ? "zh-CN" : "en-US", { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol" }).format(cents / 100);
 const hasClass = (item: Text, className: string) => item.className.split(/\s+/).includes(className);
 
 function texts(svg: string): Text[] {

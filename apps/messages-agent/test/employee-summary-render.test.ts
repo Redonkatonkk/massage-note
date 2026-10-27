@@ -39,11 +39,11 @@ describe.skipIf(process.platform !== "darwin")("employee summary image", () => {
       expect(result.width).toBe(1080);
       expect((await readFile(output)).subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
       const svg = await readFile(join(directory, "employee-summary.svg"), "utf8");
-      expect(svg).toContain("US$100.50");
+      expect(svg).toContain("$100.50");
       expect(svg).toContain("提成比例 60% · 部分项目比例不同");
       expect(svg).toContain("阶段总收入");
       expect(svg).toContain("显示当前提成设置");
-      expect(svg).not.toContain("US$110.75 ×");
+      expect(svg).not.toContain("$110.75 ×");
       expect(svg).not.toContain("折扣");
     } finally {
       await rm(directory, { recursive: true, force: true });

@@ -90,12 +90,12 @@ it("趋势不等待每日小计，失败后仍可手动刷新图表和小计", a
     return trendStats(latest);
   });
   await render();
-  expect(container.querySelector('.analytics-overview [data-metric="revenue7"]')!.textContent).toContain("US$120.01");
+  expect(container.querySelector('.analytics-overview [data-metric="revenue7"]')!.textContent).toContain("$120.01");
   expect(container.textContent).toContain("小计失败");
   expect(request).toHaveBeenCalledTimes(2);
   latest = "23456";
   await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "刷新")!.click());
-  expect(container.querySelector('.analytics-overview [data-metric="revenue7"]')!.textContent).toContain("US$234.56");
+  expect(container.querySelector('.analytics-overview [data-metric="revenue7"]')!.textContent).toContain("$234.56");
   expect(request.mock.calls.filter(([path]) => String(path).includes("/analytics?")).length).toBe(2);
   expect(request.mock.calls.filter(([path]) => String(path).includes("/summary?")).length).toBe(2);
 });
@@ -106,24 +106,24 @@ it("趋势切换筛选和店铺时先清除旧值，延迟响应不能覆盖当�
   let resolveOld!: (value: FinanceAnalyticsResponse) => void;
   request.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve; }));
   await changeHighlight("ONLY_HIGHLIGHTED");
-  expect(container.querySelector(".analytics-overview")!.textContent).not.toContain("US$120.01");
+  expect(container.querySelector(".analytics-overview")!.textContent).not.toContain("$120.01");
   request.mockResolvedValueOnce(trendStats("23456"));
   await changeHighlight("EXCLUDE_HIGHLIGHTED");
   await act(async () => resolveOld(trendStats("99999")));
-  expect(container.querySelector(".analytics-overview")!.textContent).toContain("US$234.56");
-  expect(container.querySelector(".analytics-overview")!.textContent).not.toContain("US$999.99");
+  expect(container.querySelector(".analytics-overview")!.textContent).toContain("$234.56");
+  expect(container.querySelector(".analytics-overview")!.textContent).not.toContain("$999.99");
   let resolveStore!: (value: FinanceAnalyticsResponse) => void;
   request.mockReturnValueOnce(new Promise(resolve => { resolveStore = resolve; }));
   await render("second-store");
-  expect(container.querySelector(".analytics-overview")!.textContent).not.toContain("US$234.56");
+  expect(container.querySelector(".analytics-overview")!.textContent).not.toContain("$234.56");
   await act(async () => resolveStore(trendStats("34567")));
-  expect(container.querySelector(".analytics-overview")!.textContent).toContain("US$345.67");
+  expect(container.querySelector(".analytics-overview")!.textContent).toContain("$345.67");
   request.mockRejectedValueOnce(new Error("趋势失败"));
   await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "刷新")!.click());
-  expect(container.querySelector(".analytics-overview")!.textContent).not.toContain("US$345.67");
+  expect(container.querySelector(".analytics-overview")!.textContent).not.toContain("$345.67");
   request.mockResolvedValueOnce(trendStats("45678"));
   await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "重试")!.click());
-  expect(container.querySelector(".analytics-overview")!.textContent).toContain("US$456.78");
+  expect(container.querySelector(".analytics-overview")!.textContent).toContain("$456.78");
   expect(String(request.mock.calls.filter(([path]) => String(path).includes("/analytics?")).at(-1)![0])).toContain("/stores/second-store/");
 });
 
@@ -230,7 +230,7 @@ it("点击星期自动展开各日期营业额，保留美分、零值与未日�
   expect(table.open).toBe(true);
   expect(table.querySelector("summary")!.textContent).toContain("星期一");
   expect([...table.querySelectorAll("tbody tr")].map(row => [...row.querySelectorAll("td")].map(cell => cell.textContent))).toEqual([
-    ["2026-09-28", "US$0.00", "US$123.45", "US$123.45"], ["2026-10-05", "US$0.00", "US$0.00", "US$0.00"], ["2026-10-12", "—", "—", "—"],
+    ["2026-09-28", "$0.00", "$123.45", "$123.45"], ["2026-10-05", "$0.00", "$0.00", "$0.00"], ["2026-10-12", "—", "—", "—"],
   ]);
   expect(weekdayPoint(0).getAttribute("aria-pressed")).toBe("true");
   await act(async () => weekdayPoint(1).dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
@@ -239,7 +239,7 @@ it("点击星期自动展开各日期营业额，保留美分、零值与未日�
   await clickPoint(weekdayPoint(1));
   expect(table.open).toBe(true);
   expect(table.querySelector("summary")!.textContent).toContain("星期二");
-  expect(table.querySelector("tbody")!.textContent).toBe("2026-10-06US$0.00US$990.00US$990.00");
+  expect(table.querySelector("tbody")!.textContent).toBe("2026-10-06$0.00$990.00$990.00");
   expect(weekdayPoint(0).getAttribute("aria-pressed")).toBe("false");
   table.open = false;
   await clickPoint(weekdayPoint(1));
@@ -302,14 +302,14 @@ it("第四位柱图复用每日小计请求，周期切换不重取，筛选后�
   });
   await render();
   expect(request).toHaveBeenCalledTimes(2);
-  expect(container.querySelector(".analytics-income-bars tbody")!.textContent).toContain("总流水 US$100.00 · 店铺收入 US$50.00 · 总收入 US$80.00");
+  expect(container.querySelector(".analytics-income-bars tbody")!.textContent).toContain("总流水 $100.00 · 店铺收入 $50.00 · 总收入 $80.00");
   await act(async () => {
     const select = container.querySelector<HTMLSelectElement>(".analytics-income-bars select")!;
     select.value = "DAY"; select.dispatchEvent(new Event("change", { bubbles: true }));
   });
   expect(request).toHaveBeenCalledTimes(2);
   await changeHighlight("ONLY_HIGHLIGHTED");
-  expect(container.querySelector(".analytics-income-bars tbody")!.textContent).toContain("总流水 US$42.00 · 店铺收入 US$21.00 · 总收入 US$33.60");
+  expect(container.querySelector(".analytics-income-bars tbody")!.textContent).toContain("总流水 $42.00 · 店铺收入 $21.00 · 总收入 $33.60");
   expect(request).toHaveBeenCalledTimes(4);
 });
 
@@ -323,8 +323,8 @@ it("平均曲线默认30天，可同时选择三条并保留各自数值、样�
   await act(async () => { choices[1]!.click(); choices[2]!.click(); });
   expect([...chart.querySelectorAll("path")].map(path => path.getAttribute("data-series"))).toEqual(["30", "all", "7"]);
   await clickPoint(chart.querySelector<SVGElement>(".analytics-hit")!);
-  expect(chart.querySelector(".analytics-readout")!.textContent).toContain("全日期累计平均 US$100.00 · 1 个已日结日");
-  expect(chart.querySelector("tbody")!.textContent).toContain("最近7天平均 US$100.00");
+  expect(chart.querySelector(".analytics-readout")!.textContent).toContain("全日期累计平均 $100.00 · 1 个已日结日");
+  expect(chart.querySelector("tbody")!.textContent).toContain("最近7天平均 $100.00");
   expect(request.mock.calls.length).toBe(calls);
   await act(async () => choices.forEach(input => input.click()));
   expect(chart.querySelectorAll("path")).toHaveLength(0);
@@ -351,11 +351,11 @@ it.each(["zh-CN", "en-US"])("平均曲线悬停、聚焦与点击同时显示当
   const readout = () => chart.querySelector(".analytics-readout")!.textContent;
   const calls = request.mock.calls.length;
   await act(async () => hits[0]!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
-  expect(readout()).toContain(en ? "Daily revenue $987.65" : "当天营业额 US$987.65");
-  expect(readout()).toContain(en ? "Trailing 30-day average $123.45" : "最近30天平均 US$123.45");
+  expect(readout()).toContain(en ? "Daily revenue $987.65" : "当天营业额 $987.65");
+  expect(readout()).toContain(en ? "Trailing 30-day average $123.45" : "最近30天平均 $123.45");
   expect(chart.querySelector(".analytics-peak")!.textContent).toContain("$234.56");
   await act(async () => hits[1]!.dispatchEvent(new FocusEvent("focusin", { bubbles: true })));
-  expect(readout()).toContain(en ? "Daily revenue $0.00" : "当天营业额 US$0.00");
+  expect(readout()).toContain(en ? "Daily revenue $0.00" : "当天营业额 $0.00");
   await clickPoint(hits[2]!);
   expect(readout()).toContain(en ? "Daily revenue — (not closed)" : "当天营业额 —（未日结）");
   expect(readout()).toContain(en ? "Trailing 30-day average —" : "最近30天平均 —");

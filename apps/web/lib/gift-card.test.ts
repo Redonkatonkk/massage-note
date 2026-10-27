@@ -18,8 +18,8 @@ describe("礼物卡销售序列号", () => {
 
 describe("按实收展示礼物卡折扣", () => {
   it("按实际收款而非规则折扣计算金额与比例", () => {
-    expect(giftCardActualDiscount(10000, 8500)).toBe("折扣 15% · -US$15");
-    expect(giftCardActualDiscount(15000, 12500)).toBe("折扣 16.67% · -US$25");
+    expect(giftCardActualDiscount(10000, 8500)).toBe("折扣 15% · -$15");
+    expect(giftCardActualDiscount(15000, 12500)).toBe("折扣 16.67% · -$25");
   });
   it("原价或超额实收不显示负折扣", () => {
     expect(giftCardActualDiscount(10000, 10000)).toBe("无折扣");

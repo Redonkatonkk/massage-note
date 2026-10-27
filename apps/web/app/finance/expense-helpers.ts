@@ -13,7 +13,7 @@ export function expenseInputAmount(cents: string): string {
 }
 export function expenseMoney(cents: string, locale: "zh-CN" | "en-US"): string {
   const amount = BigInt(cents), fraction = (amount % 100n).toString().padStart(2, "0");
-  return new Intl.NumberFormat(locale, { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).formatToParts(amount / 100n).map(part => part.type === "fraction" ? fraction : part.value).join("");
+  return new Intl.NumberFormat(locale, { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol", minimumFractionDigits: 2, maximumFractionDigits: 2 }).formatToParts(amount / 100n).map(part => part.type === "fraction" ? fraction : part.value).join("");
 }
 export function nextExpenseStart(rule: ExpenseRule, today: string): string {
   const distance = rule.unit === "MONTH"

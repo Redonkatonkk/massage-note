@@ -181,7 +181,7 @@ it("renders Chinese labels and real empty-month zeros", async () => {
   for (const key of Object.keys(empty.totals)) (empty.totals as unknown as Record<string, number | null>)[key] = key === "averageRevenueCents" ? null : 0;
   await render(empty);
   expect(container.textContent).toContain("月度汇总");
-  expect(container.querySelector(".monthly-finance__metrics")!.textContent).toContain("US$0.00");
+  expect(container.querySelector(".monthly-finance__metrics")!.textContent).toContain("$0.00");
   expect(container.querySelector("[data-subtotal]")).not.toBeNull();
   expect(container.querySelector('[aria-label="选择月份"]')).not.toBeNull();
   expect(container.querySelector(".monthly-finance__payment-list")!.textContent).not.toContain("NaN");

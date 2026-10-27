@@ -123,7 +123,7 @@ it("retries a failed monthly query using its applied highlight condition", async
   await act(async () => container.querySelector<HTMLInputElement>('.monthly-finance__filters input[type="checkbox"]')!.click());
   request.mockRejectedValueOnce(new Error("Summary offline"));
   await click("查询");
-  expect(container.querySelector(".monthly-finance__metrics")!.textContent).not.toContain("US$");
+  expect(container.querySelector(".monthly-finance__metrics")!.textContent).not.toContain("$");
   expect(container.querySelector(".export-link")).toBeNull();
   expect(container.textContent).toContain("本月财务暂时无法读取");
   request.mockClear();

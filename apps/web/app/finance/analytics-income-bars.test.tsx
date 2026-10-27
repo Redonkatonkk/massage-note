@@ -54,7 +54,7 @@ it("默认每周，每期三项纵向排列并横向绘柱，支持聚焦读数�
   await act(async () => container.querySelector(".analytics-hit")!.dispatchEvent(new FocusEvent("focusin", { bubbles: true })));
   const readout = container.querySelector(".analytics-readout")!.textContent;
   expect(readout).toContain("2026-09-30 — 2026-10-04");
-  expect(readout).toContain("总流水 US$300.03 · 店铺收入 US$100.00 · 总收入 US$200.00");
+  expect(readout).toContain("总流水 $300.03 · 店铺收入 $100.00 · 总收入 $200.00");
   expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
 });
 
@@ -70,10 +70,10 @@ it("切换每天和每月即时重分组，数据表保留全部金额及所选�
   const rows = [...container.querySelectorAll("tbody tr")];
   expect(rows[0]!.textContent).toContain("2026-09-30");
   expect(rows[6]!.textContent).toContain("2026-10-06");
-  expect(rows[1]!.textContent).toContain("总流水 US$0.00 · 店铺收入 US$0.00 · 总收入 US$0.00");
+  expect(rows[1]!.textContent).toContain("总流水 $0.00 · 店铺收入 $0.00 · 总收入 $0.00");
   await select("MONTH");
   expect(container.querySelectorAll("rect[data-series]")).toHaveLength(6);
-  expect(container.querySelectorAll("tbody tr")[1]!.textContent).toContain("2026-10-01 — 2026-10-06 · 总流水 US$500.05 · 店铺收入 US$45.00 · 总收入 US$145.00");
+  expect(container.querySelectorAll("tbody tr")[1]!.textContent).toContain("2026-10-01 — 2026-10-06 · 总流水 $500.05 · 店铺收入 $45.00 · 总收入 $145.00");
 });
 
 it("加载、失败重试及空状态保留图表位置，数据恢复后展示当前金额", async () => {
@@ -109,9 +109,9 @@ it("长区间的首尾周期与完整明细仍在可聚焦滚动面板内，周�
   expect(rows[0]!.textContent).toContain("2026-01-01");
   expect(rows.at(-1)!.textContent).toContain("2026-10-06");
   expect(panel.querySelectorAll(".analytics-horizontal-bars > svg")).toHaveLength(279);
-  expect(panel.textContent).toContain("US$300.03");
+  expect(panel.textContent).toContain("$300.03");
   await select("MONTH");
   expect(container.querySelector<HTMLElement>(".analytics-income-bars")!.tabIndex).toBe(0);
   expect(container.querySelectorAll("tbody tr")).toHaveLength(10);
-  expect(container.querySelector("tbody")!.textContent).toContain("US$500.05");
+  expect(container.querySelector("tbody")!.textContent).toContain("$500.05");
 });

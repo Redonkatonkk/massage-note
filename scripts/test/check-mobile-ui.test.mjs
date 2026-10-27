@@ -49,7 +49,7 @@ test("monthly finance preserves desktop proportions and labeled mobile compariso
   const { JSDOM } = createRequire(resolve(import.meta.dirname, "../../apps/web/package.json"))("jsdom");
   const sources = await Promise.all(uiStyleFiles.map(async name => ({ name, css: await readFile(resolve(import.meta.dirname, "../../apps/web/app", name), "utf8") })));
   for (const width of [320, 599, 600, 1099, 1100, 1440]) {
-    const dom = new JSDOM(`<style>${stylesAtWidth(sources, width)}</style><section class="monthly-finance"><div class="monthly-finance__metrics"></div><div class="monthly-finance__hero"></div><section class="monthly-finance__comparison"><table><thead><tr><th>Metric</th><th>2026-10</th><th>2026-09</th><th>2026-08</th></tr></thead><tbody><tr><th>Long metric name / 月度指标</th><td data-label="2026-10 (01–22)">US$123,456,789.12</td><td data-label="2026-09 (01–22)">US$123,456.78</td><td data-label="2026-08 (01–22)">US$123.45</td></tr></tbody></table></section></section>`);
+    const dom = new JSDOM(`<style>${stylesAtWidth(sources, width)}</style><section class="monthly-finance"><div class="monthly-finance__metrics"></div><div class="monthly-finance__hero"></div><section class="monthly-finance__comparison"><table><thead><tr><th>Metric</th><th>2026-10</th><th>2026-09</th><th>2026-08</th></tr></thead><tbody><tr><th>Long metric name / 月度指标</th><td data-label="2026-10 (01–22)">$123,456,789.12</td><td data-label="2026-09 (01–22)">$123,456.78</td><td data-label="2026-08 (01–22)">$123.45</td></tr></tbody></table></section></section>`);
     try {
       const style = selector => dom.window.getComputedStyle(dom.window.document.querySelector(selector));
       assert.equal(style(".monthly-finance__metrics").gridTemplateColumns, width < 600 ? "minmax(0, 1fr)" : `repeat(${width < 1100 ? 2 : 4}, minmax(0, 1fr))`);
@@ -93,7 +93,7 @@ test("analytics overview breakpoints and main chart proportions preserve natural
 test("trend cards keep semantic directions and complete amounts and periods on phones", async () => {
   const { JSDOM } = createRequire(resolve(import.meta.dirname, "../../apps/web/package.json"))("jsdom");
   const sources = await Promise.all(uiStyleFiles.map(async name => ({ name, css: await readFile(resolve(import.meta.dirname, "../../apps/web/app", name), "utf8") })));
-  const cards = ["UP", "DOWN", "FLAT"].map(direction => `<div class="analytics-overview__metric"><dd class="analytics-overview__value"><strong>-US$123,456,789.12</strong></dd><dd class="analytics-overview__change" data-direction="${direction}">Period change / 环比 <span class="analytics-overview__change-number">↑ 123,456.7%</span></dd><dd class="analytics-overview__periods">2026-09-08 — 2026-10-07</dd></div>`).join("");
+  const cards = ["UP", "DOWN", "FLAT"].map(direction => `<div class="analytics-overview__metric"><dd class="analytics-overview__value"><strong>-$123,456,789.12</strong></dd><dd class="analytics-overview__change" data-direction="${direction}">Period change / 环比 <span class="analytics-overview__change-number">↑ 123,456.7%</span></dd><dd class="analytics-overview__periods">2026-09-08 — 2026-10-07</dd></div>`).join("");
   for (const width of [320, 600, 1100]) {
     const dom = new JSDOM(`<style>${stylesAtWidth(sources, width)}</style><dl class="analytics-overview__metrics">${cards}</dl>`);
     try {

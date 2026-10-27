@@ -55,7 +55,7 @@ async function submit() { await act(async () => dialog().dispatchEvent(new Event
 it("四项指标取服务端值，区域顺序、排序和每项目一个入口，其他月份一次性不出现", async () => {
   await render();
   expect([...container.querySelectorAll(".expenses-summary article span")].map(node => node.textContent)).toEqual(["本月总支出", "每月固定支出", "本月平均每日支出", "本月一次性支出"]);
-  expect([...container.querySelectorAll(".expenses-summary strong")].map(node => node.textContent)).toEqual(["US$114.00", "US$111.00", "US$3.68", "US$3.00"]);
+  expect([...container.querySelectorAll(".expenses-summary strong")].map(node => node.textContent)).toEqual(["$114.00", "$111.00", "$3.68", "$3.00"]);
   const regions = container.querySelectorAll(".expenses-region");
   expect(regions[0]!.querySelector("h2")!.textContent).toBe("一次性支出");
   expect([...regions[0]!.querySelectorAll(".mobile-data-view li[data-expense-id]")].map(node => node.getAttribute("data-expense-id"))).toEqual(["用品", "修理"]);
@@ -148,7 +148,7 @@ it("切月和切店隔离延迟响应、清除旧详情；失败可刷新恢复"
   const next = { ...fixture(), month: "2026-09", totalCents: "12345" };
   request.mockResolvedValue(next); await click("刷新");
   expect(request).toHaveBeenLastCalledWith("/stores/other/expenses?month=2026-09");
-  expect(container.querySelector(".expenses-summary strong")!.textContent).toBe("US$123.45");
+  expect(container.querySelector(".expenses-summary strong")!.textContent).toBe("$123.45");
 });
 
 it("切店期间的保存结果不影响新店，等待时阻止重复提交", async () => {

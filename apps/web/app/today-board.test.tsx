@@ -523,7 +523,7 @@ describe("日结后的现金变化", () => {
     expect(container.textContent).not.toContain("礼物卡总额");
     const metrics = [...container.querySelectorAll(".overview-metric")].filter(node => node.textContent?.includes("现金变化"));
     expect(metrics).toHaveLength(2);
-    for (const metric of metrics) expect(metric.querySelector("strong")?.textContent).toBe("+US$123.45");
+    for (const metric of metrics) expect(metric.querySelector("strong")?.textContent).toBe("+$123.45");
     props.board = { ...props.board, isClosed: false };
     await render();
     expect(container.textContent).toContain("礼物卡总额");

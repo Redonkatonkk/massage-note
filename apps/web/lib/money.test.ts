@@ -8,17 +8,19 @@ import {
 
 describe("页面金额格式", () => {
   it("中英文页面都不显示美元小数位", () => {
-    expect(formatUsd(0)).toBe("US$0");
-    expect(formatUsd(12_300)).toBe("US$123");
-    expect(formatUsd(12_345)).toBe("US$123");
-    expect(formatUsd(12_350)).toBe("US$124");
+    expect(formatUsd(0)).toBe("$0");
+    expect(formatUsd(-12_350)).toBe("-$124");
+    expect(formatUsd(12_300)).toBe("$123");
+    expect(formatUsd(12_345)).toBe("$123");
+    expect(formatUsd(12_350)).toBe("$124");
     expect(formatUsd(12_300, "en-US")).toBe("$123");
   });
 
   it("工资结算金额保留真实美分", () => {
-    expect(formatUsdPrecise(0)).toBe("US$0.00");
-    expect(formatUsdPrecise(12_300)).toBe("US$123.00");
-    expect(formatUsdPrecise(12_345)).toBe("US$123.45");
+    expect(formatUsdPrecise(0)).toBe("$0.00");
+    expect(formatUsdPrecise(-12_345)).toBe("-$123.45");
+    expect(formatUsdPrecise(12_300)).toBe("$123.00");
+    expect(formatUsdPrecise(12_345)).toBe("$123.45");
     expect(formatUsdPrecise(12_350, "en-US")).toBe("$123.50");
   });
 

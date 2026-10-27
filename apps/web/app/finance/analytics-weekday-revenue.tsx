@@ -2,13 +2,14 @@
 
 import type { WeekdayRevenueComparison } from "@massage-note/contracts";
 import { useLanguage } from "../language-provider";
+import { formatUsdPrecise } from "../../lib/money";
 import { Chart } from "./analytics-chart";
 
 export function AnalyticsWeekdayRevenue({ data }: { data: WeekdayRevenueComparison }) {
   const { locale } = useLanguage();
   const en = locale === "en-US";
   const names = en ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] : ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
-  const money = (cents: string | null) => cents === null ? "—" : new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(Number(cents) / 100);
+  const money = (cents: string | null) => cents === null ? "—" : formatUsdPrecise(Number(cents), locale);
   const series = [
     { id: "highlighted", label: en ? "Highlighted" : "高光", color: "var(--brand)", average: "highlightedAverageCents", daily: "highlightedRevenueCents" },
     { id: "non-highlighted", label: en ? "Non-highlighted" : "非高光", color: "var(--chart-secondary)", average: "nonHighlightedAverageCents", daily: "nonHighlightedRevenueCents" },

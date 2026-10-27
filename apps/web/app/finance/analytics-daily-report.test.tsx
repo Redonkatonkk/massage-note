@@ -52,7 +52,7 @@ it("日历金额在日期下，区分已日结零值、未日结与范围外，�
   expect(calendarDay("2026-10-04").querySelector("small")).toBeNull();
   expect(calendarDay("2026-10-08").disabled).toBe(true);
   const cells = [...container.querySelectorAll(".finance-daily-table tbody td")].map(cell => cell.textContent);
-  expect(cells.slice(0, 4)).toEqual(["2026-10-05", "星期一", "US$120", "US$75"]);
+  expect(cells.slice(0, 4)).toEqual(["2026-10-05", "星期一", "$120", "$75"]);
   expect(container.textContent).toContain("全店参考");
   await click(button("显示全部列"));
   expect(container.querySelector(".finance-daily-table")!.classList.contains("is-expanded")).toBe(true);
@@ -103,9 +103,9 @@ it("切换条件或店铺后不展示旧小计或旧日期明细，延迟响应�
   request.mockImplementation(async url => String(url).includes("/summary?") ? summary(25000) : details);
   await render("EXCLUDE_HIGHLIGHTED", "other-store");
   expect(container.querySelector("[role=dialog]")).toBeNull();
-  expect(container.querySelector(".finance-daily-table")!.textContent).toContain("US$250");
+  expect(container.querySelector(".finance-daily-table")!.textContent).toContain("$250");
   await act(async () => { resolveSummary(summary(99900)); resolveDetails(details); });
-  expect(container.querySelector(".finance-daily-table")!.textContent).not.toContain("US$999");
+  expect(container.querySelector(".finance-daily-table")!.textContent).not.toContain("$999");
   expect(container.querySelector("[role=dialog]")).toBeNull();
 });
 

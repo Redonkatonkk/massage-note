@@ -100,7 +100,7 @@ it("台账把重复购买归为用户名一组，使用金额只合计一次且�
   const usage = { id: "use", businessDate: "2026-10-15", startAt: "2026-10-15T16:00:00Z", serviceShortName: "按摩", employee: member, serviceCents: 1000, tipCents: 0, amountCents: 1000 };
   const markup = renderToStaticMarkup(<GiftCardLedger ledger={{ nextSerialNumber: "1002", sales: [{ ...sale, id: "physical", isOnline: false, usageRecords: [] }, { ...sale, usageRecords: [] }, { ...sale, id: "repeat", usageRecords: [] }], legacyUsages: [], onlineAccounts: [{ username: "001001", sales: [sale, { ...sale, id: "repeat" }], usageRecords: [usage] }, { username: "unknown", sales: [], usageRecords: [] }] }} />);
   const dom = document.createElement("div"); dom.innerHTML = markup;
-  expect(dom.querySelectorAll(".gift-card-ledger__summary article strong")[2]!.textContent).toBe("US$10");
+  expect(dom.querySelectorAll(".gift-card-ledger__summary article strong")[2]!.textContent).toBe("$10");
   expect(dom.textContent).toContain("2 次购买"); expect(dom.textContent).toContain("用户名 unknown");
   const table = dom.querySelector(".gift-card-ledger__table")!;
   expect(dom.querySelectorAll("table")).toHaveLength(1);

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { FinanceAnalyticsResponse } from "@massage-note/contracts";
 import { useLanguage } from "../language-provider";
+import { formatUsdPrecise } from "../../lib/money";
 import { Chart } from "./analytics-chart";
 
 export function AnalyticsAverageRevenue({ data }: { data: FinanceAnalyticsResponse }) {
@@ -15,7 +16,7 @@ export function AnalyticsAverageRevenue({ data }: { data: FinanceAnalyticsRespon
     { id: "7", label: en ? "Trailing 7-day average" : "最近7天平均", color: "var(--chart-secondary)", dash: "6 4", amount: "averageCents", count: "averageDayCount" },
   ] as const;
   const selected = options.filter(option => visible.includes(option.id));
-  const money = (cents: string | null) => cents === null ? "—" : new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(Number(cents) / 100);
+  const money = (cents: string | null) => cents === null ? "—" : formatUsdPrecise(Number(cents), locale);
   return <Chart className="analytics-average-revenue" title={en ? "Average revenue curves" : "平均营业额曲线"}
     description={en ? "30/7-day averages use closed days in the trailing calendar window, including dates before the selected start. Cumulative average runs from the selected start through each date. Open days are gaps; empty closed days count as zero. Dates follow the selected range. The vertical axis follows the lowest and highest visible values; the maximum is marked with its amount and date." : "近30天／7天按当日及此前窗口内的已日结日期取平均，包含所选起日前的样本；全日期平均从所选起日累计到当天。未日结留空，空日结计零；横轴为所选日期，纵轴按已勾选曲线的最低／最高值缩放，并标注最高值金额与日期。"}
     currency fitToData controls={<fieldset className="analytics-curve-options">

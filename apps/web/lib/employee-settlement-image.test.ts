@@ -45,7 +45,7 @@ describe("employee settlement image", () => {
   it("复用短信 SVG，保留美分、明细、语言和 XML 转义", () => {
     const chinese = createEmployeeSettlementSvg(preview, "zh_CN").svg;
     const english = createEmployeeSettlementSvg(preview, "en_US").svg;
-    expect(chinese).toContain("US$70.01");
+    expect(chinese).toContain("$70.01");
     expect(chinese).toContain("当日总结");
     expect(english).toContain("Daily summary");
     expect(english).toContain("Massage &lt;test&gt;");

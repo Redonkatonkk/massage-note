@@ -29,11 +29,11 @@ describe("合并员工日结与现金", () => {
   it("按员工 ID 匹配现金金额，保留两种状态与展开明细", () => {
     const markup = render([cashRow("second", "SETTLED"), { ...cashRow("first"), cashToSubmitToStoreCents: 1234 }]);
     const rows = markup.split("<tbody>")[1]!.split("</tr>");
-    expect(rows[0]).toContain("US$12");
+    expect(rows[0]).toContain("$12");
     expect(rows[0]).toContain("标记全部结清");
-    expect(rows[1]).toContain("US$40");
+    expect(rows[1]).toContain("$40");
     expect(rows[1]).toContain("取消结清");
-    expect(markup).not.toContain("US$4,444"); // Do not substitute the personal closing cash formula.
+    expect(markup).not.toContain("$4,444"); // Do not substitute the personal closing cash formula.
     expect(markup).toContain("<details");
     expect(markup).toContain("测试经理");
     expect(markup).toContain("测试备注");
@@ -57,7 +57,7 @@ describe("合并员工日结与现金", () => {
 
   it("现金数据没有对应员工时保持空值并禁止该行操作", () => {
     const markup = render([cashRow("second")], [employee("first")]);
-    expect(markup).not.toContain("US$40");
+    expect(markup).not.toContain("$40");
     expect(markup).toMatch(/disabled=""[^>]*>标记全部结清/);
   });
 

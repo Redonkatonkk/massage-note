@@ -7,6 +7,7 @@ For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page sav
 ## 1.39.4 — 2026-10-26
 
 - Preserve actual Mac Messages receipts separately from task completion for daily closings, range settlements and employee summaries. Display delivered, sent without confirmation and Mac-reported failure consistently.
+- Keep obsolete task errors hidden for legacy submitted records; show subsequent failures only when an actual Mac receipt reports them.
 - Recheck recent completed/ambiguous tasks every minute without resending, including manual retries in Messages; keep pending web histories refreshed, isolate attempts and audit changed receipts. Add contract, agent, component and database regressions.
 - Requires Web/API deployment, the additive delivery-receipt migration and a separate Mac agent update. Older agents remain compatible and unconfirmed.
 

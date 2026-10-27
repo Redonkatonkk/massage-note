@@ -25,7 +25,8 @@ export function messagesStatusClass(item: Delivery) {
 
 export function messagesReceiptError(item: Delivery) {
   if (item.deliveryStatus === "DELIVERED" || item.deliveryStatus === "SENT") return null;
-  return item.deliveryStatus === "FAILED" ? `信息 App 报告未送达（错误 ${item.deliveryErrorCode ?? 0}），请核对后再重发。` : item.lastError;
+  if (item.deliveryStatus === "FAILED") return `信息 App 报告未送达（错误 ${item.deliveryErrorCode ?? 0}），请核对后再重发。`;
+  return item.status === "SENT" ? null : item.lastError;
 }
 
 export function needsMessagesPolling(item: Delivery) {

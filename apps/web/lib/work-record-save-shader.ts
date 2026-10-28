@@ -14,6 +14,7 @@ uniform vec4 bounds;
 uniform vec3 inkColor;
 uniform vec3 lightColor;
 uniform float impact;
+uniform float uncovered;
 out vec4 outColor;
 
 float roundedBox(vec2 point, vec2 halfSize, float radius) {
@@ -60,8 +61,8 @@ void main() {
   // Join the trail at the rear rim; never draw it through the ring's hollow center.
   float tailAlpha = tail * trailOpacity * smoothstep(ringRadius - 0.5, ringRadius + 1.8, radial);
   float alpha = headAlpha + tailAlpha * (1.0 - headAlpha);
-  vec3 headColor = mix(mix(inkColor, lightColor, 0.86), captured.rgb, textureMix);
-  vec3 tailColor = mix(inkColor, lightColor, 0.70);
+  vec3 headColor = mix(mix(inkColor, lightColor, mix(0.86, 0.18, uncovered)), captured.rgb, textureMix);
+  vec3 tailColor = mix(inkColor, lightColor, mix(0.70, 0.30, uncovered));
   vec3 premultiplied = headColor * headAlpha + tailColor * tailAlpha * (1.0 - headAlpha);
   outColor = vec4(premultiplied / max(alpha, 0.0001), alpha);
 }

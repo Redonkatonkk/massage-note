@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { absorbWorkRecordDialog, beginWorkRecordSaveMotion, cancelWorkRecordSaveMotion } from "./work-record-save-motion";
+import { absorbWorkRecordDialog, beginWorkRecordSaveMotion, cancelWorkRecordSaveMotion, beginDetachedWorkRecordSaveMotion } from "./work-record-save-motion";
 import { WORK_RECORD_SAVE_SHADER } from "./work-record-save-shader";
 
 const vfx = vi.hoisted(() => ({ create: vi.fn(), add: vi.fn(), render: vi.fn(), remove: vi.fn(), destroy: vi.fn(), lose: vi.fn() }));
@@ -274,4 +274,73 @@ it("bounds completion when animation frames stop arriving", async () => {
 it("announces pending saves in English", async () => {
   document.documentElement.lang = "en-US"; await start();
   expect(document.querySelector('[role="status"]')!.textContent).toBe("Saving work record…");
+});
+
+
+it("detached tasks capture before unmount, continue orbiting and never take focus on completion", async () => {
+  const handle = beginDetachedWorkRecordSaveMotion(dialog)!;
+  dialog.closest(".modal-backdrop")!.remove();
+  const nextInput = document.createElement("input"); root.append(nextInput); nextInput.focus();
+  await vi.advanceTimersByTimeAsync(600);
+  expect(overlay()!.dataset.phase).toBe("waiting"); expect(overlay()!.getAttribute("aria-hidden")).toBe("true");
+  expect(vfx.add.mock.calls[0]![0].querySelector("input").value).toBe("retained draft");
+  expect(dialog.inert).not.toBe(true); expect(dialog.hasAttribute("aria-busy")).toBe(false);
+  const done = handle.complete("saved"); await vi.advanceTimersByTimeAsync(1000); await done;
+  expect(document.activeElement).toBe(nextInput); expect(target.style.visibility).toBe("");
+  expect(overlay()).toBeNull(); expect(scrollIntoView).not.toHaveBeenCalled();
+});
+
+it("detached completion never scrolls tracks or flies behind the next open form", async () => {
+  const handle = beginDetachedWorkRecordSaveMotion(dialog)!;
+  dialog.closest(".modal-backdrop")!.remove();
+  const nextModal = document.createElement("div"); nextModal.className = "modal-backdrop"; root.append(nextModal);
+  const track = target.closest<HTMLElement>(".record-track")!; track.scrollTo = vi.fn();
+  await vi.advanceTimersByTimeAsync(600);
+  const done = handle.complete("saved"); await vi.advanceTimersByTimeAsync(1000); await done;
+  expect(vfx.add).toHaveBeenCalledOnce(); expect(track.scrollTo).not.toHaveBeenCalled(); expect(target.style.visibility).toBe("");
+  expect(nextModal.isConnected).toBe(true);
+});
+
+it("detached graphics fallback leaves forms and page interaction alone", async () => {
+  vi.stubGlobal("OffscreenCanvas", undefined);
+  const handle = beginDetachedWorkRecordSaveMotion(dialog)!;
+  expect(overlay()!.dataset.renderer).toBe("fallback");
+  expect(dialog.style.visibility).toBe(""); expect(dialog.inert).not.toBe(true);
+  handle.setWaitingVisible!(false); expect(overlay()!.dataset.waitingVisible).toBe("false");
+  handle.cancel(); expect(overlay()).toBeNull(); expect(dialog.style.opacity).toBe("");
+});
+
+it("a synchronous form capture failure does not prevent detached submission", () => {
+  vi.spyOn(dialog, "cloneNode").mockImplementation(() => { throw new Error("Capture failed"); });
+  expect(beginDetachedWorkRecordSaveMotion(dialog)).toBeUndefined();
+  expect(overlay()).toBeNull(); expect(dialog.inert).not.toBe(true);
+});
+
+it.each([false, true])("right-side detail editor starts orbiting without a straight tail back to its form (detached=%s)", async detached => {
+  vi.stubGlobal("innerWidth", 1920); vi.stubGlobal("innerHeight", 900);
+  vi.mocked(dialog.getBoundingClientRect).mockImplementation(function (this: HTMLElement) {
+    return this === dialog ? new DOMRect(1040, 0, 880, 900) : new DOMRect(40, 50, 160, 132);
+  });
+  const handle = beginWorkRecordSaveMotion(dialog, detached)!;
+  try {
+    await vi.advanceTimersByTimeAsync(280);
+    expect(overlay()!.dataset.phase).toBe("waiting");
+    // Every tail point must belong to the central 200px orbit, never the panel's x=1480 center.
+    const trail = sourceUniforms().trail() as Float32Array;
+    for (let index = 0; index < trail.length; index += 2) {
+      expect(trail[index]).toBeGreaterThanOrEqual(860);
+      expect(trail[index]).toBeLessThanOrEqual(1060);
+      expect(trail[index + 1]).toBeGreaterThanOrEqual(350);
+      expect(trail[index + 1]).toBeLessThanOrEqual(550);
+    }
+    await vi.advanceTimersByTimeAsync(600);
+    expect(sourceUniforms().trailOpacity()).toBe(1);
+    expect(new Set([...trail]).size).toBeGreaterThan(8);
+  } finally { handle.cancel(); }
+});
+
+it("does not draw a trail while the form is still condensing into the center ring", async () => {
+  await start(); await vi.advanceTimersByTimeAsync(240);
+  expect(overlay()!.dataset.phase).toBe("condensing");
+  expect(sourceUniforms().trailOpacity()).toBe(0);
 });

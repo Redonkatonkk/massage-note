@@ -52,7 +52,11 @@ import { PlaceholderDeleteDialog } from "./placeholder-delete-dialog";
 import { AutoCloseDetails } from "./auto-close-details";
 import { OverviewMetric, UiIcon } from "./ui/primitives";
 import { QuickWorkModeSwitch, type QuickWorkMode } from "./quick-work-mode-switch";
-import { absorbWorkRecordDialog, beginWorkRecordSaveMotion, cancelWorkRecordSaveMotion, preloadWorkRecordSaveMotion } from "../lib/work-record-save-motion";
+import { beginDetachedWorkRecordSaveMotion, preloadWorkRecordSaveMotion } from "../lib/work-record-save-motion";
+
+import { WorkRecordSaveProvider, useWorkRecordSaveManager, useWorkRecordSaveTasks } from "./work-record-save-provider";
+import { recordSaveLocked, unresolvedWrite, type PreparedRecordSave, type WorkRecordSaveTask } from "../lib/work-record-saves";
+import { closedRecordBusinessDate } from "../lib/record-closing";
 
 interface TodayBoardProps {
   wideLayout: boolean;
@@ -73,6 +77,7 @@ interface TodayBoardProps {
   initialRecordId?: string | undefined;
   onInitialRecordOpened?: () => void;
   onReload: () => Promise<void>;
+  onSaveReload?: (() => Promise<void>) | undefined;
 }
 
 function money(cents: number | null): string {
@@ -123,7 +128,12 @@ function PaymentBreakdown({
   </span>;
 }
 
-export function TodayBoard({
+export function TodayBoard(props: TodayBoardProps) {
+  const manager = useWorkRecordSaveManager();
+  return manager ? <TodayBoardContent {...props} /> : <WorkRecordSaveProvider><TodayBoardContent {...props} /></WorkRecordSaveProvider>;
+}
+
+function TodayBoardContent({
   wideLayout,
   heading,
   accountActions,
@@ -141,8 +151,14 @@ export function TodayBoard({
   members,
   initialRecordId,
   onInitialRecordOpened,
-  onReload,
+  onReload, onSaveReload,
 }: TodayBoardProps) {
+  const saves = useWorkRecordSaveManager()!;
+  const { tasks: saveTasks, recovery } = useWorkRecordSaveTasks(saves);
+  const scope = { storeId: membership.store.id, businessDate: currentDay.businessDate };
+  const pendingDayWrites = saveTasks.some(task => task.storeId === scope.storeId && task.businessDate === scope.businessDate && unresolvedWrite(task));
+  const recordLocked = (id: string) => saveTasks.some(task => task.storeId === scope.storeId && task.recordId === id && recordSaveLocked(task));
+  useEffect(() => saves.registerView({ storeId: membership.store.id, businessDate: currentDay.businessDate, refresh: onSaveReload ?? onReload }), [saves, membership.store.id, currentDay.businessDate, onSaveReload, onReload]);
   const canManage = membership.role !== "EMPLOYEE";
   const canChangeRowVisibility = canManage && (!board.isClosed || (!isCurrentBusinessDay && !isFutureBusinessDay));
   const [collapsed, setCollapsed] = useState<string[]>([]);
@@ -151,6 +167,9 @@ export function TodayBoard({
   const [quickServiceId, setQuickServiceId] = useState("");
   const [quickMode, setQuickMode] = useState<QuickWorkMode>("NORMAL");
   const quickDialog = useRef<HTMLElement>(null);
+  const [quickSessionId, setQuickSessionId] = useState(() => crypto.randomUUID());
+  const [editorSessionId, setEditorSessionId] = useState(() => crypto.randomUUID());
+  const [restoredSave, setRestoredSave] = useState<WorkRecordSaveTask | null>(null);
   const [startTimeValid, setStartTimeValid] = useState(true);
   const [startTime, setStartTime] = useState(currentStoreTime(currentDay.timezone));
   const [creatingRecord, setCreatingRecord] = useState<WorkRecord | null>(null);
@@ -195,13 +214,11 @@ export function TodayBoard({
   useEffect(() => {
     if (!quickEmployeeId) return;
     preloadWorkRecordSaveMotion();
-    const dialog = quickDialog.current;
     const previousBodyOverflow = document.body.style.overflow;
     const previousHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
     return () => {
-      cancelWorkRecordSaveMotion(dialog);
       document.body.style.overflow = previousBodyOverflow;
       document.documentElement.style.overflow = previousHtmlOverflow;
     };
@@ -264,7 +281,6 @@ export function TodayBoard({
     try {
       await action();
     } catch (caught) {
-      cancelWorkRecordSaveMotion(quickDialog.current);
       setError(errorMessage(caught));
     } finally {
       actionInFlight.current = false;
@@ -278,7 +294,27 @@ export function TodayBoard({
     );
   }
 
+  useEffect(() => {
+    saves.setRestoreBlocked(Boolean(quickEmployeeId || creatingRecord || editingRecord || deletingPlaceholder || closingEmployee));
+  }, [saves, quickEmployeeId, creatingRecord, editingRecord, deletingPlaceholder, closingEmployee]);
+  useEffect(() => () => saves.setRestoreBlocked(false), [saves]);
+  useEffect(() => {
+    if (!recovery || quickEmployeeId || creatingRecord || editingRecord || deletingPlaceholder || closingEmployee) return;
+    const task = saves.takeRecovery({ storeId: membership.store.id, businessDate: currentDay.businessDate });
+    if (!task) return;
+    setRestoredSave(task);
+    const draft = task.draft;
+    if (draft.kind === "quick") {
+      setQuickSessionId(crypto.randomUUID()); setQuickEmployeeId(draft.employeeId);
+      setQuickServiceId(draft.serviceId); setQuickMode(draft.mode); setStartTime(draft.startTime); setStartTimeValid(true);
+    } else {
+      setEditorSessionId(crypto.randomUUID());
+      if (draft.isNew) setCreatingRecord(draft.record); else setEditingRecord(draft.record);
+    }
+  }, [saves, recovery, membership.store.id, currentDay.businessDate, quickEmployeeId, creatingRecord, editingRecord, deletingPlaceholder, closingEmployee]);
+
   async function closeBusinessDay() {
+    if (saves.getSnapshot().tasks.some(task => task.storeId === membership.store.id && task.businessDate === currentDay.businessDate && unresolvedWrite(task))) return;
     const path = `/stores/${membership.store.id}/closings/${currentDay.businessDate}`;
     const preview = await apiRequest<ClosingPreview>(`${path}/preview`);
     const action = homeClosingAction(preview);
@@ -347,6 +383,7 @@ export function TodayBoard({
   function openDetailedRecord() {
     if (!startTimeValid) throw new Error("请填写有效的开始时间");
     if (!quickEmployeeId || board.isClosed || quickMode === "PLACEHOLDER") return;
+    setEditorSessionId(crypto.randomUUID()); setRestoredSave(null);
     setCreatingRecord(newWorkRecord({
       employeeMembershipId: quickEmployeeId,
       businessDate: currentDay.businessDate,
@@ -359,36 +396,43 @@ export function TodayBoard({
     setQuickEmployeeId(null);
   }
 
-  async function saveQuickRecord(selection: number | "PLACEHOLDER") {
-    if (!startTimeValid) throw new Error("请填写有效的开始时间");
-    if (!quickEmployeeId || board.isClosed) return;
-    if ((selection === "PLACEHOLDER") !== (quickMode === "PLACEHOLDER")) return;
-    const startAt = businessTimeToIso(currentDay.businessDate, startTime, currentDay.timezone);
-    const durationMinutes = selection === "PLACEHOLDER" ? null : selection;
-    if (durationMinutes !== null && !quickDurations.includes(durationMinutes)) throw new Error("请选择项目时长");
-    beginWorkRecordSaveMotion(quickDialog.current);
-    const saved = await apiRequest<WorkRecord>(`/stores/${membership.store.id}/work-records`, {
-      method: "POST",
-      idempotent: true,
-      body: {
-        employeeMembershipId: quickEmployeeId,
-        startAt,
-        ...(durationMinutes !== null ? {
-          serviceItemId: quickService!.id,
-          serviceDurationMinutes: durationMinutes,
-          isHighlighted: quickMode === "HIGHLIGHTED",
-          isDispatchExcluded: quickMode === "DISPATCH_EXCLUDED",
-        } : { isPlaceholder: true }),
-      },
-    });
+  function saveQuickRecord(selection: number | "PLACEHOLDER") {
     try {
-      await onReload();
-    } finally {
-      await absorbWorkRecordDialog(quickDialog.current, saved?.id);
-      setQuickEmployeeId(null);
-      setQuickMode("NORMAL");
-      setNotice(selection === "PLACEHOLDER" ? "占位已保存" : "记工已保存，可稍后打开详情填写付款");
-    }
+      if (!startTimeValid) throw new Error("请填写有效的开始时间");
+      if (!quickEmployeeId || board.isClosed) return;
+      if ((selection === "PLACEHOLDER") !== (quickMode === "PLACEHOLDER")) return;
+      const startAt = businessTimeToIso(currentDay.businessDate, startTime, currentDay.timezone);
+      const durationMinutes = selection === "PLACEHOLDER" ? null : selection;
+      if (durationMinutes !== null && !quickDurations.includes(durationMinutes)) throw new Error("请选择项目时长");
+      const accepted = saves.submit({
+        id: quickSessionId, ...scope, storeName: membership.store.name,
+        employeeName: members.find(member => member.id === quickEmployeeId)?.displayName ?? "员工",
+        draft: { kind: "quick", employeeId: quickEmployeeId, serviceId: quickService?.id ?? "", mode: quickMode, startTime },
+        motion: beginDetachedWorkRecordSaveMotion(quickDialog.current),
+        request: { path: `/stores/${membership.store.id}/work-records`, method: "POST", body: {
+          employeeMembershipId: quickEmployeeId, startAt,
+          ...(durationMinutes !== null ? { serviceItemId: quickService!.id, serviceDurationMinutes: durationMinutes,
+            isHighlighted: quickMode === "HIGHLIGHTED", isDispatchExcluded: quickMode === "DISPATCH_EXCLUDED" } : { isPlaceholder: true }),
+        } },
+      });
+      if (accepted) { setQuickEmployeeId(null); setQuickMode("NORMAL"); setRestoredSave(null); }
+    } catch (caught) { setError(errorMessage(caught)); }
+  }
+
+  function submitEditor(submission: PreparedRecordSave) {
+    const record = creatingRecord ?? editingRecord;
+    if (!record) return false;
+    const accepted = saves.submit({
+      id: editorSessionId, ...scope, storeName: membership.store.name,
+      employeeName: members.find(member => member.id === submission.employeeId)?.displayName ?? "员工",
+      recordId: creatingRecord ? undefined : record.id,
+      request: { path: submission.path, method: submission.method, body: submission.body },
+      draft: { kind: "editor", record, isNew: creatingRecord !== null,
+        initialServiceItemId: restoredSave?.draft.kind === "editor" ? restoredSave.draft.initialServiceItemId : creatingRecord ? quickService?.id : undefined, fields: submission.fields },
+      draftKey: submission.draftKey, motion: beginDetachedWorkRecordSaveMotion(submission.dialog),
+    });
+    if (accepted) { setEditingRecord(null); setCreatingRecord(null); setRestoredSave(null); }
+    return accepted;
   }
 
   async function rankBoard() {
@@ -434,7 +478,7 @@ export function TodayBoard({
       })}>{busy ? "正在上班…" : "上班"}</button>}
       {canManage && (board.isClosed
         ? <a className="primary-action board-closing-action" href={financeClosingHref(membership.store.id, currentDay.businessDate)}>现金结算</a>
-        : <button className="primary-action board-closing-action" type="button" disabled={busy} onClick={() => run(closeBusinessDay)}>日结</button>)}
+        : <button className="primary-action board-closing-action" type="button" disabled={busy || pendingDayWrites} title={pendingDayWrites ? "请先等待当天记工的保存结果确认" : undefined} onClick={() => run(closeBusinessDay)}>日结</button>)}
       {wideLayout ? secondaryActions : (canManage || canGenerateRanking || returnToToday) && <AutoCloseDetails className="board-more-actions">
         <summary>更多操作</summary>
         <div className="board-more-actions__body">{secondaryActions}</div>
@@ -558,13 +602,13 @@ export function TodayBoard({
                   <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
                       if (record === null) return (
-                        <button key="add-record" className="add-record" type="button" onClick={() => { setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickMode("NORMAL"); setQuickEmployeeId(row.membershipId); }}>
+                        <button key="add-record" className="add-record" type="button" onClick={() => { setQuickSessionId(crypto.randomUUID()); setRestoredSave(null); setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickMode("NORMAL"); setQuickEmployeeId(row.membershipId); }}>
                           <span aria-hidden="true"><UiIcon name="plus" /></span>新增记工
                         </button>
                       );
                       if (record.status === "PLACEHOLDER") return (
                         <button className="record-card record-card--placeholder" data-work-record-id={record.id} key={record.id} type="button" aria-label="占位" aria-describedby={`placeholder-time-${record.id}`}
-                          disabled={!isCurrentBusinessDay && !canManage} title={!isCurrentBusinessDay && !canManage ? "历史记录只读" : undefined}
+                          disabled={(!isCurrentBusinessDay && !canManage) || recordLocked(record.id)} title={recordLocked(record.id) ? "这条记工正在保存或同步，请稍候再试" : !isCurrentBusinessDay && !canManage ? "历史记录只读" : undefined}
                           onClick={() => setDeletingPlaceholder(record)}>
                           <svg className="record-placeholder-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
                             <line x1="0" y1="0" x2="100" y2="100" strokeWidth="2" vectorEffect="non-scaling-stroke" />
@@ -584,9 +628,9 @@ export function TodayBoard({
                         key={record.id}
                         data-work-record-id={record.id}
                         type="button"
-                        disabled={!isCurrentBusinessDay && !canManage}
-                        title={!isCurrentBusinessDay && !canManage ? "历史记录只读" : undefined}
-                        onClick={() => setEditingRecord(record)}
+                        disabled={(!isCurrentBusinessDay && !canManage) || recordLocked(record.id)}
+                        title={recordLocked(record.id) ? "这条记工正在保存或同步，请稍候再试" : !isCurrentBusinessDay && !canManage ? "历史记录只读" : undefined}
+                        onClick={() => { setEditorSessionId(crypto.randomUUID()); setRestoredSave(null); setEditingRecord(record); }}
                       >
                         <span className="record-card__topline">
                           <strong>{record.serviceSnapshot?.shortName ?? "待选项目"}</strong>
@@ -685,9 +729,10 @@ export function TodayBoard({
               </div>
             </div>
             <div className="quick-modal-content">
+              {restoredSave?.draft.kind === "quick" && <p className="form-error" role="alert">{restoredSave.error}</p>}
               <label className="field-label" htmlFor="start-time">开始时间</label>
               <WorkTimeInput id="start-time" value={startTime} onChange={setStartTime} onValidityChange={setStartTimeValid} />
-              {quickMode === "PLACEHOLDER" ? <button className="primary-action quick-placeholder-save" type="button" disabled={busy || board.isClosed} onClick={() => run(() => saveQuickRecord("PLACEHOLDER"))}>确认</button> : <>
+              {quickMode === "PLACEHOLDER" ? <button className="primary-action quick-placeholder-save" type="button" disabled={busy || board.isClosed} onClick={() => saveQuickRecord("PLACEHOLDER")}>确认</button> : <>
                 <label className="field-label" htmlFor="quick-service">选择项目</label>
                 <select id="quick-service" value={quickService?.id ?? ""} disabled={busy || board.isClosed || quickServices.length === 0} onChange={(event) => setQuickServiceId(event.target.value)}>
                   {quickServices.length === 0 && <option value="">没有可用项目，请先在项目设置中添加。</option>}
@@ -696,7 +741,7 @@ export function TodayBoard({
                 <fieldset className={`duration-picker${quickDurations.length === 3 ? " duration-picker--three-options" : ""}`} disabled={busy || board.isClosed}>
                   <legend>选择时长</legend>
                   {quickDurations.map((durationMinutes) => (
-                    <button key={durationMinutes} type="button" onClick={() => run(() => saveQuickRecord(durationMinutes))}>
+                    <button key={durationMinutes} type="button" onClick={() => saveQuickRecord(durationMinutes)}>
                       <strong>{durationMinutes} 分钟</strong>
                     </button>
                   ))}
@@ -716,13 +761,17 @@ export function TodayBoard({
 
       {(creatingRecord || editingRecord) && (
         <RecordEditor
+          key={editorSessionId} sessionId={editorSessionId} onSubmitSave={submitEditor}
+          initialDraft={restoredSave?.draft.kind === "editor" ? restoredSave.draft.fields : undefined}
+          initialSaveError={restoredSave?.error}
+          initialClosedBusinessDate={restoredSave?.code === "BUSINESS_DAY_CLOSED" ? closedRecordBusinessDate(restoredSave.latestResource, currentDay.businessDate) : null}
           storeId={membership.store.id}
           timezone={currentDay.timezone}
           businessDate={currentDay.businessDate}
           autoDiscountSettings={store}
           record={(creatingRecord ?? editingRecord)!}
           isNew={creatingRecord !== null}
-          initialServiceItemId={creatingRecord ? quickService?.id : undefined}
+          initialServiceItemId={restoredSave?.draft.kind === "editor" ? restoredSave.draft.initialServiceItemId : creatingRecord ? quickService?.id : undefined}
           catalog={catalog}
           members={members}
           canManage={canManage}

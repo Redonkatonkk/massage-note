@@ -4,6 +4,17 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.48.1 — 2026-10-28
+
+- Remove the long horizontal saving tail left by the detail editor moving from the side to screen center. Hide the trail during form condensation and restart its history when the ring begins orbiting, preserving its curved orbit trail and saved-card transition.
+- Verify both modal and detached saving flows with a wide desktop editor regression. NAS requires a Web update; no API or database changes.
+
+## 1.48.0 — 2026-10-28
+
+- Allow concurrent work-record saves on the work-record page: close submitted quick-entry, placeholder and detail forms immediately, release the backdrop/scroll lock, and keep a shared central ring with saving/synchronizing counts. Results cannot close or overwrite a later form, scroll the board, or steal focus.
+- Retain scoped requests and complete recovery drafts across date/store changes. Restore definite failures on request, confirm uncertain results with the original idempotency key, and retry only reads after a committed save's refresh fails. Protect the same pending record and unresolved daily closing without locking unrelated actions.
+- Keep graphics fallback and cleanup independent of writes, with visible-card-only completion. No backend API or database migration; NAS requires a Web update. Cross-page background saves and offline queues remain outside this change.
+
 ## 1.47.1 — 2026-10-27
 
 - Remove the stray white mode capsule during saving by hiding the entire live form with composited opacity, including descendants with explicit visibility and active entrance keyframes. Restore original opacity and priority on cancellation or graphics fallback.

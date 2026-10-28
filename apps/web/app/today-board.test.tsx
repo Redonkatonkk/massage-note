@@ -7,15 +7,21 @@ import { ApiError, apiRequest } from "../lib/api";
 import type { BoardStatistics, StoreDetails, StoreMember, WorkRecord } from "../lib/types";
 import { newWorkRecord } from "../lib/new-work-record";
 import { TodayBoard } from "./today-board";
-import { absorbWorkRecordDialog, beginWorkRecordSaveMotion, cancelWorkRecordSaveMotion } from "../lib/work-record-save-motion";
+import { absorbWorkRecordDialog, beginWorkRecordSaveMotion, cancelWorkRecordSaveMotion, beginDetachedWorkRecordSaveMotion } from "../lib/work-record-save-motion";
 import { beginWorkRecordDeleteMotion } from "../lib/work-record-delete-motion";
 
 vi.mock("../lib/api", async (original) => ({ ...await original<typeof import("../lib/api")>(), apiRequest: vi.fn() }));
 vi.mock("../lib/time", async (original) => ({ ...await original<typeof import("../lib/time")>(), currentStoreTime: () => "10:00" }));
-vi.mock("../lib/work-record-save-motion", () => ({ absorbWorkRecordDialog: vi.fn(async () => {}), beginWorkRecordSaveMotion: vi.fn(), cancelWorkRecordSaveMotion: vi.fn(), preloadWorkRecordSaveMotion: vi.fn() }));
+const detached = vi.hoisted(() => ({ complete: vi.fn(async (_id?: string) => {}), cancel: vi.fn(), setWaitingVisible: vi.fn() }));
+vi.mock("../lib/work-record-save-motion", () => ({ beginDetachedWorkRecordSaveMotion: vi.fn(() => detached), absorbWorkRecordDialog: vi.fn(async () => {}), beginWorkRecordSaveMotion: vi.fn(), cancelWorkRecordSaveMotion: vi.fn(), preloadWorkRecordSaveMotion: vi.fn() }));
 vi.mock("../lib/work-record-delete-motion", () => ({ beginWorkRecordDeleteMotion: vi.fn(), preloadWorkRecordDeleteMotion: vi.fn() }));
 vi.mock("./record-track", () => ({ RecordTrack: ({ children }: { children: ReactNode }) => <div className="record-track">{children}</div> }));
-vi.mock("./record-editor", () => ({ RecordEditor: ({ isClosed, isNew, initialServiceItemId, record, onClose }: { isClosed: boolean; isNew?: boolean; initialServiceItemId?: string; record: WorkRecord; onClose: () => void }) => <div className="normal-record-editor" data-readonly={isClosed} data-new={isNew} data-service={initialServiceItemId} data-record={JSON.stringify(record)}>{isNew && <button onClick={onClose}>取消详细记工</button>}</div> }));
+const editorRendering = vi.hoisted(() => ({ actual: false }));
+vi.mock("./record-editor", async original => {
+  const actual = await original<typeof import("./record-editor")>();
+  return { RecordEditor: (props: ComponentProps<typeof actual.RecordEditor>) => editorRendering.actual ? <actual.RecordEditor {...props} />
+    : <div className="normal-record-editor" data-readonly={props.isClosed} data-new={props.isNew} data-service={props.initialServiceItemId} data-record={JSON.stringify(props.record)}>{props.isNew && <button onClick={props.onClose}>取消详细记工</button>}</div> };
+});
 vi.mock("./board-employee-picker", () => ({ BoardEmployeePicker: () => null }));
 vi.mock("./board-weekly-dispatch", () => ({ BoardWeeklyDispatch: () => null }));
 vi.mock("./gift-card-sales", () => ({ GiftCardSales: () => null }));
@@ -26,6 +32,7 @@ vi.mock("./ranking-explanation", () => ({ RankingExplanationButton: () => null }
 const request = vi.mocked(apiRequest);
 const saveMotion = vi.mocked(absorbWorkRecordDialog);
 const beginMotion = vi.mocked(beginWorkRecordSaveMotion);
+const beginDetached = vi.mocked(beginDetachedWorkRecordSaveMotion);
 const cancelMotion = vi.mocked(cancelWorkRecordSaveMotion);
 const deleteMotion = vi.mocked(beginWorkRecordDeleteMotion);
 const releaseDeleteMotion = vi.fn();
@@ -42,13 +49,13 @@ let props: ComponentProps<typeof TodayBoard>;
 const reload = vi.fn(async () => {});
 
 beforeEach(() => {
-  language.locale = "zh-CN";
+  language.locale = "zh-CN"; editorRendering.actual = false;
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
-  request.mockReset(); request.mockResolvedValue({ deliveries: [], batchAllowed: true, batchBlockedReason: null, agent: null }); reload.mockClear();
+  request.mockReset(); request.mockResolvedValue({ deliveries: [], batchAllowed: true, batchBlockedReason: null, agent: null }); reload.mockReset().mockResolvedValue(undefined);
   saveMotion.mockReset().mockResolvedValue(undefined);
-  beginMotion.mockClear(); cancelMotion.mockClear();
+  beginMotion.mockClear(); cancelMotion.mockClear(); beginDetached.mockClear(); detached.complete.mockReset().mockResolvedValue(undefined); detached.cancel.mockClear();
   deleteMotion.mockReset().mockReturnValue({ finished: Promise.resolve(), cancel: releaseDeleteMotion }); releaseDeleteMotion.mockClear();
   props = { wideLayout: false, heading: "门店", accountActions: null, dateControls: null, returnToToday: null, calendar: null, loadError: "", membership: { id: "owner", role: "OWNER", displayName: "店主", isServiceProvider: true, store }, store, currentDay: { businessDate: "2026-10-06", timezone: store.timezone, businessCutoffLocal: "04:00", serverTime: "2026-10-06T16:00:00.000Z" }, isCurrentBusinessDay: true, isFutureBusinessDay: false,
     board: { id: "board", storeId: store.id, businessDate: "2026-10-06", version: 1, isClosed: false, rows: [{ id: "row", membershipId: employee.id, position: 0, isHidden: false, version: 1, membership: employee, shifts: [], workRecords: [], statistics: stats }], giftCardSales: [], nextGiftCardSerialNumber: "1", statistics: { ...stats, revenueCents: 0, totalIncomeCents: 0, cashChangeCents: null, recentClosedRevenue: null }, ranking: { enabled: false, rankedAt: null, explanation: null } },
@@ -245,14 +252,15 @@ describe("项目时长默认值", () => {
     await inputValue(hour, "10");
     request.mockRejectedValueOnce(new ApiError(409, { code: "BUSINESS_DAY_CLOSED", messageZh: "已经日结" }));
     await chooseDuration(60);
-    expect(document.querySelector(".screen-feedback[role=alert]")!.textContent).toBe("已经日结");
+    expect(document.querySelector(".work-save-results")!.textContent).toContain("已经日结");
+    await click("恢复填写内容");
     expect(button("★高亮标记").getAttribute("aria-checked")).toBe("true");
     let resolveSave!: (value: unknown) => void;
     request.mockImplementationOnce(() => new Promise(resolve => { resolveSave = resolve; }));
     await act(async () => { durationButton(60).click(); durationButton(60).click(); });
     expect(writes()).toHaveLength(2);
-    expect(durationButton(60).matches(":disabled")).toBe(true);
-    expect(document.querySelector<HTMLSelectElement>("#quick-service")!.disabled).toBe(true);
+    expect(document.querySelector(".quick-work-modal")).toBeNull();
+    expect(document.body.style.overflow).not.toBe("hidden");
     await act(async () => resolveSave({}));
     expect(document.querySelector(".quick-work-modal")).toBeNull();
     expect(writes().at(-1)![1]!.body).toMatchObject({ isHighlighted: true });
@@ -332,7 +340,7 @@ describe("保存后收进记工卡片", () => {
     expect(button("删除记录").classList.contains("delete-record--confirming")).toBe(false);
     expect(writes()).toEqual([]); expect(closed).not.toHaveBeenCalled();
   });
-  it.each(["service", "placeholder"])("%s 点击保存即浓缩，提交及刷新期间保持加载，展开前阻止重复提交", async kind => {
+  it.each(["service", "placeholder"])("%s 保存释放弹窗，旧请求和动画不会关闭下一笔表单", async kind => {
     await render(); await click("新增记工");
     if (kind === "placeholder") await click("占位");
     const saved = { ...ordinary, id: "saved-record" };
@@ -341,24 +349,25 @@ describe("保存后收进记工卡片", () => {
     request.mockImplementationOnce(() => new Promise(resolve => { finishWrite = resolve; }));
     reload.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve; }));
     let finishMotion!: () => void;
-    saveMotion.mockImplementationOnce(() => new Promise(resolve => { finishMotion = resolve; }));
+    detached.complete.mockImplementationOnce(() => new Promise(resolve => { finishMotion = resolve; }));
     const modal = document.querySelector<HTMLElement>(".quick-work-modal")!;
-    await act(async () => { (kind === "placeholder" ? button("确认") : durationButton(60)).click(); });
-    expect(beginMotion).toHaveBeenCalledWith(modal);
-    expect(reload).not.toHaveBeenCalled(); expect(saveMotion).not.toHaveBeenCalled();
-    expect(button("关闭").disabled).toBe(true);
-    await act(async () => finishWrite(saved));
-    expect(reload).toHaveBeenCalledOnce();
-    expect(saveMotion).not.toHaveBeenCalled();
-    await act(async () => finishRefresh());
-    expect(saveMotion).toHaveBeenCalledWith(modal, saved.id);
-    expect(reload.mock.invocationCallOrder[0]).toBeLessThan(saveMotion.mock.invocationCallOrder[0]!);
-    expect(document.querySelector(".quick-work-modal")).toBe(modal);
-    expect(button("关闭").disabled).toBe(true);
-    await act(async () => { (kind === "placeholder" ? button("确认") : durationButton(60)).click(); });
+    await act(async () => { const submit = kind === "placeholder" ? button("确认") : durationButton(60); submit.click(); submit.click(); });
+    expect(beginDetached).toHaveBeenCalledWith(modal);
     expect(writes()).toHaveLength(1);
-    await act(async () => finishMotion());
+    expect(reload).not.toHaveBeenCalled();
     expect(document.querySelector(".quick-work-modal")).toBeNull();
+    expect(document.body.style.overflow).not.toBe("hidden");
+    expect(button("日结").disabled).toBe(true);
+    await click("新增记工");
+    const nextModal = document.querySelector(".quick-work-modal");
+    await act(async () => finishWrite(saved));
+    expect(reload).toHaveBeenCalledOnce(); expect(detached.complete).not.toHaveBeenCalled();
+    await act(async () => finishRefresh());
+    expect(detached.complete).toHaveBeenCalledWith(saved.id);
+    expect(document.querySelector(".quick-work-modal")).toBe(nextModal);
+    expect(button("关闭").disabled).toBe(false);
+    await act(async () => finishMotion());
+    expect(document.querySelector(".quick-work-modal")).toBe(nextModal);
   });
 
   it.each([true, false])("详细记工新建=%s 等待保存动画再关闭，失败保持表单", async isNew => {
@@ -398,9 +407,9 @@ describe("保存后收进记工卡片", () => {
     let finishWrite!: (value: WorkRecord) => void;
     request.mockImplementationOnce(() => new Promise(resolve => { finishWrite = resolve; }));
     await act(async () => durationButton(60).click());
-    expect(beginMotion).toHaveBeenCalledWith(dialog);
+    expect(beginDetached).toHaveBeenCalledWith(dialog);
     await act(async () => root.render(null));
-    expect(cancelMotion).toHaveBeenCalledWith(dialog);
+    expect(detached.cancel).toHaveBeenCalled();
     await act(async () => finishWrite(ordinary));
   });
 });
@@ -423,14 +432,15 @@ describe("快速记工占位", () => {
     await inputValue(document.querySelector<HTMLInputElement>("#start-time")!, "10");
     request.mockRejectedValueOnce(new ApiError(409, { code: "BUSINESS_DAY_CLOSED", messageZh: "已经日结" }));
     await click("确认");
+    expect(document.querySelector(".work-save-results")!.textContent).toContain("已经日结");
+    await click("恢复填写内容");
     expect(button("占位").getAttribute("aria-checked")).toBe("true");
     expect(document.querySelector(".quick-work-modal")!.getAttribute("data-quick-mode")).toBe("PLACEHOLDER");
-    expect(document.querySelector(".screen-feedback[role=alert]")!.textContent).toBe("已经日结");
     let finish!: (result: unknown) => void;
     request.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
     await act(async () => { button("确认").click(); button("确认").click(); });
     expect(writes()).toHaveLength(2);
-    expect([...document.querySelectorAll<HTMLButtonElement>('.quick-mode-switch button')].every(option => option.disabled)).toBe(true);
+    expect(document.querySelector(".quick-work-modal")).toBeNull();
     await act(async () => finish({}));
     expect(document.querySelector(".quick-work-modal")).toBeNull();
   });
@@ -451,7 +461,7 @@ describe("快速记工占位", () => {
     await inputValue(content.querySelector<HTMLInputElement>("#start-time")!, "11");
     expect(writes()).toHaveLength(0);
     await click("确认");
-    expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, body: { employeeMembershipId: "employee", startAt: "2026-10-06T15:00:00.000Z", isPlaceholder: true } }]]);
+    expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, headers: { "Idempotency-Key": expect.any(String) }, body: { employeeMembershipId: "employee", startAt: "2026-10-06T15:00:00.000Z", isPlaceholder: true } }]]);
     expect(document.querySelector(".quick-work-modal")).toBeNull();
     await click("新增记工");
     expect(button("★高亮标记").getAttribute("aria-checked")).toBe("false");
@@ -464,8 +474,8 @@ describe("快速记工占位", () => {
     expect(document.querySelector<HTMLSelectElement>("#quick-service")!.disabled).toBe(true);
     expect(document.querySelector(".duration-picker .empty-note")!.textContent).toContain("没有可用时长");
     await click("占位"); await click("确认");
-    expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, body: { employeeMembershipId: "employee", startAt: "2026-10-06T14:00:00.000Z", isPlaceholder: true } }]]);
-    expect(document.querySelector(".quick-work-modal")).toBeNull(); expect(reload).toHaveBeenCalledTimes(1); expect(document.querySelector(".screen-feedback")!.textContent).toContain("占位已保存");
+    expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, headers: { "Idempotency-Key": expect.any(String) }, body: { employeeMembershipId: "employee", startAt: "2026-10-06T14:00:00.000Z", isPlaceholder: true } }]]);
+    expect(document.querySelector(".quick-work-modal")).toBeNull(); expect(reload).toHaveBeenCalledTimes(1); expect(document.querySelector(".work-save-results")!.textContent).toContain("记工已保存");
   });
   it("普通、占位与高亮混排，占位卡显示所选时间和整卡对角线且不计工数", async () => {
     props.board.rows[0]!.workRecords = [ordinary, placeholder, { ...ordinary, id: "highlight", isHighlighted: true }]; await render();
@@ -787,5 +797,74 @@ describe("日结后的现金变化", () => {
     props.board = { ...props.board, isClosed: true };
     await render();
     expect(container.querySelector(".board-overview")).toBeNull();
+  });
+});
+
+
+describe("独立保存任务", () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
+  async function note(value: string) {
+    const field = document.querySelector<HTMLTextAreaElement>(".record-editor textarea")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(field, value);
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+  it("慢网允许提交第二笔，乱序完成仍保留正在填写的第三笔", async () => {
+    await render();
+    let first!: (record: WorkRecord) => void, second!: (record: WorkRecord) => void;
+    request.mockImplementationOnce(() => new Promise(resolve => { first = resolve; }));
+    await click("新增记工"); await chooseDuration(60);
+    request.mockImplementationOnce(() => new Promise(resolve => { second = resolve; }));
+    await click("新增记工"); await click("★高亮标记"); await chooseDuration(60);
+    expect(writes()).toHaveLength(2);
+    expect(writes()[0]![1]!.headers).not.toEqual(writes()[1]![1]!.headers);
+    expect(document.querySelector(".work-save-count")!.textContent).toContain("正在保存 2 笔");
+    await click("新增记工"); await click("占位");
+    const third = document.querySelector(".quick-work-modal");
+    await act(async () => second({ ...ordinary, id: "second" }));
+    expect(document.querySelector(".quick-work-modal")).toBe(third);
+    expect(button("占位").getAttribute("aria-checked")).toBe("true");
+    await act(async () => first({ ...ordinary, id: "first" }));
+    expect(document.querySelector(".quick-work-modal")).toBe(third);
+    expect(button("确认").disabled).toBe(false);
+  });
+  it.each([true, false])("详细保存新增=%s 立即释放表单，失败恢复完整内容且不打断下一笔", async isNew => {
+    editorRendering.actual = true;
+    if (!isNew) props.board.rows[0]!.workRecords = [ordinary];
+    await render();
+    if (isNew) { await click("新增记工"); await click("详细记工"); }
+    else await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!.click());
+    await note("上一笔完整备注 / retained note");
+    let fail!: (error: unknown) => void;
+    request.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+    await click("保存");
+    expect(document.querySelector(".record-editor")).toBeNull();
+    expect(writes()).toHaveLength(1);
+    if (!isNew) expect(container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!.disabled).toBe(true);
+    await click("新增记工"); await click("详细记工"); await note("下一笔还在填写");
+    const next = document.querySelector(".record-editor");
+    await act(async () => fail(new ApiError(409, { code: "WORK_RECORD_VERSION_CONFLICT", messageZh: "版本冲突" })));
+    expect(document.querySelector(".record-editor")).toBe(next);
+    await click("恢复填写内容");
+    expect(document.querySelector<HTMLTextAreaElement>(".record-editor textarea")!.value).toBe("下一笔还在填写");
+    await click("关闭");
+    expect(document.querySelector<HTMLTextAreaElement>(".record-editor textarea")!.value).toBe("上一笔完整备注 / retained note");
+    expect(document.querySelector(".record-error-toast[role=alert]")!.textContent).toContain("版本冲突");
+    expect(writes()).toHaveLength(1);
+    request.mockResolvedValueOnce({ ...ordinary, id: "saved", version: 8 });
+    await click("保存");
+    const original = writes()[0]![1]!.body, retry = writes()[1]![1]!.body;
+    expect(retry).toEqual(original);
+    expect(document.querySelector(".record-editor")).toBeNull();
+  });
+  it("已保存后同步失败只重读，不再写入", async () => {
+    await render(); request.mockResolvedValueOnce({ ...ordinary, id: "saved" });
+    reload.mockRejectedValueOnce(new Error("刷新失败"));
+    await click("新增记工"); await chooseDuration(60);
+    expect(document.querySelector(".work-save-results")!.textContent).toContain("记工已保存，同步暂时失败");
+    await click("重新同步");
+    expect(writes()).toHaveLength(1); expect(reload).toHaveBeenCalledTimes(2);
   });
 });

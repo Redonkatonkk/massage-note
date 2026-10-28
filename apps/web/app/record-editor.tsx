@@ -16,6 +16,7 @@ import { closedRecordBusinessDate, reopenRecordBusinessDay } from "../lib/record
 import { shouldConfirmPaymentOnSave } from "../lib/record-payment";
 import { absorbWorkRecordDialog, beginWorkRecordSaveMotion, cancelWorkRecordSaveMotion, preloadWorkRecordSaveMotion } from "../lib/work-record-save-motion";
 import { beginWorkRecordDeleteMotion, preloadWorkRecordDeleteMotion } from "../lib/work-record-delete-motion";
+import type { PreparedRecordSave } from "../lib/work-record-saves";
 import { defaultServicePriceOption } from "../lib/service-price-option";
 import {
   localDateTimeValue,
@@ -58,6 +59,11 @@ interface RecordEditorProps {
   onSaved: () => void;
   onDeleted?: () => void;
   onChanged: () => Promise<void>;
+  onSubmitSave?: ((submission: PreparedRecordSave) => boolean) | undefined;
+  initialDraft?: Record<string, unknown> | undefined;
+  initialSaveError?: string | undefined;
+  initialClosedBusinessDate?: string | null | undefined;
+  sessionId?: string | undefined;
 }
 
 interface AddonDraft {
@@ -154,7 +160,7 @@ export function RecordEditor({
   onClose,
   onSaved,
   onDeleted,
-  onChanged,
+  onChanged, onSubmitSave, initialDraft, initialSaveError, initialClosedBusinessDate, sessionId,
 }: RecordEditorProps) {
   const actionInFlight = useRef(false);
   const editorElement = useRef<HTMLElement>(null);
@@ -165,7 +171,7 @@ export function RecordEditor({
     return () => cancelWorkRecordSaveMotion(dialog);
   }, []);
   useEffect(() => { editorElement.current?.focus({ preventScroll: true }); }, [record.id]);
-  const [blockedBusinessDate, setBlockedBusinessDate] = useState<string | null>(null);
+  const [blockedBusinessDate, setBlockedBusinessDate] = useState<string | null>(initialClosedBusinessDate ?? null);
   const closedBusinessDate = blockedBusinessDate ?? (isClosed ? record.businessDate.slice(0, 10) : null);
   const dayClosed = closedBusinessDate !== null;
   const [deleteConfirming, setDeleteConfirming] = useState(false);
@@ -252,14 +258,26 @@ export function RecordEditor({
   const [note, setNote] = useState(record.note);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useAutoDismissState("");
+  useEffect(() => { if (initialSaveError) setError(initialSaveError); }, [initialSaveError, setError]);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
-  const draftKey = `massage_note_record_draft_${record.id}`;
+  const [newSessionId] = useState(() => sessionId ?? crypto.randomUUID());
+  const draftKey = `massage_note_record_draft_${isNew ? newSessionId : record.id}`;
+  function captureDraft(): Record<string, unknown> {
+    return { storeId, savedAt: Date.now(), recordVersion, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardIsOnline, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note };
+  }
+  function submitInBackground(path: string, method: "POST" | "PATCH", body: unknown) {
+    if (!onSubmitSave) return false;
+    if (!onSubmitSave({ path, method, body, fields: captureDraft(), dialog: editorElement.current, employeeId, draftKey })) {
+      throw new Error("这条记工正在保存，请稍候再试");
+    }
+    return true;
+  }
 
   useEffect(() => {
-    if (isNew) { setDraftLoaded(true); return; }
+    if (isNew && !initialDraft) { setDraftLoaded(true); return; }
     try {
-      const raw = browserStorage.getItem(draftKey);
+      const raw = initialDraft ? JSON.stringify(initialDraft) : browserStorage.getItem(draftKey);
       if (raw) {
         const draft = JSON.parse(raw) as Record<string, unknown>;
         const savedAt = typeof draft.savedAt === "number" ? draft.savedAt : 0;
@@ -317,7 +335,7 @@ export function RecordEditor({
     } finally {
       setDraftLoaded(true);
     }
-  }, [draftKey, record.version, isNew]);
+  }, [draftKey, record.version, isNew, initialDraft]);
 
   useEffect(() => {
     if (isNew || !draftLoaded || !draftDirty) return;
@@ -620,8 +638,9 @@ export function RecordEditor({
     return payload;
   }
 
-  async function saveDetails(): Promise<WorkRecord> {
+  async function saveDetails(): Promise<WorkRecord | undefined> {
     const body = buildUpdate(recordVersion);
+    if (submitInBackground(`/stores/${storeId}/work-records/${record.id}`, "PATCH", body)) return;
     beginWorkRecordSaveMotion(editorElement.current);
     try {
       const updated = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/${record.id}`, {
@@ -732,11 +751,13 @@ export function RecordEditor({
         details,
         ...(willConfirmPayment ? { payment } : {}),
       };
+      if (submitInBackground(`/stores/${storeId}/work-records/detailed`, "POST", body)) return;
       beginWorkRecordSaveMotion(editorElement.current);
       saved = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/detailed`, {
         method: "POST", idempotent: true, body,
       });
     } else {
+      if (submitInBackground(`/stores/${storeId}/work-records/${record.id}/save`, "POST", { details, payment })) return;
       beginWorkRecordSaveMotion(editorElement.current);
       saved = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/${record.id}/save`, {
         method: "POST", idempotent: true, body: { details, payment },
@@ -774,7 +795,7 @@ export function RecordEditor({
       return;
     }
     const saved = await saveDetails();
-    await finish(saved?.id ?? record.id);
+    if (!onSubmitSave) await finish(saved?.id ?? record.id);
   }
 
   function saveOnEnter(event: KeyboardEvent<HTMLElement>) {

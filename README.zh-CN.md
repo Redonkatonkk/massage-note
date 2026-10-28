@@ -6,7 +6,7 @@
 
 **[最新正式版](https://github.com/Redonkatonkk/massage-note/releases/latest)** · **[更新记录](CHANGELOG.zh-CN.md)**
 
-当前版本：`1.47.1`
+当前版本：`1.48.1`
 
 面向美国按摩店的全栈 TypeScript 管理应用，提供适配手机、平板和电脑的中英文界面，把记工、混合付款、员工提成、日结、工资支付登记和经营分析串成可追溯的业务流程。
 

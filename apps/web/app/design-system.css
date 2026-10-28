@@ -636,3 +636,15 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .delete-record--confirming { border-color: var(--danger-confirm); background: var(--danger-confirm); color: var(--surface); }
 .delete-record--confirming .delete-record__label { opacity: 0; transform: translateY(-6px); }
 .delete-record--confirming .delete-record__confirmation { opacity: 1; transform: translateY(0); }
+
+/* Save feedback floats over an interactive board; only recovery buttons take input. */
+.work-record-save-motion[data-phase="waiting"][data-waiting-visible="false"] .work-record-save-motion__stage,
+.work-record-save-motion[data-renderer="fallback"][data-waiting-visible="false"] .work-record-save-motion__fallback { visibility: hidden; }
+.work-save-count { position: fixed; z-index: 51; top: calc(50% + 70px); left: 50%; transform: translateX(-50%); display: grid; gap: 4px; max-width: calc(100vw - 32px); padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--brand-dark); font-size: 14px; text-align: center; pointer-events: none; }
+.work-save-results { position: fixed; z-index: 60; top: max(80px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 180px); overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 8px; pointer-events: none; }
+.work-save-result { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); overflow-wrap: anywhere; font-size: 14px; pointer-events: auto; }
+.work-save-result strong { display: block; font-size: 14px; }
+.work-save-result p { margin: 6px 0; }
+.work-save-result--saved { color: var(--success); pointer-events: none; }
+.work-save-result--failed, .work-save-result--uncertain, .work-save-result--syncFailed { border-color: var(--danger); }
+@media (prefers-reduced-motion: reduce) { .work-record-save-motion__fallback { animation: none; } }

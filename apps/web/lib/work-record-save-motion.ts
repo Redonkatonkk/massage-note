@@ -9,9 +9,10 @@ const UNFOLD_MS = 220;
 const PREPARE_MS = 400;
 const ORB_SIZE = 40;
 
-interface SaveMotion {
+export interface SaveMotion {
   complete: (recordId: string | undefined) => Promise<void>;
   cancel: () => void;
+  setWaitingVisible?: (visible: boolean) => void;
 }
 interface Pose {
   rect: [number, number, number, number];
@@ -92,13 +93,15 @@ function frozenSnapshot(element: HTMLElement, rect: DOMRect) {
 }
 
 /** Local validation has passed; animation starts before the write and never implies success. */
-export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
+export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached = false): SaveMotion | undefined {
   if (!dialog) return;
-  cancelWorkRecordSaveMotion(dialog);
+  if (!detached) cancelWorkRecordSaveMotion(dialog);
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
   if (!dialog.isConnected || reduced?.matches) return;
   const from = dialog.getBoundingClientRect();
   if (from.width <= 0 || from.height <= 0) return;
+  // Capture geometry and values synchronously; the caller may unmount the live dialog now.
+  const initialSnapshot = detached ? frozenSnapshot(dialog, from) : undefined;
   const controller = new AbortController();
   const { signal } = controller;
   const previous = {
@@ -116,6 +119,8 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
   status.textContent = translateText("正在保存记工…", document.documentElement.lang === "en-US" ? "en-US" : "zh-CN");
   const fallback = document.createElement("div"); fallback.className = "work-record-save-motion__fallback"; fallback.setAttribute("aria-hidden", "true");
   overlay.append(stage, fallback, status);
+  overlay.dataset.waitingVisible = "true";
+  if (detached) overlay.setAttribute("aria-hidden", "true");
   const center: Point = [window.innerWidth / 2, window.innerHeight / 2];
   const orbitRadius = Math.min(100, Math.max(60, window.innerWidth * .18), window.innerHeight * .2);
   const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
@@ -141,7 +146,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
   const ready = new Promise<void>(resolve => { resolveReady = resolve; });
   const animations: Animation[] = [];
   const backdrop = dialog.closest<HTMLElement>(".modal-backdrop");
-  const observer = new MutationObserver(() => { if (!dialog.isConnected) cancel(); });
+  const observer = new MutationObserver(() => { if (!detached && !dialog.isConnected) cancel(); });
 
   const releaseRenderer = () => {
     const instance = renderer; renderer = undefined;
@@ -155,21 +160,27 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
     observer.disconnect(); overlay.remove();
     reduced?.removeEventListener("change", cancel); window.removeEventListener("pagehide", cancel); window.removeEventListener("resize", cancel);
     document.removeEventListener("visibilitychange", onVisibility);
-    dialog.inert = previous.inert;
-    if (completed) hideDialog(); else restoreDialog();
-    if (previous.busy === null) dialog.removeAttribute("aria-busy"); else dialog.setAttribute("aria-busy", previous.busy);
+    document.removeEventListener("scroll", onInteraction, true);
+    document.removeEventListener("pointerdown", onInteraction);
+    document.removeEventListener("keydown", onInteraction);
     if (target && targetVisibility !== undefined) target.style.visibility = targetVisibility;
-    if (completed && backdrop) backdrop.style.backgroundColor = "transparent";
-    if (!completed && previous.focus instanceof HTMLElement && dialog.contains(previous.focus) && previous.focus.isConnected) previous.focus.focus({ preventScroll: true });
-    motions.delete(dialog);
+    if (!detached) {
+      dialog.inert = previous.inert;
+      if (completed) hideDialog(); else restoreDialog();
+      if (previous.busy === null) dialog.removeAttribute("aria-busy"); else dialog.setAttribute("aria-busy", previous.busy);
+      if (completed && backdrop) backdrop.style.backgroundColor = "transparent";
+      if (!completed && previous.focus instanceof HTMLElement && dialog.contains(previous.focus) && previous.focus.isConnected) previous.focus.focus({ preventScroll: true });
+      motions.delete(dialog);
+    }
   };
   const onVisibility = () => { if (document.hidden) cancel(); };
+  const onInteraction = () => { if (detached && completing) cancel(); };
   const degrade = () => {
     if (signal.aborted || degraded) return;
     degraded = true; waiting = false; window.clearTimeout(prepareTimer); stopTween?.(false); resolveReady();
     if (frame !== undefined) cancelAnimationFrame(frame);
     releaseRenderer(); stage.replaceChildren(); overlay.dataset.renderer = "fallback";
-    restoreDialog();
+    if (!detached) restoreDialog();
     if (target && targetVisibility !== undefined) target.style.visibility = targetVisibility;
   };
   const tween = (duration: number, update: (progress: number) => void): Promise<void> => {
@@ -203,7 +214,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
     }
   };
   const uniforms = (pose: Pose): NonNullable<VFXProps["uniforms"]> => ({
-    screenSize: [window.innerWidth, window.innerHeight], pixelRatio,
+    screenSize: [window.innerWidth, window.innerHeight], pixelRatio, uncovered: detached ? 1 : 0,
     shapeRect: () => pose.rect, corner: () => pose.corner, textureMix: () => pose.textureMix, opacity: () => pose.opacity,
     trail: () => trail, trailOpacity: () => pose.trailOpacity, impact: () => pose.impact,
     inkColor: workRecordVfxColor("--brand", [49 / 255, 91 / 255, 73 / 255]),
@@ -256,24 +267,27 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
     completing = true;
     try {
       await ready;
-      if (signal.aborted || !dialog.isConnected) return;
+      if (signal.aborted || (!detached && !dialog.isConnected)) return;
       target = await savedCard(recordId, signal);
       const track = target?.closest<HTMLElement>(".record-track");
-      if (target && track) {
+      if (!detached && target && track) {
         const box = target.getBoundingClientRect(), view = track.getBoundingClientRect();
         const delta = box.left < view.left ? box.left - view.left : box.right > view.right ? box.right - view.right : 0;
         if (delta) track.scrollTo?.({ left: Math.max(0, track.scrollLeft + delta), behavior: "instant" });
       }
       await nextPaint(signal);
-      if (signal.aborted || !dialog.isConnected) return;
+      if (signal.aborted || (!detached && !dialog.isConnected)) return;
       const to = target?.getBoundingClientRect();
-      const hasTarget = !!to && to.width > 0 && to.height > 0 && to.bottom > 0 && to.top < window.innerHeight;
+      const trackBox = track?.getBoundingClientRect();
+      const hasTarget = !!to && to.width > 0 && to.height > 0 && to.bottom > 0 && to.top < window.innerHeight &&
+        (!detached || (!document.querySelector('.modal-backdrop, dialog[open]') && to.left >= 0 && to.right <= window.innerWidth &&
+          (!trackBox || (to.left >= trackBox.left && to.right <= trackBox.right))));
       const destination: Point = hasTarget ? [to.left + to.width / 2, to.top + to.height / 2] : center;
       let cardCaptured = false;
       if (hasTarget && target && to) cardCaptured = await captureCard(target, to);
       if (signal.aborted) return;
       if (hasTarget && target && !degraded) { targetVisibility = target.style.visibility; target.style.visibility = "hidden"; }
-      if (backdrop?.animate) {
+      if (!detached && backdrop?.animate) {
         const animation = backdrop.animate([{ backgroundColor: getComputedStyle(backdrop).backgroundColor }, { backgroundColor: "transparent" }], { duration: FLIGHT_MS, fill: "forwards" });
         animations.push(animation); void animation.finished.catch(() => undefined);
       }
@@ -306,7 +320,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
       });
       if (!signal.aborted) {
         completed = true;
-        if (target?.isConnected) target.focus({ preventScroll: true });
+        if (!detached && target?.isConnected) target.focus({ preventScroll: true });
       }
     } catch {
       // A committed save still closes after a presentation failure.
@@ -315,11 +329,20 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
   };
 
   try {
-    document.body.append(overlay); dialog.inert = true; dialog.setAttribute("aria-busy", "true");
-    observer.observe(document.body, { childList: true, subtree: true });
+    document.body.append(overlay);
+    if (!detached) {
+      dialog.inert = true; dialog.setAttribute("aria-busy", "true");
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
     reduced?.addEventListener("change", cancel); window.addEventListener("pagehide", cancel, { once: true }); window.addEventListener("resize", cancel, { once: true });
     document.addEventListener("visibilitychange", onVisibility);
-    motions.set(dialog, { complete, cancel });
+    if (detached) {
+      document.addEventListener("scroll", onInteraction, true);
+      document.addEventListener("pointerdown", onInteraction);
+      document.addEventListener("keydown", onInteraction);
+    }
+    const handle: SaveMotion = { complete, cancel, setWaitingVisible: visible => { overlay.dataset.waitingVisible = String(visible); } };
+    if (!detached) motions.set(dialog, handle);
     prepareTimer = window.setTimeout(degrade, PREPARE_MS);
     void (async () => {
       try {
@@ -329,22 +352,29 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null): void {
         const instance = new VFX({ autoplay: false, scrollPadding: false, pixelRatio, wrapper: stage, zIndex: 1 });
         renderer = instance; canvas = stage.querySelector("canvas") ?? undefined;
         canvas?.addEventListener("webglcontextlost", degrade, { once: true });
-        const frozen = frozenSnapshot(dialog, from); stage.append(frozen.slot); sources.push(frozen.snapshot);
+        const frozen = initialSnapshot ?? frozenSnapshot(dialog, from); stage.append(frozen.slot); sources.push(frozen.snapshot);
         await instance.add(frozen.snapshot, { shader: WORK_RECORD_SAVE_SHADER, overflow: true, uniforms: uniforms(sourcePose) });
         if (signal.aborted || degraded) { instance.remove(frozen.snapshot); return; }
-        window.clearTimeout(prepareTimer); overlay.dataset.renderer = "canvas"; overlay.dataset.phase = "condensing"; hideDialog();
+        window.clearTimeout(prepareTimer); overlay.dataset.renderer = "canvas"; overlay.dataset.phase = "condensing"; if (!detached) hideDialog();
         const start = [...sourcePose.rect] as Pose["rect"];
         const entrance = tween(CONDENSE_MS, value => {
           const t = ease(value);
           sourcePose.rect = [mix(start[0], center[0], t), mix(start[1], center[1], t), mix(start[2], ORB_SIZE, t), mix(start[3], ORB_SIZE, t)];
-          sourcePose.corner = mix(12, 20, t); sourcePose.textureMix = 1 - ease(clamp((value - .45) / .55)); sourcePose.trailOpacity = ease(clamp((value - .4) / .6));
+          sourcePose.corner = mix(12, 20, t); sourcePose.textureMix = 1 - ease(clamp((value - .45) / .55));
+          sourcePose.trailOpacity = 0;
         });
         draw(); await entrance;
-        if (!signal.aborted && !degraded) { waiting = true; orbitStarted = performance.now(); overlay.dataset.phase = "waiting"; }
+        if (!signal.aborted && !degraded) {
+          // The side editor can travel hundreds of pixels horizontally while condensing.
+          // Start a fresh tail at the ring so that straight approach never enters its orbit.
+          history.length = 0; orbitStarted = performance.now(); updateTrail(orbitStarted);
+          sourcePose.trailOpacity = 1; waiting = true; overlay.dataset.phase = "waiting";
+        }
         resolveReady();
       } catch { degrade(); }
     })();
-  } catch { cancel(); }
+    return handle;
+  } catch { cancel(); return undefined; }
 }
 
 export async function absorbWorkRecordDialog(dialog: HTMLElement | null, recordId: string | undefined): Promise<void> {
@@ -353,4 +383,9 @@ export async function absorbWorkRecordDialog(dialog: HTMLElement | null, recordI
 
 export function cancelWorkRecordSaveMotion(dialog: HTMLElement | null): void {
   if (dialog) motions.get(dialog)?.cancel();
+}
+
+/** Page tasks own this handle; removing the submitted form does not cancel it. */
+export function beginDetachedWorkRecordSaveMotion(dialog: HTMLElement | null): SaveMotion | undefined {
+  try { return beginWorkRecordSaveMotion(dialog, true); } catch { return undefined; }
 }

@@ -4,6 +4,7 @@ import { appHref } from "../lib/demo-mode";
 
 import { useAutoDismissState } from "./use-auto-dismiss-state";
 
+import { WorkRecordSaveProvider, useWorkRecordSaveManager, useWorkRecordSaveTasks } from "./work-record-save-provider";
 import { createRefreshQueue } from "../lib/refresh-queue";
 import { browserStorage } from "../lib/browser-storage";
 import { createBusinessDateCalendarCache } from "../lib/business-date-calendar-cache";
@@ -219,6 +220,12 @@ function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; o
 }
 
 export function MassageNoteApp() {
+  return <WorkRecordSaveProvider><MassageNotePage /></WorkRecordSaveProvider>;
+}
+
+function MassageNotePage() {
+  const saves = useWorkRecordSaveManager()!;
+  const saveState = useWorkRecordSaveTasks(saves);
   const wideLayout = useSyncExternalStore(subscribeWideWorkLayout, wideWorkLayoutSnapshot, serverWorkLayoutSnapshot);
   const [me, setMe] = useState<MeResponse | null>(null);
   const [membership, setMembership] = useState<MembershipSummary | null>(null);
@@ -341,8 +348,28 @@ export function MassageNoteApp() {
     storeLoadGeneration.current += 1;
     return refreshQueue.current?.request() ?? Promise.resolve();
   }, [readStore, refreshCalendar]);
+  const reloadSavedRecords = useCallback(async () => {
+    await loadStore();
+    if (lastReadError.current) throw lastReadError.current;
+  }, [loadStore]);
+  useEffect(() => {
+    const task = saveState.tasks.find(task => task.id === saveState.recovery);
+    if (!task || !me || saveState.restoreBlocked) return;
+    if (membership?.store.id !== task.storeId) {
+      const selected = me.memberships.find(item => item.store.id === task.storeId);
+      if (!selected) return;
+      saves.leaveView(); storeLoadGeneration.current += 1;
+      viewDateRef.current = task.businessDate; setViewDate(""); setMembership(selected);
+      setCurrentDay(null); setBoard(null); setStoreDetails(null);
+      browserStorage.setItem("massage_note_store_id", selected.store.id);
+    } else if (viewDateRef.current !== task.businessDate) {
+      saves.leaveView(); viewDateRef.current = task.businessDate; storeLoadGeneration.current += 1;
+      void refreshQueue.current?.request();
+    }
+  }, [saves, saveState.recovery, saveState.restoreBlocked, me, membership]);
   const selectDate = (date: string) => {
     if (date === viewDateRef.current && date === viewDate) return;
+    saves.leaveView();
     viewDateRef.current = date;
     storeLoadGeneration.current += 1;
     void refreshQueue.current?.request();
@@ -392,7 +419,7 @@ export function MassageNoteApp() {
         wideLayout={wideLayout}
         heading={<><p className="eyebrow">{membership.store.name} · 店铺代码 {membership.store.storeCode}</p><h1>{viewDate === currentDay.businessDate ? "今日记工" : viewDate > currentDay.businessDate ? "未来记工" : "历史记工"}</h1><p className="business-date">{chineseDate(viewDate)} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></>}
         accountActions={me.memberships.length > 1 ? <select className="store-switcher" aria-label="切换店铺" value={membership.store.id} onChange={(event) => {
-            const selected = me.memberships.find((item) => item.store.id === event.target.value); if (selected) { storeLoadGeneration.current += 1; viewDateRef.current = ""; setViewDate(""); setMembership(selected); setCurrentDay(null); setBoard(null); setStoreDetails(null); browserStorage.setItem("massage_note_store_id", selected.store.id); }
+            const selected = me.memberships.find((item) => item.store.id === event.target.value); if (selected) { saves.leaveView(); storeLoadGeneration.current += 1; viewDateRef.current = ""; setViewDate(""); setMembership(selected); setCurrentDay(null); setBoard(null); setStoreDetails(null); browserStorage.setItem("massage_note_store_id", selected.store.id); }
           }}>{me.memberships.map((item) => <option key={item.store.id} value={item.store.id}>{item.store.name}</option>)}</select> : null}
         returnToToday={returnToToday}
         dateControls={<section className="history-toolbar" aria-label="切换营业日">
@@ -401,7 +428,7 @@ export function MassageNoteApp() {
         </section>}
         calendar={wideLayout ? dateCalendar : null}
         loadError={error}
-        key={`today-${membership.store.id}-${viewDate}`} membership={membership} store={storeDetails} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} isFutureBusinessDay={viewDate > currentDay.businessDate} board={board} catalog={catalog} members={members} initialRecordId={initialRecordId || undefined} onInitialRecordOpened={() => { setInitialRecordId(""); const url = new URL(window.location.href); url.searchParams.delete("record"); window.history.replaceState(null, "", `${url.pathname}${url.search}`); }} onReload={loadStore} />
+        key={`today-${membership.store.id}-${viewDate}`} membership={membership} store={storeDetails} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} isFutureBusinessDay={viewDate > currentDay.businessDate} board={board} catalog={catalog} members={members} initialRecordId={initialRecordId || undefined} onInitialRecordOpened={() => { setInitialRecordId(""); const url = new URL(window.location.href); url.searchParams.delete("record"); window.history.replaceState(null, "", `${url.pathname}${url.search}`); }} onReload={loadStore} onSaveReload={reloadSavedRecords} />
       <AppNav active="today" storeId={membership.store.id} role={membership.role} assistant={<FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} timezone={currentDay.timezone} type="work" onWorkChanged={loadStore} />} />
     </main>
   );

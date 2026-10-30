@@ -57,7 +57,7 @@ export function GiftCardLedger({ ledger }: { ledger: GiftCardLedgerResponse }) {
         <article><span>已售礼物卡</span><strong>{ledger.sales.length} 张</strong></article>
         <article><span>售出总额</span><strong>{money(totalSoldCents)}</strong></article>
         <article><span>已登记使用</span><strong>{money(totalUsedCents)}</strong></article>
-        <article className="balance-card"><span>下一张序列号</span><strong>{ledger.nextSerialNumber}</strong></article>
+        <article className="balance-card"><span>下一张序列号</span><strong>{ledger.nextSerialNumber || "自动号码已用完"}</strong></article>
       </div>
       <div>
         <p className="eyebrow">礼物卡台账</p>

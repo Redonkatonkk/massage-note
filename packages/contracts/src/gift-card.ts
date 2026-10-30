@@ -8,6 +8,15 @@ import {
 
 export const giftCardSerialNumberSchema = z.string().trim().min(1).max(120);
 
+export function isGiftCardSerialNumber(value: string): boolean {
+  return /^\d{4}$/.test(value.trim());
+}
+
+export function isGiftCardUsername(value: string | null | undefined): boolean {
+  const identifier = value?.trim() ?? "";
+  return identifier.length > 0 && !isGiftCardSerialNumber(identifier);
+}
+
 export const createGiftCardSaleSchema = z
   .object({
     businessDate: businessDateSchema,
@@ -19,9 +28,6 @@ export const createGiftCardSaleSchema = z
     operatorMembershipId: uuidSchema,
   })
   .superRefine((value, context) => {
-    if (value.isOnline && !value.serialNumber) {
-      context.addIssue({ code: "custom", message: "请填写用户名", path: ["serialNumber"] });
-    }
     if (value.faceValueCents !== undefined && value.faceValueCents <= 0) {
       context.addIssue({
         code: "custom",
@@ -36,7 +42,8 @@ export const createGiftCardSaleSchema = z
         path: ["cashCents"],
       });
     }
-  });
+  })
+  .transform(value => ({ ...value, isOnline: isGiftCardUsername(value.serialNumber) }));
 
 export const updateGiftCardSaleSchema = z
   .object({
@@ -48,13 +55,11 @@ export const updateGiftCardSaleSchema = z
     cardCents: moneyCentsSchema.optional(),
     operatorMembershipId: uuidSchema.optional(),
   })
-  .refine((value) => !value.isOnline || Boolean(value.serialNumber), {
-    message: "请填写用户名", path: ["serialNumber"],
-  })
   .refine(
-    (value) => Object.keys(value).some((key) => key !== "version"),
+    (value) => Object.keys(value).some((key) => key !== "version" && key !== "isOnline"),
     "至少需要修改一个礼物卡字段",
-  );
+  )
+  .transform(value => ({ ...value, isOnline: value.serialNumber === undefined ? undefined : isGiftCardUsername(value.serialNumber) }));
 
 export const deleteGiftCardSaleSchema = z.object({
   version: versionSchema,
@@ -63,7 +68,7 @@ export const deleteGiftCardSaleSchema = z.object({
 
 export const restoreGiftCardSaleSchema = z.object({ version: versionSchema });
 
-export type CreateGiftCardSaleInput = z.output<typeof createGiftCardSaleSchema>;
+export type CreateGiftCardSaleInput = Omit<z.output<typeof createGiftCardSaleSchema>, "isOnline"> & { isOnline?: boolean };
 export type UpdateGiftCardSaleInput = z.input<typeof updateGiftCardSaleSchema>;
 export type DeleteGiftCardSaleInput = z.input<typeof deleteGiftCardSaleSchema>;
 export type RestoreGiftCardSaleInput = z.input<typeof restoreGiftCardSaleSchema>;

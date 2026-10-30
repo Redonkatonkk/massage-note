@@ -1,13 +1,13 @@
 import { formatUsd } from "./money";
+import { isGiftCardUsername } from "@massage-note/contracts";
 
 export function giftCardSerialNumberForCreate(
   serialNumber: string,
   wasEdited: boolean,
-  isOnline = false,
 ): string | undefined {
   const trimmed = serialNumber.trim();
-  if (!trimmed) throw new Error(isOnline ? "请填写用户名" : "请填写礼物卡序列号");
-  return isOnline || wasEdited ? trimmed : undefined;
+  if (!trimmed) throw new Error("请填写礼物卡序列号或用户名");
+  return isGiftCardUsername(trimmed) || wasEdited ? trimmed : undefined;
 }
 
 /** Display the discount from actual receipts; the saved pricing-rule snapshot stays intact. */

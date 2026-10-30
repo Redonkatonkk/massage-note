@@ -1448,8 +1448,6 @@ h2 {
 .gift-card-identity-field { min-width: 0; }
 .gift-card-identity-field__controls { display: flex; gap: 8px; flex-wrap: wrap; }
 .gift-card-identity-field__controls input { flex: 1 1 100px; min-width: 0; }
-.gift-card-identity-field__controls button { min-height: 44px; flex: 0 0 auto; }
-.gift-card-identity-field__controls button[aria-pressed="true"] { background: var(--brand); color: var(--surface); border-color: var(--brand); }
 
 .gift-card-sale-discount,
 .gift-card-sale-payment-check {
@@ -2866,10 +2864,11 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 .audit-filters { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-bottom: 15px; }
 .audit-filters label { min-width: 190px; }
 .audit-list article { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-panel); }
-.audit-list article > button { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; width: 100%; align-items: center; gap: 11px; padding: 13px; border: 0; background: var(--surface); color: inherit; text-align: left; cursor: pointer; }
-.audit-list article > button > div { display: grid; gap: 3px; }
-.audit-list article > button span { color: var(--muted); font-size: .85rem; }
-.audit-list article > button em { color: var(--brand); font-size: .85rem; font-style: normal; font-weight: 700; }
+.audit-record-heading { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 11px; padding: 13px; background: var(--surface); }
+.audit-record-summary { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.audit-record-summary span { color: var(--muted); font-size: .85rem; }
+.audit-record-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.audit-undo-reason { padding-inline: 13px; }
 .audit-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: var(--radius-panel); background: var(--brand-soft); color: var(--brand) !important; font-weight: 650; }
 .audit-detail { padding: 14px; border-top: 1px solid var(--line); background: var(--surface-soft); }
 .audit-detail > p { margin: 0 0 7px; color: var(--muted); font-size: .85rem; }

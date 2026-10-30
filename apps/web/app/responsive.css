@@ -164,7 +164,8 @@ button, summary { overflow-wrap: anywhere; }
   .finance-details { padding: 16px; }
   .closing-status { flex-direction: column; align-items: stretch; gap: 12px; }
   .audit-detail > .audit-snapshots, .audit-raw .audit-snapshots { grid-template-columns: minmax(0, 1fr); gap: 20px; }
-  .audit-list article > button strong, .audit-list article > button span { white-space: normal; overflow-wrap: anywhere; }
+  .audit-record-heading { grid-template-columns: 38px minmax(0, 1fr); }
+  .audit-record-actions { grid-column: 2; }
   .mobile-data-card .closing-cash-details { margin-top: 16px; }
   .mobile-data-card .closing-cash-details dl > div { min-width: 0; }
   .mobile-data-card .closing-cash-details dd { white-space: normal; overflow-wrap: anywhere; }

@@ -51,49 +51,58 @@ function input(label: string) {
 const salesForm = (sales: GiftCardSale[] = []) => <GiftCardSales storeId="store" businessDate="2026-10-15" sales={sales} nextSerialNumber="1001" discountSettings={settings} members={[member]} defaultOperatorMembershipId={member.id} canEdit onReload={async () => {}} />;
 const editor = (value = record) => <RecordEditor storeId="store" timezone="America/New_York" businessDate="2026-10-15" autoDiscountSettings={{ mondayThursdayAutoDiscountEnabled: false, mondayThursdayAutoDiscountThresholdCents: 0, mondayThursdayAutoDiscountAmountCents: 0 }} record={value} catalog={{ serviceItems: [], addonItems: [], discountItems: [] }} members={[member]} canManage isClosed={false} onSaved={() => {}} onClose={() => {}} onChanged={async () => {}} />;
 
-it("网上卖卡切换为用户名，保留前导零；切回实体卡保留建议号", async () => {
+it("卖卡统一输入，不切换模式，用户名保留前导零", async () => {
   await act(async () => root.render(salesForm())); await click("＋记录卖卡");
-  expect(input("礼物卡序列号").value).toBe("1001");
-  await click("网上卖卡"); await fill(input("用户名"), "001001");
-  await click("网上卖卡"); expect(input("礼物卡序列号").value).toBe("1001");
-  await click("网上卖卡"); expect(input("用户名").value).toBe("001001");
+  expect(input("礼物卡序列号或用户名").value).toBe("1001");
+  expect([...container.querySelectorAll("button")].some(node => node.textContent === "网上卖卡")).toBe(false);
+  await fill(input("礼物卡序列号或用户名"), "001001");
   await fill(input("礼物卡总金额（美元）"), "100"); await fill(input("现金付款（美元）"), "100");
   await click("保存卖卡记录");
-  expect(request).toHaveBeenCalledWith("/stores/store/gift-card-sales", expect.objectContaining({ body: expect.objectContaining({ serialNumber: "001001", isOnline: true }) }));
+  expect(request).toHaveBeenCalledWith("/stores/store/gift-card-sales", expect.objectContaining({ body: expect.objectContaining({ serialNumber: "001001" }) }));
+  expect(request.mock.calls[0]![1]!.body).not.toHaveProperty("isOnline");
 });
 
-it("编辑网上卖卡保留用户名模式，空用户名不提交", async () => {
+it("默认建议序列号仍交由后端并发分配", async () => {
+  await act(async () => root.render(salesForm())); await click("＋记录卖卡");
+  await fill(input("礼物卡总金额（美元）"), "100"); await fill(input("现金付款（美元）"), "100");
+  await click("保存卖卡记录");
+  expect(request.mock.calls[0]![1]!.body).not.toHaveProperty("serialNumber");
+});
+
+it("编辑卖卡统一输入，空标识不提交", async () => {
   await act(async () => root.render(salesForm([sale])));
   await act(async () => container.querySelector<HTMLButtonElement>(".gift-card-sale-card")!.click());
-  expect(input("用户名").value).toBe("001001");
-  await fill(input("用户名"), " "); await click("保存卖卡记录");
-  expect(request).not.toHaveBeenCalled(); expect(container.textContent).toContain("请填写用户名");
+  expect(input("礼物卡序列号或用户名").value).toBe("001001");
+  await fill(input("礼物卡序列号或用户名"), " "); await click("保存卖卡记录");
+  expect(request).not.toHaveBeenCalled(); expect(container.textContent).toContain("请填写礼物卡序列号或用户名");
 });
 
-it("礼卡付款重新编辑保留模式，可直接保存任意用户名", async () => {
+it.each(["0012", "123", "10000", "000000999", "alice"])("礼卡付款直接输入 %s，不提交手动类型", async identifier => {
   await act(async () => root.render(editor()));
-  expect(input("用户名").value).toBe("001001");
-  await fill(input("用户名"), "000000999"); await click("保存");
-  expect(request).toHaveBeenCalledWith("/stores/store/work-records/record/save", expect.objectContaining({ body: expect.objectContaining({ payment: expect.objectContaining({ giftCardSerialNumber: "000000999", giftCardIsOnline: true, giftCardServiceCents: 10000 }) }) }));
+  expect(input("礼物卡序列号或用户名").value).toBe("001001");
+  expect([...container.querySelectorAll("button")].some(node => node.textContent === "使用用户名")).toBe(false);
+  await fill(input("礼物卡序列号或用户名"), identifier); await click("保存");
+  expect(request).toHaveBeenCalledWith("/stores/store/work-records/record/save", expect.objectContaining({ body: expect.objectContaining({ payment: expect.objectContaining({ giftCardSerialNumber: identifier, giftCardServiceCents: 10000 }) }) }));
+  expect((request.mock.calls[0]![1]!.body as { payment: object }).payment).not.toHaveProperty("giftCardIsOnline");
 });
 
 it("取消礼卡付款会清除用户名付款标记", async () => {
   await act(async () => root.render(editor()));
-  const toggle = [...document.querySelectorAll<HTMLInputElement>("input[type=checkbox]")].find((node) => node.parentElement?.textContent?.includes("使用礼物卡付款"))!;
+  const toggle = [...document.querySelectorAll<HTMLInputElement>("input[type=checkbox]")].find(node => node.parentElement?.textContent?.includes("使用礼物卡付款"))!;
   await act(async () => toggle.click()); await fill(input("现金大费（美元）"), "100"); await click("保存");
   const body = request.mock.calls[0]![1]!.body as { payment: object };
   expect(body.payment).toMatchObject({ giftCardServiceCents: 0, giftCardTipCents: 0 });
   expect(body.payment).not.toHaveProperty("giftCardIsOnline", true);
 });
 
-it("切换用户名模式形成草稿，重新打开后保持原输入和模式", async () => {
-  const physical = { ...record, giftCardIsOnline: false };
-  await act(async () => root.render(editor(physical)));
-  await click("使用用户名");
+it("重新打开草稿保留输入，旧手动类型不干扰自动识别", async () => {
+  await act(async () => root.render(editor()));
+  await fill(input("礼物卡序列号或用户名"), "0012");
   await act(async () => root.render(null));
-  await act(async () => root.render(editor(physical)));
-  expect(input("用户名").value).toBe("001001");
-  expect([...document.querySelectorAll("button")].find((node) => node.textContent === "使用用户名")!.getAttribute("aria-pressed")).toBe("true");
+  await act(async () => root.render(editor()));
+  expect(input("礼物卡序列号或用户名").value).toBe("0012");
+  await click("保存");
+  expect((request.mock.calls[0]![1]!.body as { payment: object }).payment).toMatchObject({ giftCardSerialNumber: "0012" });
 });
 
 it("台账把重复购买归为用户名一组，使用金额只合计一次且与同号实体卡分开", () => {
@@ -114,11 +123,11 @@ it("台账把重复购买归为用户名一组，使用金额只合计一次且�
   expect(dom.querySelectorAll(".mobile-data-view .mobile-data-card")).toHaveLength(3);
 });
 
-it("用户名输入和模式按钮在手机样式中可换行，保持文本输入与触控高度", async () => {
+it("统一标识输入在手机样式中可换行，保持文本输入与触控高度", async () => {
   const checkerPath = pathToFileURL(resolve(process.cwd(), "../../scripts/check-mobile-ui.mjs")).href;
   const { stylesAtWidth } = await import(/* @vite-ignore */ checkerPath);
   const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
-  const field = <GiftCardIdentityField isOnline onModeChange={() => {}} value={"001001".repeat(20)} onChange={() => {}} actionLabel="网上卖卡" />;
+  const field = <GiftCardIdentityField value={"001001".repeat(20)} onChange={() => {}} />;
   const markup = renderToStaticMarkup(<section className="quick-modal gift-card-sale-modal"><div className="gift-card-sale-form">{field}</div></section>);
   for (const width of [320, 390, 600, 760, 1200]) {
     const dom = new JSDOM(`<style>${stylesAtWidth(sources, width)}</style>${markup}`);
@@ -126,7 +135,8 @@ it("用户名输入和模式按钮在手机样式中可换行，保持文本输�
     const style = (selector: string) => dom.window.getComputedStyle(doc.querySelector(selector)!);
     expect(style(".gift-card-identity-field__controls").flexWrap).toBe("wrap");
     expect(parseFloat(style("input").minWidth)).toBe(0);
-    expect(parseFloat(style("button").minHeight)).toBeGreaterThanOrEqual(44);
+    expect(parseFloat(style("input").minHeight)).toBeGreaterThanOrEqual(44);
+    expect(doc.querySelector("button")).toBeNull();
     expect(doc.querySelector("input")!.type).toBe("text");
     dom.window.close();
   }

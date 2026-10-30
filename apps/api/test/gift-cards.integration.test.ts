@@ -568,13 +568,13 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     });
   });
 
-  it("允许卖卡时使用自定义序列号，并忽略大小写与首尾空白检测重复", async () => {
+  it("四位自定义序列号去除首尾空白后检查重复", async () => {
     const created = await giftCards.create(
       actor(ownerId),
       storeId,
       {
         businessDate,
-        serialNumber: "VIP-SUMMER-01",
+        serialNumber: "0099",
         faceValueCents: 10_000,
         cashCents: 9_500,
         cardCents: 0,
@@ -583,7 +583,7 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
       "gift-card-custom-key-0001",
       "gift-card-custom",
     );
-    expect(created.serialNumber).toBe("VIP-SUMMER-01");
+    expect(created.serialNumber).toBe("0099");
 
     await expect(
       giftCards.create(
@@ -591,7 +591,7 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
         storeId,
         {
           businessDate,
-          serialNumber: " vip-summer-01 ",
+          serialNumber: " 0099 ",
           faceValueCents: 10_000,
           cashCents: 9_500,
           cardCents: 0,
@@ -605,23 +605,23 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     });
   });
 
-  it("网上卖卡允许同用户名重复购买和同号实体卡，未知用户名可付款且台账不会重复核销", async () => {
+  it("自动识别数字用户名，允许重复购买且台账不会重复核销", async () => {
     const before = await giftCards.list(actor(ownerId), storeId);
     const query = financeQuerySchema.parse({ dateFrom: businessDate, dateTo: businessDate });
     const beforeSummary = await finance.summary(actor(ownerId), storeId, query);
-    const input = { businessDate, serialNumber: "1001", isOnline: true, faceValueCents: 5000, cashCents: 5000, cardCents: 0, operatorMembershipId: ownerMembershipId };
+    const input = { businessDate, serialNumber: "001001", faceValueCents: 5000, cashCents: 5000, cardCents: 0, operatorMembershipId: ownerMembershipId };
     const first = await giftCards.create(actor(ownerId), storeId, input, randomUUID(), "online-sale-first");
     const repeated = await giftCards.create(actor(ownerId), storeId, input, randomUUID(), "online-sale-repeat");
-    expect(first).toMatchObject({ serialNumber: "1001", isOnline: true });
+    expect(first).toMatchObject({ serialNumber: "001001", isOnline: true });
     expect(repeated.id).not.toBe(first.id);
     const updated = await giftCards.update(actor(ownerId), storeId, first.id, { version: first.version, cashCents: 4000 }, randomUUID(), "online-sale-update");
     expect(updated.isOnline).toBe(true);
 
     const paymentRecords = [];
-    for (const username of ["1001", "0001999"]) {
+    for (const username of ["001001", "0001999"]) {
       const record = await workRecords.create(actor(ownerId), storeId, { employeeMembershipId, startAt: new Date().toISOString(), customService: { name: "用户名用卡", shortName: "用户名", amountCents: 1000, durationMinutes: 60 } }, randomUUID(), "online-use-create");
       const key = randomUUID();
-      const payment = { version: record.version, cashServiceCents: 0, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0, giftCardSerialNumber: username, giftCardIsOnline: true, giftCardServiceCents: 1000, giftCardTipCents: 100 };
+      const payment = { version: record.version, cashServiceCents: 0, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0, giftCardSerialNumber: username, giftCardServiceCents: 1000, giftCardTipCents: 100 };
       const confirmed = await workRecords.confirmPayment(actor(ownerId), storeId, record.id, payment, key, "online-use-confirm");
       const replayed = await workRecords.confirmPayment(actor(ownerId), storeId, record.id, payment, key, "online-use-replay");
       expect(replayed.id).toBe(confirmed.id);
@@ -634,7 +634,7 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     expect(ledger.nextSerialNumber).toBe(before.nextSerialNumber);
     expect(ledger.sales.find((sale) => sale.id === saleId)?.usageRecords).toHaveLength(2);
     expect(ledger.onlineAccounts).toEqual([
-      expect.objectContaining({ username: "1001", sales: expect.arrayContaining([expect.objectContaining({ id: first.id }), expect.objectContaining({ id: repeated.id })]), usageRecords: [expect.objectContaining({ amountCents: 1100n })] }),
+      expect.objectContaining({ username: "001001", sales: expect.arrayContaining([expect.objectContaining({ id: first.id }), expect.objectContaining({ id: repeated.id })]), usageRecords: [expect.objectContaining({ amountCents: 1100n })] }),
       expect.objectContaining({ username: "0001999", sales: [], usageRecords: [expect.objectContaining({ amountCents: 1100n })] }),
     ]);
     expect(ledger.legacyUsages.some((card) => card.serialNumber === "0001999")).toBe(false);
@@ -649,8 +649,41 @@ describe.skipIf(!enabled).sequential("礼物卡销售", () => {
     expect((await giftCards.list(actor(ownerId), storeId)).onlineAccounts.some((account) => account.username === "0001999")).toBe(false);
 
     const deleted = await giftCards.remove(actor(ownerId), storeId, first.id, { version: updated.version }, randomUUID(), "online-sale-delete");
-    expect((await giftCards.list(actor(ownerId), storeId)).onlineAccounts.find((account) => account.username === "1001")?.sales).toHaveLength(1);
+    expect((await giftCards.list(actor(ownerId), storeId)).onlineAccounts.find((account) => account.username === "001001")?.sales).toHaveLength(1);
     const restored = await giftCards.restore(actor(ownerId), storeId, first.id, { version: deleted.version }, randomUUID(), "online-sale-restore");
     expect(restored.isOnline).toBe(true);
+  });
+
+  it.each([
+    ["0042", false, "name-0042"], ["10000", true, "0051"], ["123", true, "0052"], ["alice", true, "0053"],
+  ] as const)("销售和付款自动识别 %s，旧模式标记不能覆盖输入", async (identifier, online, changedIdentifier) => {
+    const before = await giftCards.list(actor(ownerId), storeId);
+    const sale = await giftCards.create(actor(ownerId), storeId, { businessDate, serialNumber: ` ${identifier} `, isOnline: !online, cashCents: 1000, cardCents: 0, operatorMembershipId: ownerMembershipId }, randomUUID(), "auto-identity-sale");
+    expect(sale).toMatchObject({ serialNumber: identifier, isOnline: online });
+    const updated = await giftCards.update(actor(ownerId), storeId, sale.id, { version: sale.version, serialNumber: changedIdentifier, isOnline: online }, randomUUID(), "auto-identity-sale-edit");
+    expect(updated).toMatchObject({ serialNumber: changedIdentifier, isOnline: !online });
+
+    const record = await workRecords.create(actor(ownerId), storeId, { employeeMembershipId, startAt: new Date().toISOString(), customService: { name: "Automatic identity", shortName: "Auto", amountCents: 1000, durationMinutes: 60 } }, randomUUID(), "auto-identity-record");
+    const payment = { version: record.version, cashServiceCents: 0, cardServiceCents: 0, cashTipCents: 0, cardTipCents: 0, giftCardSerialNumber: ` ${identifier} `, giftCardIsOnline: !online, giftCardServiceCents: 1000, giftCardTipCents: 0 };
+    const paid = await workRecords.confirmPayment(actor(ownerId), storeId, record.id, payment, randomUUID(), "auto-identity-payment");
+    expect(paid).toMatchObject({ giftCardSerialNumber: identifier, giftCardIsOnline: online, payment: { giftCardSerialNumber: identifier, giftCardIsOnline: online } });
+    const edited = await workRecords.confirmPayment(actor(ownerId), storeId, record.id, { ...payment, version: paid.version, giftCardSerialNumber: changedIdentifier, giftCardIsOnline: online }, randomUUID(), "auto-identity-payment-edit");
+    expect(edited).toMatchObject({ giftCardSerialNumber: changedIdentifier, giftCardIsOnline: !online, payment: { giftCardIsOnline: !online } });
+    expect((await giftCards.list(actor(ownerId), storeId)).nextSerialNumber).toBe(before.nextSerialNumber);
+  });
+
+  it("自动号码止于四位，五位输入作为用户名且不推进序列号", async () => {
+    const current = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
+    try {
+      await prisma.store.update({ where: { id: storeId }, data: { nextGiftCardSerialNumber: 9999 } });
+      const input = { businessDate, cashCents: 1000, cardCents: 0, operatorMembershipId: ownerMembershipId };
+      expect(await giftCards.create(actor(ownerId), storeId, input, randomUUID(), "last-four-digit-serial")).toMatchObject({ serialNumber: "9999", isOnline: false });
+      expect((await giftCards.list(actor(ownerId), storeId)).nextSerialNumber).toBe("");
+      await expect(giftCards.create(actor(ownerId), storeId, input, randomUUID(), "serial-exhausted")).rejects.toMatchObject({ response: { code: "GIFT_CARD_SERIAL_EXHAUSTED" } });
+      expect(await giftCards.create(actor(ownerId), storeId, { ...input, serialNumber: "10000" }, randomUUID(), "five-digit-username")).toMatchObject({ serialNumber: "10000", isOnline: true });
+      expect((await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).nextGiftCardSerialNumber).toBe(10000);
+    } finally {
+      await prisma.store.update({ where: { id: storeId }, data: { nextGiftCardSerialNumber: current.nextGiftCardSerialNumber } });
+    }
   });
 });

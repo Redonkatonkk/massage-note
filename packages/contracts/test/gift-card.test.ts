@@ -3,17 +3,30 @@ import {
   createGiftCardSaleSchema,
   restoreGiftCardSaleSchema,
   updateGiftCardSaleSchema,
+  isGiftCardSerialNumber,
+  isGiftCardUsername,
 } from "../src/index.js";
 
 const membershipId = "56d4a93a-5a73-49df-93c2-704ae844faa4";
 
 describe("礼物卡销售契约", () => {
-  it("网上卖卡要求文本用户名，保留数字前导零且不要求系统用户编号", () => {
+  it("自动识别用户名并保留前导零，不要求选择模式或系统用户编号", () => {
     const input = { businessDate: "2026-10-15", isOnline: true, serialNumber: " 001001 ", cashCents: 1000, operatorMembershipId: membershipId };
     expect(createGiftCardSaleSchema.parse(input)).toMatchObject({ isOnline: true, serialNumber: "001001" });
-    expect(createGiftCardSaleSchema.safeParse({ ...input, serialNumber: undefined }).success).toBe(false);
+    expect(createGiftCardSaleSchema.parse({ ...input, serialNumber: undefined }).isOnline).toBe(false);
     expect(createGiftCardSaleSchema.safeParse({ ...input, serialNumber: 1001 }).success).toBe(false);
     expect(updateGiftCardSaleSchema.safeParse({ version: 1, isOnline: true }).success).toBe(false);
+  });
+  it.each(["0000", "0012", "1001", "9999", " 1001 "])("四位数字 %s 覆盖旧用户名标记", serialNumber => {
+    expect(isGiftCardSerialNumber(serialNumber)).toBe(true);
+    expect(isGiftCardUsername(serialNumber)).toBe(false);
+    expect(createGiftCardSaleSchema.parse({ businessDate: "2026-10-15", serialNumber, isOnline: true, cashCents: 1000, operatorMembershipId: membershipId })).toMatchObject({ serialNumber: serialNumber.trim(), isOnline: false });
+    expect(updateGiftCardSaleSchema.parse({ version: 1, serialNumber, isOnline: true }).isOnline).toBe(false);
+  });
+  it.each(["1", "123", "10000", "001001", "alice", "12a4"])("非四位数字 %s 自动作为用户名", serialNumber => {
+    expect(isGiftCardUsername(serialNumber)).toBe(true);
+    expect(createGiftCardSaleSchema.parse({ businessDate: "2026-10-15", serialNumber, isOnline: false, cashCents: 1000, operatorMembershipId: membershipId }).isOnline).toBe(true);
+    expect(updateGiftCardSaleSchema.parse({ version: 1, serialNumber, isOnline: false }).isOnline).toBe(true);
   });
   it("新界面可提交面值，序列号可由后端自动生成，缺省付款方式按 0 处理", () => {
     expect(createGiftCardSaleSchema.parse({
@@ -27,6 +40,7 @@ describe("礼物卡销售契约", () => {
       cashCents: 0,
       cardCents: 10_000,
       operatorMembershipId: membershipId,
+      isOnline: false,
     });
   });
 

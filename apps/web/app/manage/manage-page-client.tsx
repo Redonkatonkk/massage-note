@@ -6,7 +6,7 @@ import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import { browserStorage } from "../../lib/browser-storage";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
 import { formatMoneyInput, formatUsd } from "../../lib/money";
 import type {
@@ -44,6 +44,7 @@ const roleText = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工" } as c
 
 const actionText: Record<string, string> = {
   "store.created": "创建店铺",
+  "audit.undone": "撤销操作",
   "store.data_imported": "导入店铺数据",
   "store.settings_updated": "修改店铺设置",
   "store.owner_transferred": "转移店主",
@@ -124,6 +125,7 @@ const actionText: Record<string, string> = {
 };
 
 const entityText: Record<string, string> = {
+  audit_operation: "操作记录",
   store: "店铺",
   store_membership: "店铺成员",
   store_join_request: "加入申请",
@@ -276,7 +278,7 @@ export function ManagePageClient() {
       {tab === "catalog" && <CatalogPanel storeId={store.id} canManage={canManage} catalog={catalog} busy={busy} run={run} reload={loadAll} />}
       {tab === "work-bot" && canManage && workBot && <WorkBotPanel key={store.id} storeId={store.id} catalog={catalog} settings={workBot} busy={busy} run={run} reload={loadAll} />}
       {tab === "recovery" && canManage && <RecoveryPanel storeId={store.id} records={deletedRecords} giftCardSales={deletedGiftCardSales} busy={busy} run={run} reload={loadAll} />}
-      {tab === "audit" && canManage && <div className="manage-section">{membership.role === "OWNER" && <DataOperationsPanel key={store.id} storeId={store.id} memberIds={members.map(member => member.id)} onImported={() => window.location.reload()} />}<AuditPanel key={store.id} storeId={store.id} members={members} /></div>}
+      {tab === "audit" && canManage && <div className="manage-section">{membership.role === "OWNER" && <DataOperationsPanel key={store.id} storeId={store.id} memberIds={members.map(member => member.id)} onImported={() => window.location.reload()} />}<AuditPanel key={store.id} storeId={store.id} members={members} onUndone={loadAll} /></div>}
       <AppNav active="manage" storeId={store.id} role={membership.role} activeTab={tab} onTabChange={changeTab} />
     </main>
   );
@@ -530,7 +532,8 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, 
   </article>;
 }
 
-function AuditPanel({ storeId, members }: { storeId: string; members: StoreMember[] }) {
+export function AuditPanel({ storeId, members, onUndone }: { storeId: string; members: StoreMember[]; onUndone?: () => Promise<void> }) {
+  const { t } = useLanguage();
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -541,8 +544,51 @@ function AuditPanel({ storeId, members }: { storeId: string; members: StoreMembe
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [undoing, setUndoing] = useState<string | null>(null);
+  const [notice, setNotice] = useAutoDismissState("");
+  const undoLock = useRef(false);
+  const keys = useRef(new Map<string, string>());
+  const generation = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; generation.current++; }; }, []);
   const params = useMemo(() => { const value = new URLSearchParams({ limit: "30" }); if (action) value.set("action", action); if (actor) value.set("actorMembershipId", actor); if (entityType) value.set("entityType", entityType); if (dateFrom) value.set("dateFrom", dateFrom); if (dateTo) value.set("dateTo", dateTo); return value; }, [action, actor, entityType, dateFrom, dateTo]);
-  const load = useCallback(async (append = false) => { setLoading(true); setError(""); try { const query = new URLSearchParams(params); if (append && cursor) query.set("cursor", cursor); const page = await apiRequest<AuditLogPage>(`/stores/${storeId}/audit-logs?${query}`); setItems((current) => append ? [...current, ...page.items] : page.items); setCursor(page.nextCursor); } catch (caught) { setError(errorMessage(caught)); } finally { setLoading(false); } }, [storeId, params, cursor]);
+  const load = useCallback(async (append = false) => {
+    const request = ++generation.current;
+    setLoading(true); setError("");
+    try {
+      const query = new URLSearchParams(params); if (append && cursor) query.set("cursor", cursor);
+      const page = await apiRequest<AuditLogPage>(`/stores/${storeId}/audit-logs?${query}`);
+      if (request !== generation.current || !mounted.current) return;
+      setItems(current => append ? [...current, ...page.items] : page.items); setCursor(page.nextCursor);
+    } catch (caught) { if (request === generation.current && mounted.current) setError(errorMessage(caught)); }
+    finally { if (request === generation.current && mounted.current) setLoading(false); }
+  }, [storeId, params, cursor]);
+  const reload = useRef(load);
+  reload.current = load;
+  async function undo(item: AuditLogItem) {
+    if (undoLock.current || !item.undo?.available) return;
+    if (!window.confirm(t("撤销这条操作？同一次提交中的关联变更也会一并撤销，原操作历史会保留。"))) return;
+    undoLock.current = true; setUndoing(item.id); setError(""); setNotice("");
+    const key = keys.current.get(item.id) ?? crypto.randomUUID(); keys.current.set(item.id, key);
+    try {
+      await apiRequest(`/stores/${storeId}/audit-logs/${item.id}/undo`, { method: "POST", headers: { "Idempotency-Key": key } });
+      if (!mounted.current) return;
+      setItems(current => current.map(row => row.id === item.id ? { ...row, undo: { available: false, undone: true, reason: null } } : row));
+      setNotice(t("操作已撤销"));
+      await reload.current(false);
+      if (mounted.current) await onUndone?.();
+    } catch (caught) { if (mounted.current) setError(errorMessage(caught)); }
+    finally { undoLock.current = false; if (mounted.current) setUndoing(null); }
+  }
   useEffect(() => { void load(false); }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <section className="manage-section"><section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">不可篡改的操作历史</p><h2>操作历史</h2></div></div><div className="audit-filters"><label>开始营业日<input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label><label>结束营业日<input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label><label>操作类型<select value={action} onChange={(event) => setAction(event.target.value)}><option value="">全部操作</option>{Object.entries(actionText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>对象类型<select value={entityType} onChange={(event) => setEntityType(event.target.value)}><option value="">全部对象</option>{Object.entries(entityText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>操作人<select value={actor} onChange={(event) => setActor(event.target.value)}><option value="">全部成员</option>{members.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label><button className="secondary-action compact" type="button" disabled={loading} onClick={() => void load(false)}>刷新</button></div>{error && <p className="form-error">{error}</p>}<div className="audit-list">{items.map((item) => <article key={item.id}><button type="button" aria-expanded={expanded === item.id} onClick={() => setExpanded((current) => current === item.id ? null : item.id)}><span className="audit-icon" aria-hidden="true"><UiIcon name="log" /></span><div><strong>{actionText[item.action] ?? "其他系统操作"}</strong><span>{item.actor?.displayName ?? "系统"} · {formatTime(item.createdAt)}{item.businessDate ? ` · 营业日 ${item.businessDate.slice(0, 10)}` : ""}</span></div><em>{expanded === item.id ? "收起" : "详情"}</em></button>{expanded === item.id && <AuditDetails item={item} entityLabel={entityText[item.entityType] ?? "其他对象"} /> }</article>)}{!loading && items.length === 0 && <p className="empty-state">没有符合条件的审计记录。</p>}</div>{loading && <p className="empty-state">正在读取审计记录…</p>}{cursor && <button className="secondary-action" disabled={loading} type="button" onClick={() => void load(true)}>加载更多</button>}</section></section>;
+  return <section className="manage-section"><section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">不可篡改的操作历史</p><h2>操作历史</h2></div></div><div className="audit-filters"><label>开始营业日<input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label><label>结束营业日<input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label><label>操作类型<select value={action} onChange={(event) => setAction(event.target.value)}><option value="">全部操作</option>{Object.entries(actionText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>对象类型<select value={entityType} onChange={(event) => setEntityType(event.target.value)}><option value="">全部对象</option>{Object.entries(entityText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>操作人<select value={actor} onChange={(event) => setActor(event.target.value)}><option value="">全部成员</option>{members.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label><button className="secondary-action compact" type="button" disabled={loading} onClick={() => void load(false)}>刷新</button></div>{error && <p className="form-error" role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}<div className="audit-list">{items.map((item) => <article key={item.id}>
+        <div className="audit-record-heading"><span className="audit-icon" aria-hidden="true"><UiIcon name="log" /></span>
+          <div className="audit-record-summary"><strong>{actionText[item.action] ?? "其他系统操作"}</strong><span>{item.actor?.displayName ?? "系统"} · {formatTime(item.createdAt)}{item.businessDate ? ` · 营业日 ${item.businessDate.slice(0, 10)}` : ""}</span></div>
+          <div className="audit-record-actions">
+            <button type="button" className="table-action" disabled={!!undoing || !item.undo?.available} title={item.undo?.reason ?? undefined} onClick={() => void undo(item)}>{undoing === item.id ? "撤销中…" : item.undo?.undone ? "已撤销" : "撤销"}</button>
+            <button type="button" className="table-action" aria-expanded={expanded === item.id} aria-controls={`audit-details-${item.id}`} onClick={() => setExpanded(current => current === item.id ? null : item.id)}>{expanded === item.id ? "收起" : "详情"}</button>
+          </div>
+        </div>
+        {expanded === item.id && <div id={`audit-details-${item.id}`}>{item.undo?.reason && <p className="field-help audit-undo-reason">{item.undo.reason}</p>}<AuditDetails item={item} entityLabel={entityText[item.entityType] ?? "其他对象"} /></div>}
+      </article>)}{!loading && items.length === 0 && <p className="empty-state">没有符合条件的审计记录。</p>}</div>{loading && <p className="empty-state">正在读取审计记录…</p>}{cursor && <button className="secondary-action" disabled={loading} type="button" onClick={() => void load(true)}>加载更多</button>}</section></section>;
 }

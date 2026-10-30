@@ -203,6 +203,7 @@ export interface AuditLogItem {
   requestId: string;
   createdAt: string;
   actor: null | { id: string; displayName: string; role: StoreRole };
+  undo?: import("@massage-note/contracts").AuditUndoStatus;
 }
 
 export interface AuditLogPage {

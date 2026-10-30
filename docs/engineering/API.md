@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.48.1`
+> Applies to version: `1.50.0`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -72,7 +72,7 @@ The HTTP API of this system is shared by current Chinese and English web applica
 | POST | `/stores/:storeId/work-records/detailed` | Atomically create a full record using `{ create, details, payment? }`; requires an idempotency key and initial versions of `1`; zero receipts permit an unselected service |
 | GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | work record details, modification highlight / excluding scheduling and other fields and soft deletion |
 | POST | `/stores/:storeId/work-records/:recordId/save` | Details and payment are saved atomically; the body is `{ details, payment }`, both must have the same base `version`, and the idempotency key is required |
-| POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | Confirm cash/card/gift card service fee and tips split; submit serial number when using gift card, or pass `giftCardIsOnline: true` to use the same field as user name |
+| POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | Confirm cash/card/gift card service fee and tips split; submit serial number when using gift card, automatically detect four digits as a serial number and all other nonempty text as a username |
 | GET | `/stores/:storeId/work-records/deleted` | work record Recycle Bin |
 | POST | `/stores/:storeId/work-records/:recordId/restore` | Restore soft deletion work record |
 | GET | `/stores/:storeId/gift-card-sales` | The store manager or manager reads the gift card account grouped by serial number and user name, the next physical card serial number and multiple usage records |
@@ -211,7 +211,7 @@ Confirm payment can be submitted outside the original cash and card fields gift 
 }
 ```
 
-`giftCardSerialNumber` is required when the sum of gift card service fee and tips is greater than 0; `giftCardIsOnline: true` means that this field saves the user name (text, leading zeros are retained), omitted or `false` means the physical card serial number. The user name only removes the leading and trailing blanks, and does not query the system account number or sales registration; the payment snapshot and audit are saved simultaneously. When the gift card is not used, the serial number can be omitted or `null`, and both gift card amounts are 0. Gift card service fee enters the actual service fee and payment ratio of this order, gift card tips enters employee income; both are non-cash payments and do not increase the employee's cash settlement amount.
+`giftCardSerialNumber` is required when gift-card service fees plus tips exceed zero. After trimming surrounding spaces, exactly four digits identify a physical serial number (`giftCardIsOnline: false`); every other nonempty value identifies a username (`true`). Leading zeros are retained, and no account or sales lookup is required. Legacy request flags remain accepted but cannot override detection; the inferred type is saved in the work record, payment snapshot and audit. Without gift-card payment, the identifier is omitted or `null` and both gift-card amounts are zero. Gift-card service fees participate in actual service receipts and wage allocation; gift-card tips enter employee income. Both are noncash and do not increase employee cash settlement.
 
 Example of card selling request:
 
@@ -225,7 +225,7 @@ Example of card selling request:
 }
 ```
 
-If the store rule is "full `$100.00` Discount `5%`”, the discount requested above is `$7.50`, payable after discount and actual receipt are both `$142.50`. The response contains an automatically assigned `serialNumber`, `faceValueCents`, `discountThresholdCents`, `discountRateBps`, `discountCents` and `amountCents`, this example exactly satisfies `faceValueCents - discountCents = amountCents`; all responses `amountCents = cashCents + cardCents`, the actual payment received may be different from the discount payable. The serial number of the physical card in the same store is unique. The automatic number is incremented within the transaction and is not reused after soft deletion. The interface displays the system recommended number by default, and can also be changed to a custom number. The server checks the current and soft deletion historical records according to the normalized results to prevent duplication. All actual receipts are added to store revenue and do not enter employee commissions, wages or cash settlements; subsequent service fees and tips paid by customers using gift cards are all included in gift card write-off expenses.
+If the store rule is "full `$100.00` Discount `5%`”, the discount requested above is `$7.50`, payable after discount and actual receipt are both `$142.50`. The response contains an automatically assigned `serialNumber`, `faceValueCents`, `discountThresholdCents`, `discountRateBps`, `discountCents` and `amountCents`, this example exactly satisfies `faceValueCents - discountCents = amountCents`; all responses `amountCents = cashCents + cardCents`, the actual payment received may be different from the discount payable. The serial number of the physical card in the same store is unique. Automatic numbers run atomically from 1001 through 9999 and are not reused after soft deletion. The interface displays the system recommended number by default, and can also be changed to a custom number. The server checks the current and soft deletion historical records according to the normalized results to prevent duplication. All actual receipts are added to store revenue and do not enter employee commissions, wages or cash settlements; subsequent service fees and tips paid by customers using gift cards are all included in gift card write-off expenses.
 
 Project sorting submits the complete list of undeleted projects and the current version, for example `{ "type": "SERVICE", "items": [{ "id": "...", "version": 2 }] }`. The server verifies the list, project ownership and all versions in the same transaction, and then unifies the writing order; when the list is incomplete or any version expires, `CATALOG_ORDER_CONFLICT` is returned, leaving no half-set of sorting.
 
@@ -439,9 +439,9 @@ Existing `POST .../rank` saves both order and snapshot within the original busin
 
 ### Selling cards online and using usernames
 
-Sales POST/PATCH can submit `isOnline: true`, at which time `serialNumber` saves the required user name (1-120 character text), no system account is required; the physical card number is not assigned or incremented when created, allowing multiple purchases with the same user name, independent of the physical card with the same number. If you omit `isOnline`, the creation will be processed as an entity card, and if you modify it, the original mode will be retained; explicitly switching to username mode requires submitting the username at the same time. Amount, permission, business day lock, version, idempotency and soft deletion rules follow the original process.
+Sales POST/PATCH infer `isOnline` from the trimmed `serialNumber`: exactly four digits are a physical serial number; every other nonempty value is a username. Legacy `isOnline` hints do not control classification, and a flag alone is not a valid PATCH. Usernames are 1–120 character text, allow repeat purchases and do not require an account or advance the serial counter. Omitting `serialNumber` on creation allocates an atomic physical number from 1001 through 9999. When exhausted, return 409 `GIFT_CARD_SERIAL_EXHAUSTED`; ledger `nextSerialNumber` and board `nextGiftCardSerialNumber` are empty strings, so the user enters an unused four-digit serial or a username. Amounts, access, day locks, versions, idempotency and soft deletion retain their existing rules. Untouched historical rows retain their saved type.
 
-For example, the online card selling request is `{ "businessDate": "2026-10-15", "isOnline": true, "serialNumber": "001001", "faceValueCents": 10000, "cashCents": 10000, "operatorMembershipId": "员工 UUID" }`;Payment request passed `giftCardIsOnline: true` and `giftCardSerialNumber: "001001"` Mark it for use and submit the service fee or tips amount as usual. Omit/turn off mode when gift card is not used and serial number is null.
+For example, a username sale submits `{ "businessDate": "2026-10-15", "serialNumber": "001001", "faceValueCents": 10000, "cashCents": 10000, "operatorMembershipId": "operator UUID" }`. A payment submits `giftCardSerialNumber: "001001"` plus gift-card service fee or tip amounts; both infer username mode without a flag. `"0012"` infers a serial number instead. Without gift-card payment, omit the identifier or send null.
 
 The ledger `sales` retains all valid sales, and the `usageRecords` of online sales is empty; the new `onlineAccounts: [{ username, sales, usageRecords }]` is accurately grouped by the username after removing the leading and trailing blanks, and the usage of unregistered sales will also be returned, with upper and lower case and leading zeros retained. Entity cards `sales[].usageRecords` and `legacyUsages` are only associated with entity cards. The summary write-off is the total of registered physical cards, old cards and `onlineAccounts` usage, and cannot be accumulated repeatedly for each online sale. Reason: The username allows multiple purchases and may be the same number as the physical card. The usage facts must be grouped independently.
 
@@ -506,7 +506,7 @@ The upgrade boundary of the old budget rules is aligned upward with the legal pe
 
 ## Store data operations
 
-Only an active Owner may use `/stores/:storeId/data`. Managers retain access to the audit list. Shared file contracts are in [`store-data.ts`](../../packages/contracts/src/store-data.ts).
+Only an active Owner may use `/stores/:storeId/data`. Managers retain access to the audit list and eligible operation undo. Shared file contracts are in [`store-data.ts`](../../packages/contracts/src/store-data.ts).
 
 | Method and path | Request and result |
 | --- | --- |
@@ -525,3 +525,11 @@ The target store ID/code and current Owner account remain; the source Owner prof
 `GET /stores/:storeId/boards/:businessDate` adds `statistics.cashChangeCents` as a signed integer number of cents or `null`. Owner/Manager receive the active closing's `totalsSnapshotJson.store.cashChangeCents`; open days, legacy snapshots and employee views return null. Employee views also return `closing: null`, including the current day. Store closing previews add `storeTotals.cashChangeCents`; new manual, forced and automatic closings save it atomically. The value uses expected wages, is independent of cash-settled status and remains fixed until the day is reopened and closed again. Cash receipts include gift-card cash sales; ordinary employee payouts use cash-allocated wages, daily-full payouts use all service wages plus card/gift-card tips. Owner/manager wages and cash tips are excluded. Reason: clients must distinguish missing history from zero and must not recalculate or expose store totals.
 
 AI monetary text uses `$` for USD in both languages, normalizing a model-generated `US$` prefix while retaining the existing whole-dollar rounding. Currency codes, cent-valued API fields and user-authored text are unchanged. Reason: display normalization must not rewrite financial data or user content.
+
+## Operation undo
+
+`GET /stores/:storeId/audit-logs` adds `undo: { available, undone, reason }` per entry. `POST /stores/:storeId/audit-logs/:auditLogId/undo` requires `Idempotency-Key`, an active Owner/Manager and the entry's store; it returns `{ undone: true, undoAuditLogId }`. Shared response contracts are in [`audit.ts`](../../packages/contracts/src/audit.ts).
+
+The whole original transaction is reversed with exact private row images, including nested business snapshots. Check business-day locks, final row state, later financial-day changes and foreign-key dependencies inside a serializable transaction. Retain created business objects with soft deletion or existing inactive/reopened states, cancel new closings/queued messages, increase versions, and append `audit.undone` plus its unique transaction marker. This audit uses `audit_operation` to force full realtime refresh. Scheduling excludes undone intent; compensation audits retain the restored daily roster/order against automatic refresh. Repeated requests or another audit entry from the same transaction return the existing undo result.
+
+Return 409 `AUDIT_UNDO_CONFLICT` for later modifications, closed days or dependent rows; return 409 `AUDIT_UNDO_UNAVAILABLE` for incomplete snapshots, imported history, store lifecycle/overwrite imports, credentials, claimed/sent messages and undo entries. Owner identity changes require an Owner. Legacy work-record creation/deletion/recovery uses existing record recovery rules only when the recorded version still matches. Complete images start with migration `20261029010000_audit_undo`; they are private and excluded from portable store exports. Reason: partial summaries and external effects do not provide a safe inverse operation.

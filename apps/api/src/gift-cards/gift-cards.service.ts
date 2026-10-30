@@ -13,6 +13,7 @@ import type {
   RestoreGiftCardSaleInput,
   UpdateGiftCardSaleInput,
 } from "@massage-note/contracts";
+import { isGiftCardUsername } from "@massage-note/contracts";
 import {
   canWriteWorkRecord,
   hasStoreCapability,
@@ -136,7 +137,7 @@ export class GiftCardsService {
       }))
       .sort((left, right) => this.compareSerialNumbers(left.serialNumber, right.serialNumber));
     return {
-      nextSerialNumber: String(store.nextGiftCardSerialNumber),
+      nextSerialNumber: store.nextGiftCardSerialNumber <= 9999 ? String(store.nextGiftCardSerialNumber) : "",
       legacyUsages,
       onlineAccounts: [...onlineAccounts.values()].sort((left, right) => this.compareSerialNumbers(left.username, right.username)),
       sales: sales.map((sale) => ({
@@ -164,6 +165,7 @@ export class GiftCardsService {
     idempotencyKey: string,
     requestId: string,
   ) {
+    input = { ...input, serialNumber: input.serialNumber?.trim(), isOnline: isGiftCardUsername(input.serialNumber) };
     const actorMembership = await this.access.requireActiveMembership(actor.id, storeId);
     try {
       return await this.idempotency.execute(
@@ -182,7 +184,6 @@ export class GiftCardsService {
             transaction,
             storeId,
             input.serialNumber,
-            input.isOnline,
           );
           const serialNumber = allocation.serialNumber;
           const serialNumberNormalized = this.normalizeSerial(serialNumber);
@@ -208,7 +209,7 @@ export class GiftCardsService {
               storeId,
               businessDate: dateAtUtc(input.businessDate),
               serialNumber,
-              isOnline: input.isOnline ?? false,
+              isOnline: isGiftCardUsername(serialNumber),
               serialNumberNormalized,
               faceValueCents,
               discountThresholdCents,
@@ -253,6 +254,7 @@ export class GiftCardsService {
     idempotencyKey: string,
     requestId: string,
   ) {
+    input = { ...input, serialNumber: input.serialNumber?.trim(), isOnline: undefined };
     const actorMembership = await this.access.requireActiveMembership(actor.id, storeId);
     try {
       return await this.idempotency.execute(
@@ -276,7 +278,7 @@ export class GiftCardsService {
             input.operatorMembershipId ?? current.operatorMembershipId;
           await this.requireOperator(transaction, storeId, operatorMembershipId);
           const serialNumber = input.serialNumber?.trim() ?? current.serialNumber;
-          const isOnline = input.isOnline ?? current.isOnline;
+          const isOnline = isGiftCardUsername(serialNumber);
           if (!isOnline && (current.isOnline || this.normalizeSerial(serialNumber) !== this.normalizeSerial(current.serialNumber))) {
             await this.allocateSerialNumber(transaction, storeId, serialNumber);
           }
@@ -561,14 +563,14 @@ export class GiftCardsService {
     transaction: Prisma.TransactionClient,
     storeId: string,
     requestedSerialNumber?: string,
-    isOnline = false,
   ): Promise<{
     serialNumber: string;
     discountThresholdCents: bigint;
     discountRateBps: number;
   }> {
-    if (isOnline && !requestedSerialNumber?.trim()) {
-      throw new BadRequestException({ code: "GIFT_CARD_USERNAME_REQUIRED", messageZh: "请填写用户名" });
+    const isOnline = isGiftCardUsername(requestedSerialNumber);
+    if (requestedSerialNumber !== undefined && !requestedSerialNumber.trim()) {
+      throw new BadRequestException({ code: "GIFT_CARD_IDENTIFIER_REQUIRED", messageZh: "请填写礼物卡序列号或用户名" });
     }
     await transaction.$queryRaw`
       WITH acquired_lock AS (
@@ -619,7 +621,7 @@ export class GiftCardsService {
         if (
           Number.isSafeInteger(numericValue) &&
           numericValue >= store.nextGiftCardSerialNumber &&
-          numericValue < 2_147_483_647
+          numericValue <= 9999
         ) {
           await transaction.store.update({
             where: { id: storeId },
@@ -639,7 +641,7 @@ export class GiftCardsService {
     }
 
     let nextSerialNumber = store.nextGiftCardSerialNumber;
-    while (
+    while (nextSerialNumber <= 9999 &&
       await transaction.giftCardSale.findFirst({
         where: {
           storeId,
@@ -651,10 +653,10 @@ export class GiftCardsService {
     ) {
       nextSerialNumber += 1;
     }
-    if (nextSerialNumber >= 2_147_483_647) {
+    if (nextSerialNumber > 9999) {
       throw new ConflictException({
         code: "GIFT_CARD_SERIAL_EXHAUSTED",
-        messageZh: "礼物卡自动序列号已经用完，请联系系统管理员",
+        messageZh: "四位自动序列号已用完，请填写未使用的四位序列号或用户名",
       });
     }
     await transaction.store.update({

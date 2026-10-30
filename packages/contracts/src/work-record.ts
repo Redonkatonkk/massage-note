@@ -7,7 +7,7 @@ import {
   uuidSchema,
   versionSchema,
 } from "./common.js";
-import { giftCardSerialNumberSchema } from "./gift-card.js";
+import { giftCardSerialNumberSchema, isGiftCardUsername } from "./gift-card.js";
 
 const namedAmountFields = {
   name: z.string().trim().min(1).max(120),
@@ -155,11 +155,11 @@ export const confirmPaymentSchema = z
     }
     const giftCardTotal =
       (value.giftCardServiceCents ?? 0) + (value.giftCardTipCents ?? 0);
-    if ((giftCardTotal > 0 || value.giftCardIsOnline) && !value.giftCardSerialNumber) {
+    if (giftCardTotal > 0 && !value.giftCardSerialNumber) {
       context.addIssue({
         code: "custom",
         path: ["giftCardSerialNumber"],
-        message: value.giftCardIsOnline ? "请填写用户名" : "使用礼物卡时必须填写序列号",
+        message: "请填写礼物卡序列号或用户名",
       });
     }
     if (value.giftCardSerialNumber && giftCardTotal === 0) {
@@ -175,7 +175,7 @@ export const confirmPaymentSchema = z
     cashServiceCents: value.cashServiceCents ?? 0,
     cardServiceCents: value.cardServiceCents ?? 0,
     giftCardSerialNumber: value.giftCardSerialNumber ?? null,
-    ...(value.giftCardIsOnline !== undefined ? { giftCardIsOnline: value.giftCardIsOnline } : {}),
+    ...(value.giftCardSerialNumber || value.giftCardIsOnline !== undefined ? { giftCardIsOnline: isGiftCardUsername(value.giftCardSerialNumber) } : {}),
     giftCardServiceCents: value.giftCardServiceCents ?? 0,
     cashTipCents: value.cashTipCents ?? 0,
     cardTipCents: value.cardTipCents ?? 0,

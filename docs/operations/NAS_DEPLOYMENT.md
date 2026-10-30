@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](NAS_DEPLOYMENT.zh-CN.md)**
 
-> Current version: `1.48.1` · Mirror: `ghcr.io/redonkatonkk/massage-note`
+> Current version: `1.50.0` · Mirror: `ghcr.io/redonkatonkk/massage-note`
 > Historical version changes can be viewed in a unified manner [`CHANGELOG.md`](../../CHANGELOG.md) and will not be accumulated repeatedly in this manual.
 
 Standard release link:

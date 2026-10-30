@@ -19,3 +19,8 @@ export const auditLogQuerySchema = z
   );
 
 export type AuditLogQuery = z.output<typeof auditLogQuerySchema>;
+
+export const auditUndoStatusSchema = z.object({ available: z.boolean(), undone: z.boolean(), reason: z.string().nullable() });
+export type AuditUndoStatus = z.infer<typeof auditUndoStatusSchema>;
+export const auditUndoResponseSchema = z.object({ undone: z.literal(true), undoAuditLogId: uuidSchema });
+export type AuditUndoResponse = z.infer<typeof auditUndoResponseSchema>;

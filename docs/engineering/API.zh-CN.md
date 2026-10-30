@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.48.1`
+> 适用版本：`1.50.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -66,7 +66,7 @@
 | POST | `/stores/:storeId/work-records/detailed` | 通过 `{ create, details, payment? }` 原子新建完整记工；需幂等键，初始版本为 `1`；零实收可不选项目 |
 | GET/PATCH/DELETE | `/stores/:storeId/work-records/:recordId` | 记工详情、修改高亮／不算排工及其他字段与软删除 |
 | POST | `/stores/:storeId/work-records/:recordId/save` | 详情与付款原子保存；body 为 `{ details, payment }`，两者必须带相同基准 `version`，需幂等键 |
-| POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡/礼物卡大费和小费拆分；使用礼物卡时提交序列号，或通过 `giftCardIsOnline: true` 将同字段作为用户名 |
+| POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡/礼物卡大费和小费拆分；使用礼物卡时提交序列号，四位数字自动识别为序列号，其他非空内容为用户名 |
 | GET | `/stores/:storeId/work-records/deleted` | 记工回收站 |
 | POST | `/stores/:storeId/work-records/:recordId/restore` | 恢复软删除记工 |
 | GET | `/stores/:storeId/gift-card-sales` | 店长或经理读取按序列号及用户名归组的礼物卡台账、下一实体卡序列号及多条使用记录 |
@@ -205,7 +205,7 @@ Web 快速记工下拉框默认选择目录顺序中的首个启用项目，提�
 }
 ```
 
-礼物卡大费与小费之和大于 0 时 `giftCardSerialNumber` 必填；`giftCardIsOnline: true` 表示该字段保存用户名（文本，保留前导零），省略或 `false` 表示实体卡序列号。用户名只去除首尾空白，不查询系统账号或销售登记；付款快照与审计同时保存模式。未使用礼物卡时序列号可以省略或为 `null`，两项礼物卡金额均为 0。礼物卡大费进入本单实收服务费与付款比例，礼物卡小费进入员工收入；两者都是非现金付款，不增加员工现金结算金额。
+礼物卡大费与小费之和大于 0 时 `giftCardSerialNumber` 必填。去除首尾空白后，恰好四位数字为实体卡序列号（`giftCardIsOnline: false`），其他非空内容为用户名（`true`）；保留前导零，不查询系统账号或已有销售。旧请求标记仍接受但不能覆盖判断；推断类型同时保存到记工、付款快照与审计。未使用礼物卡时标识省略或为 `null`，两项礼物卡金额均为零。礼物卡大费进入本单实收服务费与工资分摊，小费进入员工收入；两者均为非现金，不增加员工现金结算。
 
 卖卡请求示例：
 
@@ -219,7 +219,7 @@ Web 快速记工下拉框默认选择目录顺序中的首个启用项目，提�
 }
 ```
 
-若店铺规则是“满 `$100.00` 折扣 `5%`”，上述请求的折扣为 `$7.50`，折后应付和实际收款均为 `$142.50`。响应包含自动分配的 `serialNumber`、`faceValueCents`、`discountThresholdCents`、`discountRateBps`、`discountCents` 与 `amountCents`，本例恰好满足 `faceValueCents - discountCents = amountCents`；所有响应的 `amountCents = cashCents + cardCents`，实际收款可不同于折后应付。实体卡在同一店铺序列号唯一，自动号在事务内递增且软删除后不复用；界面默认显示系统建议号码，也允许改成自定义号码，服务端按规范化结果检查当前和软删除历史记录防重。实际收款全部加入店铺收入，不进入员工提成、工资或现金结算；客人后续使用礼物卡支付的大费和小费全部计入礼物卡核销支出。
+若店铺规则是“满 `$100.00` 折扣 `5%`”，上述请求的折扣为 `$7.50`，折后应付和实际收款均为 `$142.50`。响应包含自动分配的 `serialNumber`、`faceValueCents`、`discountThresholdCents`、`discountRateBps`、`discountCents` 与 `amountCents`，本例恰好满足 `faceValueCents - discountCents = amountCents`；所有响应的 `amountCents = cashCents + cardCents`，实际收款可不同于折后应付。实体卡在同一店铺序列号唯一，自动号在事务内从 1001 递增到 9999，软删除后不复用；界面默认显示系统建议号码，也允许改成自定义号码，服务端按规范化结果检查当前和软删除历史记录防重。实际收款全部加入店铺收入，不进入员工提成、工资或现金结算；客人后续使用礼物卡支付的大费和小费全部计入礼物卡核销支出。
 
 项目排序提交完整的未删除项目列表及当前版本，例如 `{ "type": "SERVICE", "items": [{ "id": "...", "version": 2 }] }`。服务端在同一事务中校验列表、项目归属和全部版本，再统一写入顺序；列表不完整或任一版本过期时返回 `CATALOG_ORDER_CONFLICT`，不会留下半套排序。
 
@@ -397,9 +397,9 @@ Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，
 
 ### 网上卖卡与用户名使用
 
-销售 POST/PATCH 可提交 `isOnline: true`，此时 `serialNumber` 保存必填用户名（1–120 字符文本），无需系统账号；创建时不分配或递增实体卡号，允许同一用户名多次购买，与同号实体卡独立。省略 `isOnline` 的创建按实体卡处理，修改则保留原模式；显式切换到用户名模式须同时提交用户名。金额、权限、营业日锁、版本、幂等和软删除规则沿用原流程。
+销售 POST/PATCH 按去除首尾空白后的 `serialNumber` 推断 `isOnline`：恰好四位数字是实体卡序列号，其他非空内容是用户名。旧 `isOnline` 提示不控制类型，仅提交该标记不构成有效 PATCH。用户名为 1–120 字符文本，允许重复购买，无需账号、不推进实体卡号。创建省略 `serialNumber` 时，从 1001 到 9999 原子分配实体号；用完返回 409 `GIFT_CARD_SERIAL_EXHAUSTED`，台账 `nextSerialNumber` 和看板 `nextGiftCardSerialNumber` 为空字符串，用户填写未使用的四位序列号或用户名。金额、权限、营业日锁、版本、幂等和软删除规则沿用原流程，未改动的历史行保留已存类型。
 
-例如网上卖卡请求为 `{ "businessDate": "2026-10-15", "isOnline": true, "serialNumber": "001001", "faceValueCents": 10000, "cashCents": 10000, "operatorMembershipId": "员工 UUID" }`；付款请求通过 `giftCardIsOnline: true` 与 `giftCardSerialNumber: "001001"` 标记使用，并照常提交大费或小费金额。未使用礼物卡时省略/关闭模式且序列号为 null。
+例如用户名销售提交 `{ "businessDate": "2026-10-15", "serialNumber": "001001", "faceValueCents": 10000, "cashCents": 10000, "operatorMembershipId": "操作人 UUID" }`；付款提交 `giftCardSerialNumber: "001001"` 和礼物卡大费或小费金额，两者无需标记便识别为用户名；`"0012"` 则识别为序列号。未使用礼物卡时省略标识或提交 null。
 
 台账 `sales` 保留全部有效销售，网上销售的 `usageRecords` 为空；新增 `onlineAccounts: [{ username, sales, usageRecords }]` 按去除首尾空白后的用户名精确归组，未登记销售的使用也会返回，大小写和前导零保留。实体卡 `sales[].usageRecords` 及 `legacyUsages` 只关联实体卡。汇总核销为实体卡已登记、老卡和 `onlineAccounts` 使用合计，不能按每笔网上销售重复累计。保留原因：用户名允许多次购买，又可能与实体卡同号，使用事实必须独立归组。
 
@@ -454,7 +454,7 @@ Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，
 
 ## 店铺数据操作
 
-只有在职店长可使用 `/stores/:storeId/data`；经理仍可读取审计列表。共享文件契约见 [`store-data.ts`](../../packages/contracts/src/store-data.ts)。
+只有在职店长可使用 `/stores/:storeId/data`；经理仍可读取审计列表并撤销符合条件的操作。共享文件契约见 [`store-data.ts`](../../packages/contracts/src/store-data.ts)。
 
 | 方法与路径 | 请求及结果 |
 | --- | --- |
@@ -473,3 +473,11 @@ Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，
 `GET /stores/:storeId/boards/:businessDate` 新增 `statistics.cashChangeCents`，为有符号整数美分或 `null`。Owner/Manager 读取有效日结的 `totalsSnapshotJson.store.cashChangeCents`；未日结、旧快照缺失及员工视图返回 null。员工视图包含当天在内均返回 `closing: null`。全店日结预览增加 `storeTotals.cashChangeCents`；新的手动、强制及自动日结原子保存该值。金额按应发工资计算，与现金已结状态独立，取消再日结前保持固定。收入含卖卡现金；普通员工扣现金分摊工资，每日结清扣全部大费工资及刷卡／礼卡小费；不扣店长经理工资，不计现金小费。保留原因：调用方须区分历史缺失与真实零，不得重算或暴露全店数据。
 
 AI 金额文本在两种语言下统一使用 `$`，兼容并移除模型输出的 `US$` 前缀，沿用现有整美元舍入规则。币种代码、以美分表示的 API 字段及用户自填内容保持原样。保留原因：展示格式化不能改写财务数据或用户内容。
+
+## 撤销操作
+
+`GET /stores/:storeId/audit-logs` 每条新增 `undo: { available, undone, reason }`。`POST /stores/:storeId/audit-logs/:auditLogId/undo` 需要 `Idempotency-Key`、在职 Owner/Manager 身份和记录所属店铺，返回 `{ undone: true, undoAuditLogId }`。共享响应契约见 [`audit.ts`](../../packages/contracts/src/audit.ts)。
+
+以完整私有行快照撤销原事务，包括嵌套业务快照；在可串行化事务中检查营业日锁、最终行状态、相关财务日期的后续修改及外键依赖。新增业务对象保留软删除或原有停用／未结清状态，新增日结／排队消息改为取消，版本继续递增，追加 `audit.undone` 及唯一事务标记。撤销审计使用 `audit_operation` 触发完整实时刷新；排工排除已撤销的旧意图，补偿审计保留恢复的当天人员／顺序，避免自动刷新覆盖；重复请求或点击同一事务的另一条记录返回已有撤销结果。
+
+后续修改、已日结或关联引用返回 409 `AUDIT_UNDO_CONFLICT`；快照不完整、导入历史、店铺生命周期／覆盖导入、凭证、已领取／已发送消息及撤销记录返回 409 `AUDIT_UNDO_UNAVAILABLE`；涉及店主身份需 Owner。旧版记工的新增／删除／恢复，仅在记录版本仍匹配时复用现有恢复规则。完整快照从迁移 `20261029010000_audit_undo` 起记录，私有快照不进入便携店铺导出文件。保留原因：部分摘要和外部效果无法提供安全的反向操作。

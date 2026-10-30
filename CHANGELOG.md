@@ -4,6 +4,19 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.50.0 — 2026-10-29
+
+- Remove the serial-number/username switches from gift-card payments and sales. Both use one text field: after trimming surrounding spaces, exactly four digits identify a serial number and every other nonempty value identifies a username. Preserve leading zeros and draft text.
+- Apply the shared rule in contracts and server writes, overriding legacy mode hints. Keep existing stored history intact, physical-card duplicate checks, repeat username purchases, payment snapshots and accounting rules. Automatic serial allocation remains concurrent-safe from 1001 through 9999; exhaustion requires an unused four-digit serial number or a username.
+- Update bilingual help and API/product documentation. NAS requires Web/API updates; this feature adds no database migration or independent agent/plugin update.
+
+## 1.49.0 — 2026-10-29
+
+- Add Undo immediately before Details on every operation-history entry, with confirmation, pending/undone states, failure feedback and refresh. Unavailable entries explain the reason in Details; messages and controls support English and Chinese.
+- Capture complete business-row changes in the original database transaction, including nested snapshots and linked settlements. Managers and owners can reverse eligible submissions atomically without overwriting later data; retain creations through soft deletion or existing inactive/reopened states, monotonic versions, day locks, append-only audit history, idempotency and full realtime refresh. Queued messages can be cancelled; claimed/sent messages and security credentials cannot be restored.
+- Support legacy work-record creation, deletion and recovery entries through existing record recovery rules when their recorded version still matches. Other history without complete snapshots, imported history, store lifecycle/overwrite imports and undo entries remain unavailable with an explanation. Complete undo snapshots begin with this migration and are not included in portable store-data files. Scheduling ignores undone intent and retains an explicit daily override/order so refresh cannot reapply the reversed command.
+- NAS requires Web/API updates and migration `20261029010000_audit_undo`; no independent agent or plugin update.
+
 ## 1.48.1 — 2026-10-28
 
 - Remove the long horizontal saving tail left by the detail editor moving from the side to screen center. Hide the trail during form condensation and restart its history when the ring begins orbiting, preserving its curved orbit trail and saved-card transition.

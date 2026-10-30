@@ -174,6 +174,8 @@ model Store {
   workBotGroupBindings WorkBotGroupBinding[]
   workBotAliases       WorkBotAlias[]
   workBotOperations    WorkBotOperation[]
+  auditRowChanges      AuditRowChange[]
+  auditUndos           AuditUndo[]
 
   @@index([status])
   @@map("stores")
@@ -936,11 +938,48 @@ model AuditLog {
 
   store Store @relation(fields: [storeId], references: [id])
 
+  undoTransaction AuditLogTransaction?
+
   @@index([storeId, createdAt])
   @@index([storeId, entityType, entityId])
   @@index([storeId, businessDate])
   @@unique([storeId, originAuditId])
   @@map("audit_logs")
+}
+
+// Complete row images stay private; public audit summaries remain append-only.
+model AuditRowChange {
+  id BigInt @id @default(autoincrement())
+  storeId String @map("store_id") @db.Uuid
+  transactionId String @map("transaction_id")
+  tableName String @map("table_name")
+  rowId String @map("row_id") @db.Uuid
+  beforeJson Json? @map("before_json")
+  afterJson Json? @map("after_json")
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  @@index([storeId, transactionId, id])
+  @@index([storeId, id])
+  @@map("audit_row_changes")
+}
+
+model AuditLogTransaction {
+  auditLogId String @id @map("audit_log_id") @db.Uuid
+  transactionId String @map("transaction_id")
+  auditLog AuditLog @relation(fields: [auditLogId], references: [id], onDelete: Cascade)
+  @@index([transactionId])
+  @@map("audit_log_transactions")
+}
+
+model AuditUndo {
+  id String @id @default(uuid()) @db.Uuid
+  storeId String @map("store_id") @db.Uuid
+  transactionId String @map("transaction_id")
+  auditLogId String @map("audit_log_id") @db.Uuid
+  undoAuditLogId String @map("undo_audit_log_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  @@unique([storeId, transactionId])
+  @@map("audit_undos")
 }
 
 // Short-lived import metadata only; uploaded business data is never staged here.

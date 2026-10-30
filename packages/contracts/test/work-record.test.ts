@@ -15,6 +15,9 @@ describe("付款确认契约", () => {
     expect(confirmPaymentSchema.safeParse({ ...input, giftCardSerialNumber: null }).success).toBe(false);
     expect(confirmPaymentSchema.safeParse({ ...input, giftCardServiceCents: 0 }).success).toBe(false);
   });
+  it.each([["0012", false], ["1001", false], ["123", true], ["10000", true], ["001001", true], ["alice", true]])("付款 %s 自动识别，忽略相反的旧模式", (identifier, online) => {
+    expect(confirmPaymentSchema.parse({ version: 1, giftCardSerialNumber: ` ${identifier} `, giftCardIsOnline: !online, giftCardServiceCents: 1000 })).toMatchObject({ giftCardSerialNumber: identifier, giftCardIsOnline: online });
+  });
   it("每组填写一项后把另一项补为 0", () => {
     expect(
       confirmPaymentSchema.parse({
@@ -99,6 +102,7 @@ describe("付款确认契约", () => {
       cashServiceCents: 0,
       cardServiceCents: 0,
       giftCardSerialNumber: "GC-2026-001",
+      giftCardIsOnline: true,
       giftCardServiceCents: 8_000,
       cashTipCents: 0,
       cardTipCents: 0,

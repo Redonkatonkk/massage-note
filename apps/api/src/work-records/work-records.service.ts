@@ -1,6 +1,7 @@
 import { automaticDiscounts, type MondayThursdayAutoDiscountSettings } from "../common/automatic-discounts.js";
 import { businessDateFor, deviceNow, deviceTimezone } from "../common/device-time.js";
 import type { SaveWorkRecordInput } from "@massage-note/contracts";
+import { isGiftCardUsername } from "@massage-note/contracts";
 import {
   BadRequestException,
   ConflictException,
@@ -1154,6 +1155,7 @@ export class WorkRecordsService {
     requestId: string,
     parentTransaction?: Prisma.TransactionClient,
   ) {
+    input = { ...input, giftCardSerialNumber: input.giftCardSerialNumber?.trim() || null, giftCardIsOnline: isGiftCardUsername(input.giftCardSerialNumber) };
     const actorMembership = await this.access.requireActiveMembership(
       actor.id,
       storeId,

@@ -28,6 +28,7 @@ import { explainRotationCandidates } from "@massage-note/domain";
 import type { UpdateWeeklyDispatchInput } from "@massage-note/contracts";
 import { ensureBoardRow } from "../common/ensure-board-row.js";
 import { lockBusinessDay } from "../common/business-day-lock.js";
+import { activeAuditWhere } from "../common/active-audit.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
@@ -145,8 +146,10 @@ export class BoardsService {
       }
       // Daily manual removals override the recurring template. A later manual
       // addition clears the override; template applications never do.
+      const activeHistory = await activeAuditWhere(transaction, storeId);
       const manualChanges = await transaction.auditLog.findMany({
         where: { storeId, businessDate: dateAtUtc(businessDate),
+          AND: activeHistory,
           action: { in: ["board.row_removed", "board.row_added"] } },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: { action: true, beforeJson: true, afterJson: true },
@@ -173,7 +176,7 @@ export class BoardsService {
       // Remember which rows were introduced by the template; manual additions remain independent.
       const previousApplication = !replacement && isFuture && fresh.weeklyDispatchAppliedAt
         ? await transaction.auditLog.findFirst({
-          where: { storeId, entityId: board.id, action: "board.weekly_dispatch_applied" },
+          where: { storeId, entityId: board.id, action: "board.weekly_dispatch_applied", AND: activeHistory },
           orderBy: { createdAt: "desc" }, select: { afterJson: true },
         }) : null;
       const previousData = previousApplication?.afterJson as { overwritten?: boolean; managedMembershipIds?: string[]; addedMembershipIds?: string[] } | null;
@@ -222,6 +225,7 @@ export class BoardsService {
       if (!replacement && isFuture && currentStore.automaticDispatchEnabled) {
         const orderChanges = await transaction.auditLog.findMany({
           where: { storeId, entityType: "daily_board", entityId: board.id,
+            AND: activeHistory,
             action: { in: ["board.rows_reordered", "board.rows_ranked"] } },
           select: { action: true, afterJson: true },
         });
@@ -527,7 +531,7 @@ export class BoardsService {
           sensitivity: "base",
         }),
       ),
-      nextGiftCardSerialNumber: String(store.nextGiftCardSerialNumber),
+      nextGiftCardSerialNumber: store.nextGiftCardSerialNumber <= 9999 ? String(store.nextGiftCardSerialNumber) : "",
       statistics: {
         ...statistics,
         cashChangeCents,

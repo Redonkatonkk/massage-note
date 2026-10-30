@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](UI_DESIGN.zh-CN.md)**
 
-> Applies to version: `1.50.0` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
+> Applies to version: `1.50.1` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
 
 This article is the design basis for subsequent AI modifications to the front end and generation of salary settlement and individual daily statement images. Aesthetic judgment comes from store working scenes, user feedback on adjacent panels, highlight colors, member operations, phone reading and generated pictures, and existing implementations. New requirements from users are given priority; specific business rules are subject to [Product Document](../product/PRODUCT.md). For specific style values, check the source code entry below. Reason: The design rationale needs to be sustained and needs to be able to be revised with clear feedback.
 
@@ -72,6 +72,8 @@ Generate a picture to first explain the store, date/range and employees, then hi
 <a id="手机布局的判断方法"></a>
 
 ## How to judge the layout of phones
+
+On the work-record page at 760px and below, an overflowing open-day employee track returns to show half of the preceding work card on the left and the entire Add record card. This keeps a pending-payment preview next to the next entry action; the preceding card retains its actual payment status. If space is insufficient, prioritize the complete Add record card; do not add overflow when all cards fit. Preserve the ten-second idle return, pointer-drag protection, reduced motion and existing card order. Desktop keeps its right-group preview. Implementation: [record-track scrolling](../../apps/web/lib/record-track-scroll.ts). Reason: phones need both the current record context and a fully usable next-entry action.
 
 The order of tasks on the phone remains the same as that on the desktop, and the specific arrangement is adjusted according to the available width. The ledger, recycle bin, sending queue and expenditure details that are checked item by item use vertical records with field names: the object and date come first, the key amount and status follow, the reason and error can be read directly, the secondary details are expanded as needed, and finally this operation. Reason: Narrow screens need to keep labels and values adjacent to each other to reduce the need for swiping back and forth to find corresponding fields.
 

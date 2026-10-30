@@ -4,6 +4,11 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.50.1 — 2026-10-30
+
+- On phones, return overflowing employee work cards to show half of the preceding card on the left and the complete Add record card. Keep the ten-second idle return, drag protection, reduced motion and desktop previews; prioritize the full Add record card on very narrow screens and avoid extra overflow when cards fit.
+- Verify mobile widths, right-group counts and breakpoint changes through scrolling regressions. NAS requires a Web update; no API or database changes.
+
 ## 1.50.0 — 2026-10-29
 
 - Remove the serial-number/username switches from gift-card payments and sales. Both use one text field: after trimming surrounding spaces, exactly four digits identify a serial number and every other nonempty value identifies a username. Preserve leading zeros and draft text.

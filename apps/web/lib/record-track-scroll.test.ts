@@ -230,6 +230,60 @@ describe("open-day record track", () => {
     expect(track.anchor!.getBoundingClientRect().right).toBeCloseTo(track.clientWidth - reserve, 1);
   });
 
+  it.each([[286, 81], [328, 88.5], [358, 88.5], [382, 88.5], [448, 88.5], [728, 88.5]])("previews the preceding card beside the full add card on a %ipx mobile track", (width, previewWidth) => {
+    vi.stubGlobal("window", Object.assign(surface, {
+      matchMedia: (query: string) => ({ matches: query === "(max-width: 760px)" }),
+    }));
+    track.clientWidth = width;
+    for (const rightGroupCount of [0, 1, 2, 4]) {
+      cleanup();
+      track.useLayout(rightGroupCount);
+      cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+
+      const addRight = track.anchor!.getBoundingClientRect().right;
+      expect(addRight - 177 - 12).toBeCloseTo(previewWidth);
+      expect(addRight).toBeLessThanOrEqual(width - 16);
+      expect(track.dataset.returnTail).toBe(track.tail!.style.width > 0 ? "true" : "false");
+    }
+    scrollBack();
+    vi.advanceTimersByTime(9999);
+    expect(track.scrollLeft).toBe(100);
+    vi.advanceTimersByTime(1);
+    expect(track.anchor!.getBoundingClientRect().right - 177 - 12).toBeCloseTo(previewWidth);
+  });
+
+  it("recalculates mobile and desktop return positions across breakpoints without interrupting browsing", () => {
+    let mobile = true;
+    vi.stubGlobal("window", Object.assign(surface, {
+      matchMedia: (query: string) => ({ matches: mobile && query === "(max-width: 760px)" }),
+    }));
+    track.useLayout(1);
+    cleanup();
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+    expect(track.anchor!.getBoundingClientRect().right).toBeCloseTo(277.5);
+
+    scrollBack();
+    vi.advanceTimersByTime(5000);
+    mobile = false;
+    track.clientWidth = 700;
+    resize();
+    expect(track.scrollLeft).toBe(100);
+    vi.advanceTimersByTime(5000);
+    expect(track.anchor!.getBoundingClientRect().right).toBeCloseTo(700 - 305.5);
+
+    mobile = true;
+    track.clientWidth = 220;
+    resize();
+    const addRight = track.anchor!.getBoundingClientRect().right;
+    expect(addRight).toBeLessThanOrEqual(220 - 16);
+    expect(addRight - 177).toBeGreaterThanOrEqual(16);
+
+    track.useLayout(0, 0);
+    mutate();
+    expect(track.scrollLeft).toBe(0);
+    expect(track.dataset.returnTail).toBe("false");
+  });
+
   it("does not reserve a tail when cards fit, and keeps the add card fully visible on a narrow track", () => {
     track.useLayout(0);
     track.clientWidth = 1200;

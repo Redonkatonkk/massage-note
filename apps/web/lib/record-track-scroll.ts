@@ -22,16 +22,23 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
       + Math.max(0, cards.length - 1) * gap + paddingLeft + paddingRight;
     const overflowing = contentWidth > track.clientWidth + 1;
     const rightGroupCount = track.querySelectorAll(".record-card--right-group").length;
-    const showTail = overflowing && rightGroupCount < 2;
-    track.dataset.returnTail = String(showTail);
-    tail.style.setProperty("--record-track-tail-width", `${cardWidth / 2}px`);
-    const desiredReserve = rightGroupCount >= 2
-      ? cardWidth * 1.5 + gap * 2
-      : rightGroupCount * (cardWidth + gap) + gap + cardWidth / 2 + paddingRight;
+    const mobile = window.matchMedia("(max-width: 760px)").matches;
+    // Phones preview half the preceding record beside the complete add card.
+    const desiredReserve = mobile
+      ? Math.max(paddingRight, track.clientWidth - cardWidth * 1.5 - gap)
+      : rightGroupCount >= 2
+        ? cardWidth * 1.5 + gap * 2
+        : rightGroupCount * (cardWidth + gap) + gap + cardWidth / 2 + paddingRight;
     // On a narrow phone, showing the whole add card takes priority over the preview.
     rightReserve = overflowing
       ? Math.min(desiredReserve, Math.max(paddingRight, track.clientWidth - cardWidth - paddingLeft))
       : paddingRight;
+    const tailWidth = mobile
+      ? Math.max(0, rightReserve - rightGroupCount * (cardWidth + gap) - gap - paddingRight)
+      : cardWidth / 2;
+    const showTail = overflowing && (mobile ? tailWidth > 0 : rightGroupCount < 2);
+    track.dataset.returnTail = String(showTail);
+    tail.style.setProperty("--record-track-tail-width", `${tailWidth}px`);
   };
   const getTarget = () => {
     const anchor = track.querySelector<HTMLElement>(".add-record");

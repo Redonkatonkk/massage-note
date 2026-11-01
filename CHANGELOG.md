@@ -6,6 +6,7 @@ For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page sav
 
 ## 1.51.0 — 2026-10-31
 
+- Provide dialog behavior in the demo page test environment for the weekly schedule.
 - Reserve part-time positions from each person's latest visible attendance, prioritizing earlier dates for ties, shifting collisions and compressing overflow. Fill gaps from a separate full-time queue that includes resting staff; all newcomers remain last.
 - Group weekly schedule rows by employment type and support mouse/touch row dragging and keyboard ordering for full-time staff. Remove Apply; save weekly attendance and the selected date's internal order together, then explicitly generate to reorder the current board.
 - Keep automatic initialization for new dates with complete history. Skip empty closed days, require manual initialization across missing dates, and avoid repeated rotation on regeneration. Retain legacy explanations, backup recovery and operation undo.

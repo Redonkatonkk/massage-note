@@ -12,6 +12,8 @@ beforeAll(() => {
   vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
   Element.prototype.scrollIntoView = () => {};
   Element.prototype.scrollTo = () => {};
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
 });
 afterAll(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 

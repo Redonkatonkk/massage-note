@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { Prisma, type User } from "@massage-note/database";
 import type { RankBoardInput } from "@massage-note/contracts";
-import { explainRotationCandidates } from "@massage-note/domain";
+import { rotationContext } from "./rotation-context.js";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
@@ -141,46 +141,9 @@ export class DailyRankingService {
           });
         }
 
-        const histories = await Promise.all(
-          activeRows.map(async (row) => {
-            const previous = await transaction.dailyEmployeeRow.findFirst({
-              where: {
-                membershipId: row.membershipId,
-                storeId,
-                isHidden: false,
-                board: {
-                  businessDate: { lt: dateAtUtc(businessDate) },
-                },
-              },
-              orderBy: [{ board: { businessDate: "desc" } }],
-              select: {
-                board: {
-                  select: {
-                    businessDate: true,
-                    rows: {
-                      where: { isHidden: false },
-                      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-                      select: { membershipId: true },
-                    },
-                  },
-                },
-              },
-            });
-            const visiblePosition = previous
-              ? previous.board.rows.findIndex(
-                  (candidate) => candidate.membershipId === row.membershipId,
-                ) + 1
-              : null;
-            return {
-              membershipId: row.membershipId,
-              employmentType: row.membership.employmentType!,
-              lastPosition: visiblePosition,
-              lastBusinessDate:
-                previous?.board.businessDate.toISOString().slice(0, 10) ?? null,
-            };
-          }),
-        );
-        const explained = explainRotationCandidates(histories);
+        const context = await rotationContext(transaction, storeId, businessDate, activeRows);
+        if (!context.entries || !context.order) throw new ConflictException({ code: "DAILY_RANKING_SETUP_REQUIRED", messageZh: "请在每周排工中确认所选日期的全职内部顺序，保存后再次生成", missingDate: context.missingDate });
+        const explained = context.entries;
         const visibleOrder = explained.map((entry) => entry.membershipId);
         const hiddenOrder = board.rows
           .filter((row) => row.isHidden)
@@ -193,13 +156,13 @@ export class DailyRankingService {
           where: { id: board.id, version: input.version },
           data: {
             rankedAt,
+            fullTimeOrder: context.order,
+            rankingPending: false,
             rankingExplanation: {
-              schemaVersion: 1,
+              schemaVersion: 2,
+              fullTimeOrder: context.order,
               generatedAt: rankedAt.toISOString(),
-              entries: explained.map((entry) => ({
-                ...entry,
-                displayName: activeRows.find((row) => row.membershipId === entry.membershipId)!.membership.displayName,
-              })),
+              entries: explained,
             },
             version: { increment: 1 },
           },
@@ -245,6 +208,8 @@ export class DailyRankingService {
             requestId,
           },
         });
+
+        await transaction.domainOutbox.create({ data: { storeId, topic: "board.rows_ranked", aggregateType: "daily_board", aggregateId: board.id, payloadJson: { businessDate, version: board.version + 1 } } });
 
         return transaction.dailyBoard.findUniqueOrThrow({
           where: { id: board.id },

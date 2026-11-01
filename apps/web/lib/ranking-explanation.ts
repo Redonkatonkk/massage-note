@@ -2,6 +2,19 @@ import type { RankingExplanation } from "@massage-note/contracts";
 
 export function rankingReason(entry: RankingExplanation["entries"][number], snapshot: RankingExplanation, english = false): string[] {
   const reasons: string[] = [];
+  if (snapshot.schemaVersion === 2) {
+    if (entry.lastPosition === null) reasons.push(english ? "No attendance history: placed after all returning employees." : "没有出勤历史，排在所有有历史人员之后。");
+    else if (entry.employmentType === "FULL_TIME") reasons.push(english ? `Full-time internal position ${entry.fullTimePosition}; fills a slot left by part-time staff. Resting staff remain in the internal rotation.` : `全职内部第 ${entry.fullTimePosition} 位，依次填入兼职留下的空位；休息者仍参与内部轮转。`);
+    else {
+      reasons.push(english ? `Last attended on ${entry.lastBusinessDate}, at position ${entry.lastPosition}.` : `最近一次出勤是 ${entry.lastBusinessDate}，当时排第 ${entry.lastPosition}。`);
+      reasons.push(entry.lastPosition === 1 ? english ? "Previously first: placed at the end of returning staff, before newcomers." : "上次第一，排在有历史人员末尾、新人之前。" : english ? `Targets position ${entry.targetPosition}; collisions move later and overflowing targets compress towards the end.` : `目标第 ${entry.targetPosition} 位；撞位顺延，超出人数时向末端压缩。`);
+    }
+    for (const tie of entry.ties) {
+      const other = snapshot.entries.find(item => item.membershipId === tie.membershipId);
+      if (other) reasons.push(english ? `Same target as ${other.displayName}: earlier attendance takes priority, with a fixed ID for exact ties.` : `与 ${other.displayName} 目标相同，上次出勤日期较早者优先，完全相同则用固定成员标识保持稳定。`);
+    }
+    return reasons;
+  }
   if (entry.lastPosition === null) {
     reasons.push(english ? "No previous ranking. Placed after everyone with ranking history." : "没有历史排位，排在所有有历史排位的员工之后。");
   } else {

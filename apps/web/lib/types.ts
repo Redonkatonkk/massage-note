@@ -69,7 +69,7 @@ export interface StoreDetails extends StoreSummary {
 
 export type WeeklyDispatchSchedule = WeeklyDispatchInput;
 export type WeeklyDispatchDay = keyof WeeklyDispatchSchedule;
-export interface WeeklyDispatchConfig { version: number; effectiveFrom: string | null; schedule: WeeklyDispatchSchedule; }
+export interface WeeklyDispatchConfig { businessDate: string; boardVersion: number; fullTimeOrder: string[] | null; missingDate: string | null; orderReadOnly: boolean; version: number; effectiveFrom: string | null; schedule: WeeklyDispatchSchedule; }
 
 export type ClosingDeliveryStatus = "QUEUED" | "CLAIMED" | "SENT" | "FAILED" | "CANCELLED";
 

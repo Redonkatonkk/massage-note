@@ -39,7 +39,10 @@ function decode(change: AuditRowChange, image: Prisma.JsonValue | null): Image |
   if (!image || typeof image !== "object" || Array.isArray(image)) return null;
   return Object.fromEntries(modelFor(change).fields.filter(field => field.kind !== "object").flatMap(field => {
     const value = image[field.dbName ?? field.name];
-    if (value === undefined) return [];
+    if (value === undefined) {
+      if (change.tableName === "daily_boards" && ["fullTimeOrder", "fullTimeOrderOverride", "rankingPending"].includes(field.name)) return [[field.name, field.name === "rankingPending" ? false : null]];
+      return [];
+    }
     return [[field.name, value === null ? null : field.type === "DateTime" ? new Date(String(value)) : field.type === "BigInt" ? BigInt(String(value)) : field.type === "Decimal" ? new Prisma.Decimal(String(value)) : value]];
   }));
 }

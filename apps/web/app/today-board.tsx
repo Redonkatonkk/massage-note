@@ -163,6 +163,7 @@ function TodayBoardContent({
   const canChangeRowVisibility = canManage && (!board.isClosed || (!isCurrentBusinessDay && !isFutureBusinessDay));
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
+  const [rankingSetupRequest, setRankingSetupRequest] = useState(0);
   const [quickEmployeeId, setQuickEmployeeId] = useState<string | null>(null);
   const [quickServiceId, setQuickServiceId] = useState("");
   const [quickMode, setQuickMode] = useState<QuickWorkMode>("NORMAL");
@@ -436,8 +437,13 @@ function TodayBoardContent({
   }
 
   async function rankBoard() {
-    await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rank`, { method: "POST", idempotent: true, body: { version: board.version } });
-    setNotice(isCurrentBusinessDay ? "已按历史名次生成今日顺序" : "已按历史名次生成所选日期顺序");
+    try {
+      await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rank`, { method: "POST", idempotent: true, body: { version: board.version } });
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.code === "DAILY_RANKING_SETUP_REQUIRED") { setRankingSetupRequest(value => value + 1); return; }
+      throw caught;
+    }
+    setNotice(isCurrentBusinessDay ? "已生成今日顺序" : "已生成所选日期顺序");
     await onReload();
   }
 
@@ -495,6 +501,7 @@ function TodayBoardContent({
         allMembers={members}
         weeklyDispatchEnabled={isCurrentBusinessDay || isFutureBusinessDay}
         rankingAction={canGenerateRanking ? { label: dailyRankingActionLabel(board.ranking.rankedAt, isCurrentBusinessDay), onClick: () => run(rankBoard) } : undefined}
+        rankingSetupRequest={rankingSetupRequest}
         rankingHelp={<RankingExplanationButton board={board} />}
         empty={activeRowCount === 0}
         disabled={busy}

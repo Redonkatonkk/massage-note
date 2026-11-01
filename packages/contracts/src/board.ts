@@ -41,7 +41,18 @@ export const weeklyDispatchSchema = z.object({
 export const updateWeeklyDispatchSchema = z.object({
   version: versionSchema,
   schedule: weeklyDispatchSchema,
-}).strict();
+  businessDate: businessDateSchema.optional(),
+  boardVersion: z.number().int().nonnegative().optional(),
+  fullTimeOrder: z.array(uuidSchema).max(500).optional(),
+}).strict().superRefine((value, context) => {
+  const fields = [value.businessDate, value.boardVersion, value.fullTimeOrder];
+  if (fields.some(field => field !== undefined) && fields.some(field => field === undefined)) {
+    context.addIssue({ code: "custom", message: "日期、表格版本和全职顺序必须一起提交" });
+  }
+  if (value.fullTimeOrder && new Set(value.fullTimeOrder).size !== value.fullTimeOrder.length) {
+    context.addIssue({ code: "custom", message: "全职顺序不能重复" });
+  }
+});
 
 export const removeBoardRowSchema = z.object({
   version: versionSchema,
@@ -59,8 +70,9 @@ export type UpdateWeeklyDispatchInput = z.input<typeof updateWeeklyDispatchSchem
 export type RemoveBoardRowInput = z.input<typeof removeBoardRowSchema>;
 
 export const rankingExplanationSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
   generatedAt: z.string(),
+  fullTimeOrder: z.array(z.string()).optional(),
   entries: z.array(z.object({
     membershipId: z.string(),
     displayName: z.string(),
@@ -68,10 +80,12 @@ export const rankingExplanationSchema = z.object({
     lastPosition: z.number().int().positive().nullable(),
     lastBusinessDate: z.string().nullable(),
     generatedPosition: z.number().int().positive(),
+    targetPosition: z.number().int().positive().nullable().optional(),
+    fullTimePosition: z.number().int().positive().nullable().optional(),
     ties: z.array(z.object({
       membershipId: z.string(),
       ahead: z.boolean(),
-      rule: z.enum(["EMPLOYMENT_TYPE", "RECENT_ATTENDANCE", "STABLE_ID"]),
+      rule: z.enum(["EMPLOYMENT_TYPE", "RECENT_ATTENDANCE", "STABLE_ID", "EARLIER_ATTENDANCE"]),
     })),
   })),
 });

@@ -4,6 +4,13 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.51.0 — 2026-10-31
+
+- Reserve part-time positions from each person's latest visible attendance, prioritizing earlier dates for ties, shifting collisions and compressing overflow. Fill gaps from a separate full-time queue that includes resting staff; all newcomers remain last.
+- Group weekly schedule rows by employment type and support mouse/touch row dragging and keyboard ordering for full-time staff. Remove Apply; save weekly attendance and the selected date's internal order together, then explicitly generate to reorder the current board.
+- Keep automatic initialization for new dates with complete history. Skip empty closed days, require manual initialization across missing dates, and avoid repeated rotation on regeneration. Retain legacy explanations, backup recovery and operation undo.
+- NAS requires Web/API updates and migration `20261031010000_independent_full_time_rotation`; this change is local only, with no independent plugin or Messages agent update.
+
 ## 1.50.1 — 2026-10-30
 
 - On phones, return overflowing employee work cards to show half of the preceding card on the left and the complete Add record card. Keep the ten-second idle return, drag protection, reduced motion and desktop previews; prioritize the full Add record card on very narrow screens and avoid extra overflow when cards fit.

@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.50.1`
+> 适用版本：`1.51.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -391,7 +391,7 @@ Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，
 
 `GET /stores/:storeId/boards/:businessDate` 的 `ranking.explanation` 返回最后一次生成时的解释快照，未保存时为 `null`。仅具有 `MEMBERSHIP_MANAGE` 能力的成员可读取，其他成员始终返回 `null`，包括个人历史视图。
 
-快照遵循共享契约 `RankingExplanation`：`schemaVersion: 1`、`generatedAt` 和 `entries`；每项包含 `membershipId`、生成时 `displayName`/`employmentType`、`lastBusinessDate`/`lastPosition`、`generatedPosition` 及 `ties`。同位比较项记录对方 `membershipId`、本成员是否在前 `ahead` 和原因 `EMPLOYMENT_TYPE` / `RECENT_ATTENDANCE` / `STABLE_ID`。
+共享契约 `RankingExplanation` 同时支持旧 `schemaVersion: 1` 与新 `2`。新版保存完整 `fullTimeOrder`，每项保留姓名／类型、历史日期／位置、生成位置，新增 `targetPosition` 与 `fullTimePosition`，兼职同目标使用 `EARLIER_ATTENDANCE`；旧快照按原规则解释，不回填。
 
 现有 `POST .../rank` 在原有营业日锁、版本检查和幂等事务中同时保存顺序与快照。重新生成替换快照，手动调序、员工行变化和成员资料变更不改写快照。前端根据当前名单对比展示变化，不能用当前资料重新推算当时原因。旧数据不回填推测解释。保留原因：解释应反映生成时决策，不能由当前资料推测旧原因。
 
@@ -413,12 +413,12 @@ Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，
 
 ### 每周排工模板
 
-- `GET /stores/:storeId/weekly-dispatch`：店主/经理读取 `{ version, effectiveFrom, schedule }`。`version` 为店铺版本；`schedule` 包含 `monday` 至 `sunday` 七个成员 ID 数组。
-- `PUT /stores/:storeId/weekly-dispatch`：提交 `{ version, schedule }` 和 `Idempotency-Key`；检查管理权限、成员归属/有效性、版本，事务内保存模板、审计和 outbox。配置从设备当前日期立即生效，版本冲突返回 409，应重新打开弹窗读取后核对。
-- `POST /stores/:storeId/boards/:businessDate/replace-weekly-dispatch`：店主/经理提交 `{ version, schedule }` 和 `Idempotency-Key`，使用目标日期对应星期的当前勾选覆盖全部员工行，不保存模板，后续自动刷新保留此次覆盖；校验店铺版本、目标人员有效性、营业日锁及日结。任何记工（含待结账和删除历史）返回 409 `WEEKLY_DISPATCH_HAS_WORK_RECORDS`，事务回滚保留原排工；历史日期拒绝。开启自动排位时重算顺序，写入审计和 outbox，返回 `{ applied, addedCount, ranked }`。保留原因：现有共享契约和服务定义此边界，客户端行为须与实际输入及保存结果一致。
-- `POST /stores/:storeId/boards/:businessDate/apply-weekly-dispatch`：Web 在加载看板前调用。当前在职成员可触发当日既定规则，仅管理者可触发未来日。营业日锁保护初始化与刷新，返回 `{ applied, addedCount?, ranked? }`；历史、已日结、未生效和已应用的当前日期跳过。未来日期允许刷新，按最新模板同步系统加入的行，并按最新出勤顺序重算；该看板最新调序操作为手动 `reorder` 时保留顺序，新员工追加到末尾，名单同步返回 `ranked: false`。主动 `rank` 后恢复自动顺序更新；首次模板初始化也遵守已有手动顺序。没有变化时返回 `applied: false`，不递增版本或重复发送 outbox。保留原因：现有共享契约和服务定义此边界，客户端行为须与实际输入及保存结果一致。
+- `GET /stores/:storeId/weekly-dispatch?businessDate=YYYY-MM-DD`：管理者读取每周 `{ version, effectiveFrom, schedule }`，及所选日期的 `{ businessDate, boardVersion, fullTimeOrder, missingDate, orderReadOnly }`；无表版本为 0，内部顺序无法推算时为 null。省略日期使用设备当前日。
+- `PUT /stores/:storeId/weekly-dispatch`：原 `{ version, schedule }` 继续兼容；Web 同时提交 `businessDate`、`boardVersion`、`fullTimeOrder`，三字段必须一起出现，完整包含全部在职全职且不重复。营业日锁、店铺及表格版本、成员权限／归属／日结检查后，原子保存全部设置及审计/outbox。内部顺序写入该日人工基准并标记待生成，不改员工行或解释快照。历史／已日结日期内部顺序只读，省略这三字段仍可保存每周出勤。
+- “应用”及一次性覆盖接口已移除。`POST /stores/:storeId/boards/:businessDate/apply-weekly-dispatch` 保留供加载时同步名单；过去、已日结及已初始化今日跳过，未来按模板同步无记工／班次的自动行，手动名单和人工顺序保护保留，新增行追加。待生成日期只同步名单、不重排；无变化不递增版本或重复发送 outbox。历史 `overwritten` 审计继续兼容。
+- `POST /stores/:storeId/boards/:businessDate/rank` 主动生成后解除待生成状态。缺少完整全职基准或遇缺表返回 409 `DAILY_RANKING_SETUP_REQUIRED` 并提供 `missingDate`，Web 打开每周排工进行初始化。新人、兼职占位、全职轮转共用领域排序；新日期仅在基准和历史完整时自动生成。
 
-`stores.weekly_dispatch_json`、`weekly_dispatch_effective_from` 与 `daily_boards.weekly_dispatch_applied_at` 由迁移 `20260928120000_weekly_dispatch` 添加。模板初始化复用轮转领域排序及排名解释快照，店铺未启用每日开门排位时仅按模板顺序加入；当前日期已安排的人员保持不变；未来日期持续更新。自动管理的成员 ID 保存在 `board.weekly_dispatch_applied` 审计的 `managedMembershipIds`，兼容旧审计 `addedMembershipIds`，只移除模板取消且无任何记工或班次的自动行，保留手动加入的行。保留原因：现有共享契约和服务定义此边界，客户端行为须与实际输入及保存结果一致。
+迁移 `20261031010000_independent_full_time_rotation` 添加 `daily_boards.full_time_order`、`full_time_order_override`、`ranking_pending`，旧值默认空／false。已有空表跳过、缺表停止推算；人工基准当日直接使用，后续营业日轮转，休息者保留在内部队列。备份和撤销支持新字段，旧备份补默认值，匿名化及导入映射队列成员 ID。保留原因：完整内部队列、人工确认与实际生成必须分开持久化，保存不能意外重排当前表格。
 
 
 ### 成员每日全部结清

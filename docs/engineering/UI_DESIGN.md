@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](UI_DESIGN.zh-CN.md)**
 
-> Applies to version: `1.50.1` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
+> Applies to version: `1.51.0` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
 
 This article is the design basis for subsequent AI modifications to the front end and generation of salary settlement and individual daily statement images. Aesthetic judgment comes from store working scenes, user feedback on adjacent panels, highlight colors, member operations, phone reading and generated pictures, and existing implementations. New requirements from users are given priority; specific business rules are subject to [Product Document](../product/PRODUCT.md). For specific style values, check the source code entry below. Reason: The design rationale needs to be sustained and needs to be able to be revised with clear feedback.
 
@@ -128,6 +128,9 @@ The source of the existing design is as follows; only the layout principles are 
 The basic font size is 16px, the main text is usually 14–16px, the auxiliary text is 12–14px, the page title is about 28px, and the amount uses monospaced numbers. The rounded corners of buttons and input boxes are 6px, and the main work panel is 10px; the touch height of high-frequency main operations is at least 44px. Fonts use local system fonts and do not rely on third-party font requests. Reason: This is the current style variable and touch baseline. The old nineteen-pixel and large rounded corner rules have no corresponding implementation.
 
 The identity field for selling cards and gift card payments shares the same `gift-card-identity-field.tsx`: the label is on top, the input box is on the same line as the mode button, and the narrow part is naturally wrapped. The selected mode uses dark green and sets `aria-pressed`; the user name is entered in text, and the amount and operations maintain the original order. Reason: Numeric user names and card numbers need to be clearly distinguished, and mode switching cannot squeeze the phone input or change the corresponding relationship of payment amounts.
+
+
+Weekly scheduling groups full-time before part-time rows and shows employment type after the name. Only full-time rows reorder; touch handles and keyboard arrows move complete rows, while checkboxes never initiate dragging. Show the selected date and include resting full-time staff. Keep one Save settings action; explicitly generate afterwards to rerank the current board. Closed-day internal order is read-only. Reason: weekly attendance and dated internal order share an editor while dragging, checkbox selection and dispatch generation need clear boundaries.
 
 <a id="样式维护规则"></a>
 

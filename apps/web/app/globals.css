@@ -3358,3 +3358,7 @@ body { position: relative; }
 .demo-banner a { color: var(--brand-dark); font-size: 14px; text-underline-offset: 3px; }
 .demo-banner p { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 @media (max-width: 900px) { .demo-banner { margin: 12px 12px 0; padding: 12px; } }
+
+.weekly-order-handle { touch-action: none; cursor: grab; background: transparent; color: var(--muted); border: 0; min-width: 44px; min-height: 44px; padding: 6px; vertical-align: middle; }
+.weekly-dispatch-row--dragging > th, .weekly-dispatch-row--dragging > td { background: var(--surface-soft); }
+.weekly-dispatch-table td:nth-child(2) { white-space: nowrap; }

@@ -147,6 +147,7 @@ describe.skipIf(!enabled).sequential("每日开门排位", () => {
       data: {
         storeId,
         businessDate: new Date(`${yesterday}T00:00:00.000Z`),
+        fullTimeOrderOverride: [employeeIds[1]],
         rows: {
           create: [
             { storeId, membershipId: employeeIds[0], position: 1, addedBy: ownerId },
@@ -204,8 +205,8 @@ describe.skipIf(!enabled).sequential("每日开门排位", () => {
       "daily-ranking-order",
     );
     expect(result.rows.map((row) => row.membershipId)).toEqual([
-      employeeIds[1],
       employeeIds[2],
+      employeeIds[1],
       employeeIds[0],
       employeeIds[3],
     ]);
@@ -215,9 +216,9 @@ describe.skipIf(!enabled).sequential("每日开门排位", () => {
   it("persists generation facts through manual reorder and member edits, with manager-only access", async () => {
     const original = await currentBoard();
     const snapshot = rankingExplanationSchema.parse(original.rankingExplanation);
-    expect(snapshot.entries.map((entry) => entry.displayName)).toEqual(["B", "C", "A", "D"]);
-    expect(snapshot.entries[0]).toMatchObject({ lastBusinessDate: yesterday, lastPosition: 2, generatedPosition: 1 });
-    expect(snapshot.entries[1]).toMatchObject({ lastBusinessDate: olderDay, lastPosition: 2 });
+    expect(snapshot.entries.map((entry) => entry.displayName)).toEqual(["C", "B", "A", "D"]);
+    expect(snapshot.entries[1]).toMatchObject({ lastBusinessDate: yesterday, lastPosition: 2, generatedPosition: 2 });
+    expect(snapshot.entries[0]).toMatchObject({ lastBusinessDate: olderDay, lastPosition: 2 });
     expect(snapshot.entries[3]).toMatchObject({ lastPosition: null, lastBusinessDate: null });
     expect((await boards.getBoard(actor(ownerId), storeId, today)).ranking.explanation).toEqual(snapshot);
     expect((await boards.getBoard(actor(employeeUserId), storeId, today)).ranking.explanation).toBeNull();

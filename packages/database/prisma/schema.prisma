@@ -276,6 +276,9 @@ model DailyBoard {
   rankedAt     DateTime? @map("ranked_at") @db.Timestamptz(3)
   weeklyDispatchAppliedAt DateTime? @map("weekly_dispatch_applied_at") @db.Timestamptz(3)
   rankingExplanation Json? @map("ranking_explanation")
+  fullTimeOrder Json? @map("full_time_order")
+  fullTimeOrderOverride Json? @map("full_time_order_override")
+  rankingPending Boolean @default(false) @map("ranking_pending")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 

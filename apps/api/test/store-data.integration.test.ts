@@ -50,7 +50,7 @@ describe.skipIf(!enabled).sequential("single-store backup and recovery", () => {
     await prisma.employeeDefaultCommission.create({ data: { storeId, membershipId: memberId, commissionBps: 6000, effectiveFrom: date, createdBy: users[0]! } });
     await prisma.employeeItemCommission.create({ data: { storeId, membershipId: memberId, itemType: "SERVICE", itemId: serviceItem.id, commissionBps: 5500, effectiveFrom: date, createdBy: users[0]! } });
     await prisma.shift.create({ data: { storeId, membershipId: memberId, businessDate: date, clockInAt: date, createdBy: users[0]!, updatedBy: users[0]! } });
-    const board = await prisma.dailyBoard.create({ data: { storeId, businessDate: date, rankingExplanation: { schemaVersion: 1, generatedAt: date.toISOString(), entries: [{ membershipId: memberId, displayName: secret, position: 1 }] } } });
+    const board = await prisma.dailyBoard.create({ data: { storeId, businessDate: date, fullTimeOrder: [memberId], fullTimeOrderOverride: [memberId], rankingPending: true, rankingExplanation: { schemaVersion: 1, generatedAt: date.toISOString(), entries: [{ membershipId: memberId, displayName: secret, position: 1 }] } } });
     await prisma.dailyEmployeeRow.create({ data: { storeId, boardId: board.id, membershipId: memberId, position: new Prisma.Decimal("0.0000000001"), addedBy: users[0]! } });
     const work = await prisma.workRecord.create({ data: { storeId, employeeMembershipId: memberId, businessDate: date, startAt: date, status: "CONFIRMED", storeTimezoneSnapshot: "America/New_York", businessCutoffSnapshot: "22:00", mainServiceAmountCents: 10000n, addonTotalCents: 2000n, grossFeeBaseCents: 12000n, discountTotalCents: 1000n, discountedFeePerformanceCents: 11000n, mainServiceWageCents: 5500n, addonWageCents: 1000n, totalLargeFeeWageCents: 6500n, giftCardSerialNumber: "PRIVATE_ONLINE_USER", giftCardIsOnline: true, giftCardServiceCents: 11000n, cashServiceCents: 0n, cardServiceCents: 0n, cashTipCents: 0n, cardTipCents: 0n, giftCardTipCents: 0n, totalTipCents: 0n, actualServiceCollectedCents: 11000n, customerTotalPaidCents: 11000n, paymentDifferenceCents: 0n, employeeTotalIncomeCents: 6500n, cashAllocatedServiceWageCents: 0n, cashAcquiredServiceWageCents: 0n, cashWageShortfallCents: 0n, createdBy: users[0]!, updatedBy: users[0]!, note: secret } });
     await prisma.workRecordServiceSnapshot.create({ data: { workRecordId: work.id, sourceServiceItemId: serviceItem.id, isCustom: false, name: secret, shortName: secret, amountCents: 10000n, durationMinutes: 60, commissionBps: 5500, commissionSource: "EMPLOYEE_ITEM", wageCents: 5500n } });
@@ -86,6 +86,20 @@ describe.skipIf(!enabled).sequential("single-store backup and recovery", () => {
     }
     if (enabled) await prisma.user.deleteMany({ where: { id: { in: users } } });
     await prisma.$disconnect();
+  });
+
+  it("preserves dated full-time orders through anonymization and older backups", () => {
+    const original = full.data.tables.dailyBoard[0]!;
+    const anonymous = demo.data.tables.dailyBoard[0]!;
+    expect(original.fullTimeOrder).toEqual([memberId]);
+    const mappedMember = demo.data.tables.storeMembership.find(row => row.role === "EMPLOYEE")!;
+    expect(anonymous.fullTimeOrder).toEqual([mappedMember.id]);
+    expect(anonymous.fullTimeOrderOverride).toEqual([mappedMember.id]);
+    const older = structuredClone(full);
+    for (const row of older.data.tables.dailyBoard) {
+      delete row.fullTimeOrder; delete row.fullTimeOrderOverride; delete row.rankingPending;
+    }
+    expect(validateBackup(sealBackup(older)).data.tables.dailyBoard[0]).toMatchObject({ fullTimeOrder: null, fullTimeOrderOverride: null, rankingPending: false });
   });
 
   it("exports every supported table, preserves precision and masks the entire file", async () => {

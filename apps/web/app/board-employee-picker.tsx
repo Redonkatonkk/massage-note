@@ -16,13 +16,14 @@ interface BoardEmployeePickerProps {
   weeklyDispatchEnabled: boolean;
   rankingAction?: { label: string; onClick: () => void } | undefined;
   rankingHelp?: ReactNode;
+  rankingSetupRequest?: number;
   empty: boolean;
   disabled: boolean;
   onAdd: (membershipId: string) => Promise<void>;
   onReload: () => Promise<void>;
 }
 
-export function BoardEmployeePicker({ storeId, businessDate, members, allMembers, weeklyDispatchEnabled, rankingAction, rankingHelp, empty, disabled, onAdd, onReload }: BoardEmployeePickerProps) {
+export function BoardEmployeePicker({ storeId, businessDate, members, allMembers, weeklyDispatchEnabled, rankingAction, rankingHelp, rankingSetupRequest, empty, disabled, onAdd, onReload }: BoardEmployeePickerProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const submitting = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -62,7 +63,7 @@ export function BoardEmployeePicker({ storeId, businessDate, members, allMembers
 
   return <>
     {(members.length > 0 || rankingAction || weeklyDispatchEnabled) && <section className="board-panel add-employee-panel" aria-label="员工与排工操作">
-      {weeklyDispatchEnabled && <BoardWeeklyDispatch storeId={storeId} businessDate={businessDate} members={allMembers} disabled={disabled} onSaved={onReload} />}
+      {weeklyDispatchEnabled && <BoardWeeklyDispatch setupRequest={rankingSetupRequest ?? 0} storeId={storeId} businessDate={businessDate} members={allMembers} disabled={disabled} onSaved={onReload} />}
       <label className="field-label">手动添加员工到今日表格
         {empty
           ? <button className="employee-picker-trigger" type="button" aria-haspopup="dialog" disabled={busy || disabled} onClick={openPicker}><span>请选择员工</span><span aria-hidden="true">⌄</span></button>

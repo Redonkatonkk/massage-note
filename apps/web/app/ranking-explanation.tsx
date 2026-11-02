@@ -7,9 +7,10 @@ import type { BoardResponse } from "../lib/types";
 import { rankingOrderChanged, rankingReason } from "../lib/ranking-explanation";
 import { saveRankingImage } from "../lib/ranking-image";
 import { useLanguage } from "./language-provider";
+import { useNativeDialog } from "./use-native-dialog";
 
 export function RankingExplanationButton({ board }: { board: BoardResponse }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [dialog, dialogRef] = useNativeDialog();
   const content = useRef<HTMLDivElement>(null);
   const savingRef = useRef(false);
   const [saving, setSaving] = useState(false);
@@ -38,7 +39,7 @@ export function RankingExplanationButton({ board }: { board: BoardResponse }) {
 
   return <>
     <button className="ranking-help-button" type="button" aria-label={text("查看所选日期排序依据", "View selected date's ranking explanation")} title={text("为什么这样排序？", "Why this order?")} aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>?</button>
-    <dialog ref={dialog} className="board-delivery-dialog ranking-explanation-dialog" aria-labelledby="ranking-explanation-title" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
+    <dialog ref={dialogRef} className="board-delivery-dialog ranking-explanation-dialog" aria-labelledby="ranking-explanation-title" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
       <div className="modal-heading">
         <h2 id="ranking-explanation-title">{text("排序依据", "Ranking explanation")}</h2>
         <div className="modal-heading__actions">

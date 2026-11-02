@@ -2,7 +2,7 @@
 
 **[English](DEVELOPMENT.md)** | **简体中文**
 
-> 适用版本：`1.51.0`
+> 适用版本：`1.51.3`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.zh-CN.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.zh-CN.md)，HTTP 细节看 [`API.md`](API.zh-CN.md)。
 
@@ -85,6 +85,8 @@ MASSAGE_NOTE_TEST_DATABASE_URL='postgresql://massage:massage@localhost:55432/mas
 ```
 
 不要为了测试停止、删除或重建不属于本项目的容器与数据卷。保留原因：独立测试数据库不授权操作其他项目或生产数据。
+
+[页面点击回归](../../apps/web/app/page-clicks.test.tsx)使用共用上下文和合成 API 响应挂载真实记工页，在 Strict Mode 下重放按下、聚焦、松开、一次点击，覆盖后台刷新、定时更新、语言切换和弹窗操作，确认按住的按钮在松开前仍连接在 DOM 中。此范围运行 `pnpm --filter @massage-note/web exec vitest run app/page-clicks.test.tsx`。保留原因：只调用 `.click()` 会漏掉鼠标按下到松开之间的变化；jsdom 仍不能证明 Chrome 原生事件派发、点击命中或窗口焦点行为。
 
 ## 修改规则
 

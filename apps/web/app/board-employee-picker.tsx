@@ -7,6 +7,7 @@ import { errorMessage } from "../lib/api";
 import type { StoreMember } from "../lib/types";
 import { toggleOrderedSelection, addEmployeesInOrder } from "../lib/employee-selection";
 import { BoardWeeklyDispatch } from "./board-weekly-dispatch";
+import { useNativeDialog } from "./use-native-dialog";
 
 interface BoardEmployeePickerProps {
   storeId: string;
@@ -24,7 +25,7 @@ interface BoardEmployeePickerProps {
 }
 
 export function BoardEmployeePicker({ storeId, businessDate, members, allMembers, weeklyDispatchEnabled, rankingAction, rankingHelp, rankingSetupRequest, empty, disabled, onAdd, onReload }: BoardEmployeePickerProps) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [dialog, dialogRef] = useNativeDialog();
   const submitting = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [singleId, setSingleId] = useState("");
@@ -78,7 +79,7 @@ export function BoardEmployeePicker({ storeId, businessDate, members, allMembers
       </div>
     </section>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    <dialog ref={dialog} className="board-delivery-dialog employee-picker-dialog" aria-labelledby="employee-picker-title" onCancel={(event) => { if (busy) event.preventDefault(); }}>
+    <dialog ref={dialogRef} className="board-delivery-dialog employee-picker-dialog" aria-labelledby="employee-picker-title" onCancel={(event) => { if (busy) event.preventDefault(); }}>
       <div className="modal-heading">
         <h2 id="employee-picker-title">选择今日上班员工</h2>
         <button className="close-button" type="button" disabled={busy} onClick={() => dialog.current?.close()}>取消</button>

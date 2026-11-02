@@ -139,7 +139,8 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
   let waiting = false;
   let orbitStarted = 0;
   let target: HTMLElement | undefined;
-  let targetVisibility: string | undefined;
+  let targetOpacity: string | undefined;
+  let targetOpacityPriority = "";
   let stopTween: ((atEnd?: boolean) => void) | undefined;
   let timeline: { start: number; duration: number; update: (progress: number) => void } | undefined;
   let resolveReady!: () => void;
@@ -152,6 +153,9 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
     const instance = renderer; renderer = undefined;
     disposeWorkRecordVfx(instance, sources, canvas); canvas = undefined;
   };
+  const restoreTarget = () => {
+    if (target && targetOpacity !== undefined) target.style.setProperty("opacity", targetOpacity, targetOpacityPriority);
+  };
   const cancel = () => {
     if (signal.aborted) return;
     controller.abort(); window.clearTimeout(prepareTimer); stopTween?.(false); resolveReady();
@@ -163,7 +167,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
     document.removeEventListener("scroll", onInteraction, true);
     document.removeEventListener("pointerdown", onInteraction);
     document.removeEventListener("keydown", onInteraction);
-    if (target && targetVisibility !== undefined) target.style.visibility = targetVisibility;
+    restoreTarget();
     if (!detached) {
       dialog.inert = previous.inert;
       if (completed) hideDialog(); else restoreDialog();
@@ -181,7 +185,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
     if (frame !== undefined) cancelAnimationFrame(frame);
     releaseRenderer(); stage.replaceChildren(); overlay.dataset.renderer = "fallback";
     if (!detached) restoreDialog();
-    if (target && targetVisibility !== undefined) target.style.visibility = targetVisibility;
+    restoreTarget();
   };
   const tween = (duration: number, update: (progress: number) => void): Promise<void> => {
     if (signal.aborted || degraded) return Promise.resolve();
@@ -286,7 +290,12 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
       let cardCaptured = false;
       if (hasTarget && target && to) cardCaptured = await captureCard(target, to);
       if (signal.aborted) return;
-      if (hasTarget && target && !degraded) { targetVisibility = target.style.visibility; target.style.visibility = "hidden"; }
+      if (hasTarget && target && !degraded) {
+        targetOpacity = target.style.opacity; targetOpacityPriority = target.style.getPropertyPriority("opacity");
+        // Keep the real button in hit testing. Pointer interaction cancels the
+        // decoration before its click, so the first click still reaches this card.
+        target.style.setProperty("opacity", "0", "important");
+      }
       if (!detached && backdrop?.animate) {
         const animation = backdrop.animate([{ backgroundColor: getComputedStyle(backdrop).backgroundColor }, { backgroundColor: "transparent" }], { duration: FLIGHT_MS, fill: "forwards" });
         animations.push(animation); void animation.finished.catch(() => undefined);
@@ -302,7 +311,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
       if (signal.aborted) return;
       overlay.dataset.phase = "unfolding";
       if (hasTarget && target && !cardCaptured && !degraded) {
-        target.style.visibility = targetVisibility ?? "";
+        restoreTarget();
         if (target.animate) {
           const animation = target.animate([{ opacity: 0, transform: "scale(.6)" }, { opacity: 1, transform: "scale(1.06)" }, { opacity: 1, transform: "scale(1)" }], { duration: UNFOLD_MS, easing: "ease-out", fill: "both" });
           animations.push(animation); void animation.finished.catch(() => undefined);

@@ -6,12 +6,13 @@ import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { displayTime } from "../lib/time";
 import { beginWorkRecordDeleteMotion, preloadWorkRecordDeleteMotion } from "../lib/work-record-delete-motion";
 import type { WorkRecord } from "../lib/types";
+import { useNativeDialog } from "./use-native-dialog";
 
 export function PlaceholderDeleteDialog({ storeId, record, employeeName, timezone, canDelete, isClosed, onClose, onDeleted, onChanged }: {
   storeId: string; record: WorkRecord; employeeName: string; timezone: string; canDelete: boolean; isClosed: boolean;
   onClose: () => void; onDeleted: () => void; onChanged: () => Promise<void>;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [dialog, dialogRef] = useNativeDialog();
   const actionInFlight = useRef(false);
   const [busy, setBusy] = useState(false);
   const [blockedByClosing, setBlockedByClosing] = useState(false);
@@ -52,7 +53,7 @@ export function PlaceholderDeleteDialog({ storeId, record, employeeName, timezon
     }
   }
 
-  return createPortal(<dialog ref={dialog} className="board-delivery-dialog placeholder-delete-dialog" aria-modal="true" aria-labelledby="placeholder-delete-title"
+  return createPortal(<dialog ref={dialogRef} className="board-delivery-dialog placeholder-delete-dialog" aria-modal="true" aria-labelledby="placeholder-delete-title"
     onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}>
     <div className="modal-heading"><h2 id="placeholder-delete-title">删除占位</h2><button className="close-button" type="button" disabled={busy} onClick={onClose}>取消</button></div>
     <p>{employeeName} · {record.businessDate.slice(0, 10)} · {displayTime(record.startAt, timezone)}</p>

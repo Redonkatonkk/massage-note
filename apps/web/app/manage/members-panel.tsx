@@ -8,6 +8,7 @@ import type { CatalogResponse, CommissionHistoryResponse, JoinRequest, StoreMemb
 import { useLanguage } from "../language-provider";
 import { UiIcon } from "../ui/primitives";
 import { useAutoDismissState } from "../use-auto-dismiss-state";
+import { useNativeDialog } from "../use-native-dialog";
 import { MembersToolbar } from "./members-toolbar";
 
 const roleText = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工" } as const;
@@ -174,14 +175,14 @@ function MemberAccount({ member, busy, onDeactivate }: { member: StoreMember; bu
 }
 
 function MemberSheet({ title, name, children, busy, error, onClose }: { title: string; name?: string | undefined; children: ReactNode; busy: boolean; error: string; onClose: () => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [dialog, dialogRef] = useNativeDialog();
   useEffect(() => {
     const element = dialog.current;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     element?.showModal();
-    return () => { element?.close(); if (previous?.isConnected) previous.focus(); };
+    return () => { if (previous?.isConnected) previous.focus({ preventScroll: true }); };
   }, []);
-  return <dialog ref={dialog} className="member-sheet" aria-labelledby="member-sheet-title" aria-describedby={name ? "member-sheet-name" : undefined} onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}>
+  return <dialog ref={dialogRef} className="member-sheet" aria-labelledby="member-sheet-title" aria-describedby={name ? "member-sheet-name" : undefined} onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}>
     <header className="member-sheet__heading"><div><p className="eyebrow">成员管理</p><h2 id="member-sheet-title">{title}</h2>{name && <p id="member-sheet-name">{name}</p>}</div><button className="close-button" type="button" disabled={busy} onClick={onClose}>关闭</button></header>
     {error && <p className="form-error member-sheet__error" role="alert">{error}</p>}
     {children}

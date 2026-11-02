@@ -99,6 +99,26 @@ it("refresh failure after commit retries only reads and preserves the saved reco
   expect(manager.getSnapshot().tasks[0]!.status).toBe("saved");
 });
 
+it("keeps the record locked through refresh but releases it before the completion animation finishes", async () => {
+  const { manager, write, refresh } = setup();
+  const read = deferred<void>(), animation = deferred<void>(), nextWrite = deferred<WorkRecord>();
+  refresh.mockImplementationOnce(() => read.promise);
+  const task = { ...input("first"), recordId: record.id };
+  task.motion!.complete = vi.fn(() => animation.promise);
+  manager.submit(task); await settle();
+  expect(recordSaveLocked(manager.getSnapshot().tasks[0]!)).toBe(true);
+  expect(manager.submit({ ...input("too-early"), recordId: record.id })).toBe(false);
+  read.resolve(); await settle();
+  expect(task.motion!.complete).toHaveBeenCalledOnce();
+  expect(recordSaveLocked(manager.getSnapshot().tasks[0]!)).toBe(false);
+  expect(manager.getSnapshot().tasks[0]!.status).toBe("saved");
+  write.mockImplementationOnce(() => nextWrite.promise);
+  expect(manager.submit({ ...input("next-edit"), recordId: record.id })).toBe(true);
+  expect(write).toHaveBeenCalledTimes(2);
+  expect(recordSaveLocked(manager.getSnapshot().tasks[1]!)).toBe(true);
+  animation.resolve(); await settle();
+});
+
 it("store/date changes retain writes without refreshing or animating into another scope", async () => {
   const pending = deferred<WorkRecord>(); const { manager, refresh } = setup(vi.fn(() => pending.promise));
   const task = input("a"); manager.submit(task);
@@ -114,7 +134,8 @@ it("queued animation does not serialize writes or survive page disposal", async 
   const { manager, write } = setup();
   const finish = deferred<void>(); const task = input("a"); task.motion!.complete = vi.fn(() => finish.promise);
   manager.submit(task); await settle(); manager.submit(input("b")); await settle();
-  expect(write).toHaveBeenCalledTimes(2); expect(manager.getSnapshot().tasks[1]!.status).toBe("syncing");
+  expect(write).toHaveBeenCalledTimes(2); expect(manager.getSnapshot().tasks[1]!.status).toBe("saved");
+  expect(recordSaveLocked(manager.getSnapshot().tasks[1]!)).toBe(false);
   manager.dispose(); expect(task.motion!.cancel).toHaveBeenCalled(); finish.resolve(); await settle();
   expect(vi.getTimerCount()).toBe(0);
 });

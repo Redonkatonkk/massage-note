@@ -300,19 +300,28 @@ h2 {
 
 .board {
   display: grid;
-  gap: 14px;
+  gap: 0;
+  overflow: hidden;
 }
 
 .employee-row {
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-panel);
+  border: 0;
+  border-radius: 0;
   background: var(--surface);
-  box-shadow: var(--shadow);
+  box-shadow: none;
+}
+
+.employee-row + .employee-row {
+  border-top: 1px solid var(--line);
 }
 
 .employee-header {
   border-bottom: 1px solid var(--line);
+}
+
+.employee-row--collapsed .employee-header {
+  border-bottom: 0;
 }
 
 .employee-toggle {
@@ -1998,10 +2007,6 @@ h2 {
 
   .summary-strip strong {
     font-size: 1.16rem;
-  }
-
-  .employee-row {
-    border-radius: var(--radius-panel);
   }
 
   .employee-header {

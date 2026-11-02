@@ -556,7 +556,7 @@ function TodayBoardContent({
 
       <div className="board-section-heading"><UiIcon name="log" /><h2>员工记工</h2><span>{visibleRows.length} <span>位员工</span></span></div>
       {employeeRosterActions}
-      <section className="board" id="today" aria-label={isCurrentBusinessDay ? "今日员工记工表" : canManage ? "历史员工记工表" : "我的历史记工表"}>
+      <section className={visibleRows.length > 0 ? "board board-panel" : "board"} id="today" aria-label={isCurrentBusinessDay ? "今日员工记工表" : canManage ? "历史员工记工表" : "我的历史记工表"}>
         {visibleRows.length === 0 && (
           <div className="board-panel board-empty-state empty-state"><strong>{isCurrentBusinessDay ? "今日表格还是空的" : canManage ? "这个营业日没有记工" : "这个营业日没有你的记工"}</strong><p>{showEmployeeClockIn ? "点击上方“上班”，把自己加入今日表格。" : isCurrentBusinessDay ? "店长或经理可以把参与记工的员工加入今日表格。" : canManage ? "可以选择其他营业日继续查看。" : "这里只会显示你自己的历史记录，可以选择其他营业日继续查看。"}</p></div>
         )}

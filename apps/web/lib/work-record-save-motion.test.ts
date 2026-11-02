@@ -140,7 +140,8 @@ it("flies from the currently visible orbit, collides with the exact card and unf
   expect(overlay()!.dataset.phase).toBe("flying"); expect(vfx.add).toHaveBeenCalledTimes(2);
   const [snapshot, options] = vfx.add.mock.calls[1]!;
   expect(snapshot.textContent).toBe("Saved $60"); expect(snapshot.hasAttribute("data-work-record-id")).toBe(false);
-  expect(options.shader).toBe(WORK_RECORD_SAVE_SHADER); expect(target.style.visibility).toBe("hidden");
+  expect(options.shader).toBe(WORK_RECORD_SAVE_SHADER); expect(target.style.opacity).toBe("0");
+  expect(getComputedStyle(target).visibility).toBe("visible");
   await vi.advanceTimersByTimeAsync(420);
   expect(overlay()!.dataset.phase).toBe("unfolding");
   expect(sourceUniforms().shapeRect().slice(0, 2)).toEqual([120, 116]);
@@ -148,7 +149,7 @@ it("flies from the currently visible orbit, collides with the exact card and unf
   await vi.advanceTimersByTimeAsync(90);
   expect(cardUniforms().shapeRect()[2]).toBeGreaterThan(160); expect(cardUniforms().textureMix()).toBeGreaterThan(.7);
   await vi.advanceTimersByTimeAsync(130); await flight;
-  expect(overlay()).toBeNull(); expect(target.style.visibility).toBe(""); expect(document.activeElement).toBe(target);
+  expect(overlay()).toBeNull(); expect(target.style.visibility).toBe(""); expect(target.style.opacity).toBe(""); expect(document.activeElement).toBe(target);
   expect(dialog.style.visibility).toBe("hidden"); expect(dialog.getAttribute("aria-busy")).toBeNull();
   expect(vfx.remove).toHaveBeenCalledTimes(2); expect(vfx.destroy).toHaveBeenCalledOnce(); expect(vfx.lose).toHaveBeenCalledOnce();
 });
@@ -254,9 +255,9 @@ it("bounds a stalled destination capture and reveals the real card after impact"
 it("cancels a pending flight without leaving a hidden destination or completion promise", async () => {
   await start(); await vi.advanceTimersByTimeAsync(260);
   const result = absorbWorkRecordDialog(dialog, "saved");
-  await vi.advanceTimersByTimeAsync(32); expect(target.style.visibility).toBe("hidden");
+  await vi.advanceTimersByTimeAsync(32); expect(target.style.opacity).toBe("0");
   cancelWorkRecordSaveMotion(dialog); await result;
-  expect(target.style.visibility).toBe(""); expect(dialog.style.visibility).toBe("");
+  expect(target.style.visibility).toBe(""); expect(target.style.opacity).toBe(""); expect(dialog.style.visibility).toBe("");
   expect(overlay()).toBeNull(); expect(vi.getTimerCount()).toBe(0);
 });
 
@@ -288,6 +289,24 @@ it("detached tasks capture before unmount, continue orbiting and never take focu
   const done = handle.complete("saved"); await vi.advanceTimersByTimeAsync(1000); await done;
   expect(document.activeElement).toBe(nextInput); expect(target.style.visibility).toBe("");
   expect(overlay()).toBeNull(); expect(scrollIntoView).not.toHaveBeenCalled();
+});
+
+it("keeps the real destination hittable so the first pointer click can interrupt the decoration and activate it", async () => {
+  const activate = vi.fn(); target.addEventListener("click", activate);
+  target.style.setProperty("opacity", ".7", "important");
+  const handle = beginDetachedWorkRecordSaveMotion(dialog)!;
+  dialog.closest(".modal-backdrop")!.remove();
+  await vi.advanceTimersByTimeAsync(600);
+  const done = handle.complete("saved"); await vi.advanceTimersByTimeAsync(32);
+  expect(overlay()!.dataset.phase).toBe("flying");
+  // visibility:hidden removes the real button from native hit testing.
+  expect(getComputedStyle(target).visibility).toBe("visible");
+  expect(target.style.opacity).toBe("0");
+  target.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, button: 0 }));
+  target.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, button: 0 }));
+  target.click(); await done;
+  expect(activate).toHaveBeenCalledOnce(); expect(overlay()).toBeNull();
+  expect(target.style.opacity).toBe("0.7"); expect(target.style.getPropertyPriority("opacity")).toBe("important");
 });
 
 it("detached completion never scrolls tracks or flies behind the next open form", async () => {

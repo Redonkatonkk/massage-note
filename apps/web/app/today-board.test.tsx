@@ -52,6 +52,7 @@ beforeEach(() => {
   language.locale = "zh-CN"; editorRendering.actual = false;
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   request.mockReset(); request.mockResolvedValue({ deliveries: [], batchAllowed: true, batchBlockedReason: null, agent: null }); reload.mockReset().mockResolvedValue(undefined);
   saveMotion.mockReset().mockResolvedValue(undefined);

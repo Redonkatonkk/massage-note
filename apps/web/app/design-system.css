@@ -119,8 +119,6 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .board-section-heading > .ui-icon { width: 18px; height: 18px; color: var(--muted); }
 .board-section-heading h2 { font-size: 1rem; font-weight: 600; letter-spacing: 0; }
 .board-section-heading > span { margin-left: auto; color: var(--muted); font-size: .8rem; }
-.employee-row { border-radius: var(--radius-panel); box-shadow: none; }
-.employee-row:hover { border-color: var(--line-strong); }
 .employee-toggle strong { font-weight: 600; }
 .employee-avatar { border: 1px solid var(--line); border-radius: var(--radius-avatar); background: var(--surface-soft); color: var(--ink); font-weight: 550; }
 .employee-toggle .on-duty, .employee-toggle .off-duty { display: flex; align-items: center; gap: 5px; font-weight: 400; }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ClosingDeliveryItem, ClosingDeliveryList, ClosingDeliveryStatus } from "../lib/types";
 import { useLanguage } from "./language-provider";
 import { MobileDataCard, RecordFacts, ResponsiveDataView } from "./ui/responsive-data-view";
 import { messagesDeliveryNotice, messagesSubmittedLabel, messagesReceiptLabel, messagesStatusClass, messagesReceiptError } from "../lib/messages-delivery";
+import { useNativeDialog } from "./use-native-dialog";
 
 const statusLabels: Record<ClosingDeliveryStatus, string> = {
   QUEUED: "排队",
@@ -85,7 +86,7 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
 
 export function ClosingDeliveryQueueButton({ compact = false, ...props }: ClosingDeliveryQueueProps & { compact?: boolean }) {
   const { t } = useLanguage();
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [dialog, dialogRef] = useNativeDialog();
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   // Resolve the portal target only after hydration and keep the modal at body level.
   useEffect(() => setPortalTarget(document.body), []);
@@ -98,7 +99,7 @@ export function ClosingDeliveryQueueButton({ compact = false, ...props }: Closin
         ? <strong className="delivery-sent-count" aria-hidden="true" title={sentLabel}>{sentCount}</strong>
         : <> · <span>已提交</span> <strong>{sentCount}</strong></>}
     </button>
-    {portalTarget && createPortal(<dialog ref={dialog} className="board-delivery-dialog" aria-label="短信发送队列详情" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
+    {portalTarget && createPortal(<dialog ref={dialogRef} className="board-delivery-dialog" aria-label="短信发送队列详情" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
       <div className="modal-heading">
         <h2>短信发送队列详情</h2>
         <button className="close-button" type="button" onClick={() => dialog.current?.close()}>关闭</button>

@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](UI_DESIGN.zh-CN.md)**
 
-> Applies to version: `1.51.0` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
+> Applies to version: `1.51.3` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
 
 This article is the design basis for subsequent AI modifications to the front end and generation of salary settlement and individual daily statement images. Aesthetic judgment comes from store working scenes, user feedback on adjacent panels, highlight colors, member operations, phone reading and generated pictures, and existing implementations. New requirements from users are given priority; specific business rules are subject to [Product Document](../product/PRODUCT.md). For specific style values, check the source code entry below. Reason: The design rationale needs to be sustained and needs to be able to be revised with clear feedback.
 
@@ -46,6 +46,8 @@ Member management insists on selecting an existing employee first, and then cent
 <a id="密度由内容关系决定"></a>
 
 ### Density is determined by content relationships
+
+The work-record employee list shares one `.board-panel` outer frame, with no gaps or individual row corners. Separate adjacent employees with one thin line, including collapsed rows, while retaining each employee's identity, record track and totals. The empty state keeps its existing single panel. Reason: a continuous roster saves vertical space and keeps employee boundaries clear without shrinking text or controls.
 
 Labels, values, states, and operations belonging to the same object are arranged close together; leave large gaps between different tasks. Title, body text, form, and amounts are aligned to a common baseline, and field helper text stays within its own field without pulling up adjacent controls. Reason: Distance and alignment express information relationships, and users can understand groupings without reading sentence by sentence.
 
@@ -196,6 +198,8 @@ Behavior, draft and version rules are unified in [Product Rules](../product/PROD
 
 ## Interaction Boundaries and Validation
 
+- Native dialogs use the [shared ref lifecycle](../../apps/web/app/use-native-dialog.ts) to close an open dialog before React removes or replaces its element, including delayed portals. Keep confirmation and busy-state behavior, and restore member-sheet focus without scrolling after native cleanup. Reason: modal ownership must be released before its DOM disappears during cancellation, successful writes or scope changes.
+- Save completion effects hide the real destination card with opacity while preserving hit testing. Release the record lock after successful write/readback, before running or queuing decoration; pointer or keyboard interaction cancels the detached completion effect. Restore the original opacity and priority on completion, cancellation and graphics fallback. Implementations: [save motion](../../apps/web/lib/work-record-save-motion.ts), [save tasks](../../apps/web/lib/work-record-saves.ts). Reason: a visible animation must not leave its real button hidden or disabled and consume the user's first click.
 - Board action and refresh feedback uses a single top-center viewport overlay with a translucent background and backdrop blur: show for 2 seconds, then fade over 200ms. Respect the top safe area. Repeated feedback restarts the lifetime; success and error replace each other, preserve status/alert semantics and take neither layout space nor focus. Other temporary feedback retains the shared 3-second timer. Continuous synchronization, offline, locked and unfilled states follow real business status. Implementation: [screen feedback](../../apps/web/app/screen-feedback.tsx). Reason: transient messages must not move the board or displace record animations, while persistent business states must remain visible.
 - The background color and border of the highlight work record persist, and do not change when hovering, pressing, and read-only; the pending payment retains a separate status text. Reason: highlight is also a business mark, and hovering cannot turn it into a normal record.
 - The Pauke form uses a `Walk-in` switch button with a walk icon, using dark green to select semantics and `aria-pressed` to express the state; the saved Pauke card displays a 16px walk icon in the upper right corner, and reserves space on the right side of the text. The accessible name has the source, and closed read-only is still displayed. Reason: The source needs to be easy to identify, but it cannot obscure the time, number of people, long notes or rely solely on color description.

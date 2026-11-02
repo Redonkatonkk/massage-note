@@ -91,6 +91,9 @@ export function createWorkRecordSaveManager(write: (path: string, options: {
       return;
     }
     if (disposed) return;
+    // The write and readback are complete. Decorative flights may queue or stall;
+    // they must not keep the synchronized record disabled.
+    task.status = "saved"; task.error = ""; publish();
     // Reserve the completion slot in response-arrival order, independently of read speed.
     return async () => {
       if (disposed) return;
@@ -102,7 +105,6 @@ export function createWorkRecordSaveManager(write: (path: string, options: {
       } catch { /* A graphics failure cannot turn a committed write into a retry. */ }
       if (disposed) return;
       cancelMotion(entry);
-      task.status = "saved"; task.error = ""; publish();
       const timer = setTimeout(() => { timers.delete(timer); forget(task.id); }, 2200);
       timers.add(timer);
     };

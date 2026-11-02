@@ -4,6 +4,23 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.51.3 — 2026-11-02
+
+- Combine work-record employee rows into one shared card on desktop and phones. Remove gaps and individual row frames; use one thin divider between employees, including collapsed rows, while preserving record tracks, totals and the empty state.
+- NAS requires a Web update; no API, database migration or independent plugin/agent update.
+
+## 1.51.2 — 2026-11-01
+
+- Add a single-click regression around the full work-record page and shared language, network, scrolling and save providers. Replay pointer/mouse press, focus, release and one click, including background readback while pressed, periodic updates, language changes and repeated navigation/dialog operations in both languages under Strict Mode. Use synthetic responses without live requests or business writes.
+- These tests pass but do not reproduce the reported persistent Mac Chrome failure. This follow-up adds no speculative runtime fix; the save-animation and native-dialog changes remain in 1.51.1. No additional deployment requirement beyond that Web update.
+
+## 1.51.1 — 2026-11-01
+
+- Release a work record's submission lock as soon as its write and readback succeed, independently of queued or stalled completion effects. Use opacity to hide the real destination card during its animation while retaining hit testing, so the first click can cancel the decoration and activate the card.
+- Explicitly close open native dialogs before React removes or replaces their DOM nodes. Share cleanup across placeholder deletion, employee selection, weekly schedules, ranking explanations, delivery queues and member sheets; restore member-sheet focus without scrolling after native cleanup.
+- Add regressions for first-click activation during save effects, lock release after readback, cancellation, Escape, successful deletion, unmounting, delayed portals and repeated opening under Strict Mode. These code checks verify the identified interaction paths; the reported intermittent full-page Mac browser failure has not been reproduced in a browser.
+- NAS requires a Web update; no API, database migration or independent plugin/agent update.
+
 ## 1.51.0 — 2026-10-31
 
 - Provide dialog behavior in the demo page test environment for the weekly schedule.

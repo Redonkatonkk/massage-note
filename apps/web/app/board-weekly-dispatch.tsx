@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { apiRequest, errorMessage } from "../lib/api";
 import { useLanguage } from "./language-provider";
 import type { StoreMember, WeeklyDispatchConfig, WeeklyDispatchDay, WeeklyDispatchSchedule } from "../lib/types";
+import { useNativeDialog } from "./use-native-dialog";
 
 const days: Array<{ key: WeeklyDispatchDay; label: string; english: string }> = [
   { key: "monday", label: "星期一", english: "Monday" }, { key: "tuesday", label: "星期二", english: "Tuesday" },
@@ -15,7 +16,7 @@ const days: Array<{ key: WeeklyDispatchDay; label: string; english: string }> = 
 const emptySchedule = (): WeeklyDispatchSchedule => ({ monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [] });
 
 export function BoardWeeklyDispatch({ storeId, businessDate, members, disabled, onSaved, setupRequest = 0 }: { storeId: string; businessDate: string; members: StoreMember[]; disabled: boolean; onSaved: () => Promise<void>; setupRequest?: number }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [dialog, dialogRef] = useNativeDialog();
   const submitting = useRef(false);
   const generation = useRef(0);
   const [schedule, setSchedule] = useState<WeeklyDispatchSchedule>(emptySchedule);
@@ -83,7 +84,7 @@ export function BoardWeeklyDispatch({ storeId, businessDate, members, disabled, 
   return <>
     <button className="secondary-action weekly-dispatch-trigger" type="button" disabled={disabled || busy} onClick={() => void open()}>{text("每周排工", "Weekly schedule")}</button>
     {error && !dialog.current?.open && <p className="form-error" role="alert">{error}</p>}
-    <dialog ref={dialog} className="board-delivery-dialog weekly-dispatch-dialog" aria-labelledby="weekly-dispatch-title" onCancel={event => { if (busy) event.preventDefault(); }}>
+    <dialog ref={dialogRef} className="board-delivery-dialog weekly-dispatch-dialog" aria-labelledby="weekly-dispatch-title" onCancel={event => { if (busy) event.preventDefault(); }}>
       <div className="modal-heading"><div><p className="eyebrow">{businessDate}</p><h2 id="weekly-dispatch-title">{text("每周排工", "Weekly schedule")}</h2></div><button className="close-button" type="button" disabled={busy} onClick={() => dialog.current?.close()}>{text("取消", "Cancel")}</button></div>
       <p className="field-help">{text("拖动全职整行调整所选日期的内部顺序，包括当天休息者。也可聚焦排序手柄后按上下方向键。保存会同时提交每周出勤与该日内部顺序；保存后需点击生成顺序，才会重排当前表格。", "Drag full-time rows to set this date’s internal order, including staff resting that day. You can also focus a reorder handle and use the arrow keys. Save submits weekly attendance and this date’s internal order together. Generate the order afterwards to reorder the current board.")}</p>
       {needsSetup && <p className="field-help" role="status">{text("内部顺序尚未初始化或历史数据缺失。请确认完整全职顺序，保存后再次点击生成顺序。", "The internal order is uninitialized or history is missing. Confirm the complete full-time order, save, then generate the order again.")}</p>}

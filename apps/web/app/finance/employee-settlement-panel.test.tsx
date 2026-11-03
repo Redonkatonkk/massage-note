@@ -3,13 +3,11 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest } from "../../lib/api";
-import { generateEmployeeSettlementImage } from "../../lib/employee-settlement-image";
 import type { EmployeeSettlementPreview, StoreMember } from "../../lib/types";
 import { PayrollEntryForm } from "./payroll-entry-form";
 import { EmployeeSettlementPanel } from "./employee-settlement-panel";
 
 vi.mock("../../lib/api", async importOriginal => ({ ...await importOriginal<typeof import("../../lib/api")>(), apiRequest: vi.fn() }));
-vi.mock("../../lib/employee-settlement-image", () => ({ generateEmployeeSettlementImage: vi.fn() }));
 const request = vi.mocked(apiRequest);
 const member = { id: "10000000-0000-4000-8000-000000000001", displayName: "Amy", role: "EMPLOYEE", status: "ACTIVE" } as StoreMember;
 let container: HTMLDivElement;
@@ -32,11 +30,10 @@ beforeEach(async () => {
   request.mockImplementation(async (path) => {
     if (path.includes("/calendar?")) return { membershipId: member.id, month: "2026-10", days: [] };
     if (path.includes("/preview?")) return quoted(new URL(path, "http://localhost").searchParams);
-    if (path.endsWith("/deliveries")) return { deliveries: [], agent: null };
+    if (path.endsWith("/shares")) return { token: "a".repeat(43), createdAt: "2026-10-25T12:00:00Z", expiresAt: "2026-11-08T12:00:00Z", employeeName: "Amy", dateFrom: "2026-10-01", dateTo: "2026-10-25", totalIncomeCents: 2300 };
     return {};
   });
-  vi.mocked(generateEmployeeSettlementImage).mockResolvedValue({ url: "blob:test", fileName: "tips.png" });
-  vi.stubGlobal("URL", class extends URL { static revokeObjectURL = vi.fn(); });
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   await render();
 });
@@ -53,17 +50,39 @@ describe("工资结算复选框", () => {
     await render(true); expect([...container.querySelectorAll("fieldset")].every(node => node.disabled)).toBe(true);
   });
 
-  it("查询、付款、图片和短信均保留类型，切换条件清除旧预览", async () => {
+  it("查询、付款和公开分享均保留类型，自动复制且清除旧预览", async () => {
     await toggle("大费"); await click("生成结算单");
     const query = request.mock.calls.find(([path]) => path.includes("/preview?"))![0];
     expect(new URL(query, "http://localhost").searchParams.get("amountType")).toBe("TIP");
     expect(new URL(query, "http://localhost").searchParams.get("paymentScope")).toBe("NON_CASH");
-    await click("生成图片"); expect(vi.mocked(generateEmployeeSettlementImage).mock.calls.at(-1)![0]).toMatchObject({ amountType: "TIP", paymentScope: "NON_CASH" });
-    await click("短信发送长图");
-    expect(request.mock.calls.find(([path, options]) => path.endsWith("/deliveries") && options?.method === "POST")?.[1]?.body).toMatchObject({ amountType: "TIP", paymentScope: "NON_CASH" });
+    await click("复制分享链接");
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining(`/share/settlement?token=${"a".repeat(43)}`));
+    expect(vi.mocked(navigator.clipboard.writeText).mock.calls[0]?.[0]).toContain("姓名：Amy\n结算日期：2026-10-01 至 2026-10-25\n合计金额：$23.00\n详情链接：");
+    expect(container.textContent).not.toContain("短信发送长图");
+    expect(container.textContent).not.toContain("生成图片");
+    expect(request.mock.calls.find(([path, options]) => path.endsWith("/shares") && options?.method === "POST")?.[1]?.body).toMatchObject({ amountType: "TIP", paymentScope: "NON_CASH" });
     await click("已付款");
     expect(request.mock.calls.find(([path]) => path.endsWith("/confirm"))?.[1]?.body).toMatchObject({ amountType: "TIP", paymentScope: "NON_CASH", revision: "a".repeat(64) });
     await toggle("现金"); expect(container.querySelector('[aria-label="结算单汇总"]')).toBeNull();
+  });
+
+  it("剪贴板被拒绝后保留可手动复制的链接", async () => {
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValue(new Error("denied"));
+    await click("生成结算单"); await click("复制分享链接");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("手动复制");
+    expect(container.querySelector<HTMLTextAreaElement>("textarea[readonly]")?.value).toContain("/share/settlement?token=");
+  });
+
+  it("切换范围后不复制迟到的链接", async () => {
+    await click("生成结算单");
+    let finish!: (value: unknown) => void;
+    request.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    await click("复制分享链接");
+    // A refreshed preview can invalidate a request even while the controls are disabled.
+    await act(async () => root.unmount());
+    await act(async () => finish({ token: "a".repeat(43) }));
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+    root = createRoot(container);
   });
 
   it("手工工资登记沿用默认选项，保存时保留所选来源和类型", async () => {

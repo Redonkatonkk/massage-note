@@ -1,3 +1,5 @@
+import { EmployeeSettlementSharesController } from "./employee-settlement-shares.controller.js";
+import { EmployeeSettlementSharesService } from "./employee-settlement-shares.service.js";
 import { ExpensesController } from "./expenses.controller.js";
 import { ExpensesService } from "./expenses.service.js";
 import { FinanceAnalyticsService } from "./finance-analytics.service.js";
@@ -32,6 +34,7 @@ import { EmployeeSettlementPaymentsService } from "./employee-settlement-payment
     ClosingDeliveryAgentSettingsController,
     ClosingDeliveryAgentController,
     EmployeeSettlementsController,
+    EmployeeSettlementSharesController,
     EmployeeSettlementDeliveryAgentController,
   ],
   providers: [
@@ -45,6 +48,7 @@ import { EmployeeSettlementPaymentsService } from "./employee-settlement-payment
     IdempotencyService,
     ClosingDeliveriesService,
     EmployeeSettlementsService,
+    EmployeeSettlementSharesService,
     EmployeeSettlementPaymentsService,
   ],
   exports: [FinanceQueriesService, CashSettlementsService],

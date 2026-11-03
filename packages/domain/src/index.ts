@@ -9,7 +9,6 @@ export * from "./discount.js";
 export * from "./finance-analytics.js";
 export * from "./finance-trends.js";
 export * from "./settlement-calendar.js";
-export { createEmployeeSettlementSvg, type SettlementSnapshot } from "./employee-settlement-image.js";
 export { createEmployeeClosingSvg, type ClosingSnapshot } from "./employee-closing-image.js";
 export { createEmployeeClosingTemplate, type EmployeeClosingTemplate, type ClosingPaymentPart } from "./employee-closing-template.js";
 export * from "./image-format.js";

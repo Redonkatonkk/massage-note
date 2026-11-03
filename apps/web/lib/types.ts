@@ -138,6 +138,10 @@ export interface EmployeeSettlementPreview {
   payment?: { unsettledCents: number; fullyConfirmed: boolean; revision: string };
 }
 
+export type EmployeeSettlementStatement = Omit<EmployeeSettlementPreview, "storeId" | "employee" | "payment"> & { employee: { displayName: string } };
+export interface EmployeeSettlementShare { token: string; createdAt: string; expiresAt: string; employeeName: string; dateFrom: string; dateTo: string; totalIncomeCents: number }
+export interface SharedEmployeeSettlement { snapshot: EmployeeSettlementStatement; createdAt: string; expiresAt: string }
+
 export interface EmployeeSettlementCalendar {
   membershipId: string;
   month: string;
@@ -146,7 +150,7 @@ export interface EmployeeSettlementCalendar {
 
 export interface EmployeeSettlementDelivery extends MessagesReceiptFields {
   id: string; membershipId: string | null; periodStart: string; periodEnd: string;
-  documentType: "RANGE_SETTLEMENT" | "EMPLOYEE_SUMMARY";
+  documentType: "EMPLOYEE_SUMMARY";
   paymentScope: EmployeeSettlementPaymentScope; amountType?: EmployeeSettlementAmountType; status: ClosingDeliveryStatus;
   recipientPhoneE164: string; locale: "zh_CN" | "en_US"; attemptCount: number;
   summarySentAt: string | null; detailSentAt: string | null; sentAt: string | null;

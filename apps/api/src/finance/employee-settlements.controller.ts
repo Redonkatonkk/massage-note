@@ -1,18 +1,19 @@
 import { Body, Controller, Delete, Get, Headers, Param, Post, Query, Res, UseGuards } from "@nestjs/common";
-import { closingDeliveryAuthorizeSchema, closingDeliveryCompleteSchema, closingDeliveryFailureSchema, closingDeliveryReceiptSchema, createEmployeeSettlementDeliverySchema, createEmployeeSummaryDeliverySchema, employeeSettlementAttachmentSchema, employeeSettlementQuerySchema, idempotencyKeySchema, uuidSchema } from "@massage-note/contracts";
+import { closingDeliveryAuthorizeSchema, closingDeliveryCompleteSchema, closingDeliveryFailureSchema, closingDeliveryReceiptSchema, createEmployeeSettlementShareSchema, createEmployeeSummaryDeliverySchema, employeeSettlementAttachmentSchema, employeeSettlementQuerySchema, idempotencyKeySchema, uuidSchema } from "@massage-note/contracts";
 import type { Response } from "express";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { SessionAuthGuard } from "../auth/session-auth.guard.js";
 import type { AuthenticatedUser } from "../auth/auth.types.js";
 import { parseRequest } from "../common/zod-request.js";
 import { EmployeeSettlementsService } from "./employee-settlements.service.js";
+import { EmployeeSettlementSharesService } from "./employee-settlement-shares.service.js";
 import { EmployeeSettlementPaymentsService } from "./employee-settlement-payments.service.js";
 import { confirmEmployeeSettlementSchema, employeeSettlementCalendarQuerySchema } from "@massage-note/contracts";
 
 @Controller("stores/:storeId/employee-settlements")
 @UseGuards(SessionAuthGuard)
 export class EmployeeSettlementsController {
-  constructor(private readonly settlements: EmployeeSettlementsService, private readonly payments: EmployeeSettlementPaymentsService) {}
+  constructor(private readonly settlements: EmployeeSettlementsService, private readonly payments: EmployeeSettlementPaymentsService, private readonly shares: EmployeeSettlementSharesService) {}
 
   @Get("preview")
   preview(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Query() query: unknown) {
@@ -29,11 +30,6 @@ export class EmployeeSettlementsController {
     return this.payments.confirm(user, parseRequest(uuidSchema, storeId), parseRequest(confirmEmployeeSettlementSchema, body), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
   }
 
-  @Get("deliveries")
-  list(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string) {
-    return this.settlements.listDeliveries(user, parseRequest(uuidSchema, storeId));
-  }
-
   @Get("summary-deliveries")
   listSummaryDeliveries(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string) {
     return this.settlements.listSummaryDeliveries(user, parseRequest(uuidSchema, storeId));
@@ -44,9 +40,9 @@ export class EmployeeSettlementsController {
     return this.settlements.queueEmployeeSummary(user, parseRequest(uuidSchema, storeId), parseRequest(createEmployeeSummaryDeliverySchema, body), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
   }
 
-  @Post("deliveries")
-  queue(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Body() body: unknown, @Headers("idempotency-key") key: string | undefined, @Res({ passthrough: true }) response: Response) {
-    return this.settlements.queue(user, parseRequest(uuidSchema, storeId), parseRequest(createEmployeeSettlementDeliverySchema, body), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
+  @Post("shares")
+  share(@CurrentUser() user: AuthenticatedUser, @Param("storeId") storeId: string, @Body() body: unknown, @Headers("idempotency-key") key: string | undefined, @Res({ passthrough: true }) response: Response) {
+    return this.shares.create(user, parseRequest(uuidSchema, storeId), parseRequest(createEmployeeSettlementShareSchema, body), parseRequest(idempotencyKeySchema, key), response.locals.requestId as string);
   }
 
   @Delete("deliveries/:deliveryId")

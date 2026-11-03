@@ -1,8 +1,8 @@
 import { formatUsdPrecise } from "../../lib/money";
-import type { EmployeeSettlementPreview } from "../../lib/types";
+import type { EmployeeSettlementStatement } from "../../lib/types";
 import { RecordFacts, ResponsiveDataView } from "../ui/responsive-data-view";
 
-export function SettlementSummary({ preview }: { preview: EmployeeSettlementPreview }) {
+export function SettlementSummary({ preview }: { preview: EmployeeSettlementStatement }) {
   const summary = preview.summary;
   const money = formatUsdPrecise;
   if (preview.paymentScope === "CASH") return <div className="employee-settlement-summary mode-single"><article><span>现金大费工资</span><strong>{money(summary.cashLargeFeeWageCents)}</strong></article><article><span>现金小费</span><strong>{money(summary.cashTipCents)}</strong></article><article className="total"><span>现金工资合计</span><strong>{money(summary.cashIncomeCents)}</strong></article></div>;

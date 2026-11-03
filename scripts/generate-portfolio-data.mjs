@@ -87,7 +87,7 @@ try {
   ]) await request(`${store}/expenses`, expense);
   const responses = {};
   async function capture(path) { responses[path] = await request(path); }
-  for (const suffix of ["", "/catalog", "/members", "/join-requests", "/work-records/deleted", "/gift-card-sales/deleted", "/work-bot", "/closing-delivery-agent/status", "/weekly-dispatch", "/business-days/current", "/gift-card-sales", "/payroll-settlements", "/audit-logs", "/employee-settlements/deliveries"]) await capture(store + suffix);
+  for (const suffix of ["", "/catalog", "/members", "/join-requests", "/work-records/deleted", "/gift-card-sales/deleted", "/work-bot", "/closing-delivery-agent/status", "/weekly-dispatch", "/business-days/current", "/gift-card-sales", "/payroll-settlements", "/audit-logs"]) await capture(store + suffix);
   await capture("/me");
   await capture(`${store}/audit-logs?limit=30`);
   for (let offset = -6; offset <= 0; offset++) {

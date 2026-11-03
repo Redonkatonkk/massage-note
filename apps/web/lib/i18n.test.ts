@@ -165,7 +165,7 @@ describe("bilingual UI translation", () => {
     expect(translateText("按日记工", "en-US")).toBe("Records by day");
     expect(translateText("当日总结", "en-US")).toBe("Daily summary");
     expect(translateText("本日合计", "en-US")).toBe("Daily total");
-    expect(translateText("短信发送长图", "en-US")).toBe("Send long image");
+    expect(translateText("复制分享链接", "en-US")).toBe("Copy share link");
     expect(translateText("长图待发送", "en-US")).toBe("Long image pending");
   });
 

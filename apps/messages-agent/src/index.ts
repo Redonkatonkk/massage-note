@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { messagesServices } from "./messages.js";
 import { cleanupOutbox, closingPngPath, prepareOutbox, secureAttachment, secureClosingPng, settlementAttachmentPath } from "./outbox.js";
 import { renderClosingPng, type ClosingSnapshot } from "./render.js";
-import { renderSettlementLongImage, type SettlementSnapshot } from "./settlement-render.js";
 import { renderEmployeeSummaryImage, type EmployeeSummarySnapshot } from "./employee-summary-render.js";
 import { messagesStagerReady, stageMessagesAttachment } from "./stager.js";
 import { agentErrorMessage } from "./errors.js";
@@ -22,9 +21,8 @@ const dataDir = process.env.MASSAGE_NOTE_AGENT_DATA_DIR ?? join(homedir(), "Libr
 if (!apiUrl || !agentToken) throw new Error("MASSAGE_NOTE_API_URL and MASSAGE_NOTE_AGENT_TOKEN are required");
 
 interface Job { id: string; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; snapshot: ClosingSnapshot }
-interface RangeSettlementJob { id: string; documentType: "RANGE_SETTLEMENT"; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; detailSent: boolean; snapshot: SettlementSnapshot }
 interface EmployeeSummaryJob { id: string; documentType: "EMPLOYEE_SUMMARY"; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; detailSent: boolean; snapshot: EmployeeSummarySnapshot }
-type SettlementJob = RangeSettlementJob | EmployeeSummaryJob;
+type SettlementJob = EmployeeSummaryJob;
 const journalPath = join(dataDir, "journal.json");
 const outboxDir = await prepareOutbox(dataDir);
 await cleanupOutbox(outboxDir);
@@ -142,8 +140,7 @@ async function processSettlementJob(job: SettlementJob, journal: Journal) {
   try {
     let staged = pending?.attachmentPath;
     if (!staged && workDir) {
-      if (job.documentType === "EMPLOYEE_SUMMARY") await renderEmployeeSummaryImage(job.snapshot, job.locale, workDir, detailsImagePath);
-      else await renderSettlementLongImage(job.snapshot, job.locale, workDir, detailsImagePath);
+      await renderEmployeeSummaryImage(job.snapshot, job.locale, workDir, detailsImagePath);
       await secureAttachment(detailsImagePath);
       staged = await stageMessagesAttachment(detailsImagePath, job.id, "settlement-details.jpg", true);
     }

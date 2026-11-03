@@ -183,11 +183,13 @@ describe.skipIf(!enabled).sequential("single-store backup and recovery", () => {
     for (const [index, backup] of [full, demo].entries()) {
       const target = stores[index + 1]!;
       await prisma.closingDeliveryAgent.create({ data: { storeId: target, tokenHash: "private-token-hash", tokenPrefix: randomUUID(), createdBy: users[0]! } });
+      await prisma.employeeSettlementShare.create({ data: { storeId: target, tokenHash: randomUUID(), snapshotJson: {}, expiresAt: new Date(Date.now() + 86400000) } });
       const input = await prepare(backup, target);
       const key = randomUUID();
       const result = await service.confirm(actor(), target, input, key, "import-test");
       expect(await service.confirm(actor(), target, input, key, "import-retry")).toEqual(result);
       await expect(service.confirm(actor(), target, { ...input, confirmName: "different request" }, key, "changed-retry")).rejects.toMatchObject({ status: 409 });
+      expect(await prisma.employeeSettlementShare.count({ where: { storeId: target } })).toBe(0);
       const restored = await service.export(actor(), target, "full");
       for (const table of storeBackupTables.filter(table => table !== "auditLog")) expect(restored.data.tables[table], table).toHaveLength(backup.data.tables[table].length);
       expect(restored.data.store.id).toBe(target);

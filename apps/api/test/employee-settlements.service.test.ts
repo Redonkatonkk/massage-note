@@ -83,7 +83,7 @@ describe("EmployeeSettlementsService preview", () => {
   });
 });
 
-describe("EmployeeSettlementsService long-image redelivery", () => {
+describe("EmployeeSettlementsService employee-summary redelivery", () => {
   it("重发单张长图不依赖旧摘要检查点", async () => {
     const prisma = {
       closingDeliveryAgent: {
@@ -108,6 +108,7 @@ describe("EmployeeSettlementsService long-image redelivery", () => {
       where: {
         id: "50000000-0000-4000-8000-000000000001",
         storeId,
+        documentType: "EMPLOYEE_SUMMARY",
         status: { in: ["SENT", "FAILED"] },
       },
       data: expect.objectContaining({

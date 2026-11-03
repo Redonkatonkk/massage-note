@@ -4,6 +4,13 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.52.0 — 2026-11-02
+
+- Replace payroll image generation and range-image SMS with Copy share link. Copy the employee name, settlement dates, exact total and details URL together. Links open without login, expire after 14 days and retain an immutable server-generated statement.
+- Add a bilingual share page with settlement dates, totals first and complete daily work records. Apply Leonxlnx/taste-skill's Achromatic ledger direction with the existing palette and system fonts; retain zeroes, cents, read-only, loading and expired/error states.
+- Remove range-image SVG/PNG/JPEG renderers and queue creation. Keep personal daily statements and employee-subtotal messaging. The forward migration cancels pending range-image jobs and adds hashed share-token storage.
+- NAS needs Web/API and the database migration. The Mac Messages agent source also changes; its installed copy is an independent update.
+
 ## 1.51.3 — 2026-11-02
 
 - Combine work-record employee rows into one shared card on desktop and phones. Remove gaps and individual row frames; use one thin divider between employees, including collapsed rows, while preserving record tracks, totals and the empty state.

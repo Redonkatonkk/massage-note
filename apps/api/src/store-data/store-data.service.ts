@@ -110,6 +110,7 @@ export class StoreDataService {
   private async replaceBusinessData(tx: Prisma.TransactionClient, actor: User, storeId: string, ownerId: string, ownerVersion: number, current: StoreBackup["data"], data: StoreBackup["data"], source: StoreBackup) {
     await tx.employeeClosingDelivery.deleteMany({ where: { storeId } });
     await tx.employeeSettlementDelivery.deleteMany({ where: { storeId } });
+    await tx.employeeSettlementShare.deleteMany({ where: { storeId } });
     await tx.closingDeliveryAgent.updateMany({ where: { storeId }, data: { revokedAt: new Date() } });
     await tx.workBotGroupBinding.deleteMany({ where: { storeId } });
     await tx.aiChangePreview.updateMany({ where: { storeId, status: "PENDING" }, data: { status: "CANCELLED" } });

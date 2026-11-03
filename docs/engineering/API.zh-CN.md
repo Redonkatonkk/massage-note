@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.51.3`
+> 适用版本：`1.52.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -92,11 +92,12 @@
 | GET | `/stores/:storeId/employee-settlements/preview` | Owner/Manager 按 `membershipId`、`dateFrom`、`dateTo` 和 `paymentScope=CASH|NON_CASH|ALL` 及可选 `amountType=SERVICE|TIP|ALL`（默认 `ALL`）预览员工区间结算；只含已确认且未删除记工，最多 999 笔 |
 | GET | `/stores/:storeId/employee-settlements/calendar` | Owner/Manager 按 `membershipId`、`month=YYYY-MM` 查询该月有已确认记工日期的现金/非现金状态 |
 | POST | `/stores/:storeId/employee-settlements/confirm` | Owner/Manager 依据预览 revision 和抵扣金额确认结清，原子登记实际支付与范围确认；要求幂等键 |
-| GET/POST | `/stores/:storeId/employee-settlements/deliveries` | 查看区间结算短信队列，或把服务端重算后的不可变快照加入单张 JPEG 长图发送队列 |
-| DELETE | `/stores/:storeId/employee-settlements/deliveries/:deliveryId` | 取消仍在排队的区间结算发送任务 |
-| POST | `/stores/:storeId/employee-settlements/deliveries/:deliveryId/retry` | 重试失败的长图发送任务 |
-| POST | `/stores/:storeId/employee-settlements/deliveries/:deliveryId/retry-detail` | 对失败或已完成任务重发原不可变快照生成的长图；清除长图/整单完成时间 |
-| POST | `/employee-settlement-delivery-agent/jobs/claim`、`jobs/:id/authorize`、`checkpoint`、`complete`、`fail` | Mac 代理领取区间结算任务，并回写单张 JPEG 长图进度 |
+| POST | `/stores/:storeId/employee-settlements/shares` | Owner／Manager 创建 14 天不可变分享，要求 Idempotency-Key；返回 token、时间、employeeName、dateFrom、dateTo、totalIncomeCents，供复制分享消息。 |
+| GET | `/public/employee-settlements/:token` | 无需登录；返回 snapshot、createdAt 和 expiresAt，未知或失效链接返回 404；响应禁止缓存及索引。 |
+| DELETE | `/stores/:storeId/employee-settlements/deliveries/:deliveryId` | 取消仍在排队的员工小计发送任务 |
+| POST | `/stores/:storeId/employee-settlements/deliveries/:deliveryId/retry` | 重试失败的员工小计图片发送任务 |
+| POST | `/stores/:storeId/employee-settlements/deliveries/:deliveryId/retry-detail` | 对失败或已完成任务重发原不可变快照生成的员工小计图片；清除员工小计图片/整单完成时间 |
+| POST | `/employee-settlement-delivery-agent/jobs/claim`、`jobs/:id/authorize`、`checkpoint`、`complete`、`fail` | Mac 代理领取员工小计任务，并回写单张 JPEG 员工小计图片进度 |
 | GET | `/stores/:storeId/finance/summary` | 财务汇总、每日/员工小计和累计余额；总计包含总流水与店铺总结算，每日行包含 `dailyTurnoverCents`；`highlightFilter` 支持 `ALL`、`ONLY_HIGHLIGHTED`、`EXCLUDE_HIGHLIGHTED` |
 | GET | `/stores/:storeId/finance/details` | 与汇总筛选一致的组成明细，包括高亮状态 |
 | GET | `/stores/:storeId/finance/my-balance` | 当前成员的累计应得、已取得、已支付和尚欠/超付 |
@@ -264,9 +265,9 @@ Web 快速记工下拉框默认选择目录顺序中的首个启用项目，提�
 
 员工区间预览保留完整 `records` / `summary`，增加 `payment: { unsettledCents, fullyConfirmed, revision }`；金额为整数美分，revision 为服务端生成的 64 位十六进制修订值。日历响应为 `{ membershipId, month, days }`，各日包含 `businessDate`、`hasCash`、`hasNonCash`、`cashSettled`、`nonCashSettled`、`cashConfirmed`、`nonCashConfirmed`、`cashUnsettledCents`、`nonCashUnsettledCents`。黄色状态与现金工资缺口可以同时存在。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
 
-预览、确认、发送及简化工资请求支持 `amountType=SERVICE|TIP|ALL`，旧客户端省略时默认 `ALL`。响应与不可变发送快照保留类型，工资 PATCH 可修改类型。确认只覆盖所选工资类型，每日现金按大费／小费组成扣减。缺少新字段的旧备份在校验原校验值后补齐。保留原因：支付小费不能同时结清未付的大费。
+预览、确认、分享及简化工资请求支持 `amountType=SERVICE|TIP|ALL`，旧客户端省略时默认 `ALL`。响应与不可变发送快照保留类型，工资 PATCH 可修改类型。确认只覆盖所选工资类型，每日现金按大费／小费组成扣减。缺少新字段的旧备份在校验原校验值后补齐。保留原因：支付小费不能同时结清未付的大费。
 
-付款确认请求为 `{ membershipId, dateFrom, dateTo, paymentScope, amountType?, deductionCents, revision }`，服务端不接受客户端指定实付。响应为带 `confirmation` 的工资账本记录，本次实付由服务端重新计算为未结金额减抵扣。可实付 $0；空记工、店主、抵扣超额或已全部结清的范围拒绝。旧 revision 返回 `409 SETTLEMENT_DATA_CHANGED`，已结范围返回 `409 SETTLEMENT_ALREADY_CONFIRMED`，抵扣超额返回 `400 SETTLEMENT_DEDUCTION_TOO_LARGE`。失败重试保持相同请求与幂等键，重新生成后使用新键。关联账本修改、软删除及恢复即时改变有效确认，不改变旧单据和已入队长图快照。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
+付款确认请求为 `{ membershipId, dateFrom, dateTo, paymentScope, amountType?, deductionCents, revision }`，服务端不接受客户端指定实付。响应为带 `confirmation` 的工资账本记录，本次实付由服务端重新计算为未结金额减抵扣。可实付 $0；空记工、店主、抵扣超额或已全部结清的范围拒绝。旧 revision 返回 `409 SETTLEMENT_DATA_CHANGED`，已结范围返回 `409 SETTLEMENT_ALREADY_CONFIRMED`，抵扣超额返回 `400 SETTLEMENT_DEDUCTION_TOO_LARGE`。失败重试保持相同请求与幂等键，重新生成后使用新键。关联账本修改、软删除及恢复即时改变有效确认，不改变旧单据和已保存分享快照。保留原因：同一筛选应对应一致的汇总、明细和支付事实，历史未知值不能猜测。
 
 ## 错误与排查
 
@@ -481,3 +482,5 @@ AI 金额文本在两种语言下统一使用 `$`，兼容并移除模型输出�
 以完整私有行快照撤销原事务，包括嵌套业务快照；在可串行化事务中检查营业日锁、最终行状态、相关财务日期的后续修改及外键依赖。新增业务对象保留软删除或原有停用／未结清状态，新增日结／排队消息改为取消，版本继续递增，追加 `audit.undone` 及唯一事务标记。撤销审计使用 `audit_operation` 触发完整实时刷新；排工排除已撤销的旧意图，补偿审计保留恢复的当天人员／顺序，避免自动刷新覆盖；重复请求或点击同一事务的另一条记录返回已有撤销结果。
 
 后续修改、已日结或关联引用返回 409 `AUDIT_UNDO_CONFLICT`；快照不完整、导入历史、店铺生命周期／覆盖导入、凭证、已领取／已发送消息及撤销记录返回 409 `AUDIT_UNDO_UNAVAILABLE`；涉及店主身份需 Owner。旧版记工的新增／删除／恢复，仅在记录版本仍匹配时复用现有恢复规则。完整快照从迁移 `20261029010000_audit_undo` 起记录，私有快照不进入便携店铺导出文件。保留原因：部分摘要和外部效果无法提供安全的反向操作。
+
+分享创建接受 `{ membershipId, dateFrom, dateTo, paymentScope, amountType? }`。令牌由 32 随机字节编码为 43 位 base64url，分享表只存 SHA-256 哈希；服务端固定 14 天有效期，到期当刻及之后、店铺停用或删除均拒绝访问。快照不含付款状态／revision、成员 ID 和接收号码；幂等重试返回原令牌和有效期。Web 地址为 `/share/settlement?token=...`，复制内容包含姓名、日期、精确合计和链接；店铺数据替换会删除原分享。保留原因：公开访问只应展示指定结算单，重试不能延长访问时间。

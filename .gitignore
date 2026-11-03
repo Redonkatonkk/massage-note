@@ -23,3 +23,6 @@ __pycache__/
 *.lbpkg
 
 .next-demo/
+
+# Local taste-skill direction sheets
+.taste-skill/

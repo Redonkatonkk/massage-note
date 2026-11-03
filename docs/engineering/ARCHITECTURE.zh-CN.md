@@ -2,7 +2,7 @@
 
 **[English](ARCHITECTURE.md)** | **简体中文**
 
-> 状态：与 `1.51.3` 代码结构核对。
+> 状态：与 `1.52.0` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.zh-CN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -108,7 +108,7 @@ Web 视觉按 `globals.css`（基础规则与颜色变量）、`design-system.cs
 | `realtime` | PostgreSQL outbox 的 SSE 事件流 |
 | `ai` | 记工预览、确定性财务解释和短录音转写 |
 
-`work-bot` 的金额解析与回复格式化放在 `work-bot-format.ts`，Service 保留权限和事务编排。生成图片的 XML 转义、金额和时间显示由 `packages/domain/src/image-format.ts` 共用，工资结算与个人日结的主题、换行及表面绘制由 `image-layout.ts` 共用。区间结算纯 SVG 排版位于 `employee-settlement-image.ts`，Web 在本机转换 PNG 并预览／保存，Mac 代理转换受大小限制的 JPEG 发送。个人日结纯 SVG 排版位于 `employee-closing-image.ts`，固定 1170 像素源宽；Web `lib/employee-closing-image.ts` 保留设备像素适配及分享／下载，Mac `src/render.ts` 通过 `sips` 转换 PNG。两端按对象与日期、已确认收入、来源分组和时间顺序明细读取同一快照，员工小计仍有自己的渲染布局。日结与区间结算发送共用 `finance/delivery-agent.ts` 的凭证哈希与鉴权、`delivery-recipient.ts` 的接收号码校验，以及 `delivery-lease.ts` 的租约条件与失败重试状态；各 Service 保留对象查询、租约复核及业务事务。保留原因：共用纯排版避免 Web 与短信内容或审美分叉，图片转换与发送环境各自保留边界，最终权限和金额仍由服务端控制。
+工资分享由 EmployeeSettlementSharesService、令牌哈希表和无需会话的只读公开 Controller 实现；创建要求 PAYROLL_MANAGE，在可重复读幂等事务中重算快照并记审计，公开查询强制 14 天有效期和店铺有效状态。Web 复用 settlement-summary.tsx 和 settlement-records.tsx；个人日结图片仍共用 image-format.ts、image-layout.ts 与 employee-closing-template.ts，Web 转换与 Mac 渲染保留各自边界。日结和员工小计继续共用发送鉴权、号码校验、租约与重试；work-bot 金额解析与回复仍在 work-bot-format.ts。保留原因：公开快照与短信附件有不同的访问和生命周期要求。
 
 Controller 只负责 HTTP 适配和共享契约解析。权限、对象归属、状态与事务放在 Service 或领域函数中；金额最终值不信任前端合计。保留原因：权限和金额最终判断须在服务端，不能靠界面或客户端参数实现。
 

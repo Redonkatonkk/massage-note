@@ -1,0 +1,57 @@
+/* taste-skill: achromatic-ledger, seed 95898480; existing palette/type retained.
+   1088px sheet = 2 × 532px record columns + 24px gutter; mobile is one column. */
+.settlement-share-shell { min-height: 100dvh; background: var(--page); color: var(--ink); }
+.settlement-share-bar { max-width: 1136px; min-height: 48px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--line); }
+.settlement-share-bar span { font-size: 14px; font-weight: 600; }
+.settlement-share-bar button { min-height: 44px; padding: 8px 0 8px 16px; color: var(--muted); background: transparent; border: 0; font-size: 14px; }
+.settlement-share { max-width: 1136px; margin: 0 auto; padding: 32px 24px 48px; display: grid; gap: 24px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.settlement-share-heading { display: grid; gap: 6px; }
+.settlement-share-heading h1, .settlement-share-state h1 { margin: 0; font-size: 24px; font-weight: 600; }
+.settlement-share p { margin: 0; color: var(--muted); }
+.settlement-share .settlement-share-period { margin-top: 6px; color: var(--ink); font-size: 16px; }
+.settlement-share-total { padding: 24px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); display: grid; gap: 20px; }
+.settlement-share-lead { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 24px; }
+.settlement-share-lead h2 { margin: 0; font-size: 16px; font-weight: 500; }
+.settlement-share-lead strong { font-size: 36px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.settlement-share .employee-settlement-summary { margin: 0; }
+.settlement-share .employee-settlement-summary > .total { display: none; }
+.settlement-share .employee-settlement-summary.mode-single { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.settlement-share .employee-settlement-summary article { box-shadow: none; /* taste-skill-ignore: remove inherited shadow */ background: transparent; }
+.settlement-share .employee-settlement-summary strong { color: var(--ink); }
+.settlement-share .employee-settlement-day-track { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; overflow: visible; padding: 0; }
+.settlement-share .employee-settlement-record-card { width: auto; min-width: 0; background: var(--surface); box-shadow: none; /* taste-skill-ignore: remove inherited shadow */ }
+.settlement-share .employee-settlement-record-card--summary { grid-column: 1 / -1; }
+.settlement-share .employee-settlement-record-card__daily-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; }
+.settlement-share .employee-settlement-record-card .total dd, .settlement-share .employee-settlement-record-card__amount strong { color: var(--ink); }
+.settlement-share .employee-settlement-record-card__income dd, .settlement-share .employee-settlement-record-card__daily-summary dd { text-align: right; font-variant-numeric: tabular-nums; }
+.settlement-share-footer { display: grid; gap: 4px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 12px; }
+.settlement-share-state { padding: 24px 0; display: grid; justify-items: start; gap: 16px; }
+@media (max-width: 760px) {
+  .settlement-share-bar { padding: 0 16px; }
+  .settlement-share { padding: 24px 16px 32px; }
+  .settlement-share-heading h1, .settlement-share-state h1 { font-size: 22px; }
+  .settlement-share-total { padding: 16px; }
+  .settlement-share-lead strong { font-size: 32px; }
+  .settlement-share .employee-settlement-day-track { grid-template-columns: minmax(0, 1fr); }
+  .settlement-share .employee-settlement-record-card__daily-summary { grid-template-columns: minmax(0, 1fr); }
+  .settlement-share .employee-settlement-summary.mode-single { grid-template-columns: minmax(0, 1fr); }
+}
+
+.settlement-share .employee-settlement-summary.mode-all { grid-template-columns: minmax(0, 1fr); }
+.settlement-share .employee-settlement-summary { padding: 0; }
+.settlement-share .employee-settlement-days { max-height: none; overflow: visible; }
+.settlement-share .employee-settlement-records { border: 1px solid var(--line); border-radius: var(--radius-panel); overflow: hidden; }
+.settlement-share .employee-settlement-day { padding: 20px; }
+.settlement-share .employee-settlement-day > header { padding: 0 0 16px; flex-wrap: wrap; }
+.settlement-share .employee-settlement-records > header > strong { color: var(--muted); background: transparent; padding: 0; font-weight: 400; }
+.settlement-share .employee-settlement-day > header > strong { color: var(--muted); font-weight: 400; }
+.settlement-share .employee-settlement-record-card--summary { background: var(--surface-soft); border-color: var(--line); }
+@media (max-width: 760px) {
+  .settlement-share .employee-settlement-day { padding: 16px; }
+}
+
+.settlement-share .employee-settlement-record-card--summary .employee-settlement-record-card__amount { background: transparent; padding: 8px 0; }
+.settlement-share .employee-settlement-record-card--summary .employee-settlement-record-card__amount small { color: var(--muted); }
+.settlement-share .employee-settlement-record-card--summary .employee-settlement-record-card__topline > span { color: var(--muted); background: transparent; }
+.settlement-share .employee-settlement-record-card__income > div.total { background: var(--surface-soft); }
+.settlement-share .employee-settlement-record-card { min-height: 0; }

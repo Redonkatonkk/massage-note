@@ -17,7 +17,9 @@ export const employeeSettlementQuerySchema = z.object({
   }
 });
 
-export const createEmployeeSettlementDeliverySchema = employeeSettlementQuerySchema;
+export const createEmployeeSettlementShareSchema = employeeSettlementQuerySchema;
+export const employeeSettlementShareTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+export const EMPLOYEE_SETTLEMENT_SHARE_TTL_MS = 14 * 24 * 60 * 60 * 1_000;
 
 export const employeeSettlementCalendarQuerySchema = z.object({
   membershipId: uuidSchema,
@@ -66,5 +68,5 @@ export const employeeSettlementAttachmentSchema = z.object({
 export type EmployeeSettlementAmountType = z.output<typeof employeeSettlementAmountTypeSchema>;
 export type EmployeeSettlementPaymentScope = z.output<typeof employeeSettlementPaymentScopeSchema>;
 export type EmployeeSettlementQuery = z.output<typeof employeeSettlementQuerySchema>;
-export type CreateEmployeeSettlementDeliveryInput = z.output<typeof createEmployeeSettlementDeliverySchema>;
+export type CreateEmployeeSettlementShareInput = z.output<typeof createEmployeeSettlementShareSchema>;
 export type CreateEmployeeSummaryDeliveryInput = z.output<typeof createEmployeeSummaryDeliverySchema>;

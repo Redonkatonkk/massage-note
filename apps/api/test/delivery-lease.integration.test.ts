@@ -72,7 +72,7 @@ describe.skipIf(!enabled).sequential("发送租约状态保护", () => {
     const member = await prisma.storeMembership.create({ data: { storeId, role: "EMPLOYEE", displayName: randomUUID(), displayNameNormalized: randomUUID() } });
     const job = kind === "closing"
       ? await prisma.employeeClosingDelivery.create({ data: { storeId, membershipId: member.id, businessDate: new Date(), kind: "INITIAL", recipientPhoneE164: "+13105551234", locale: "zh_CN", snapshotJson: {}, queuedBy: userId, status: "SENT", attemptCount: 1, sentAt: new Date() } })
-      : await prisma.employeeSettlementDelivery.create({ data: { storeId, periodStart: new Date(), periodEnd: new Date(), paymentScope: "ALL", recipientPhoneE164: "+13105551234", locale: "zh_CN", snapshotJson: {}, queuedBy: userId, requestKey: randomUUID(), status: "SENT", attemptCount: 1, sentAt: new Date() } });
+      : await prisma.employeeSettlementDelivery.create({ data: { storeId, documentType: "EMPLOYEE_SUMMARY", periodStart: new Date(), periodEnd: new Date(), paymentScope: "ALL", recipientPhoneE164: "+13105551234", locale: "zh_CN", snapshotJson: {}, queuedBy: userId, requestKey: randomUUID(), status: "SENT", attemptCount: 1, sentAt: new Date() } });
     const target = kind === "closing" ? new ClosingDeliveriesService(prisma, {} as never, {} as never) : service;
     const readJob = () => kind === "closing"
       ? prisma.employeeClosingDelivery.findUniqueOrThrow({ where: { id: job.id } })
@@ -102,7 +102,7 @@ describe.skipIf(!enabled).sequential("发送租约状态保护", () => {
   it("完成任务保留实际送达回执，同时兼容旧代理不带回执的完成请求", async () => {
     for (const receipt of [undefined, { messageGuid: "confirmed", state: "DELIVERED" as const, errorCode: 0, service: "RCS" }]) {
       const leaseToken = randomUUID();
-      const job = await prisma.employeeSettlementDelivery.create({ data: { storeId, periodStart: new Date(), periodEnd: new Date(), paymentScope: "ALL", recipientPhoneE164: "+13105551234", locale: "zh_CN", snapshotJson: {}, queuedBy: userId, requestKey: randomUUID(), status: "CLAIMED", attemptCount: 1, leaseToken, leaseExpiresAt: new Date(Date.now() + 60000), detailSentAt: new Date() } });
+      const job = await prisma.employeeSettlementDelivery.create({ data: { storeId, documentType: "EMPLOYEE_SUMMARY", periodStart: new Date(), periodEnd: new Date(), paymentScope: "ALL", recipientPhoneE164: "+13105551234", locale: "zh_CN", snapshotJson: {}, queuedBy: userId, requestKey: randomUUID(), status: "CLAIMED", attemptCount: 1, leaseToken, leaseExpiresAt: new Date(Date.now() + 60000), detailSentAt: new Date() } });
       await service.complete(`Bearer ${token}`, job.id, leaseToken, receipt);
       expect(await prisma.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: job.id } })).toMatchObject({ status: "SENT", deliveryStatus: receipt?.state ?? null });
     }

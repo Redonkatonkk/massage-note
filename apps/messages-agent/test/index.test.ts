@@ -11,7 +11,6 @@ vi.mock("../src/messages.js", () => ({ messagesServices: async () => ["SMS"], se
 vi.mock("../src/stager.js", () => ({ messagesStagerReady: async () => {}, stageMessagesAttachment: async () => "/mock/staged.png", messagesDeliveryState: (...args: unknown[]) => fixture.state(...args) }));
 vi.mock("../src/outbox.js", () => ({ prepareOutbox: async () => "/mock", cleanupOutbox: async () => {}, closingPngPath: () => "/mock/closing.png", settlementAttachmentPath: () => "/mock/details.jpg", secureAttachment: async () => {}, secureClosingPng: async () => {} }));
 vi.mock("../src/render.js", () => ({ renderClosingPng: (...args: unknown[]) => fixture.render(...args) }));
-vi.mock("../src/settlement-render.js", () => ({ renderSettlementLongImage: (...args: unknown[]) => fixture.render(...args) }));
 vi.mock("../src/employee-summary-render.js", () => ({ renderEmployeeSummaryImage: (...args: unknown[]) => fixture.render(...args) }));
 vi.mock("../src/delivery-cooldown.js", () => ({ FAILURE_COOLDOWN_MS: 300_000, waitForDeliveryCooldown: async () => {}, withDeliveryCooldown: (callback: () => Promise<unknown>) => callback() }));
 
@@ -113,7 +112,7 @@ describe("agent recovery without real messages", () => {
     const checkpoints: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
       let payload: unknown = url.endsWith("/receipts") ? [] : null;
-      if (url.endsWith("/employee-settlement-delivery-agent/jobs/claim")) payload = { ...job, documentType: "RANGE_SETTLEMENT", detailSent: false };
+      if (url.endsWith("/employee-settlement-delivery-agent/jobs/claim")) payload = { ...job, documentType: "EMPLOYEE_SUMMARY", detailSent: false };
       else if (url.endsWith("/authorize")) payload = { authorized: true };
       else if (url.endsWith("/checkpoint")) checkpoints.push(JSON.parse(String(init.body)).attachment);
       else if (url.endsWith("/complete")) stopAgent();

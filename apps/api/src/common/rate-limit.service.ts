@@ -58,6 +58,7 @@ export class RateLimitService implements OnModuleDestroy {
     const path = request.path;
     if (request.method === "POST" && (path.endsWith("/auth/session") || path.endsWith("/auth/dev-session") || path.endsWith("/auth/password"))) return { name: "login", maximum: 10, windowSeconds: 600 };
     if (request.method === "POST" && path.endsWith("/auth/account-status")) return { name: "account-status", maximum: 30, windowSeconds: 600 };
+    if (path.startsWith("/api/v1/public/employee-settlements/")) return { name: "settlement-share", maximum: 120, windowSeconds: 60 };
     if (path.includes("/ai/")) return { name: "ai", maximum: 20, windowSeconds: 60 };
     if (path.endsWith("/finance/export.csv") || path.endsWith("/data/export")) return { name: "export", maximum: 10, windowSeconds: 60 };
     if (path.endsWith("/join-requests") && request.method === "POST") return { name: "join", maximum: 10, windowSeconds: 3_600 };

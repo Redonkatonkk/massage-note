@@ -8,6 +8,8 @@ import { StoreAccessService } from "../src/stores/store-access.service.js";
 import { WorkRecordsService } from "../src/work-records/work-records.service.js";
 import { FinanceQueriesService } from "../src/finance/finance-queries.service.js";
 import { EmployeeSettlementsService } from "../src/finance/employee-settlements.service.js";
+import { EmployeeSettlementSharesService } from "../src/finance/employee-settlement-shares.service.js";
+import { createHash } from "node:crypto";
 import { EmployeeSettlementPaymentsService } from "../src/finance/employee-settlement-payments.service.js";
 import { PayrollSettlementsService } from "../src/finance/payroll-settlements.service.js";
 import { ClosingsService } from "../src/finance/closings.service.js";
@@ -21,6 +23,7 @@ const access = new StoreAccessService(prisma);
 const idempotency = new IdempotencyService(prisma);
 const finance = new FinanceQueriesService(prisma, access);
 const documents = new EmployeeSettlementsService(prisma, access, finance);
+const shares = new EmployeeSettlementSharesService(prisma, access, idempotency, documents);
 const payments = new EmployeeSettlementPaymentsService(prisma, access, idempotency, documents);
 const payroll = new PayrollSettlementsService(prisma, access, idempotency);
 const cash = new CashSettlementsService(prisma, access, idempotency);
@@ -80,6 +83,39 @@ describe.skipIf(!enabled).sequential("工资日历、抵扣与结清事务", () 
       await prisma.user.deleteMany({ where: { id: { in: [ownerId, employeeId] } } });
     }
     await prisma.$disconnect();
+  });
+
+  it("分享保存准确快照和 14 天期限，幂等重放不延长有效期", async () => {
+    const input = { ...query("2026-09-01"), amountType: "TIP" as const };
+    const requestKey = key();
+    const result = await shares.create(owner, storeId, input, requestKey, key());
+    expect(await shares.create(owner, storeId, input, requestKey, key())).toEqual(result);
+    expect(result.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(Date.parse(result.expiresAt) - Date.parse(result.createdAt)).toBe(14 * 86400000);
+    expect(result).toMatchObject({ employeeName: "员工", dateFrom: "2026-09-01", dateTo: "2026-09-01", totalIncomeCents: 3300 });
+    const stored = await prisma.employeeSettlementShare.findUniqueOrThrow({ where: { tokenHash: createHash("sha256").update(result.token).digest("hex") } });
+    expect(stored.tokenHash).not.toBe(result.token);
+    const publicStatement = await shares.read(result.token);
+    expect(publicStatement.snapshot).toMatchObject({ employee: { displayName: "员工" }, amountType: "TIP", summary: { totalIncomeCents: 3300 } });
+    expect(publicStatement.snapshot).not.toHaveProperty("storeId");
+    expect(publicStatement.snapshot).not.toHaveProperty("employee.membershipId");
+    expect(publicStatement.snapshot).not.toHaveProperty("payment");
+    await prisma.storeMembership.update({ where: { id: membershipId }, data: { displayName: "Changed" } });
+    expect(await shares.read(result.token)).toEqual(publicStatement);
+    await prisma.storeMembership.update({ where: { id: membershipId }, data: { displayName: "员工" } });
+    await expect(shares.create(owner, storeId, { ...input, amountType: "ALL" }, requestKey, key())).rejects.toThrow(ConflictException);
+    await prisma.employeeSettlementShare.update({ where: { id: stored.id }, data: { expiresAt: new Date(0) } });
+    await expect(shares.read(result.token)).rejects.toThrow(NotFoundException);
+    await expect(shares.read("a".repeat(43))).rejects.toThrow(NotFoundException);
+  });
+
+  it("创建需要工资管理权限且员工必须属于当前店铺", async () => {
+    await expect(shares.create(employee, storeId, query("2026-09-01"), key(), key())).rejects.toThrow(ForbiddenException);
+    await expect(shares.create(owner, storeId, { ...query("2026-09-01"), membershipId: randomUUID() }, key(), key())).rejects.toThrow(NotFoundException);
+    const result = await shares.create(owner, storeId, query("2026-09-01"), key(), key());
+    await prisma.store.update({ where: { id: storeId }, data: { deletedAt: new Date() } });
+    await expect(shares.read(result.token)).rejects.toThrow(NotFoundException);
+    await prisma.store.update({ where: { id: storeId }, data: { deletedAt: null } });
   });
 
   it("手工预付不猜测状态，抵扣后只登记实付；完整单据和幂等重试保留", async () => {

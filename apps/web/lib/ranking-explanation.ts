@@ -3,6 +3,9 @@ import type { RankingExplanation } from "@massage-note/contracts";
 export function rankingReason(entry: RankingExplanation["entries"][number], snapshot: RankingExplanation, english = false): string[] {
   const reasons: string[] = [];
   if (snapshot.schemaVersion === 2) {
+    if (entry.employmentType === "FULL_TIME" && entry.leaveStartDate) reasons.push(english
+      ? `Returning from leave starting ${entry.leaveStartDate}: moved to the end of the complete full-time queue, including resting staff, after today's rotation or manual internal order. This order continues on later days.`
+      : `自 ${entry.leaveStartDate} 请假后首次返岗：在当天轮转或人工内部顺序基础上，移到完整全职队列末尾（包括休息人员之后），后续沿新顺序轮转。`);
     if (entry.lastPosition === null) reasons.push(english ? "No attendance history: placed after all returning employees." : "没有出勤历史，排在所有有历史人员之后。");
     else if (entry.employmentType === "FULL_TIME") reasons.push(english ? `Full-time internal position ${entry.fullTimePosition}; fills a slot left by part-time staff. Resting staff remain in the internal rotation.` : `全职内部第 ${entry.fullTimePosition} 位，依次填入兼职留下的空位；休息者仍参与内部轮转。`);
     else {

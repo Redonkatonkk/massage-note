@@ -15,4 +15,9 @@ describe("dated full-time settings contracts", () => {
     expect(rankingExplanationSchema.safeParse({ schemaVersion: 1, generatedAt: "2026-11-02", entries: [] }).success).toBe(true);
     expect(rankingExplanationSchema.safeParse({ schemaVersion: 2, generatedAt: "2026-11-02", fullTimeOrder: [id], entries: [{ membershipId: id, displayName: "A", employmentType: "FULL_TIME", lastPosition: 1, lastBusinessDate: "2026-11-01", generatedPosition: 1, fullTimePosition: 1, targetPosition: null, ties: [] }] }).success).toBe(true);
   });
+  it("preserves the optional leave date and rejects invalid dates", () => {
+    const snapshot = { schemaVersion: 2, generatedAt: "2026-11-05", entries: [{ membershipId: id, displayName: "A", employmentType: "FULL_TIME", lastPosition: 1, lastBusinessDate: "2026-11-01", generatedPosition: 3, fullTimePosition: 3, ties: [], leaveStartDate: "2026-11-02" }] };
+    expect(rankingExplanationSchema.parse(snapshot).entries[0]?.leaveStartDate).toBe("2026-11-02");
+    expect(rankingExplanationSchema.safeParse({ ...snapshot, entries: [{ ...snapshot.entries[0], leaveStartDate: "yesterday" }] }).success).toBe(false);
+  });
 });

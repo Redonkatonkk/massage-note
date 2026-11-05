@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankRotationCandidates, explainRotationCandidates, rotateFullTimeOrder } from "../src/daily-ranking.js";
+import { rankRotationCandidates, explainRotationCandidates, rotateFullTimeOrder, resolveFullTimeLeaveReturns, moveFullTimeLeaveReturnersToTail } from "../src/daily-ranking.js";
 const candidate = (membershipId: string, lastPosition: number | null, employmentType: "FULL_TIME" | "PART_TIME" = "PART_TIME", lastBusinessDate = "2026-09-03") => ({ membershipId, lastPosition, employmentType, lastBusinessDate });
 describe("independent daily rotation", () => {
   it("reserves part-time second before filling full-time gaps", () => {
@@ -23,6 +23,32 @@ describe("independent daily rotation", () => {
   it("explains targets and earlier attendance with the generated sequence", () => {
     const result = explainRotationCandidates([candidate("A", 2, "PART_TIME", "2026-09-01"), candidate("B", 2)]);
     expect(result[0]).toMatchObject({ membershipId: "A", generatedPosition: 1, targetPosition: 1, ties: [{ membershipId: "B", ahead: true, rule: "EARLIER_ATTENDANCE" }] });
+  });
+  it("moves simultaneous leave returners behind resting staff in rotated relative order", () => {
+    const order = rotateFullTimeOrder(["A", "B", "C", "REST"]);
+    const returned = moveFullTimeLeaveReturnersToTail(order, new Set(["A", "B"]));
+    expect(returned).toEqual(["C", "REST", "B", "A"]);
+    expect(order).toEqual(["B", "C", "REST", "A"]);
+    expect(rotateFullTimeOrder(returned)).toEqual(["REST", "B", "A", "C"]);
+  });
+  it("resolves leave by business date, cancels same-day restoration and consumes each episode once", () => {
+    expect(resolveFullTimeLeaveReturns([
+      { businessDate: "2026-11-06", membershipIds: ["A", "B"] },
+      { businessDate: "2026-11-02", membershipIds: ["B"] },
+      { businessDate: "2026-11-03", membershipIds: [] },
+      { businessDate: "2026-11-04", membershipIds: [] },
+      { businessDate: "2026-11-05", membershipIds: ["A", "B"] },
+      { businessDate: "2026-11-07", membershipIds: ["B"] },
+      { businessDate: "2026-11-08", membershipIds: ["A", "B"] },
+    ], [
+      { businessDate: "2026-11-07", membershipId: "A" },
+      { businessDate: "2026-11-03", membershipId: "A" },
+      { businessDate: "2026-11-02", membershipId: "A" },
+      { businessDate: "2026-11-02", membershipId: "B" },
+    ])).toEqual([
+      { membershipId: "A", businessDate: "2026-11-05", leaveStartDate: "2026-11-02" },
+      { membershipId: "A", businessDate: "2026-11-08", leaveStartDate: "2026-11-07" },
+    ]);
   });
   it("always returns every candidate exactly once across collisions and changing attendance", () => {
     for (let size = 1; size <= 20; size++) {

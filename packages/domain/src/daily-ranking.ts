@@ -4,6 +4,46 @@ export interface RotationCandidate {
   employmentType: EmploymentType;
   lastPosition: number | null;
   lastBusinessDate: string | null;
+  leaveStartDate?: string;
+}
+export interface FullTimeLeave {
+  membershipId: string;
+  businessDate: string;
+}
+export interface FullTimeLeaveReturn extends FullTimeLeave {
+  leaveStartDate: string;
+}
+/** Final daily attendance cancels same-day leave and consumes an earlier leave once. */
+export function resolveFullTimeLeaveReturns(
+  attendance: Array<{ businessDate: string; membershipIds: string[] }>,
+  leaves: FullTimeLeave[],
+): FullTimeLeaveReturn[] {
+  const byDate = new Map<string, string[]>();
+  for (const leave of leaves) {
+    const ids = byDate.get(leave.businessDate) ?? [];
+    ids.push(leave.membershipId);
+    byDate.set(leave.businessDate, ids);
+  }
+  const pending = new Map<string, string>();
+  const returns: FullTimeLeaveReturn[] = [];
+  for (const day of [...attendance].sort((a, b) => a.businessDate.localeCompare(b.businessDate))) {
+    const visible = new Set(day.membershipIds);
+    for (const membershipId of byDate.get(day.businessDate) ?? []) {
+      if (!visible.has(membershipId) && !pending.has(membershipId)) pending.set(membershipId, day.businessDate);
+    }
+    for (const membershipId of visible) {
+      const leaveStartDate = pending.get(membershipId);
+      if (leaveStartDate) {
+        returns.push({ membershipId, businessDate: day.businessDate, leaveStartDate });
+        pending.delete(membershipId);
+      }
+    }
+  }
+  return returns;
+}
+/** Move returners behind the entire queue, retaining both groups' relative order. */
+export function moveFullTimeLeaveReturnersToTail(order: string[], returners: ReadonlySet<string>): string[] {
+  return [...order.filter(id => !returners.has(id)), ...order.filter(id => returners.has(id))];
 }
 export function rotateFullTimeOrder(order: string[], days = 1): string[] {
   if (!order.length) return [];

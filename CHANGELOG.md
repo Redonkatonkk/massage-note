@@ -4,6 +4,12 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.54.0 — 2026-11-05
+
+- Record leave when a scheduled full-time employee is removed or hidden, using the weekly template at the time. Same-day restoration cancels it; older absences are not inferred.
+- Move first-time returners to the complete full-time queue's tail after daily rotation or a manual anchor, keeping simultaneous returners in relative order and continuing later rotation from the changed queue. Carry pending leave across rest days and intermediate anchors.
+- Add optional leave dates to bilingual ranking explanations and cover attendance restoration, undo, future/explicit generation and backup mapping. NAS requires Web/API updates; no database migration or independent plugin/agent update.
+
 ## 1.52.0 — 2026-11-02
 
 - Replace payroll image generation and range-image SMS with Copy share link. Copy the employee name, settlement dates, exact total and details URL together. Links open without login, expire after 14 days and retain an immutable server-generated statement.

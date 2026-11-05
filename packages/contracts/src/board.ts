@@ -82,6 +82,7 @@ export const rankingExplanationSchema = z.object({
     generatedPosition: z.number().int().positive(),
     targetPosition: z.number().int().positive().nullable().optional(),
     fullTimePosition: z.number().int().positive().nullable().optional(),
+    leaveStartDate: businessDateSchema.optional(),
     ties: z.array(z.object({
       membershipId: z.string(),
       ahead: z.boolean(),

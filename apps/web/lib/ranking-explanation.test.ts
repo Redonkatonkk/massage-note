@@ -22,4 +22,13 @@ describe("ranking explanation presentation", () => {
     expect(rankingReason(snapshot.entries[1]!, snapshot).join(" ")).toContain("末尾组");
     expect(rankingReason(snapshot.entries[1]!, snapshot, true).join(" ")).toContain("Previously first");
   });
+  it("explains first return from leave in both languages using the saved date", () => {
+    const returned: RankingExplanation = { ...snapshot, schemaVersion: 2, fullTimeOrder: ["A", "B"], entries: [{ ...snapshot.entries[0]!, fullTimePosition: 2, leaveStartDate: "2026-11-02" }] };
+    const entry = returned.entries[0]!;
+    expect(rankingReason(entry, returned).join(" ")).toContain("自 2026-11-02 请假后首次返岗");
+    expect(rankingReason(entry, returned).join(" ")).toContain("包括休息人员之后");
+    expect(rankingReason(entry, returned, true).join(" ")).toContain("Returning from leave starting 2026-11-02");
+    expect(rankingReason({ ...entry, leaveStartDate: undefined }, returned).join(" ")).not.toContain("请假");
+    expect(rankingReason({ ...entry, lastPosition: null }, returned).join(" ")).toContain("首次返岗");
+  });
 });

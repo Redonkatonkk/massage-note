@@ -5,6 +5,7 @@ import { Prisma, type User } from "@massage-note/database";
 import { storeBackupTables, type BackupRow, type StoreBackup, type StoreBackupMode, type StoreImportPreview } from "@massage-note/contracts";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
+import { activeAuditWhere } from "../common/active-audit.js";
 import { anonymizeBackup, backupModels, checksum, decodeRow, delegate, invalidBackup, jsonValue, remapBackupData, sealBackup, tableScope, validateBackup } from "./store-backup.js";
 
 function conflict(code: string, messageZh: string): never { throw new ConflictException({ code, messageZh }); }
@@ -28,6 +29,18 @@ export class StoreDataService {
     for (const table of storeBackupTables) {
       const orderBy = table === "payrollSettlementConfirmation" ? { payrollSettlementId: "asc" } : { id: "asc" };
       tables[table] = jsonValue(await delegate(tx, table).findMany({ where: tableScope(table, storeId), orderBy })) as BackupRow[];
+    }
+    // Backups carry public audit history, not the private undo index. Preserve
+    // qualification while exporting its cancellation so import cannot revive it.
+    const markedLeaves = tables.auditLog.filter(row => (row.afterJson as BackupRow | null)?.isFullTimeLeave === true);
+    if (markedLeaves.length) {
+      const active = new Set((await tx.auditLog.findMany({
+        where: { storeId, afterJson: { path: ["isFullTimeLeave"], equals: true }, AND: await activeAuditWhere(tx, storeId) },
+        select: { id: true },
+      })).map(row => row.id));
+      for (const row of markedLeaves) {
+        if (!active.has(String(row.id))) row.afterJson = { ...row.afterJson as BackupRow, isFullTimeLeaveUndone: true };
+      }
     }
     return { store: jsonValue(store) as BackupRow, tables };
   }

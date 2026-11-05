@@ -7,7 +7,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, type User } from "@massage-note/database";
+import { Prisma, type Store, type User } from "@massage-note/database";
 import { rankingExplanationSchema } from "@massage-note/contracts";
 import type {
   AddBoardRowInput,
@@ -907,6 +907,8 @@ export class BoardsService {
             businessDate: dateAtUtc(businessDate),
           },
         }) === 0;
+        const isFullTimeLeave = input.isHidden && !row.isHidden
+          && await this.qualifiesForFullTimeLeave(transaction, store, businessDate, row.membershipId);
         const changed = await transaction.dailyEmployeeRow.updateMany({
           where: { id: rowId, storeId, version: input.version },
           data: { isHidden: input.isHidden, version: { increment: 1 } },
@@ -944,6 +946,7 @@ export class BoardsService {
               removed,
               removedShiftCount,
               isHidden: updated.isHidden,
+              ...(isFullTimeLeave ? { isFullTimeLeave: true } : {}),
               version: updated.version,
               boardVersion: board.version,
             },
@@ -1020,6 +1023,8 @@ export class BoardsService {
             messageZh: "该员工今天已有打卡或记工，不能移除；可以改为隐藏",
           });
         }
+        const isFullTimeLeave = !row.isHidden
+          && await this.qualifiesForFullTimeLeave(transaction, store, businessDate, row.membershipId);
         const board = await transaction.dailyBoard.findUniqueOrThrow({
           where: { id: row.boardId },
           include: {
@@ -1057,7 +1062,7 @@ export class BoardsService {
               membershipId: row.membershipId,
               version: row.version,
             },
-            afterJson: { boardVersion: updated.version },
+            afterJson: { boardVersion: updated.version, ...(isFullTimeLeave ? { isFullTimeLeave: true } : {}) },
             requestId,
           },
         });
@@ -1226,6 +1231,23 @@ export class BoardsService {
     );
     statistics.storeIncomeCents = calculateStoreIncome(statistics);
     return statistics;
+  }
+
+  private async qualifiesForFullTimeLeave(
+    transaction: Prisma.TransactionClient,
+    store: Pick<Store, "id" | "timezone" | "businessCutoffLocal" | "weeklyDispatchJson" | "weeklyDispatchEffectiveFrom">,
+    businessDate: string,
+    membershipId: string,
+  ) {
+    const today = businessDateFor({ startAt: deviceNow(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
+    const effectiveFrom = store.weeklyDispatchEffectiveFrom?.toISOString().slice(0, 10);
+    if (businessDate < today || !effectiveFrom || businessDate < effectiveFrom) return false;
+    const weekday = weeklyDays[(dateAtUtc(businessDate).getUTCDay() + 6) % 7]!;
+    if (!weeklyDispatchFromJson(store.weeklyDispatchJson)[weekday].includes(membershipId)) return false;
+    return !!await transaction.storeMembership.findFirst({
+      where: { id: membershipId, storeId: store.id, status: "ACTIVE", deletedAt: null, isServiceProvider: true, employmentType: "FULL_TIME" },
+      select: { id: true },
+    });
   }
 
   private async findStore(

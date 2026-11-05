@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.52.0`
+> Applies to version: `1.54.0`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -432,7 +432,7 @@ The hourly statistics interface still returns a complete 24 hours; the two hourl
 
 `GET /stores/:storeId/boards/:businessDate` of `ranking.explanation` Returns the interpreted snapshot when it was last generated, if unsaved `null`. only have `MEMBERSHIP_MANAGE` Members of a capability are readable, other members are always returned `null`, including a personal history view.
 
-Shared `RankingExplanation` supports legacy `schemaVersion: 1` and new version `2`. Version 2 stores the complete `fullTimeOrder`, original name/type/history/generated positions, plus `targetPosition` and `fullTimePosition`; equal part-time targets use `EARLIER_ATTENDANCE`. Legacy snapshots retain their original explanation rules and are not backfilled.
+Shared `RankingExplanation` supports legacy `schemaVersion: 1` and new version `2`. Version 2 stores the complete `fullTimeOrder`, original name/type/history/generated positions, plus `targetPosition` and `fullTimePosition`; equal part-time targets use `EARLIER_ATTENDANCE`. Optional `leaveStartDate` identifies the first full-time return after leave. Legacy snapshots retain their original explanation rules and are not backfilled.
 
 Existing `POST .../rank` saves both order and snapshot within the original business day lock, version check and idempotency transactions. Regenerate the replacement snapshot. Manual reordering, employee row changes, and member data changes will not overwrite the snapshot. The front-end displays changes based on the current list comparison, and cannot use current data to re-calculate the reasons at that time. Old data is not backfilled for speculative interpretation. Reason: The explanation should reflect the decision made at the time of generation, and old reasons cannot be inferred from current data.
 
@@ -468,6 +468,8 @@ The gift card ledger response retains `sales` and `nextSerialNumber`, and adds `
 - Explicit `POST /stores/:storeId/boards/:businessDate/rank` clears pending generation. An absent full-time anchor or missing historical board returns 409 `DAILY_RANKING_SETUP_REQUIRED` with `missingDate`; Web opens weekly scheduling to initialize. Both explicit and automatic paths share part-time reservation and full-time rotation rules. New dates initialize automatically only with complete anchors/history.
 
 Migration `20261031010000_independent_full_time_rotation` adds `daily_boards.full_time_order`, `full_time_order_override`, and `ranking_pending`, defaulting old data to null/false. Empty boards skip rotation; missing boards block inference. Use a manual anchor directly on its date, rotating on subsequent working days while retaining resting staff internally. Backup and undo support the new fields; older backups gain defaults, and anonymization/import remap queue member IDs. Reason: complete queues, manual confirmation and generation require separate persistence so saving cannot unexpectedly rerank the current board.
+
+New current/future row-removal and hiding transactions mark `afterJson.isFullTimeLeave: true` when an active full-time provider is scheduled by the effective weekly template. Rest days, part-time staff, missing/not-yet-effective templates and historical corrections do not create leave. The operation-time decision survives later template edits. Final visible attendance cancels same-day leave or identifies the first later return; undone audits are excluded. On that return date, weekly order reads and both generation paths move returners to the complete full-time tail after normal rotation or the dated manual order, preserving their relative order. Pending leave survives intermediate anchors; later days use the changed queue. Existing generation timing, version/day locks and closing protections remain; no request fields or migration are added. Reason: leave intentionally changes the independent queue once, without interpreting old missing rows as leave.
 
 
 <a id="成员每日全部结清"></a>

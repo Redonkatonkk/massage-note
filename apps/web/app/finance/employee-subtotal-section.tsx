@@ -1,5 +1,7 @@
 "use client";
 
+import { useDecision } from "../decision-dialog";
+
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import { useCallback, useEffect, useState } from "react";
@@ -134,6 +136,7 @@ export function EmployeeSubtotalSection({
   run: (action: () => Promise<void>) => Promise<void>;
   onViewDetails: (membershipId: string, label: string) => void;
 }) {
+  const decision = useDecision();
   const [recipientPhone, setRecipientPhone] = useState(displayUsPhone(ownerPhone));
   const [deliveries, setDeliveries] = useState<EmployeeSettlementDeliveryList | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -150,7 +153,7 @@ export function EmployeeSubtotalSection({
   }, [deliveries, loadDeliveries]);
   useEffect(() => {
     if (!historyOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setHistoryOpen(false); };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape" && !document.querySelector(".decision-dialog[open]")) setHistoryOpen(false); };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [historyOpen]);
@@ -176,7 +179,7 @@ export function EmployeeSubtotalSection({
 
   const deliveryAction = (delivery: EmployeeSettlementDelivery, kind: "cancel" | "retry" | "retry-detail") => void run(async () => {
     if (kind === "cancel") {
-      if (!window.confirm("确认取消这条员工小计短信任务？")) return;
+      if (!await decision.confirm("确认取消这条员工小计短信任务？")) return;
       await apiRequest(`/stores/${storeId}/employee-settlements/deliveries/${delivery.id}`, { method: "DELETE" });
     } else {
       const endpoint = kind === "retry-detail" ? "retry-detail" : "retry";

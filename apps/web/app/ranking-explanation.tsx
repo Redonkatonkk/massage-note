@@ -9,7 +9,7 @@ import { saveRankingImage } from "../lib/ranking-image";
 import { useLanguage } from "./language-provider";
 import { useNativeDialog } from "./use-native-dialog";
 
-export function RankingExplanationButton({ board }: { board: BoardResponse }) {
+export function RankingExplanationButton({ board, readOnly = false }: { board: BoardResponse; readOnly?: boolean }) {
   const [dialog, dialogRef] = useNativeDialog();
   const content = useRef<HTMLDivElement>(null);
   const savingRef = useRef(false);
@@ -49,8 +49,10 @@ export function RankingExplanationButton({ board }: { board: BoardResponse }) {
       </div>
       {saveError && <p role="alert" className="form-error">{text("图片保存失败，请重试。", "Could not save the image. Please try again.")}</p>}
       <div ref={content}>
-      {!snapshot ? <p>{board.ranking.rankedAt
-        ? text("上次生成时尚未保存排序依据。重新生成所选日期顺序后即可查看；重新生成会覆盖手动顺序。", "The previous ranking has no saved explanation. Generate the order again to save one; this will replace manual ordering.")
+      {!snapshot ? <p>{readOnly
+        ? text("该日期没有保存排序依据，无法还原当时的内部顺序。", "No ranking explanation was saved for this date; its internal order cannot be reconstructed.")
+        : board.ranking.rankedAt
+        ? text("上次生成时尚未保存排序依据。重新生成顺序后即可查看；重新生成会覆盖手动顺序。", "The previous ranking has no saved explanation. Generate the order again to save one; this will replace manual ordering.")
         : text("尚未生成所选日期顺序。生成后，这里会逐人说明排位原因。", "No order has been generated for this date. Generate it to see an explanation for each employee.")}</p> : <>
         <p className="field-help">{board.businessDate}</p>
         <p className="field-help">{text("生成时间：", "Generated: ")}{new Date(snapshot.generatedAt).toLocaleString(locale, { hour12: false })}</p>

@@ -18,9 +18,12 @@ import { homeClosingAction } from "../lib/closing";
 import {
   canGenerateDailyRanking,
   dailyRankingActionLabel,
+  dailyRankingClipboardText,
 } from "../lib/daily-ranking";
+import { copyText } from "../lib/clipboard";
 import { financeClosingHref } from "../lib/navigation";
 import { formatUsd, formatUsdPrecise } from "../lib/money";
+import { useUiEdition } from "./ui-edition-provider";
 import { useLanguage } from "./language-provider";
 import { newWorkRecord } from "../lib/new-work-record";
 import { hasConfirmedPaymentMismatch } from "../lib/record-payment";
@@ -447,6 +450,15 @@ function TodayBoardContent({
     await onReload();
   }
 
+  async function copyRanking() {
+    try {
+      await copyText(dailyRankingClipboardText(currentDay.businessDate, board.rows));
+    } catch {
+      throw new Error("复制排工顺序失败，请重试。");
+    }
+    setNotice("排工顺序已复制");
+  }
+
   async function reorder(rowId: string, direction: -1 | 1) {
     const index = board.rows.findIndex((row) => row.id === rowId);
     const target = index + direction;
@@ -468,6 +480,7 @@ function TodayBoardContent({
     await onReload();
   }
 
+  const { edition } = useUiEdition();
   const secondaryActions = <>
     {canManage && board.isClosed && <button className="secondary-action" type="button" disabled={busy || deliveryList?.batchAllowed === false} title={deliveryList?.batchBlockedReason ?? undefined} onClick={() => run(queueEmployeeClosings)}>{deliveryList?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>}
     {canManage && deliveryList && <ClosingDeliveryQueueButton compact={wideLayout} key={currentDay.businessDate} value={deliveryList} busy={busy} onCancel={(delivery) => void run(() => cancelEmployeeClosingDelivery(delivery))} />}
@@ -492,7 +505,10 @@ function TodayBoardContent({
     </div>
   </section>;
   const employeeRosterActions = <>
-      {canManage && board.isClosed && isCurrentBusinessDay && <section className="board-panel add-employee-panel"><BoardWeeklyDispatch storeId={membership.store.id} businessDate={currentDay.businessDate} members={members} disabled={busy} onSaved={onReload} /></section>}
+      {canManage && board.isClosed && <section className="board-panel add-employee-panel">
+        {isCurrentBusinessDay && <BoardWeeklyDispatch storeId={membership.store.id} businessDate={currentDay.businessDate} members={members} disabled={busy} onSaved={onReload} />}
+        <div className="ranking-action-group"><span>排序依据</span><RankingExplanationButton board={board} readOnly /></div>
+      </section>}
       {canManage && !board.isClosed && <BoardEmployeePicker
         businessDate={currentDay.businessDate}
         storeId={membership.store.id}
@@ -501,8 +517,9 @@ function TodayBoardContent({
         allMembers={members}
         weeklyDispatchEnabled={isCurrentBusinessDay || isFutureBusinessDay}
         rankingAction={canGenerateRanking ? { label: dailyRankingActionLabel(board.ranking.rankedAt, isCurrentBusinessDay), onClick: () => run(rankBoard) } : undefined}
+        onCopyRanking={isFutureBusinessDay ? () => run(copyRanking) : undefined}
         rankingSetupRequest={rankingSetupRequest}
-        rankingHelp={<RankingExplanationButton board={board} />}
+        rankingHelp={<RankingExplanationButton board={board} readOnly={!canGenerateRanking} />}
         empty={activeRowCount === 0}
         disabled={busy}
         onAdd={async (membershipId) => {
@@ -511,15 +528,18 @@ function TodayBoardContent({
         onReload={onReload}
       />}
   </>;
+  const pageHeading = <div className="today-heading" key="heading">{heading}</div>;
+  const headerCalendar = <div className="today-header-calendar" key="calendar">{calendar}</div>;
+  const headerActions = <div className="today-header-actions" key="actions">{dailyActions}</div>;
+  const headerUtilities = accountActions && <div className="today-header-utilities" key="store"><div className="topbar-actions">{accountActions}</div></div>;
+
   return (
     <>
       <header className={`topbar${wideLayout ? " today-topbar" : ""}`}>
-        {wideLayout ? <>
-          <div className="today-header-calendar">{calendar}</div>
-          {dailyActions}
-          <div className="today-heading">{heading}</div>
-          {accountActions && <div className="today-header-utilities"><div className="topbar-actions">{accountActions}</div></div>}
-        </> : <><div className="today-heading">{heading}</div>{accountActions && <div className="topbar-actions">{accountActions}</div>}</>}
+        {wideLayout ? (edition === "new"
+          ? [pageHeading, headerUtilities, headerActions, headerCalendar]
+          : [headerCalendar, headerActions, pageHeading, headerUtilities])
+          : <>{pageHeading}{accountActions && <div className="topbar-actions">{accountActions}</div>}</>}
       </header>
       {!wideLayout && <div className="business-day-toolbar business-day-toolbar--compact">{dateControls}{dailyActions}</div>}
 

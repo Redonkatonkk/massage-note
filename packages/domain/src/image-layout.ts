@@ -51,5 +51,4 @@ export function imageTextLines(value: string, width: number, fontSize: number, x
 }
 
 export const imageLineHeight = (value: string, width: number, fontSize: number, lineHeight: number) => wrapImageText(value, width / fontSize).length * lineHeight;
-export const imagePanel = (x: number, y: number, width: number, height: number, kind = "") => `<rect${kind ? ` data-card-kind="${kind}"` : ""} x="${x}" y="${y}" width="${width}" height="${height}" rx="${imageTheme.radius}" fill="${imageTheme.surface}" stroke="${imageTheme.line}"/>`;
 export const imageDivider = (x: number, y: number, width: number) => `<line x1="${x}" y1="${y}" x2="${x + width}" y2="${y}" stroke="${imageTheme.line}"/>`;

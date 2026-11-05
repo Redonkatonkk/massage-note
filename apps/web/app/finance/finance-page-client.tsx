@@ -1,5 +1,8 @@
 "use client";
 
+import { useUiEdition } from "../ui-edition-provider";
+import { useDecision } from "../decision-dialog";
+
 import { appHref } from "../../lib/demo-mode";
 
 import { useAutoDismissState } from "../use-auto-dismiss-state";
@@ -11,7 +14,7 @@ import { AnalyticsPanel } from "./analytics-panel";
 
 import { browserStorage } from "../../lib/browser-storage";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { LatestRequest } from "../../lib/latest-request";
 import { ApiError, apiRequest, errorMessage } from "../../lib/api";
 import { hasBlockingClosingWarnings } from "../../lib/closing";
@@ -37,7 +40,7 @@ import type {
 } from "../../lib/types";
 import { useStoreRealtime } from "../../lib/realtime";
 import { isWorkRecordChange } from "../../lib/realtime-scope";
-import { AppNav } from "../app-nav";
+import { Workspace } from "../app-nav";
 import { ClosingDeliveryQueue } from "../closing-delivery-queue";
 import { EmployeeClosingSummary } from "../employee-closing";
 import { FloatingAiAssistant } from "../floating-ai-assistant";
@@ -53,14 +56,13 @@ import { MonthlySummaryDashboard } from "./monthly-summary-dashboard";
 import { monthlyQuery, monthlyRanges, type MonthlyHighlightFilter } from "./monthly-summary";
 import { financeNavigationTabs, resolveFinanceTab, type FinanceTab } from "../../lib/app-navigation";
 import { useNavigationTab } from "../use-navigation-tab";
-type FinanceRangeOverride = { dateFrom?: string; dateTo?: string; memberIds?: string[] };
-
 function money(cents: number | null | undefined): string {
   if (cents === null || cents === undefined) return "—";
   return formatUsd(cents);
 }
 
 export function FinancePageClient() {
+  const decision = useDecision();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [membership, setMembership] = useState<MembershipSummary | null>(null);
   const [members, setMembers] = useState<StoreMember[]>([]);
@@ -93,12 +95,10 @@ export function FinancePageClient() {
 
   const canManage = membership ? membership.role !== "EMPLOYEE" : false;
 
-  const financeParams = useCallback((override: FinanceRangeOverride = {}) => {
+  const financeParams = useCallback(() => {
     if (!day || !summaryMonth) return new URLSearchParams();
     const range = monthlyRanges(summaryMonth, day.businessDate);
-    const params = monthlyQuery(override.dateFrom ?? range.dateFrom, override.dateTo ?? range.dateTo, summaryHighlightFilter);
-    if (override.memberIds?.length) params.set("membershipIds", override.memberIds.join(","));
-    return params;
+    return monthlyQuery(range.dateFrom, range.dateTo, summaryHighlightFilter);
   }, [summaryMonth, day, summaryHighlightFilter]);
 
   const summaryRequests = useRef(new LatestRequest()).current;
@@ -114,14 +114,14 @@ export function FinancePageClient() {
   cashRequests.setScope(currentDayScope);
   closingRequests.setScope(currentDayScope);
 
-  const loadSummary = useCallback(async (override: FinanceRangeOverride = {}, background = false) => {
+  const loadSummary = useCallback(async (background = false) => {
     if (!membership || !day || !summaryMonth) return;
     const isCurrent = summaryRequests.begin();
     setSummaryLoading(true);
     setSummaryFailed(false);
     try {
       const result = await apiRequest<FinanceSummaryResponse>(
-        `/stores/${membership.store.id}/finance/summary?${financeParams(override)}`,
+        `/stores/${membership.store.id}/finance/summary?${financeParams()}`,
       );
       if (!isCurrent()) return;
       setSummary(result);
@@ -136,23 +136,16 @@ export function FinancePageClient() {
     }
   }, [membership, day, summaryMonth, financeParams]);
 
-  const currentFinanceParams = useCallback(() => financeParams(), [financeParams]);
-
-  const appliedDetailOverride = useRef<FinanceRangeOverride>({});
-  const loadDetails = useCallback(async (override: FinanceRangeOverride = {}) => {
-    appliedDetailOverride.current = override;
+  const detailMemberId = useRef<string | undefined>(undefined);
+  const loadDetails = useCallback(async (memberId?: string) => {
+    detailMemberId.current = memberId;
     if (!membership) return;
     const isCurrent = detailRequests.begin();
-    const params = currentFinanceParams();
-    if (override.dateFrom) params.set("dateFrom", override.dateFrom);
-    if (override.dateTo) params.set("dateTo", override.dateTo);
-    if (override.memberIds) {
-      params.delete("membershipIds");
-      if (override.memberIds.length) params.set("membershipIds", override.memberIds.join(","));
-    }
+    const params = financeParams();
+    if (memberId) params.set("membershipIds", memberId);
     const result = await apiRequest<FinanceDetailsResponse>(`/stores/${membership.store.id}/finance/details?${params}`);
     if (isCurrent()) setDetails(result);
-  }, [membership, currentFinanceParams]);
+  }, [membership, financeParams]);
 
   const loadCash = useCallback(async () => {
     if (!membership || !cashDate || dayScope.current !== `${membership.store.id}:${cashDate}`) return;
@@ -232,8 +225,8 @@ export function FinancePageClient() {
     const workOnly = isWorkRecordChange(change);
     const cashAffected = !workOnly || change.changes.some(item => !item.businessDate || item.businessDate.slice(0, 10) === cashDate);
     await Promise.all([
-      loadSummary({}, true),
-      ...(details ? [loadDetails(appliedDetailOverride.current)] : []),
+      loadSummary(true),
+      ...(details ? [loadDetails(detailMemberId.current)] : []),
       ...(cashAffected ? [loadCash(), loadClosing()] : []),
       // Historical record edits also affect payroll's history-changed indicator.
       loadPayroll(),
@@ -366,15 +359,15 @@ export function FinancePageClient() {
       await action();
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 409) {
-        await Promise.allSettled([loadCash(), loadClosing(), loadSummary({}, true), loadPayroll()]);
+        await Promise.allSettled([loadCash(), loadClosing(), loadSummary(true), loadPayroll()]);
       }
       throw caught;
     }
-    await Promise.all([loadCash(), loadClosing(), loadSummary({}, true), loadPayroll()]);
+    await Promise.all([loadCash(), loadClosing(), loadSummary(true), loadPayroll()]);
   }
 
   async function toggleCash(row: CashSettlementRow) {
-    const reason = row.status === "SETTLED" ? window.prompt("请填写取消结清原因")?.trim() : undefined;
+    const reason = row.status === "SETTLED" ? (await decision.prompt("请填写取消结清原因", { action: "取消结清", required: true }))?.trim() : undefined;
     if (row.status === "SETTLED" && !reason) return;
     await mutateCash(async () => {
       await apiRequest(`/stores/${membership!.store.id}/cash-settlements/${cashDate}/${row.membershipId}/${row.status === "SETTLED" ? "reopen" : "settle"}`, {
@@ -414,7 +407,7 @@ export function FinancePageClient() {
   const ownerPhone = ownerMember?.user?.phoneE164 ?? ownerMember?.closingDeliveryPhoneE164 ?? "";
 
   return (
-    <main className="app-shell finance-shell">
+    <Workspace className={`app-shell finance-shell${tab === "payroll" ? " finance-shell--payroll" : ""}`} navigation={{ active: "finance", storeId: membership.store.id, role: membership.role, activeTab: tab, onTabChange: selectTab, assistant: <FloatingAiAssistant key={`finance-ai-${membership.store.id}`} storeId={membership.store.id} timezone={membership.store.timezone} type="finance" /> }}>
       <header className="topbar">
         <div><p className="eyebrow">{membership.store.name}</p><h1>{financeTabs.find(([value]) => value === tab)?.[1]}</h1><p className="business-date">{pageDescriptions[tab]} {!isReport && <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span>}</p></div>
         <a className="store-switcher header-link" href={appHref("/")}>返回今日记工</a>
@@ -457,7 +450,7 @@ export function FinancePageClient() {
             canSend={canManage}
             busy={busy}
             run={run}
-            onViewDetails={(selectedMembershipId, label) => void run(async () => { setDetailsTitle(label); setDetails(null); await loadDetails({ memberIds: [selectedMembershipId] }); })}
+            onViewDetails={(selectedMembershipId, label) => void run(async () => { setDetailsTitle(label); setDetails(null); await loadDetails(selectedMembershipId); })}
           />}
         </MonthlySummaryDashboard>
       )}
@@ -465,27 +458,28 @@ export function FinancePageClient() {
       {tab === "closing" && canManage && closing?.storeId === membership.store.id && closing.businessDate === cashDate && (
         <section className="finance-section">
           <div className="date-toolbar"><div className="business-date-field"><span>营业日</span><BusinessDatePicker storeId={membership.store.id} value={cashDate} max={day.businessDate} ariaLabel="选择日结营业日" onChange={setCashDate} /></div><button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { await Promise.all([loadClosing(), loadCash()]); })}>重新检查</button></div>
-          <div className={`closing-status ${closing.hasWarnings ? "warning" : "ready"}`}><div><span>{closing.isClosed ? "已日结" : closingHasBlockingWarnings ? "发现日结异常" : "可以正常日结"}</span><strong>{closing.isClosed ? `第 ${closing.activeClosing?.cycleNo ?? 0} 次日结` : closing.hasWarnings ? `${closing.warningCount} 项提醒` : "检查通过"}</strong></div>{closing.isClosed ? <button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { if (!closing.activeClosing) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}/cancel`, { method: "POST", idempotent: true, body: { version: closing.activeClosing.version } }); await loadClosing(); await loadCash(); })}>取消日结</button> : <div className="closing-actions"><button className="primary-action" type="button" disabled={busy || closingHasBlockingWarnings} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: false } }); await loadClosing(); })}>确认日结</button>{closingHasBlockingWarnings && <button className="danger-button" type="button" disabled={busy} onClick={() => run(async () => { const reason = window.prompt("强制日结会保留全部异常快照，请填写原因"); if (!reason?.trim()) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: true, forceReason: reason.trim() } }); await loadClosing(); })}>强制日结</button>}</div>}</div>
+          <div className={`closing-status ${closing.hasWarnings ? "warning" : "ready"}`}><div><span>{closing.isClosed ? "已日结" : closingHasBlockingWarnings ? "发现日结异常" : "可以正常日结"}</span><strong>{closing.isClosed ? `第 ${closing.activeClosing?.cycleNo ?? 0} 次日结` : closing.hasWarnings ? `${closing.warningCount} 项提醒` : "检查通过"}</strong></div>{closing.isClosed ? <button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { if (!closing.activeClosing) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}/cancel`, { method: "POST", idempotent: true, body: { version: closing.activeClosing.version } }); await loadClosing(); await loadCash(); })}>取消日结</button> : <div className="closing-actions"><button className="primary-action" type="button" disabled={busy || closingHasBlockingWarnings} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: false } }); await loadClosing(); })}>确认日结</button>{closingHasBlockingWarnings && <button className="danger-button" type="button" disabled={busy} onClick={() => run(async () => { const reason = await decision.prompt("强制日结会保留全部异常快照，请填写原因", { action: "强制日结", required: true, danger: true }); if (!reason?.trim()) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: true, forceReason: reason.trim() } }); await loadClosing(); })}>强制日结</button>}</div>}</div>
           {closing.warnings.length > 0 && <div className="warning-list">{closing.warnings.map((warning) => <article key={warning.code}><div className="warning-list__heading"><strong>{warning.labelZh}</strong><span>{warning.count} 条记录</span></div>{warning.blocking === false && <p className="warning-list__notice">仅提醒，不影响正常日结</p>}<div className="warning-record-links">{warning.recordIds.map((recordId, index) => <button className="secondary-action compact" key={recordId} type="button" disabled={busy} onClick={() => openWarningRecord(recordId)} aria-label={`查看${warning.labelZh}第 ${index + 1} 单`}>查看第 {index + 1} 单</button>)}</div></article>)}</div>}
-          <section className="closing-delivery-panel">
-            <div><strong>员工个人日结短信</strong><p>{!closing.isClosed ? "未日结也可从个人日结逐人发送，发送状态显示在下方。" : closingDeliveries?.batchBlockedReason ?? "直接排队所有已开启接收、号码有效且当天有记工的员工。"}</p></div>
-            {closing.isClosed && <button className="primary-action" type="button" disabled={busy || closingDeliveries?.batchAllowed === false} onClick={() => run(queueClosingDeliveries)}>{closingDeliveries?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>}
-            {closingDeliveries && <ClosingDeliveryQueue value={closingDeliveries} busy={busy} onCancel={(delivery) => void run(() => cancelClosingDelivery(delivery))} />}
-          </section>
-          <h2 className="table-title">全店日结合计</h2><div className="finance-cards closing-totals"><article><span>全部项目数量</span><strong>{closing.storeTotals.itemCount} 项</strong><small>{closing.storeTotals.recordCount} 条记工 · {closing.storeTotals.giftCardSaleCount} 张礼物卡</small></article><article><span>全店大费基数</span><strong>{money(closing.storeTotals.grossFeeBaseCents)}</strong></article><article><span>全店折扣总额</span><strong>{money(closing.storeTotals.discountTotalCents)}</strong></article><article className="balance-card"><span>全店折后大费业绩</span><strong>{money(closing.storeTotals.discountedFeePerformanceCents)}</strong></article><article><span>全店小费总额</span><strong>{money(closing.storeTotals.totalTipCents)}</strong></article><article><span>全店客人总付款</span><strong>{money(closing.storeTotals.customerTotalPaidCents)}</strong><small>含服务、小费和礼物卡销售实收</small></article><article><span>礼物卡销售收入</span><strong>{money(closing.storeTotals.giftCardSalesAmountCents)}</strong><small>{closing.storeTotals.giftCardSaleCount} 张 · 现金 {money(closing.storeTotals.giftCardSaleCashCents)} · 刷卡 {money(closing.storeTotals.giftCardSaleCardCents)}</small></article><article><span>礼物卡核销支出</span><strong>{money(closing.storeTotals.giftCardRedemptionCents)}</strong><small>礼物卡大费＋礼物卡小费</small></article><article className="balance-card"><span>店铺收入</span><strong>{money(closing.storeTotals.storeIncomeCents)}</strong><small>卖卡记收入，核销记支出</small></article></div>
-          <ClosingEmployeeTable
-            key={`${membership.store.id}-${cashDate}`}
-            employees={closing.employees}
-            cashRows={cashData?.rows ?? null}
-            busy={busy}
-            cashLoadFailed={cashLoadFailed}
-            onReloadCash={() => void run(loadCash)}
-            onSettleAll={() => void run(() => mutateCash(async () => {
-              if (!cashData) return;
-              await apiRequest(`/stores/${membership.store.id}/cash-settlements/${cashDate}/settle-all`, { method: "POST", idempotent: true, body: { settlements: cashData.rows.map(row => ({ membershipId: row.membershipId, version: row.version, dailySettlementEnabled: row.dailySettlementEnabled ?? false, ...(row.note ? { note: row.note } : {}) })) } });
-            }))}
-            onToggleCash={row => void run(() => toggleCash(row))}
-          />
+          <ClosingWorkspace delivery={<section className="closing-delivery-panel">
+              <div><strong>员工个人日结短信</strong><p>{!closing.isClosed ? "未日结也可从个人日结逐人发送，发送状态显示在下方。" : closingDeliveries?.batchBlockedReason ?? "直接排队所有已开启接收、号码有效且当天有记工的员工。"}</p></div>
+              {closing.isClosed && <button className="primary-action" type="button" disabled={busy || closingDeliveries?.batchAllowed === false} onClick={() => run(queueClosingDeliveries)}>{closingDeliveries?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>}
+              {closingDeliveries && <ClosingDeliveryQueue value={closingDeliveries} busy={busy} onCancel={(delivery) => void run(() => cancelClosingDelivery(delivery))} />}
+          </section>}>
+            <h2 className="table-title">全店日结合计</h2><div className="finance-cards closing-totals"><article><span>全部项目数量</span><strong>{closing.storeTotals.itemCount} 项</strong><small>{closing.storeTotals.recordCount} 条记工 · {closing.storeTotals.giftCardSaleCount} 张礼物卡</small></article><article><span>全店大费基数</span><strong>{money(closing.storeTotals.grossFeeBaseCents)}</strong></article><article><span>全店折扣总额</span><strong>{money(closing.storeTotals.discountTotalCents)}</strong></article><article className="balance-card"><span>全店折后大费业绩</span><strong>{money(closing.storeTotals.discountedFeePerformanceCents)}</strong></article><article><span>全店小费总额</span><strong>{money(closing.storeTotals.totalTipCents)}</strong></article><article><span>全店客人总付款</span><strong>{money(closing.storeTotals.customerTotalPaidCents)}</strong><small>含服务、小费和礼物卡销售实收</small></article><article><span>礼物卡销售收入</span><strong>{money(closing.storeTotals.giftCardSalesAmountCents)}</strong><small>{closing.storeTotals.giftCardSaleCount} 张 · 现金 {money(closing.storeTotals.giftCardSaleCashCents)} · 刷卡 {money(closing.storeTotals.giftCardSaleCardCents)}</small></article><article><span>礼物卡核销支出</span><strong>{money(closing.storeTotals.giftCardRedemptionCents)}</strong><small>礼物卡大费＋礼物卡小费</small></article><article className="balance-card"><span>店铺收入</span><strong>{money(closing.storeTotals.storeIncomeCents)}</strong><small>卖卡记收入，核销记支出</small></article></div>
+            <ClosingEmployeeTable
+              key={`${membership.store.id}-${cashDate}`}
+              employees={closing.employees}
+              cashRows={cashData?.rows ?? null}
+              busy={busy}
+              cashLoadFailed={cashLoadFailed}
+              onReloadCash={() => void run(loadCash)}
+              onSettleAll={() => void run(() => mutateCash(async () => {
+                if (!cashData) return;
+                await apiRequest(`/stores/${membership.store.id}/cash-settlements/${cashDate}/settle-all`, { method: "POST", idempotent: true, body: { settlements: cashData.rows.map(row => ({ membershipId: row.membershipId, version: row.version, dailySettlementEnabled: row.dailySettlementEnabled ?? false, ...(row.note ? { note: row.note } : {}) })) } });
+              }))}
+              onToggleCash={row => void run(() => toggleCash(row))}
+            />
+          </ClosingWorkspace>
         </section>
       )}
 
@@ -534,28 +528,39 @@ export function FinancePageClient() {
           }}
         />
       )}
-      <AppNav active="finance" storeId={membership.store.id} role={membership.role} activeTab={tab} onTabChange={selectTab} assistant={<FloatingAiAssistant key={`finance-ai-${membership.store.id}`} storeId={membership.store.id} timezone={membership.store.timezone} type="finance" />} />
-    </main>
+    </Workspace>
   );
 }
 
+function ClosingWorkspace({ delivery, children }: { delivery: ReactNode; children: ReactNode }) {
+  const { edition } = useUiEdition();
+  const deliveryColumn = <div className="closing-delivery" key="delivery">{delivery}</div>;
+  const reviewColumn = <div className="closing-review" key="review">{children}</div>;
+  return <div className="closing-workspace">
+    {edition === "new" ? [reviewColumn, deliveryColumn] : [deliveryColumn, reviewColumn]}
+  </div>;
+}
+
 function PayrollPanel({ storeId, businessDate, canManage, members, settlements, busy, run, reload }: { storeId: string; businessDate: string; canManage: boolean; members: StoreMember[]; settlements: PayrollSettlement[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
+  const decision = useDecision();
   const [editing, setEditing] = useState<PayrollSettlement | null>(null);
-  return <section className="finance-section">
+  return <section className="finance-section payroll-page">
     {canManage && <EmployeeSettlementPanel key={storeId} storeId={storeId} businessDate={businessDate} members={members} settlements={settlements} busy={busy} run={run} onSettled={reload} />}
-    {canManage && <details className="finance-metric-group finance-metric-disclosure payroll-entry">
-      <summary><strong>登记已付工资</strong><span>展开填写</span></summary>
-      <PayrollEntryForm storeId={storeId} businessDate={businessDate} members={members} busy={busy} run={run} onSaved={reload} />
-    </details>}
-    <h2 className="table-title">工资结算账本</h2>
-    <PayrollLedger settlements={settlements} canManage={canManage} busy={busy} onEdit={setEditing} onRestore={item => void run(async () => {
-      await apiRequest(`/stores/${storeId}/payroll-settlements/${item.id}/restore`, { method: "POST", idempotent: true, body: { version: item.version } });
-      await reload();
-    })} onDelete={item => void run(async () => {
-      if (!window.confirm("确认删除这条工资结算吗？余额会立即重新计算。")) return;
-      await apiRequest(`/stores/${storeId}/payroll-settlements/${item.id}`, { method: "DELETE", idempotent: true, body: { version: item.version } });
-      await reload();
-    })} />
+    <section className="payroll-ledger-panel" aria-label="工资结算账本">
+      <header className="payroll-ledger-heading"><h2>工资结算账本</h2><p>已登记的实付工资与历史调整。</p></header>
+      {canManage && <details className="finance-metric-group finance-metric-disclosure payroll-entry">
+        <summary><strong>登记已付工资</strong><span>展开填写</span></summary>
+        <PayrollEntryForm storeId={storeId} businessDate={businessDate} members={members} busy={busy} run={run} onSaved={reload} />
+      </details>}
+      <PayrollLedger settlements={settlements} canManage={canManage} busy={busy} onEdit={setEditing} onRestore={item => void run(async () => {
+        await apiRequest(`/stores/${storeId}/payroll-settlements/${item.id}/restore`, { method: "POST", idempotent: true, body: { version: item.version } });
+        await reload();
+      })} onDelete={item => void run(async () => {
+        if (!await decision.confirm("确认删除这条工资结算吗？余额会立即重新计算。", { action: "删除", danger: true })) return;
+        await apiRequest(`/stores/${storeId}/payroll-settlements/${item.id}`, { method: "DELETE", idempotent: true, body: { version: item.version } });
+        await reload();
+      })} />
+    </section>
     {editing && <div className="modal-backdrop" role="presentation"><PayrollEntryForm key={editing.id} storeId={storeId} businessDate={businessDate} members={members} settlement={editing} busy={busy} close={() => setEditing(null)} run={run} onSaved={reload} /></div>}
   </section>;
 }

@@ -25,7 +25,7 @@ import type {
 import { TodayBoard } from "./today-board";
 import { useStoreRealtime } from "../lib/realtime";
 import { boardRefreshScope } from "../lib/realtime-scope";
-import { AppNav } from "./app-nav";
+import { Workspace } from "./app-nav";
 import { FloatingAiAssistant } from "./floating-ai-assistant";
 import { BusinessDatePicker } from "./business-date-picker";
 
@@ -171,10 +171,10 @@ function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; o
     } : service));
   };
   if (membership.role === "EMPLOYEE") {
-    return <main className="center-page center-page--with-nav"><section className="setup-card"><h1>项目尚未设置</h1><p className="field-help">请联系店长或经理完成主要项目设置后再开始记工。</p><button className="secondary-action" onClick={() => onDone()} type="button">重新检查</button></section><AppNav active="today" storeId={membership.store.id} role={membership.role} /></main>;
+    return <Workspace className="center-page center-page--with-nav" navigation={{ active: "today", storeId: membership.store.id, role: membership.role }}><section className="setup-card"><h1>项目尚未设置</h1><p className="field-help">请联系店长或经理完成主要项目设置后再开始记工。</p><button className="secondary-action" onClick={() => onDone()} type="button">重新检查</button></section></Workspace>;
   }
   return (
-    <main className="center-page center-page--with-nav">
+    <Workspace className="center-page center-page--with-nav" navigation={{ active: "today", storeId: membership.store.id, role: membership.role }}>
       <form className="setup-card setup-card--wide" onSubmit={(event) => {
         event.preventDefault(); setBusy(true); setError("");
         try {
@@ -214,8 +214,7 @@ function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; o
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="primary-action" type="submit" disabled={busy}>{busy ? "正在保存…" : "确认设置并进入今日记工"}</button>
       </form>
-      <AppNav active="today" storeId={membership.store.id} role={membership.role} />
-    </main>
+    </Workspace>
   );
 }
 
@@ -414,7 +413,7 @@ function MassageNotePage() {
   const returnToToday = viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => selectDate(currentDay.businessDate)}>返回今天</button>;
 
   return (
-    <main className="app-shell">
+    <Workspace className="app-shell" navigation={{ active: "today", storeId: membership.store.id, role: membership.role, assistant: <FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} timezone={currentDay.timezone} type="work" onWorkChanged={loadStore} /> }}>
       <TodayBoard
         wideLayout={wideLayout}
         heading={<><p className="eyebrow">{membership.store.name} · 店铺代码 {membership.store.storeCode}</p><h1>{viewDate === currentDay.businessDate ? "今日记工" : viewDate > currentDay.businessDate ? "未来记工" : "历史记工"}</h1><p className="business-date">{chineseDate(viewDate)} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></>}
@@ -429,7 +428,6 @@ function MassageNotePage() {
         calendar={wideLayout ? dateCalendar : null}
         loadError={error}
         key={`today-${membership.store.id}-${viewDate}`} membership={membership} store={storeDetails} currentDay={{ ...currentDay, businessDate: viewDate }} isCurrentBusinessDay={viewDate === currentDay.businessDate} isFutureBusinessDay={viewDate > currentDay.businessDate} board={board} catalog={catalog} members={members} initialRecordId={initialRecordId || undefined} onInitialRecordOpened={() => { setInitialRecordId(""); const url = new URL(window.location.href); url.searchParams.delete("record"); window.history.replaceState(null, "", `${url.pathname}${url.search}`); }} onReload={loadStore} onSaveReload={reloadSavedRecords} />
-      <AppNav active="today" storeId={membership.store.id} role={membership.role} assistant={<FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} timezone={currentDay.timezone} type="work" onWorkChanged={loadStore} />} />
-    </main>
+    </Workspace>
   );
 }

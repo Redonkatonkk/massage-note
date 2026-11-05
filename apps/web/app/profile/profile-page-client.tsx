@@ -9,7 +9,7 @@ import { browserStorage } from "../../lib/browser-storage";
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
 import type { MeResponse } from "../../lib/types";
-import { AppNav } from "../app-nav";
+import { Workspace } from "../app-nav";
 
 export function ProfilePageClient() {
   const [me, setMe] = useState<MeResponse | null>(null);
@@ -57,7 +57,7 @@ export function ProfilePageClient() {
   const selectedMembership = me.memberships.find((membership) => membership.store.id === selectedStoreId);
   const roleText = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工" } as const;
   return (
-    <main className="app-shell manage-shell profile-shell">
+    <Workspace className="app-shell manage-shell profile-shell" navigation={{ active: "profile", storeId: selectedStoreId || undefined, role: selectedMembership?.role }}>
       <header className="topbar"><div><p className="eyebrow">账号与偏好</p><h1>我的</h1><p className="business-date">{me.phoneE164}</p></div><a className="store-switcher header-link" href={appHref("/help")}>使用帮助</a></header>
       <section className="manage-section profile-layout">
         <aside className="profile-summary"><div className="profile-avatar" aria-hidden="true">{Array.from(me.firstName || me.phoneE164)[0]}</div><p className="eyebrow">个人账号</p><h2>{[me.firstName, me.lastName].filter(Boolean).join(" ") || me.phoneE164}</h2><p>{me.phoneE164}</p>{selectedMembership && <div><strong>{selectedMembership.store.name}</strong><span>{roleText[selectedMembership.role]}</span></div>}<a className="secondary-action button-link" href={appHref("/")}>返回工作台</a></aside>
@@ -115,7 +115,6 @@ export function ProfilePageClient() {
         </form>
         <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">登录状态</p><h2>退出账号</h2></div></div><p className="field-help">退出后，这台设备会保留经过验证的登录状态。下次输入同一手机号码时可以直接登录，减少验证码短信。</p><button className="secondary-action" type="button" disabled={signOutBusy} onClick={() => { setSignOutBusy(true); void apiRequest("/auth/session", { method: "DELETE" }).finally(() => window.location.replace(appHref("/login"))); }}>{signOutBusy ? "正在退出…" : "退出"}</button></section>
       </section>
-      <AppNav active="profile" storeId={selectedStoreId || undefined} role={selectedMembership?.role} />
-    </main>
+    </Workspace>
   );
 }

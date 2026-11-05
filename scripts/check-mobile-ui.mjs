@@ -10,15 +10,19 @@ const { JSDOM } = webRequire("jsdom");
 const postcss = webRequire(webRequire.resolve("postcss", { paths: [dirname(webRequire.resolve("next/package.json"))] }));
 export const mobileWidths = [320, 360, 390, 414, 480, 600, 760];
 
+const dividedMetrics = new Set([".monthly-finance__metric", ".analytics-overview__metric", ".expenses-summary article", ".gift-card-ledger__summary article"]);
+const tintedPanels = new Set([".members-directory", ".login-card"]);
+
 const panel = (selector) => [selector, { "border-radius": "10px", "background-color": "rgb(255, 255, 255)" }];
 const field = (selector) => [selector, { height: "44px", "border-radius": "6px", "font-size": "16px" }];
 const touch = (selector) => [selector, { "min-height": { min: 44 } }];
 const single = (selector) => [selector, { "grid-template-columns": ["1fr", "minmax(0, 1fr)"] }];
 const table = '<div class="table-scroll"><table class="data-table"><tbody><tr><td>Long employee name · $1,234.56</td></tr></tbody></table></div>';
 const responsiveRecords = `<div class="responsive-data-view"><div class="desktop-data-view">${table}</div><div class="mobile-data-view"><ul class="mobile-data-list"><li><article class="mobile-data-card"><header><div><h3>Long employee name / 员工</h3></div></header><dl class="record-facts"><div><dt>删除原因 / Reason</dt><dd>需要核对的完整删除原因 / A complete reason that must wrap</dd></div></dl><footer class="mobile-data-card__actions"><button class="table-action">恢复</button></footer></article></li></ul></div></div>`;
+const dialog = (className, content = '<label>Reason / 原因<input></label>', headingClass = "modal-heading") =>
+  `<section class="${className}" role="dialog"><div class="${headingClass}"><h2>Long employee name / 很长的员工姓名</h2><button class="close-button">Close</button></div>${content}</section>`;
 const tabs = '<nav class="section-tabs"><button class="active">月度汇总 / Monthly summary</button><button>工资结算 / Payroll settlement</button></nav>';
 const form = '<div class="manage-form-grid"><label>姓名 / Name<input value="Long employee name"></label><label>语言 / Language<select><option>使用店铺默认 / Store default</option></select></label></div>';
-const filter = '<form class="filter-panel"><div class="filter-panel__heading"><div><strong>筛选 / Filters</strong></div><a class="export-link primary-action">导出 / Export</a></div><label>日期<input type="date"></label><button class="primary-action">查询 / Search</button></form>';
 const analyticsFilter = '<form class="filter-panel"><div class="filter-panel__heading"><div><strong>经营分析 / Business analytics</strong></div></div><div class="quick-ranges"><button type="button">最近7天</button></div><label>开始日期<input type="date"></label><label>结束日期<input type="date"></label><label>高光记工<select><option>仅高光</option><option>排除高光</option><option selected>全部</option></select></label><button class="primary-action">应用日期段</button></form>';
 const analyticsDailyReport = '<section class="finance-report-section"><div class="finance-report-heading"><h2>每日小计</h2><button class="secondary-action">显示全部列</button></div>' + table + '</section>';
 const analyticsCalendar = '<section class="analytics-card analytics-revenue-calendar"><div class="business-date-picker business-date-picker--inline"><section class="business-date-picker__popover"><header><button>‹</button><strong>2026 年 10 月</strong><button>›</button></header><div class="business-date-picker__days"><button class="has-closed-revenue"><time>7</time><small class="business-date-picker__revenue">123456.78</small></button></div></section></div></section>';
@@ -42,8 +46,8 @@ export const mobileScreens = [
   ["支出", "/finance", '<main class="app-shell finance-shell"><section class="expenses-panel"><div class="expenses-filter"><div class="expenses-toolbar"><label>支出月份<input type="month"></label><button class="primary-action">新增支出</button></div></div><div class="expenses-summary"><article><strong>$1,234.56</strong></article></div><article class="expenses-item"><div></div><div class="expenses-item-actions"><button class="table-action">编辑</button></div></article></section></main>', [panel(".expenses-filter"), panel(".expenses-summary article"), field("input"), [".expenses-summary", { "grid-template-columns": width => width <= 360 ? "1fr" : "repeat(2, minmax(0, 1fr))" }], [".expenses-item", { "flex-direction": "column" }]]],
   ["日结", "/finance", `<main class="app-shell finance-shell"><div class="closing-delivery-panel"><div>发送状态</div><button class="primary-action">发送全部小结</button></div><div class="warning-list"><article>待付款</article></div>${table}</main>`, [single(".closing-delivery-panel"), single(".warning-list"), touch(".primary-action")]],
   ["我的日结", "/finance", `<main class="app-shell finance-shell"><section class="personal-cash-settlement">${table}<button class="secondary-action">查看现金</button></section></main>`, [[".table-scroll", { "overflow-x": "auto" }], touch(".secondary-action")]],
-  ["礼物卡", "/finance", `<main class="app-shell finance-shell">${filter}<div class="gift-card-ledger__usage-list"><article><div>销售</div><div>核销</div></article></div>${table}</main>`, [panel(".filter-panel"), field("input"), [".gift-card-ledger__usage-list article", { "flex-direction": "column" }]]],
-  ["工资结算", "/finance", '<main class="app-shell finance-shell"><section class="employee-settlement-panel"><div class="settlement-selection-layout has-preview"><aside class="settlement-selection-sidebar"><div class="settlement-employee-buttons"><button>员工</button></div></aside><div class="settlement-calendar-column"><div class="settlement-calendar"></div></div><section class="employee-settlement-preview settlement-preview-compact"><div class="employee-settlement-summary mode-single"><article><span>工资总额</span><strong>$1,234.56</strong></article></div><section class="settlement-payment"><div class="settlement-payment-amounts"><article><span>已发放</span><strong>$0.00</strong></article><label>本次支付<input inputmode="decimal"></label></div></section><div class="settlement-preview-footer"><div class="employee-settlement-send-actions"><button class="primary-action">确认支付 / Confirm payment</button><button class="secondary-action">发送结算单</button></div></div></section></div><div class="payroll-fields"><label>工资<input></label></div></section></main>', [panel(".employee-settlement-panel"), single(".settlement-selection-layout"), single(".employee-settlement-summary"), single(".settlement-payment-amounts"), field(".settlement-payment input"), touch(".employee-settlement-send-actions button"), single(".payroll-fields")]],
+  ["礼物卡", "/finance", `<main class="app-shell finance-shell"><section class="finance-section gift-card-ledger"><div class="gift-card-ledger__summary"><article><span>售出总额 / Total sold</span><strong>$123,456,789.12</strong></article></div><div class="gift-card-ledger__usage-list"><article><div>记工 / Work record</div><div>核销 / Redemption</div></article></div>${table}</section></main>`, [panel(".gift-card-ledger__summary article"), [".gift-card-ledger__summary strong", { "overflow-wrap": "anywhere" }], [".gift-card-ledger__usage-list article", { "flex-direction": "column" }]]],
+  ["工资结算", "/finance", '<main class="app-shell finance-shell"><section class="payroll-workspace"><div class="payroll-workspace-grid"><form class="payroll-setup"><div class="payroll-employee-list"><button>Employee / 员工</button></div><div class="settlement-calendar"><div class="settlement-calendar-days"><button class="settlement-calendar-day">25</button></div></div></form><section class="payroll-statement"><section class="settlement-ledger-summary"><div class="settlement-ledger-total"><strong>$1,234.56</strong></div><div class="settlement-source-table"><table><tbody><tr><th>刷卡＋礼物卡</th><td>$0.00</td><td>$1,234.56</td></tr></tbody></table></div></section><section class="settlement-payment"><div class="settlement-payment-amounts"><article><span>未结金额</span><strong>$1,234.56</strong></article><label>抵扣金额<input inputmode="decimal"></label><article class="payroll-paid-amount"><span>实付工资</span><strong>$1,234.56</strong></article></div></section><div class="payroll-statement-actions"><div class="employee-settlement-send-actions"><button class="primary-action">已付款 / Paid</button><button class="secondary-action">复制分享链接 / Copy share link</button></div></div></section></div></section><section class="payroll-ledger-panel"><div class="payroll-fields"><label>工资<input></label></div></section></main>', [panel(".payroll-workspace-grid"), single(".payroll-workspace-grid"), single(".settlement-payment-amounts"), field(".settlement-payment input"), touch(".payroll-employee-list button"), touch(".settlement-calendar-day"), touch(".employee-settlement-send-actions button"), [".settlement-source-table td", { "text-align": "right", "font-size": "14px", "font-variant-numeric": "tabular-nums" }], single(".payroll-fields")]],
   ["店铺设置", "/manage", `<main class="app-shell manage-shell">${tabs}<section class="manage-section store-settings-layout"><form class="manage-card">${form}<button class="primary-action">保存</button></form></section></main>`, [panel(".manage-card"), single(".store-settings-layout"), single(".manage-form-grid"), field("input"), field("select"), [".section-tabs button", { "border-radius": "0px" }]]],
   ["成员目录", "/manage", '<main class="app-shell manage-shell"><div class="members-master-detail"><aside class="members-directory"><div class="members-toolbar"><div class="members-toolbar__controls"><label class="members-search"><input type="search"></label><select><option>全部角色</option></select></div></div><div class="members-roster"><button class="members-roster-item"><span class="members-identity"><strong>Long employee name</strong></span></button></div></aside><section class="member-detail"></section></div></main>', [panel(".members-directory"), field("input"), [".member-detail", { "display": "none" }], [".members-roster", { "max-height": "none" }]]],
   ["成员详情", "/manage", '<main class="app-shell manage-shell"><div class="members-master-detail has-selection"><aside class="members-directory"></aside><section class="member-detail"><button class="member-detail__back table-action">返回员工列表</button><form class="member-sheet__body"><fieldset class="member-settings-group"><legend>日结短信</legend><div class="member-settings-group__body"><div class="member-settings-grid"><label>短信号码<input type="tel"><small>号码说明</small></label><label>图片语言<select><option>使用店铺默认</option></select></label></div></div></fieldset></form></section></div></main>', [panel(".member-detail"), [".members-directory", { "display": "none" }], [".member-detail__back", { "display": "inline-flex" }], [".member-settings-grid label", { "display": "flex", "flex-direction": "column", "align-self": "start" }], field("input"), field("select")]],
@@ -69,6 +73,12 @@ export const mobileScreens = [
   ["成员确认弹层", "/manage", '<dialog class="member-sheet" open><form class="member-sheet__body"><fieldset class="member-settings-group"><div class="member-settings-group__body"><label>姓名<input></label></div></fieldset></form><div class="member-sheet__footer"><button class="primary-action">保存员工</button></div></dialog>', [[".member-sheet", { "border-radius": "12px", "display": "flex", "overflow": "hidden" }], field("input"), touch(".primary-action")]],
   ["浮动助手", "/", '<div class="ai-dialog-root"><section class="floating-ai-dialog"><form class="chat-composer floating-ai-composer"><textarea></textarea><div class="composer-actions"><button class="voice-button">语音输入</button><button class="primary-action">发送</button></div></form></section></div>', [["textarea", { "font-size": "16px" }], touch(".voice-button"), touch(".primary-action")]],
   ["手机导航", "/", `<main class="app-shell"><div class="app-nav-space"><nav class="bottom-nav"><div class="app-nav-links app-nav-links--with-ai">${Array.from({ length: 5 }, () => '<div class="app-nav-group"><a class="bottom-nav__item"><span class="app-nav-label">店铺设置 / Store settings</span></a></div>').join("")}</div></nav></div></main>`, [[".app-nav-links", { "grid-template-columns": "repeat(5, minmax(0, 1fr))" }], [".app-nav-label", { "display": "inline" }], touch(".bottom-nav__item")]],
+  ["工作台侧栏与版本按钮", "/", '<div class="app-utility-bar workspace-toolbar"><button class="workspace-menu-trigger">工作台导航</button><dialog class="workspace-menu" open><div class="workspace-menu-body"><div class="workspace-preferences"><div class="language-switcher"><button>English</button></div><div class="edition-switcher"><button>旧版</button><button>新版</button></div></div></div></dialog></div>', [touch(".workspace-menu-trigger"), touch(".edition-switcher button"), [".workspace-preferences", { display: "grid" }]]],
+  ["员工选择与排位解释", "/", dialog("board-delivery-dialog employee-picker-dialog") + dialog("board-delivery-dialog ranking-explanation-dialog"), [touch(".close-button")]],
+  ["日结个人详情与短信队列", "/", dialog("employee-closing-modal") + dialog("board-delivery-dialog", "<p>发送中 / Sending</p>"), [touch(".close-button")]],
+  ["礼物卡销售弹层", "/", dialog("quick-modal gift-card-sale-modal", '<div class="gift-card-sale-form"><input inputmode="decimal"></div>'), [touch(".close-button"), ["input", { "min-height": "44px" }]]],
+  ["财务明细与发送历史", "/finance", dialog("finance-details", responsiveRecords, "finance-details__heading") + dialog("settlement-delivery-modal", "<p>等待送达 / Awaiting delivery</p>"), [touch(".close-button"), panel(".mobile-data-card")]],
+  ["支出详情、编辑与工资编辑", "/finance", dialog("expenses-editor") + dialog("payroll-edit-modal"), [touch(".close-button"), ["input", { "min-height": "44px" }]]],
 ];
 
 function mediaMatches(query, width) {
@@ -79,10 +89,13 @@ function mediaMatches(query, width) {
   });
 }
 
-export function stylesAtWidth(sources, width) {
+export function stylesAtWidth(sources, width, edition = "legacy") {
   const trees = sources.map(({ name, css }) => postcss.parse(css, { from: name }));
   const tokens = {};
   for (const tree of trees) tree.walkRules(":root", (rule) => rule.walkDecls((decl) => { tokens[decl.prop] = decl.value; }));
+  if (edition === "new") {
+    for (const tree of trees) tree.walkRules(':root[data-ui-edition="new"]', rule => rule.walkDecls(decl => { tokens[decl.prop] = decl.value; }));
+  }
   const substitute = (value) => {
     for (let i = 0; i < 10 && /var\(/.test(value); i++) value = value.replace(/var\((--[\w-]+)(?:,\s*([^()]+))?\)/g, (original, key, fallback) => tokens[key] ?? fallback ?? original);
     return value;
@@ -102,10 +115,10 @@ export function stylesAtWidth(sources, width) {
   return rules.join("\n");
 }
 
-export function checkMobileUi(sources, widths = mobileWidths) {
+export function checkMobileUi(sources, widths = mobileWidths, edition = "legacy") {
   const issues = [];
   for (const width of widths) {
-    const dom = new JSDOM(`<style>${stylesAtWidth(sources, width)}</style>${mobileScreens.map(([name, , html], i) => `<div data-screen="${i}" aria-label="${name}">${html}</div>`).join("")}`);
+    const dom = new JSDOM(`<html data-ui-edition="${edition}"><style>${stylesAtWidth(sources, width, edition)}</style>${mobileScreens.map(([name, , html], i) => `<div data-screen="${i}" aria-label="${name}">${html}</div>`).join("")}`);
     try {
       for (const [index, [name, , , checks]] of mobileScreens.entries()) {
         const screen = dom.window.document.querySelector(`[data-screen="${index}"]`);
@@ -119,7 +132,11 @@ export function checkMobileUi(sources, widths = mobileWidths) {
           for (const element of elements) {
             const style = dom.window.getComputedStyle(element);
             for (const [property, expectation] of Object.entries(properties)) {
-              const expected = typeof expectation === "function" ? expectation(width) : expectation;
+              let expected = typeof expectation === "function" ? expectation(width) : expectation;
+              if (edition === "new" && property === "border-radius" && expected === "10px") {
+                expected = dividedMetrics.has(selector) ? "0px" : "8px";
+              }
+              if (edition === "new" && property === "background-color" && tintedPanels.has(selector)) expected = "rgb(247, 249, 250)";
               const actual = style.getPropertyValue(property);
               const matches = expected?.min !== undefined
                 ? actual.endsWith("px") && Number.parseFloat(actual) >= expected.min
@@ -142,9 +159,9 @@ async function main() {
     if (!covered.has(route)) throw new Error(`Mobile UI fixture missing for route ${route}`);
   }
   const sources = await Promise.all(uiStyleFiles.map(async (name) => ({ name, css: await readFile(resolve(root, "apps/web/app", name), "utf8") })));
-  const issues = checkMobileUi(sources);
+  const issues = ["legacy", "new"].flatMap(edition => checkMobileUi(sources, mobileWidths, edition).map(issue => `${edition}: ${issue}`));
   if (issues.length) throw new Error(`Mobile UI styles failed:\n${issues.join("\n")}`);
-  console.log(`手机样式检查通过：${pages.length} 个路由、${mobileScreens.length} 组页面/分区，${mobileWidths.join("/")}px。代码检查不包含浏览器视觉验收。`);
+  console.log(`新旧版手机样式检查通过：${pages.length} 个路由、${mobileScreens.length} 组页面/分区，${mobileWidths.join("/")}px。代码检查不包含浏览器视觉验收。`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

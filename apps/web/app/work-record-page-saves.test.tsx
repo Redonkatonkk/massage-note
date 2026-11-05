@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useEffect, StrictMode } from "react";
+import { act, useEffect, StrictMode, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { demoRequest } from "../demo/client";
@@ -12,7 +12,7 @@ import { MassageNoteApp } from "./massage-note-app";
 vi.mock("../lib/api", async original => ({ ...await original<typeof import("../lib/api")>(), apiRequest: vi.fn() }));
 vi.mock("../lib/realtime", () => ({ useStoreRealtime: () => "已同步" }));
 vi.mock("./floating-ai-assistant", () => ({ FloatingAiAssistant: () => null }));
-vi.mock("./app-nav", () => ({ AppNav: () => null }));
+vi.mock("./app-nav", () => ({ Workspace: ({ children }: { children: ReactNode }) => <main>{children}</main> }));
 vi.mock("./business-date-picker", () => ({ BusinessDatePicker: ({ onChange }: { onChange: (date: string) => void }) => <button onClick={() => onChange("2026-10-21")}>Earlier date</button> }));
 let manager: WorkRecordSaveManager;
 vi.mock("./today-board", () => ({ TodayBoard: (props: { membership: MeResponse["memberships"][number]; currentDay: { businessDate: string }; accountActions: React.ReactNode; dateControls: React.ReactNode; onSaveReload: () => Promise<void> }) => {

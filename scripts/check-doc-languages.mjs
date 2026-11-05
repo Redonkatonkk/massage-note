@@ -1,8 +1,7 @@
-import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { localDocumentLinks } from "./check-doc-links.mjs";
+import { localDocumentLinks, repositoryMarkdownFiles } from "./check-doc-links.mjs";
 
 const pluginEnglish = "integrations/langbot-plugin/README.md";
 const pluginChinese = "integrations/langbot-plugin/readme/README_zh_Hans.md";
@@ -73,8 +72,7 @@ export async function checkDocumentLanguages(root, files) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const root = resolve(import.meta.dirname, "..");
-  const output = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "*.md"], { cwd: root, encoding: "utf8" });
-  const files = [...new Set(output.split("\0").filter(Boolean))];
+  const files = repositoryMarkdownFiles(root);
   const { errors, pairCount } = await checkDocumentLanguages(root, files);
   if (errors.length) {
     console.error(`Bilingual documentation checks failed:\n${errors.join("\n")}`);

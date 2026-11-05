@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatUsd } from "../lib/money";
 import { ApiError, apiRequest } from "../lib/api";
+import * as clipboard from "../lib/clipboard";
 import type { BoardStatistics, StoreDetails, StoreMember, WorkRecord } from "../lib/types";
 import { newWorkRecord } from "../lib/new-work-record";
 import { TodayBoard } from "./today-board";
@@ -22,13 +23,21 @@ vi.mock("./record-editor", async original => {
   return { RecordEditor: (props: ComponentProps<typeof actual.RecordEditor>) => editorRendering.actual ? <actual.RecordEditor {...props} />
     : <div className="normal-record-editor" data-readonly={props.isClosed} data-new={props.isNew} data-service={props.initialServiceItemId} data-record={JSON.stringify(props.record)}>{props.isNew && <button onClick={props.onClose}>取消详细记工</button>}</div> };
 });
-vi.mock("./board-employee-picker", () => ({ BoardEmployeePicker: () => null }));
+const pickerRendering = vi.hoisted(() => ({ actual: false }));
+vi.mock("./board-employee-picker", async original => {
+  const actual = await original<typeof import("./board-employee-picker")>();
+  return { BoardEmployeePicker: (props: ComponentProps<typeof actual.BoardEmployeePicker>) => pickerRendering.actual ? <actual.BoardEmployeePicker {...props} /> : null };
+});
 vi.mock("./board-weekly-dispatch", () => ({ BoardWeeklyDispatch: () => null }));
 vi.mock("./gift-card-sales", () => ({ GiftCardSales: () => null }));
 vi.mock("./lost-customers", () => ({ LostCustomers: () => null }));
 vi.mock("./employee-closing", () => ({ EmployeeClosingModal: () => null }));
 vi.mock("./closing-delivery-queue", () => ({ ClosingDeliveryQueueButton: () => null }));
-vi.mock("./ranking-explanation", () => ({ RankingExplanationButton: () => null }));
+const explanationRendering = vi.hoisted(() => ({ actual: false }));
+vi.mock("./ranking-explanation", async original => {
+  const actual = await original<typeof import("./ranking-explanation")>();
+  return { RankingExplanationButton: (props: ComponentProps<typeof actual.RankingExplanationButton>) => explanationRendering.actual ? <actual.RankingExplanationButton {...props} /> : null };
+});
 const request = vi.mocked(apiRequest);
 const saveMotion = vi.mocked(absorbWorkRecordDialog);
 const beginMotion = vi.mocked(beginWorkRecordSaveMotion);
@@ -49,7 +58,7 @@ let props: ComponentProps<typeof TodayBoard>;
 const reload = vi.fn(async () => {});
 
 beforeEach(() => {
-  language.locale = "zh-CN"; editorRendering.actual = false;
+  language.locale = "zh-CN"; editorRendering.actual = false; pickerRendering.actual = false; explanationRendering.actual = false;
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
@@ -86,6 +95,123 @@ async function pressEnter(target: Element, options: KeyboardEventInit = {}) {
   await act(async () => { target.dispatchEvent(event); });
   return event;
 }
+
+describe("历史排序依据入口", () => {
+  beforeEach(() => {
+    pickerRendering.actual = true;
+    explanationRendering.actual = true;
+    props.isCurrentBusinessDay = false;
+    props.isFutureBusinessDay = false;
+    props.board.ranking = {
+      enabled: true, rankedAt: "2026-10-06T10:00:00.000Z",
+      explanation: { schemaVersion: 2, generatedAt: "2026-10-06T10:00:00.000Z", fullTimeOrder: [employee.id], entries: [{ membershipId: employee.id, displayName: employee.displayName, employmentType: "FULL_TIME", lastPosition: 2, lastBusinessDate: "2026-10-05", generatedPosition: 1, fullTimePosition: 1, targetPosition: null, ties: [] }] },
+    };
+  });
+
+  it.each([false, true])("历史日期已日结=%s 时直接打开保存的解释，不需要重新生成", async isClosed => {
+    props.board.isClosed = isClosed;
+    await render();
+    expect(container.querySelectorAll('.ranking-help-button')).toHaveLength(1);
+    await click("查看所选日期排序依据");
+    const dialog = container.querySelector<HTMLDialogElement>('.ranking-explanation-dialog')!;
+    expect(dialog.open).toBe(true);
+    expect(dialog.textContent).toContain("全职内部第 1 位");
+    expect(dialog.textContent).toContain("2026-10-06");
+    expect([...container.querySelectorAll('button')].some(node => /^重新生成|^生成今日|^生成所选/.test(node.textContent ?? ''))).toBe(false);
+    expect(writes()).toHaveLength(0);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("历史日期已日结=%s 且没有快照时说明缺失，不提示改写历史", async isClosed => {
+    props.board.isClosed = isClosed;
+    props.board.ranking.explanation = null;
+    await render();
+    await click("查看所选日期排序依据");
+    const dialog = container.querySelector<HTMLDialogElement>('.ranking-explanation-dialog')!;
+    expect(dialog.textContent).toContain("该日期没有保存排序依据，无法还原当时的内部顺序。");
+    expect(dialog.textContent).not.toContain("重新生成顺序后即可查看");
+    expect(button("保存图片").disabled).toBe(true);
+    expect(writes()).toHaveLength(0);
+  });
+
+  it.each([false, true])("普通员工查看历史日期已日结=%s 时不显示管理者排序依据", async isClosed => {
+    props.membership.role = "EMPLOYEE";
+    props.board.isClosed = isClosed;
+    await render();
+    expect(container.querySelector('.ranking-help-button')).toBeNull();
+  });
+
+  it("关闭当天日结后仍可查看中英文只读解释", async () => {
+    language.locale = "en-US";
+    props.isCurrentBusinessDay = true;
+    props.board.isClosed = true;
+    await render();
+    await click("View selected date's ranking explanation");
+    expect(container.querySelector('.ranking-explanation-dialog')?.textContent).toContain("Full-time internal position 1");
+    expect(writes()).toHaveLength(0);
+  });
+});
+
+describe("未来排工顺序复制", () => {
+  beforeEach(() => {
+    pickerRendering.actual = true;
+    props.isCurrentBusinessDay = false;
+    props.isFutureBusinessDay = true;
+    props.board.ranking = { enabled: true, rankedAt: "2026-10-05T16:00:00.000Z", explanation: null };
+  });
+
+  it("在重新生成后提供复制，使用最新日期、手动顺序并排除已展开的隐藏员工", async () => {
+    const copy = vi.spyOn(clipboard, "copyText").mockResolvedValue(undefined);
+    const row = props.board.rows[0]!;
+    props.board.rows = [
+      { ...row, id: "second", membershipId: "second", membership: { ...employee, id: "second", displayName: "小明" } },
+      { ...row, id: "hidden", membershipId: "hidden", isHidden: true, membership: { ...employee, id: "hidden", displayName: "隐藏员工" } },
+      row,
+    ];
+    await render();
+    expect(button("复制排工顺序").previousElementSibling?.textContent).toBe("重新生成顺序");
+    await click("查看隐藏内容");
+    await click("复制排工顺序");
+    expect(copy).toHaveBeenLastCalledWith(`2026-10-06排工顺序\n第一：小明\n第二：${employee.displayName}`);
+    expect(document.querySelector(".screen-feedback[role=status]")?.textContent).toContain("排工顺序已复制");
+    props.currentDay = { ...props.currentDay, businessDate: "2026-10-07" };
+    props.board = { ...props.board, businessDate: "2026-10-07", rows: [row, props.board.rows[0]!] };
+    await render();
+    await click("复制排工顺序");
+    expect(copy).toHaveBeenLastCalledWith(`2026-10-07排工顺序\n第一：${employee.displayName}\n第二：小明`);
+    expect(writes()).toHaveLength(0);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("复制过程中禁用操作，失败时提示并允许重试", async () => {
+    let rejectCopy!: (reason: Error) => void;
+    const copy = vi.spyOn(clipboard, "copyText").mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { rejectCopy = reject; }));
+    await render();
+    await click("复制排工顺序");
+    expect(button("复制排工顺序").disabled).toBe(true);
+    expect(button("重新生成顺序").disabled).toBe(true);
+    await act(async () => rejectCopy(new Error("Clipboard denied")));
+    expect(document.querySelector(".screen-feedback[role=alert]")?.textContent).toBe("复制排工顺序失败，请重试。");
+    expect(document.querySelector(".screen-feedback[role=status]")).toBeNull();
+    expect(button("复制排工顺序").disabled).toBe(false);
+    copy.mockResolvedValueOnce(undefined);
+    await click("复制排工顺序");
+    expect(document.querySelector(".screen-feedback[role=status]")?.textContent).toContain("排工顺序已复制");
+    expect(writes()).toHaveLength(0);
+  });
+
+  it.each(["current", "history", "employee", "disabled-ranking", "empty", "closed"])("%s 不显示复制入口", async state => {
+    if (state === "current") { props.isCurrentBusinessDay = true; props.isFutureBusinessDay = false; }
+    if (state === "history") props.isFutureBusinessDay = false;
+    if (state === "employee") props.membership.role = "EMPLOYEE";
+    if (state === "disabled-ranking") props.board.ranking.enabled = false;
+    if (state === "empty") props.board.rows = [];
+    if (state === "closed") props.board.isClosed = true;
+    await render();
+    expect(container.textContent).not.toContain("复制排工顺序");
+    if (state === "current") expect(button("重新生成今日顺序")).toBeDefined();
+  });
+});
 
 it("主表操作与读取失败都使用中央浮层，提示不插入页面布局", async () => {
   props.isCurrentBusinessDay = false; props.board.isClosed = true;

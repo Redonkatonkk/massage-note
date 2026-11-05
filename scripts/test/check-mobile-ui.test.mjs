@@ -32,15 +32,16 @@ test("mobile checks reject layout and control regressions even when colors use t
     @media (max-width: 600px) {
       .board-store-projects { grid-template-columns: 1fr 1fr !important; }
       .section-tabs button { border-radius: var(--radius-control); }
-      .settlement-preview-compact .settlement-payment-amounts { grid-template-columns: repeat(3, 1fr); }
-      .settlement-preview-compact .employee-settlement-send-actions > button { min-height: 38px; }
+      .payroll-statement .settlement-payment-amounts { grid-template-columns: repeat(3, 1fr); }
+      .payroll-statement-actions .employee-settlement-send-actions > button { min-height: 38px; }
+      .gift-card-ledger__summary strong { overflow-wrap: normal; }
       .member-settings-grid > label { flex-direction: row; }
       .members-search input:not([type="checkbox"]):not([type="radio"]) { font-size: 13px; }
       .analytics-hero, .analytics-overview__metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .analytics-grid > .analytics-income-bars { contain: size; overflow-y: auto; }
     }
   ` }], [390]);
-  for (const selector of [".board-store-projects", ".section-tabs button", ".settlement-payment-amounts", ".employee-settlement-send-actions button", ".member-settings-grid label", "成员目录 input", ".analytics-hero", ".analytics-overview__metrics", ".analytics-grid > .analytics-income-bars"]) {
+  for (const selector of [".board-store-projects", ".section-tabs button", ".settlement-payment-amounts", ".employee-settlement-send-actions button", ".gift-card-ledger__summary strong", ".member-settings-grid label", "成员目录 input", ".analytics-hero", ".analytics-overview__metrics", ".analytics-grid > .analytics-income-bars"]) {
     assert.ok(issues.some((issue) => issue.includes(selector)), `Did not detect regression: ${selector}`);
   }
 });
@@ -109,5 +110,23 @@ test("trend cards keep semantic directions and complete amounts and periods on p
         assert.notEqual(style(selector).overflow, "hidden");
       }
     } finally { dom.window.close(); }
+  }
+});
+
+test("Framed Sheet rules stay isolated and fold the workspace at the rail breakpoint", async () => {
+  const { JSDOM } = createRequire(resolve(import.meta.dirname, "../../apps/web/package.json"))("jsdom");
+  const sources = await Promise.all(uiStyleFiles.map(async name => ({ name, css: await readFile(resolve(import.meta.dirname, "../../apps/web/app", name), "utf8") })));
+  for (const width of [390, 768, 1024, 1200, 1440]) {
+    for (const edition of ["legacy", "new"]) {
+      const dom = new JSDOM(`<html data-ui-edition="${edition}"><style>${stylesAtWidth(sources, width, edition)}</style><div class="app-utility-bar utility-toolbar"><dialog class="workspace-menu" open></dialog></div><div class="app-utility-bar workspace-toolbar"><div class="workspace-utilities"><button class="workspace-menu-trigger">Menu</button></div></div><main class="app-shell"><div class="app-nav-space"><nav class="bottom-nav"></nav></div></main>`);
+      try {
+        const style = selector => dom.window.getComputedStyle(dom.window.document.querySelector(selector));
+        assert.equal(style(".workspace-toolbar").display, edition === "legacy" && width >= 1200 ? "none" : "flex");
+        assert.equal(style(".utility-toolbar").display, "contents");
+        assert.equal(style(".workspace-utilities").display, edition === "new" && width >= 1200 ? "none" : "flex");
+        assert.equal(style(".app-shell").borderRadius, edition === "new" && width >= 1200 ? "16px" : "");
+        assert.equal(style(".bottom-nav").borderRadius, edition === "new" || width >= 1200 ? "0px" : "12px");
+      } finally { dom.window.close(); }
+    }
   }
 });

@@ -5,17 +5,19 @@ export const employeeSettlementPaymentScopeSchema = z.enum(["CASH", "NON_CASH", 
 
 export const employeeSettlementAmountTypeSchema = z.enum(["SERVICE", "TIP", "ALL"]);
 
+function validateDateRange(value: { dateFrom: string; dateTo: string }, context: z.RefinementCtx) {
+  if (value.dateTo < value.dateFrom) {
+    context.addIssue({ code: "custom", path: ["dateTo"], message: "结束日期不能早于开始日期" });
+  }
+}
+
 export const employeeSettlementQuerySchema = z.object({
   membershipId: uuidSchema,
   dateFrom: businessDateSchema,
   dateTo: businessDateSchema,
   paymentScope: employeeSettlementPaymentScopeSchema.default("ALL"),
   amountType: employeeSettlementAmountTypeSchema.optional(),
-}).superRefine((value, context) => {
-  if (value.dateTo < value.dateFrom) {
-    context.addIssue({ code: "custom", path: ["dateTo"], message: "结束日期不能早于开始日期" });
-  }
-});
+}).superRefine(validateDateRange);
 
 export const createEmployeeSettlementShareSchema = employeeSettlementQuerySchema;
 export const employeeSettlementShareTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
@@ -34,11 +36,7 @@ export const confirmEmployeeSettlementSchema = z.object({
   amountType: employeeSettlementAmountTypeSchema.optional(),
   deductionCents: moneyCentsSchema,
   revision: z.string().regex(/^[a-f0-9]{64}$/),
-}).strict().superRefine((value, context) => {
-  if (value.dateTo < value.dateFrom) {
-    context.addIssue({ code: "custom", path: ["dateTo"], message: "结束日期不能早于开始日期" });
-  }
-});
+}).strict().superRefine(validateDateRange);
 
 export type EmployeeSettlementCalendarQuery = z.output<typeof employeeSettlementCalendarQuerySchema>;
 export type ConfirmEmployeeSettlementInput = z.output<typeof confirmEmployeeSettlementSchema>;
@@ -54,11 +52,7 @@ export const createEmployeeSummaryDeliverySchema = z.object({
     .string()
     .trim()
     .regex(/^\+[1-9]\d{7,14}$/, "短信号码必须使用国际格式，例如 +16465551234"),
-}).superRefine((value, context) => {
-  if (value.dateTo < value.dateFrom) {
-    context.addIssue({ code: "custom", path: ["dateTo"], message: "结束日期不能早于开始日期" });
-  }
-});
+}).superRefine(validateDateRange);
 
 export const employeeSettlementAttachmentSchema = z.object({
   leaseToken: z.uuid(),

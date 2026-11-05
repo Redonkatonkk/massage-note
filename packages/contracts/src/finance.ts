@@ -248,7 +248,6 @@ export type SettleAllCashInput = z.input<typeof settleAllCashSchema>;
 export type CreatePayrollSettlementInput = z.output<
   typeof createPayrollSettlementSchema
 >;
-export type PayrollSettlementEntry = z.output<typeof payrollSettlementEntrySchema>;
 export type UpdatePayrollSettlementInput = z.input<
   typeof updatePayrollSettlementSchema
 >;

@@ -5,9 +5,43 @@ import { appHref } from "../lib/demo-mode";
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { BrandMark, UiIcon, type IconName } from "./ui/primitives";
 import { LanguageSwitcher } from "./language-provider";
+import { UiEditionSwitcher } from "./ui-edition-provider";
+import { WorkspaceMenu } from "./workspace-menu";
 import { financeNavigationTabs, manageNavigationTabs, navigationTabHref, type AppNavPage, type NavigationRole } from "../lib/app-navigation";
 
-export function AppNav({ active, storeId, role = "EMPLOYEE", activeTab, onTabChange, assistant }: { active: AppNavPage; storeId?: string | undefined; role?: NavigationRole | undefined; activeTab?: string | undefined; onTabChange?: ((value: string) => void) | undefined; assistant?: ReactNode }) {
+interface NavigationProps {
+  active: AppNavPage;
+  storeId?: string | undefined;
+  role?: NavigationRole | undefined;
+  activeTab?: string | undefined;
+  onTabChange?: ((value: string) => void) | undefined;
+  assistant?: ReactNode;
+}
+
+function navigationItems(storeId?: string) {
+  const query = storeId ? `?store=${encodeURIComponent(storeId)}` : "";
+  const items: Array<{ page: AppNavPage; href: string; icon: IconName; label: string }> = [
+    { page: "today", href: "/", icon: "log", label: "记工" },
+    { page: "finance", href: `/finance${query}`, icon: "chart", label: "财务" },
+    { page: "manage", href: `/manage${query}`, icon: "store", label: "店铺设置" },
+    { page: "profile", href: "/profile", icon: "user", label: "我的" },
+  ];
+  return items;
+}
+
+export function Workspace({ className, navigation, children }: { className: string; navigation: NavigationProps; children: ReactNode }) {
+  return <>
+    <WorkspaceMenu workspace links={<>
+      {navigationItems(navigation.storeId).map(item => <a key={item.page} href={appHref(item.href)} aria-current={navigation.active === item.page ? "page" : undefined}>
+        <UiIcon name={item.icon} />{item.label}
+      </a>)}
+      <a href={appHref("/help")}><UiIcon name="help" />使用帮助</a>
+    </>} />
+    <main className={className}>{children}<AppNav {...navigation} /></main>
+  </>;
+}
+
+export function AppNav({ active, storeId, role = "EMPLOYEE", activeTab, onTabChange, assistant }: NavigationProps) {
   const navRef = useRef<HTMLElement>(null);
   const submenuId = useId();
   const [expandedGroups, setExpandedGroups] = useState<Partial<Record<AppNavPage, boolean>>>({});
@@ -21,18 +55,11 @@ export function AppNav({ active, storeId, role = "EMPLOYEE", activeTab, onTabCha
     observer.observe(nav);
     return () => observer.disconnect();
   }, []);
-  const storeQuery = storeId ? `?store=${encodeURIComponent(storeId)}` : "";
-  const items: Array<{ page: AppNavPage; href: string; icon: IconName; label: string }> = [
-    { page: "today", href: "/", icon: "log", label: "记工" },
-    { page: "finance", href: `/finance${storeQuery}`, icon: "chart", label: "财务" },
-    { page: "manage", href: `/manage${storeQuery}`, icon: "store", label: "店铺设置" },
-    { page: "profile", href: "/profile", icon: "user", label: "我的" },
-  ];
   return <div className="app-nav-space" style={{ "--app-nav-height": navHeight === null ? undefined : `${navHeight}px` } as CSSProperties}>
     <nav ref={navRef} className="bottom-nav" aria-label="主要导航">
       <a className="app-nav-brand" href={appHref("/")} aria-label="Massage note 首页"><BrandMark /><span>massage<span className="app-nav-brand__note">note.</span></span></a>
       <p className="app-nav-caption">店铺工作台</p>
-      <div className={`app-nav-links${assistant ? " app-nav-links--with-ai" : ""}`}>{items.map((item) => {
+      <div className={`app-nav-links${assistant ? " app-nav-links--with-ai" : ""}`}>{navigationItems(storeId).map((item) => {
         const children = item.page === "finance" ? financeNavigationTabs(role) : item.page === "manage" ? manageNavigationTabs(role) : [];
         const isActive = active === item.page;
         const hasChildren = children.length > 0;
@@ -50,7 +77,7 @@ export function AppNav({ active, storeId, role = "EMPLOYEE", activeTab, onTabCha
           </div>}
         </div>;
       })}{assistant && <div className="app-nav-group">{assistant}</div>}</div>
-      <div className="app-nav-footer"><LanguageSwitcher /><a href={appHref("/help")} aria-label="使用帮助"><UiIcon name="help" /><span className="app-nav-label">使用帮助</span><UiIcon name="arrow" className="app-nav-footer__arrow" /></a><span className="app-nav-version">Massage note</span></div>
+      <div className="app-nav-footer"><LanguageSwitcher /><UiEditionSwitcher /><a href={appHref("/help")} aria-label="使用帮助"><UiIcon name="help" /><span className="app-nav-label">使用帮助</span><UiIcon name="arrow" className="app-nav-footer__arrow" /></a><span className="app-nav-version">Massage note</span></div>
     </nav>
   </div>;
 }

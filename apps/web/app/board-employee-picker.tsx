@@ -16,6 +16,7 @@ interface BoardEmployeePickerProps {
   allMembers: StoreMember[];
   weeklyDispatchEnabled: boolean;
   rankingAction?: { label: string; onClick: () => void } | undefined;
+  onCopyRanking?: (() => void) | undefined;
   rankingHelp?: ReactNode;
   rankingSetupRequest?: number;
   empty: boolean;
@@ -24,7 +25,7 @@ interface BoardEmployeePickerProps {
   onReload: () => Promise<void>;
 }
 
-export function BoardEmployeePicker({ storeId, businessDate, members, allMembers, weeklyDispatchEnabled, rankingAction, rankingHelp, rankingSetupRequest, empty, disabled, onAdd, onReload }: BoardEmployeePickerProps) {
+export function BoardEmployeePicker({ storeId, businessDate, members, allMembers, weeklyDispatchEnabled, rankingAction, onCopyRanking, rankingHelp, rankingSetupRequest, empty, disabled, onAdd, onReload }: BoardEmployeePickerProps) {
   const [dialog, dialogRef] = useNativeDialog();
   const submitting = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -63,7 +64,7 @@ export function BoardEmployeePicker({ storeId, businessDate, members, allMembers
   }
 
   return <>
-    {(members.length > 0 || rankingAction || weeklyDispatchEnabled) && <section className="board-panel add-employee-panel" aria-label="员工与排工操作">
+    {(members.length > 0 || rankingAction || rankingHelp || weeklyDispatchEnabled) && <section className="board-panel add-employee-panel" aria-label="员工与排工操作">
       {weeklyDispatchEnabled && <BoardWeeklyDispatch setupRequest={rankingSetupRequest ?? 0} storeId={storeId} businessDate={businessDate} members={allMembers} disabled={disabled} onSaved={onReload} />}
       <label className="field-label">手动添加员工到今日表格
         {empty
@@ -75,7 +76,8 @@ export function BoardEmployeePicker({ storeId, businessDate, members, allMembers
       </label>
       <div className="add-employee-actions">
         <button className="secondary-action" type="button" disabled={busy || disabled || members.length === 0 || (!empty && !singleId)} onClick={() => empty ? openPicker() : void submit([singleId], false)}>添加员工</button>
-        {rankingAction && <div className="ranking-action-group"><button className="secondary-action" type="button" disabled={busy || disabled} onClick={rankingAction.onClick}>{rankingAction.label}</button>{rankingHelp}</div>}
+        {(rankingAction || rankingHelp) && <div className="ranking-action-group">{rankingAction ? <button className="secondary-action" type="button" disabled={busy || disabled} onClick={rankingAction.onClick}>{rankingAction.label}</button> : <span>排序依据</span>}{rankingHelp}</div>}
+        {rankingAction && onCopyRanking && <button className="secondary-action" type="button" disabled={busy || disabled} onClick={onCopyRanking}>复制排工顺序</button>}
       </div>
     </section>}
     {error && <p className="form-error" role="alert">{error}</p>}

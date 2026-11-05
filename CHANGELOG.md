@@ -4,11 +4,52 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.54.1 — 2026-11-05
+
+- Publish the completed local updates omitted from 1.54.0: the Framed Sheet edition and edition switch, read-only ranking explanations on historical/closed dates, payroll workspace refinements, future-order copying, and the documented cleanup.
+- Keep the existing legacy default and saved edition preference; the New button beneath language enables the new interface. Historical explanations retain manager permissions and never regenerate the selected day.
+- Reconcile release contents against all completed pending updates and verify the two reported features in the official image before NAS rollout. NAS requires Web/API updates; no new database migration or independent plugin/agent update.
+
 ## 1.54.0 — 2026-11-05
 
 - Record leave when a scheduled full-time employee is removed or hidden, using the weekly template at the time. Same-day restoration cancels it; older absences are not inferred.
 - Move first-time returners to the complete full-time queue's tail after daily rotation or a manual anchor, keeping simultaneous returners in relative order and continuing later rotation from the changed queue. Carry pending leave across rest days and intermediate anchors.
 - Add optional leave dates to bilingual ranking explanations and cover attendance restoration, undo, future/explicit generation and backup mapping. NAS requires Web/API updates; no database migration or independent plugin/agent update.
+
+## 1.53.1 — 2026-11-05
+
+- Let owners/managers open the ranking-explanation question mark on historical dates, including closed and reopened days. Decouple viewing from generation and retain the entry when every employee is already on the board.
+- Show an explicit read-only empty state when no explanation was saved, without suggesting regeneration of history. Cover closed/open dates, permissions, both languages and the full-time queue remaining independent of ordinary row moves.
+- NAS requires a Web update; this change does not modify the ranking algorithm, API or database schema.
+
+## 1.53.0 — 2026-11-04
+
+- Add the Framed Sheet edition across work records, finance, store management, profile, AI, setup, login, help, offline and public payroll statements. Keep the legacy default and save the edition locally from the switch beneath language.
+- Restyle the application dialogs and replace browser confirmation prompts in the new edition with localized, keyboard-accessible forms. Both editions share the same routes, drafts, authorization and financial data.
+- Verify both editions through the Web test suite, responsive style checks and standalone and portfolio builds. NAS use requires a Web update. The existing personal statement exports and SMS attachments use their original templates.
+
+## 1.52.4 — 2026-11-04
+
+- Remove unused styles and query branches from the retired finance filters and summary layout, unused range-image code and translations, and unused internal contract declarations.
+- Share the AI action preview between the full-page and floating assistants, reuse settlement date validation, and give both Markdown checks the same file discovery.
+- Update the mobile gift-card ledger fixture and the bilingual rules to match the current pages. See the [cleanup record](docs/archive/CODE_CLEANUP_2026-11-04.md) for scope and retention decisions.
+
+## 1.52.3 — 2026-11-02
+
+- Shorten the future-board rerun button to “Regenerate order” and add “Copy work order” beside it. Copy the selected date and current employee order with Chinese ordinal labels, preserving manual order and excluding hidden staff; report clipboard success or failure.
+- Reuse the existing clipboard fallback and wrapping action layout, with targeted formatting and interaction regressions. NAS requires a Web update; no API, database migration or independent plugin/agent update.
+
+## 1.52.2 — 2026-11-02
+
+- Compact payroll into one working surface: employee/source/type choices sit beside the calendar, with amounts, deductions, payment confirmation and sharing alongside. Remove roster clipping, oversized totals and repeated store information; reduce only the payroll header's space.
+- Keep disabled payment/share controls visible before statement generation, preserve cents and all existing payment safeguards, and remove blank badges from calendar endpoints without settlement marks. Phones keep 44px targets and employee/date/options/generate order.
+- Add component/CSS regressions for the full control surface, an expanded 12-person roster, desktop columns and mobile reading order. Verification remains code-only. NAS requires a Web update; no API, database migration or independent plugin/agent update.
+
+## 1.52.1 — 2026-11-02
+
+- Redesign the payroll workspace with taste-skill's Achromatic ledger direction. Keep settlement conditions and amount review in stable columns, show the selected scope before generation, and lead with exact total earnings and aligned cash/card service-pay and tip rows.
+- Separate unsettled earnings, deductions and actual payment; retain confirmation, owner read-only behavior, settled-day marks, full daily records and 14-day share links. Group manual payment entry with the payroll ledger; narrow screens stack the same tasks with readable amounts and controls.
+- Update bilingual labels, mobile style fixtures and component regressions. NAS requires a Web update; no API, database migration or independent plugin/agent update.
 
 ## 1.52.0 — 2026-11-02
 

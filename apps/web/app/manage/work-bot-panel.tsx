@@ -1,5 +1,7 @@
 "use client";
 
+import { useDecision } from "../decision-dialog";
+
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import { useState } from "react";
@@ -24,6 +26,7 @@ function formatTime(value: string, locale: AppLocale) {
 const intentLabels: Record<string, string> = { BIND_STORE: "绑定店铺", BIND_MEMBER: "绑定员工", START: "上工", FINISH: "下工", ADJUST: "调整记工", QUERY: "查询账目", MANAGE: "管理记工", BATCH: "多人操作", HELP: "使用帮助" };
 
 export function WorkBotPanel({ storeId, catalog, settings, busy, run, reload }: Props) {
+  const decision = useDecision();
   const { locale, t } = useLanguage();
   const [draft, setDraft] = useState<{ text: string; version: number } | null>(null);
   const [saved, setSaved] = useAutoDismissState(false);
@@ -57,9 +60,9 @@ export function WorkBotPanel({ storeId, catalog, settings, busy, run, reload }: 
       {!settings.groups.length ? <div className="empty-state">还没有绑定的微信群。完成绑定后，可在这里管理群和员工。</div> : <div className="work-bot-groups">{settings.groups.map((group) => <details className="work-bot-group" key={group.id}>
         <summary><span><strong>微信群</strong><small translate="no">{group.groupId}</small></span><span className="work-bot-tag">{t(`${group.memberBindings.length} 位员工`)}</span></summary>
         <div className="work-bot-group-body"><p className="field-help">机器人：<span translate="no">{group.botId}</span> · 更新于 {formatTime(group.updatedAt, locale)}</p>
-          {group.memberBindings.map((member) => <div className="work-bot-member" key={member.id}><div className="work-bot-member__identity"><strong translate="no">{member.membership.displayName}</strong><small translate="no">{member.senderId}</small></div><span className="work-bot-member__status">{member.activeWorkRecordId ? "正在记工" : "空闲"}</span><div className="work-bot-member__actions"><button className="table-action" disabled={busy || member.senderId.startsWith("__massage_note_delegated__:")} type="button" onClick={() => { void run(async () => { await apiRequest(`/stores/${storeId}/work-bot/members/${member.id}/verification`, { method: "PATCH", body: { version: member.version, verified: !member.verifiedAt } }); await reload(); }); }}>{member.verifiedAt ? "关闭数据访问" : "核实身份并开启数据访问"}</button><button className="table-action danger" disabled={busy || Boolean(member.activeWorkRecordId)} title={member.activeWorkRecordId ? "请先完成当前记工再解除绑定" : "解除员工绑定"} type="button" onClick={() => { if (!window.confirm(t(`确认解除 ${member.membership.displayName} 的微信绑定吗？`))) return; void run(async () => { await apiRequest(`/stores/${storeId}/work-bot/members/${member.id}`, { method: "DELETE", body: { version: member.version } }); await reload(); }); }}>解除</button></div></div>)}
+          {group.memberBindings.map((member) => <div className="work-bot-member" key={member.id}><div className="work-bot-member__identity"><strong translate="no">{member.membership.displayName}</strong><small translate="no">{member.senderId}</small></div><span className="work-bot-member__status">{member.activeWorkRecordId ? "正在记工" : "空闲"}</span><div className="work-bot-member__actions"><button className="table-action" disabled={busy || member.senderId.startsWith("__massage_note_delegated__:")} type="button" onClick={() => { void run(async () => { await apiRequest(`/stores/${storeId}/work-bot/members/${member.id}/verification`, { method: "PATCH", body: { version: member.version, verified: !member.verifiedAt } }); await reload(); }); }}>{member.verifiedAt ? "关闭数据访问" : "核实身份并开启数据访问"}</button><button className="table-action danger" disabled={busy || Boolean(member.activeWorkRecordId)} title={member.activeWorkRecordId ? "请先完成当前记工再解除绑定" : "解除员工绑定"} type="button" onClick={async () => { if (!await decision.confirm(t(`确认解除 ${member.membership.displayName} 的微信绑定吗？`))) return; void run(async () => { await apiRequest(`/stores/${storeId}/work-bot/members/${member.id}`, { method: "DELETE", body: { version: member.version } }); await reload(); }); }}>解除</button></div></div>)}
           {!group.memberBindings.length && <p className="empty-state">群内还没有员工绑定。</p>}
-          <div className="work-bot-group-footer"><span className="field-help">解除后，群员需要重新绑定店铺。</span><button className="table-action danger" disabled={busy} type="button" onClick={() => { if (!window.confirm(t("确认解除这个群的店铺绑定吗？群员需要重新执行绑定店铺。"))) return; void run(async () => { await apiRequest(`/stores/${storeId}/work-bot/groups/${group.id}`, { method: "DELETE", body: { version: group.version } }); await reload(); }); }}>解除群绑定</button></div>
+          <div className="work-bot-group-footer"><span className="field-help">解除后，群员需要重新绑定店铺。</span><button className="table-action danger" disabled={busy} type="button" onClick={async () => { if (!await decision.confirm(t("确认解除这个群的店铺绑定吗？群员需要重新执行绑定店铺。"))) return; void run(async () => { await apiRequest(`/stores/${storeId}/work-bot/groups/${group.id}`, { method: "DELETE", body: { version: group.version } }); await reload(); }); }}>解除群绑定</button></div>
         </div>
       </details>)}</div>}
     </section>

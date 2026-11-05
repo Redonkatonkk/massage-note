@@ -1,5 +1,7 @@
 "use client";
 
+import { useDecision } from "./decision-dialog";
+
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ClosingDeliveryItem, ClosingDeliveryList, ClosingDeliveryStatus } from "../lib/types";
@@ -27,10 +29,11 @@ interface ClosingDeliveryQueueProps {
 }
 
 export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }: ClosingDeliveryQueueProps) {
+  const decision = useDecision();
   const deliveries = value.deliveries;
   if (deliveries.length === 0) return null;
-  const cancelAction = (item: ClosingDeliveryItem) => item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={() => {
-    if (window.confirm(`确认取消 ${item.membership.displayName} 的这条短信发送任务？`)) onCancel(item);
+  const cancelAction = (item: ClosingDeliveryItem) => item.status === "QUEUED" ? <button className="table-action danger" type="button" disabled={busy} onClick={async () => {
+    if (await decision.confirm(`确认取消 ${item.membership.displayName} 的这条短信发送任务？`)) onCancel(item);
   }}>取消发送</button> : null;
 
   return (

@@ -1,5 +1,7 @@
 "use client";
 
+import { useDecision } from "./decision-dialog";
+
 import { useAutoDismissState } from "./use-auto-dismiss-state";
 import { GiftCardIdentityField } from "./gift-card-identity-field";
 
@@ -55,6 +57,7 @@ export function GiftCardSales({
   canEdit,
   onReload,
 }: GiftCardSalesProps) {
+  const decision = useDecision();
   const activeMembers = useMemo(
     () => members.filter((member) => member.status === "ACTIVE" && !member.deletedAt),
     [members],
@@ -151,7 +154,7 @@ export function GiftCardSales({
       if (input.faceValueCents <= 0) throw new Error("礼物卡总金额必须大于 0");
       if (input.cashCents + input.cardCents <= 0) throw new Error("礼物卡付款总额必须大于 0");
       if (input.cashCents + input.cardCents !== payableCents &&
-        !window.confirm("实际收款与折后应付金额不一致，是否按实际收款保存？")) return;
+        !await decision.confirm("实际收款与折后应付金额不一致，是否按实际收款保存？")) return;
       if (editing) {
         const editedSerialNumber = serialNumber.trim();
         if (!editedSerialNumber) throw new Error("请填写礼物卡序列号或用户名");
@@ -188,8 +191,8 @@ export function GiftCardSales({
 
   async function remove() {
     if (!editing) return;
-    if (!window.confirm("确认删除这条礼物卡销售记录吗？店铺收入会同步更新。")) return;
-    const answer = window.prompt("删除原因（可不填）");
+    if (!await decision.confirm("确认删除这条礼物卡销售记录吗？店铺收入会同步更新。", { action: "删除", danger: true })) return;
+    const answer = await decision.prompt("删除原因（可不填）", { action: "删除", danger: true });
     if (answer === null) return;
     setBusy(true);
     setError("");

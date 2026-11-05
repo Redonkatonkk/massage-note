@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest } from "../../lib/api";
 import { LOCALE_STORAGE_KEY, type AppLocale } from "../../lib/i18n";
 import type { CatalogResponse, WorkBotSettings } from "../../lib/types";
-import { LanguageProvider } from "../language-provider";
+import { LanguageProvider, LanguageSwitcher } from "../language-provider";
 import { WorkBotPanel } from "./work-bot-panel";
 
 vi.mock("../../lib/api", () => ({ apiRequest: vi.fn() }));
@@ -28,9 +28,10 @@ let busy: boolean;
 let reload: ReturnType<typeof vi.fn<() => Promise<void>>>;
 
 function element(locale: AppLocale) {
-  return createElement(LanguageProvider, { initialLocale: locale, children: createElement(WorkBotPanel, {
+  return createElement(LanguageProvider, { initialLocale: locale, children: [createElement(LanguageSwitcher, { key: "language" }), createElement(WorkBotPanel, {
+    key: "panel",
     storeId: "store", catalog, settings, busy, run: async action => action(), reload,
-  }) });
+  })] });
 }
 async function render(locale: AppLocale = "en-US") { await act(async () => root.render(element(locale))); }
 function button(text: string) {

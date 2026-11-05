@@ -1,5 +1,7 @@
 "use client";
 
+import { useDecision } from "../decision-dialog";
+
 import { apiRequest } from "../../lib/api";
 import { formatUsd } from "../../lib/money";
 import type { DeletedGiftCardSale, DeletedWorkRecord } from "../../lib/types";
@@ -11,12 +13,13 @@ export function RecoveryPanel({ storeId, records, giftCardSales, busy, run, relo
   storeId: string; records: DeletedWorkRecord[]; giftCardSales: DeletedGiftCardSale[]; busy: boolean;
   run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void>;
 }) {
-  const restoreRecord = (record: DeletedWorkRecord) => {
-    if (!window.confirm(record.status === "PLACEHOLDER" ? `确认恢复 ${record.employee.displayName} 的这张占位小卡吗？恢复后只在主表占位，不计入财务。` : `确认恢复 ${record.employee.displayName} 的这条记工吗？恢复后会重新计入财务。`)) return;
+  const decision = useDecision();
+  const restoreRecord = async (record: DeletedWorkRecord) => {
+    if (!await decision.confirm(record.status === "PLACEHOLDER" ? `确认恢复 ${record.employee.displayName} 的这张占位小卡吗？恢复后只在主表占位，不计入财务。` : `确认恢复 ${record.employee.displayName} 的这条记工吗？恢复后会重新计入财务。`)) return;
     void run(async () => { await apiRequest(`/stores/${storeId}/work-records/${record.id}/restore`, { method: "POST", idempotent: true, body: { version: record.version } }); await reload(); });
   };
-  const restoreSale = (sale: DeletedGiftCardSale) => {
-    if (!window.confirm(`确认恢复礼物卡 ${sale.serialNumber} 的销售记录吗？恢复后会重新计入店铺收入。`)) return;
+  const restoreSale = async (sale: DeletedGiftCardSale) => {
+    if (!await decision.confirm(`确认恢复礼物卡 ${sale.serialNumber} 的销售记录吗？恢复后会重新计入店铺收入。`)) return;
     void run(async () => { await apiRequest(`/stores/${storeId}/gift-card-sales/${sale.id}/restore`, { method: "POST", idempotent: true, body: { version: sale.version } }); await reload(); });
   };
   const recordAction = (record: DeletedWorkRecord) => <button className="primary-action compact" disabled={busy} type="button" onClick={() => restoreRecord(record)}>{record.status === "PLACEHOLDER" ? "恢复占位" : "恢复记工"}</button>;

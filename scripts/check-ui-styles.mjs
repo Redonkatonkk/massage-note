@@ -10,7 +10,7 @@ const postcss = webRequire(webRequire.resolve("postcss", {
 }));
 
 // Check source styles in their real loading order, including rules inside media queries.
-export const uiStyleFiles = ["globals.css", "design-system.css", "responsive.css", "share/settlement/settlement-share.css"];
+export const uiStyleFiles = ["globals.css", "design-system.css", "responsive.css", "new-edition.css", "share/settlement/settlement-share.css"];
 const frameProperties = new Set(["background", "background-color", "border", "border-color", "border-radius", "box-shadow"]);
 const boardSurfaces = new Set([".gift-card-sales", ".lost-customers", ".add-employee-panel", ".board-empty-state"]);
 
@@ -20,7 +20,7 @@ export function checkUiStyles(sources) {
     const styles = postcss.parse(css, { from: name });
     styles.walkDecls((declaration) => {
       const selector = declaration.parent.selector;
-      if (selector === ":root") return;
+      if (selector === ":root" || selector === ':root[data-ui-edition="new"]') return;
       const location = `${name}:${declaration.source.start.line}`;
       if (/#[\da-f]{3,8}\b|rgba?\(/i.test(declaration.value)) {
         issues.push(`${location}: colors belong to :root tokens (${selector})`);

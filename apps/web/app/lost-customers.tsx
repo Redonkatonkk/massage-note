@@ -1,5 +1,7 @@
 "use client";
 
+import { useDecision } from "./decision-dialog";
+
 import { useAutoDismissState } from "./use-auto-dismiss-state";
 
 import { useEffect, useRef, useState } from "react";
@@ -16,6 +18,7 @@ import { UiIcon } from "./ui/primitives";
 export function LostCustomers({ storeId, businessDate, canEdit }: {
   storeId: string; businessDate: string; canEdit: boolean;
 }) {
+  const decision = useDecision();
   const { locale } = useLanguage();
   const t = (zh: string, en: string) => locale === "en-US" ? en : zh;
   const [records, setRecords] = useState<LostCustomer[]>([]);
@@ -65,7 +68,7 @@ export function LostCustomers({ storeId, businessDate, canEdit }: {
 
   async function save(remove = false) {
     if (saving.current || !canEdit || editing === undefined || (!remove && (!valid || !countValid))) return;
-    if (remove && (!editing || !window.confirm(t("确认删除这条跑客记录吗？", "Delete this lost customer record?")))) return;
+    if (remove && (!editing || !await decision.confirm(t("确认删除这条跑客记录吗？", "Delete this lost customer record?")))) return;
     saving.current = true; setBusy(true); setError(""); setNotice("");
     try {
       await apiRequest(editing ? `${path}/${editing.id}` : path, {

@@ -1,5 +1,7 @@
 "use client";
 
+import { useDecision } from "../decision-dialog";
+
 import { useEffect, useRef, useState } from "react";
 import type { ExpenseItemResponse, ExpenseMonthLine, ExpenseMonthResponse } from "@massage-note/contracts";
 import { ApiError, apiRequest, errorMessage } from "../../lib/api";
@@ -14,6 +16,7 @@ type Editor = { mode: "create" } | { mode: "edit" | "rule" | "stop"; item: Expen
 type Preset = "monthly" | "days" | "months" | "once";
 
 export function ExpensesPanel({ storeId, today }: { storeId: string; today: string }) {
+  const decision = useDecision();
   const { locale } = useLanguage();
   const t = (zh: string, en: string) => locale === "en-US" ? en : zh;
   const money = (value: string | null) => value === null ? t("未录入", "Not recorded") : expenseMoney(value, locale);
@@ -73,8 +76,8 @@ export function ExpensesPanel({ storeId, today }: { storeId: string; today: stri
   const missing = (count: number) => t(`${count} 期未录入，合计仅含已录入金额`, `${count} period(s) not recorded; totals include recorded amounts only`);
   const lineActions = (item: ExpenseItemResponse, line: ExpenseMonthLine) => <>
     <button type="button" className="table-action" disabled={busy} onClick={() => setEditor({ mode: "period", item, line })}>{t("填写 / 修改金额", "Record / edit amount")}</button>
-    {line.hasOverride && <button type="button" className="table-action" disabled={busy} onClick={() => {
-      if (window.confirm(t("撤销当期修改？将按常用金额生效日期恢复常用金额或未录入状态。", "Clear this period's change? It will return to the usual amount or not recorded, based on the effective date."))) run(`/${item.id}/periods`, "DELETE", { version: item.version, ruleId: line.ruleId, periodStart: line.periodStart });
+    {line.hasOverride && <button type="button" className="table-action" disabled={busy} onClick={async () => {
+      if (await decision.confirm(t("撤销当期修改？将按常用金额生效日期恢复常用金额或未录入状态。", "Clear this period's change? It will return to the usual amount or not recorded, based on the effective date."))) run(`/${item.id}/periods`, "DELETE", { version: item.version, ruleId: line.ruleId, periodStart: line.periodStart });
     }}>{t("撤销当期修改", "Clear period change")}</button>}
   </>;
   const itemActions = (item: ExpenseItemResponse) => <>
@@ -144,7 +147,7 @@ export function ExpensesPanel({ storeId, today }: { storeId: string; today: stri
         <h3>{t("规则历史", "Rule history")}</h3>{detailItem.rules.map(rule => <p key={rule.id}>{rule.startDate} — {rule.endExclusive ?? t("持续", "Ongoing")} · {cycleLabel(detailItem, rule.id)}<br />{t("常用金额", "Usual amount")} {money(rule.amountCents)} · {t("自动沿用自", "Applied from")} {rule.defaultAmountFrom}</p>)}
         <button type="button" className="table-action" disabled={busy} onClick={() => { setDetailsId(null); setEditor({ mode: detailItem.rules.at(-1)!.endExclusive ? "rule" : "stop", item: detailItem }); }}>{detailItem.rules.at(-1)!.endExclusive ? t("重新开始", "Resume") : t("停止", "Stop")}</button>
       </>}
-      <button type="button" className="table-action danger" disabled={busy} onClick={() => { if (window.confirm(t("删除会将该项目从所有月份的支出统计中移除，之后可以恢复。确认删除？", "Delete this item from all monthly expense totals? It can be restored later."))) run(`/${detailItem.id}`, "DELETE", { version: detailItem.version }); }}>{t("删除", "Delete")}</button>
+      <button type="button" className="table-action danger" disabled={busy} onClick={async () => { if (await decision.confirm(t("删除会将该项目从所有月份的支出统计中移除，之后可以恢复。确认删除？", "Delete this item from all monthly expense totals? It can be restored later."))) run(`/${detailItem.id}`, "DELETE", { version: detailItem.version }); }}>{t("删除", "Delete")}</button>
     </ExpenseDialog>}
     {editor && <ExpenseEditor key={`${editor.mode}:${"item" in editor ? editor.item.id : "new"}`} editor={editor} today={today} month={month} busy={busy} save={save} close={() => setEditor(null)} />}
   </section>;
@@ -211,6 +214,7 @@ function ExpenseDialog({ title, busy, close, onSubmit, children }: { title: stri
     const previous = document.activeElement as HTMLElement | null;
     form.current?.querySelector<HTMLElement>("input,button")?.focus();
     function key(event: KeyboardEvent) {
+      if (event.defaultPrevented || document.querySelector(".decision-dialog[open]")) return;
       if (event.key === "Escape" && !busyRef.current) closeRef.current();
       if (event.key !== "Tab") return;
       const nodes = Array.from(form.current?.querySelectorAll<HTMLElement>("button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled)") ?? []);

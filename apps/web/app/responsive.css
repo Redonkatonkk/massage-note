@@ -131,11 +131,10 @@ button, summary { overflow-wrap: anywhere; }
   .finance-shell .section-tabs button, .manage-shell .section-tabs button { flex: 0 0 auto; padding: 10px 0; white-space: nowrap; }
   .finance-shell .filter-panel { padding: 12px; gap: 10px; }
   .filter-panel__heading strong { font-size: .95rem; }
-  .finance-shell .filter-panel__heading .export-link { font-size: .8rem; }
   .quick-ranges { display: flex; flex-wrap: wrap; gap: 6px; }
   .quick-ranges button { flex: 1; padding-inline: 8px; }
   .finance-cards article:last-child:nth-child(odd) { grid-column: 1 / -1; }
-  .finance-metric-group > header h2, .finance-report-heading h2 { font-size: 1.2rem; }
+  .finance-report-heading h2 { font-size: 1.2rem; }
   .finance-report-heading { gap: 10px; }
   .manage-section { margin-top: 14px; gap: 14px; }
   .manage-card, .help-card { padding: 16px; }
@@ -159,7 +158,6 @@ button, summary { overflow-wrap: anywhere; }
   .gift-card-ledger__summary article { min-width: 0; padding: 14px; }
   .gift-card-ledger__summary strong { font-size: 1.25rem; overflow-wrap: anywhere; }
   .settlement-calendar-heading button { min-width: var(--control-height); min-height: var(--control-height); }
-  .settlement-employee-buttons button { flex: 0 0 auto; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
   .employee-settlement-day-track > .employee-settlement-record-card { width: min(320px, calc(100vw - 64px)); min-width: min(320px, calc(100vw - 64px)); }
   .finance-details { padding: 16px; }
   .closing-status { flex-direction: column; align-items: stretch; gap: 12px; }
@@ -638,76 +636,45 @@ button, summary { overflow-wrap: anywhere; }
   .quick-modal-content { padding: 0 16px max(20px, env(safe-area-inset-bottom)); }
 }
 
-@media (max-width: 767px) {
-  .settlement-selection-layout { grid-template-columns: minmax(0, 1fr); max-width: 360px; gap: 12px; }
-  .settlement-employee-buttons { flex-direction: row; max-height: none; overflow-x: auto; overflow-y: hidden; padding: 2px 2px 6px; }
-  .settlement-employee-buttons button { text-align: center; }
-  .settlement-calendar { padding: 12px; }
-  .settlement-calendar-legend { gap: 8px 12px; font-size: .75rem; }
-  .settlement-payment { padding: 14px; }
-  .settlement-payment-amounts { grid-template-columns: 1fr; gap: 12px; }
-  .settlement-preview-compact .employee-settlement-summary.mode-single,
-  .settlement-preview-compact .settlement-payment-amounts { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .settlement-preview-compact .employee-settlement-summary article { padding: 12px; }
-  .settlement-preview-compact .employee-settlement-summary article span,
-  .settlement-preview-compact .settlement-payment-amounts span,
-  .settlement-preview-compact .settlement-payment-amounts label { font-size: .875rem; }
-  .settlement-preview-compact .employee-settlement-summary article strong,
-  .settlement-preview-compact .settlement-payment-amounts strong { font-size: 1.25rem; }
-  .settlement-preview-compact .settlement-payment-amounts input { min-height: var(--control-height); padding: 9px 12px; font-size: 1rem; }
-  .settlement-preview-compact .employee-settlement-send-actions { display: flex; }
-  .settlement-preview-compact .employee-settlement-send-actions > button { min-height: var(--control-height); padding: 9px 12px; font-size: .875rem; }
+/* Payroll keeps the desktop task header and complete control surface compact. */
+.finance-shell--payroll .topbar { padding-bottom: 12px; margin-bottom: 12px; }
+.finance-shell--payroll .topbar > div:first-child { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
+.finance-shell--payroll .topbar h1 { font-size: 24px; }
+.finance-shell--payroll .topbar .eyebrow { margin: 0; font-size: 12px; }
+.finance-shell--payroll .topbar .business-date { flex-basis: 100%; margin: 0; }
+@media (max-width: 979px) {
+  .payroll-workspace-grid { grid-template-columns: minmax(0, 1fr); }
+  .payroll-statement { border-left: 0; border-top: 1px solid var(--line); }
+  .payroll-setup { grid-template-columns: minmax(0, 1fr) minmax(260px, 1fr); }
+  .payroll-employee-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (max-width: 389px) {
-  .settlement-calendar-days, .settlement-calendar-weekdays { gap: 2px; }
-}
-
-@media (min-width: 1024px) {
-  .settlement-selection-layout { align-items: stretch; }
-  .settlement-selection-sidebar { display: flex; flex-direction: column; }
-  .settlement-selection-sidebar .settlement-calendar-controls { margin-top: auto; }
-  .settlement-calendar-column { display: flex; }
-  .settlement-calendar-column .settlement-calendar { display: flex; flex-direction: column; }
-  .settlement-calendar-days { flex: 1 0 auto; grid-auto-rows: minmax(44px, 1fr); }
-  .settlement-preview-compact { display: flex; flex-direction: column; }
-  .settlement-preview-compact .settlement-preview-footer { margin-top: auto; }
-  .settlement-selection-layout.has-many-employees { --settlement-sidebar-width: 224px; }
-  .has-many-employees .settlement-employee-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
-  .has-many-employees .settlement-employee-buttons button { padding-inline: 10px; text-align: center; }
-}
-
-@media (max-width: 1023px) {
-  .settlement-selection-layout.has-preview { grid-template-columns: minmax(120px, 160px) minmax(0, 360px); max-width: 536px; }
-  .settlement-preview-compact { grid-column: 1 / -1; }
-}
-@media (max-width: 767px) {
-  .settlement-selection-layout.has-preview { grid-template-columns: minmax(0, 1fr); max-width: 360px; }
-}
-@media (max-width: 389px) {
-  .settlement-preview-compact .employee-settlement-summary.mode-single { grid-template-columns: minmax(0, 1fr); }
-  .settlement-preview-compact .settlement-payment-amounts { grid-template-columns: minmax(0, 1fr); }
-}
-
-/* Use the available statement width for readable amounts without enlarging the calendar. */
-@container settlement-summary (min-width: 480px) {
-  .settlement-preview-compact > header .eyebrow { font-size: .8rem; }
-  .settlement-preview-compact > header h2 { font-size: 1.5rem; }
-  .settlement-preview-compact > header p:last-child { font-size: .85rem; }
-  .settlement-preview-compact .employee-settlement-summary { gap: 10px; }
-  .settlement-preview-compact .employee-settlement-summary article { padding: 12px; }
-  .settlement-preview-compact .employee-settlement-summary article span { font-size: .8rem; }
-  .settlement-preview-compact .employee-settlement-summary article strong { font-size: 1.25rem; }
-  .settlement-preview-compact .mode-all article.total strong { font-size: 1.6rem; }
-  .settlement-preview-compact .employee-settlement-matrix { padding: 8px 10px; }
-  .settlement-preview-compact .employee-settlement-matrix > * { padding: 8px 6px; font-size: .85rem; }
-  .settlement-preview-compact .settlement-payment { padding: 14px; }
-  .settlement-preview-compact .settlement-payment-amounts { gap: 14px; }
-  .settlement-preview-compact .settlement-payment-amounts span, .settlement-preview-compact .settlement-payment-amounts label { font-size: .8rem; }
-  .settlement-preview-compact .settlement-payment-amounts strong { font-size: 1.25rem; }
-  .settlement-preview-compact .settlement-payment-amounts input { min-height: var(--control-height); font-size: 1rem; }
-  .settlement-preview-compact .settlement-payment-note, .settlement-preview-compact .settlement-payment p { font-size: .8rem; }
-  .settlement-preview-compact .employee-settlement-send-actions { gap: 10px; }
-  .settlement-preview-compact .employee-settlement-send-actions > button { min-height: var(--control-height); padding: 9px 12px; font-size: .85rem; }
+@media (max-width: 760px) {
+  .payroll-setup { grid-template-columns: minmax(0, 1fr); }
+  .payroll-setup-choices { display: contents; }
+  .payroll-employee-field { order: 0; }
+  .payroll-setup .settlement-calendar { order: 1; }
+  .payroll-setup-options { order: 2; }
+  .payroll-setup-choices > button { order: 3; }
+  .payroll-setup, .payroll-statement, .payroll-ledger-panel { padding: 16px; }
+  .payroll-employee-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .payroll-employee-list button, .payroll-setup-choices > button, .payroll-setup .settlement-options label { min-height: var(--control-height); }
+  .payroll-setup-options { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .payroll-setup .settlement-calendar { max-width: 420px; justify-self: center; }
+  .settlement-calendar-heading button { min-width: var(--control-height); min-height: var(--control-height); }
+  .settlement-calendar-day { min-height: var(--control-height); }
+  .settlement-calendar-marks { min-height: 12px; font-size: 12px; }
+  .settlement-calendar-selection { font-size: 14px; }
+  .payroll-statement-heading h2 { font-size: 20px; }
+  .settlement-ledger-total > strong { font-size: 28px; }
+  .settlement-payment-amounts { grid-template-columns: minmax(0, 1fr); }
+  .settlement-payment-amounts article, .settlement-payment-amounts label { font-size: 14px; }
+  .settlement-payment-amounts input { min-height: var(--control-height); height: var(--control-height); }
+  .payroll-statement-actions .employee-settlement-send-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .payroll-statement-actions .employee-settlement-send-actions button { width: 100%; min-height: var(--control-height); }
+  .payroll-selection-facts > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .payroll-selection-facts dd { text-align: left; }
+  .payroll-ledger-panel .mobile-data-card { padding: 16px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+  .payroll-ledger-panel .mobile-data-list { gap: 0; }
 }
 
 @media (max-width: 1199px) {
@@ -785,7 +752,6 @@ button, summary { overflow-wrap: anywhere; }
   .members-requests > summary .field-help { display: none; }
   .members-requests__list > article { flex-wrap: wrap; }
   .members-requests__list > article > button { margin-left: 48px; }
-  .employee-settlement-panel { padding: 16px; }
   .finance-shell > .section-tabs, .manage-shell > .section-tabs { gap: 20px; }
   .help-topics { gap: 6px; }
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { useDecision } from "../decision-dialog";
+
 import { appHref } from "../../lib/demo-mode";
 
 import { useAutoDismissState } from "../use-auto-dismiss-state";
@@ -27,7 +29,7 @@ import type {
 } from "../../lib/types";
 import { useStoreRealtime } from "../../lib/realtime";
 import { isWorkRecordChange } from "../../lib/realtime-scope";
-import { AppNav } from "../app-nav";
+import { Workspace } from "../app-nav";
 import { useLanguage } from "../language-provider";
 import { WorkBotPanel } from "./work-bot-panel";
 import { RecoveryPanel } from "./recovery-panel";
@@ -172,6 +174,7 @@ function formatTime(value: string) {
 }
 
 export function ManagePageClient() {
+  const decision = useDecision();
   const { t } = useLanguage();
   const [memberDirty, setMemberDirty] = useState(false);
   const [me, setMe] = useState<MeResponse | null>(null);
@@ -259,14 +262,14 @@ export function ManagePageClient() {
     recovery: "核对删除原因，按需恢复记工与礼物卡销售。",
     audit: "导入或导出店铺数据，按时间、成员和操作查找变更记录。",
   };
-  function changeTab(value: string) {
+  async function changeTab(value: string) {
     if (value === tab) return;
-    if (memberDirty && !window.confirm(t("有未保存的修改，确认放弃吗？"))) return;
+    if (memberDirty && !await decision.confirm(t("有未保存的修改，确认放弃吗？"))) return;
     setMemberDirty(false); selectTab(value);
   }
 
   return (
-    <main className="app-shell manage-shell">
+    <Workspace className="app-shell manage-shell" navigation={{ active: "manage", storeId: store.id, role: membership.role, activeTab: tab, onTabChange: changeTab }}>
       <header className="topbar">
         <div><p className="eyebrow">{store.name}</p><h1>{tabs.find(([value]) => value === tab)?.[1]}</h1><p className="business-date">{pageDescriptions[tab]} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
         <div className="topbar-actions"><a className="store-switcher header-link" href={appHref("/help")}>使用帮助</a><a className="store-switcher header-link" href={appHref("/")}>返回今日记工</a></div>
@@ -279,13 +282,13 @@ export function ManagePageClient() {
       {tab === "work-bot" && canManage && workBot && <WorkBotPanel key={store.id} storeId={store.id} catalog={catalog} settings={workBot} busy={busy} run={run} reload={loadAll} />}
       {tab === "recovery" && canManage && <RecoveryPanel storeId={store.id} records={deletedRecords} giftCardSales={deletedGiftCardSales} busy={busy} run={run} reload={loadAll} />}
       {tab === "audit" && canManage && <div className="manage-section">{membership.role === "OWNER" && <DataOperationsPanel key={store.id} storeId={store.id} memberIds={members.map(member => member.id)} onImported={() => window.location.reload()} />}<AuditPanel key={store.id} storeId={store.id} members={members} onUndone={loadAll} /></div>}
-      <AppNav active="manage" storeId={store.id} role={membership.role} activeTab={tab} onTabChange={changeTab} />
-    </main>
+    </Workspace>
   );
 }
 
 
 function StorePanel({ store, membership, members, busy, run, reload }: { store: StoreDetails; membership: MembershipSummary; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
+  const decision = useDecision();
   const [name, setName] = useState(store.name);
   const [timezone, setTimezone] = useState(store.timezone);
   const [commission, setCommission] = useState((store.globalCommissionBps / 100).toString());
@@ -311,6 +314,28 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
   useEffect(() => {
     setSaved(false);
   }, [name, timezone, commission, autoDiscountEnabled, autoDiscountThreshold, autoDiscountAmount, giftCardDiscountEnabled, giftCardDiscountThreshold, giftCardDiscountPercent, closingDefaultLocale, automaticDispatchEnabled]);
+
+  async function transferOwnership() {
+    if (!await decision.confirm("确认把店主身份转移给所选成员吗？", { action: "转移店主身份", danger: true })) return;
+    await run(async () => {
+      await apiRequest(`/stores/${store.id}/owner-transfer`, {
+        method: "POST", idempotent: true, body: { version: store.version, newOwnerMembershipId: nextOwner },
+      });
+      await reload();
+    });
+  }
+
+  async function deleteStore() {
+    const answer = await decision.prompt(`请输入店铺名称“${store.name}”确认删除`, { action: "删除店铺", exact: store.name, danger: true });
+    if (answer !== store.name) return;
+    const reason = await decision.prompt("请填写删除店铺原因", { action: "删除店铺", required: true, danger: true });
+    if (!reason?.trim()) return;
+    await run(async () => {
+      await apiRequest(`/stores/${store.id}`, { method: "DELETE", idempotent: true, body: { version: store.version, reason: reason.trim() } });
+      browserStorage.removeItem("massage_note_store_id");
+      window.location.replace(appHref("/"));
+    });
+  }
 
   return <section className="manage-section store-settings-layout">
     <form className="manage-card" onSubmit={(event) => { event.preventDefault(); setSaved(false); void run(async () => {
@@ -356,7 +381,21 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
       {canManage && <button className="primary-action" disabled={busy} type="submit">{busy ? "正在保存…" : "保存店铺设置"}</button>}
     </form>
     {canManage && <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">Mac 信息代理</p><h2>员工小结发送设备</h2></div><span className={`status-chip ${agentStatus?.lastSeenAt && Date.now() - new Date(agentStatus.lastSeenAt).getTime() < 180_000 ? "" : "warning"}`}>{agentStatus?.revokedAt ? "已撤销" : agentStatus?.lastSeenAt ? "最近在线" : "未连接"}</span></div><p className="field-help">代理令牌只在生成时显示一次。请在固定 Mac 上安装 messages-agent，并允许它控制“信息”App。</p>{agentStatus?.lastSeenAt && <p className="field-help">最后在线：{formatTime(agentStatus.lastSeenAt)} · 服务：{agentStatus.lastStatusJson?.serviceTypes?.join(" / ") || "未报告"}{agentStatus.lastStatusJson?.lastError ? ` · ${agentStatus.lastStatusJson.lastError}` : ""}</p>}{agentToken && <label>新代理令牌（请立即复制）<input readOnly value={agentToken} onFocus={(event) => event.currentTarget.select()} /></label>}<div className="inline-controls"><button className="primary-action compact" type="button" disabled={busy} onClick={() => void run(async () => { const result = await apiRequest<{ token: string; tokenPrefix: string }>(`/stores/${store.id}/closing-delivery-agent/credential`, { method: "POST" }); setAgentToken(result.token); setAgentStatus({ tokenPrefix: result.tokenPrefix, lastSeenAt: null, revokedAt: null }); })}>{agentStatus ? "轮换代理令牌" : "生成代理令牌"}</button>{agentStatus && !agentStatus.revokedAt && <button className="secondary-action compact" type="button" disabled={busy} onClick={() => void run(async () => { await apiRequest(`/stores/${store.id}/closing-delivery-agent/credential`, { method: "DELETE" }); setAgentStatus((current) => current ? { ...current, revokedAt: new Date().toISOString() } : current); setAgentToken(""); })}>撤销代理</button>}</div></section>}
-    {membership.role === "OWNER" && <section className="manage-card danger-zone"><div className="manage-heading"><div><p className="eyebrow">仅店主</p><h2>店主转移与删除店铺</h2></div></div><p className="field-help">转移后你会变为经理，新店主获得全部店主权限。删除店铺会让所有成员立即无法进入，但历史数据不会物理删除。</p><div className="inline-controls"><select value={nextOwner} onChange={(event) => setNextOwner(event.target.value)}><option value="">选择新店主</option>{members.filter((item) => item.id !== membership.id && item.status === "ACTIVE" && Boolean(item.user)).map((item) => <option key={item.id} value={item.id}>{item.displayName}（{roleText[item.role]}）</option>)}</select><button className="secondary-action" type="button" disabled={busy || !nextOwner} onClick={() => { if (!window.confirm("确认把店主身份转移给所选成员吗？")) return; void run(async () => { await apiRequest(`/stores/${store.id}/owner-transfer`, { method: "POST", idempotent: true, body: { version: store.version, newOwnerMembershipId: nextOwner } }); await reload(); }); }}>转移店主身份</button><button className="danger-button" type="button" disabled={busy} onClick={() => { const answer = window.prompt(`请输入店铺名称“${store.name}”确认删除`); if (answer !== store.name) return; const reason = window.prompt("请填写删除店铺原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${store.id}`, { method: "DELETE", idempotent: true, body: { version: store.version, reason: reason.trim() } }); browserStorage.removeItem("massage_note_store_id"); window.location.replace(appHref("/")); }); }}>删除店铺</button></div></section>}
+    {membership.role === "OWNER" && <section className="manage-card danger-zone">
+      <div className="manage-heading"><div><p className="eyebrow">仅店主</p><h2>店主转移与删除店铺</h2></div></div>
+      <p className="field-help">转移后你会变为经理，新店主获得全部店主权限。删除店铺会让所有成员立即无法进入，但历史数据不会物理删除。</p>
+      <div className="inline-controls owner-controls">
+        <div className="owner-transfer-controls">
+          <select aria-label="选择新店主" value={nextOwner} onChange={event => setNextOwner(event.target.value)}>
+            <option value="">选择新店主</option>
+            {members.filter(item => item.id !== membership.id && item.status === "ACTIVE" && Boolean(item.user))
+              .map(item => <option key={item.id} value={item.id}>{item.displayName}（{roleText[item.role]}）</option>)}
+          </select>
+          <button className="secondary-action" type="button" disabled={busy || !nextOwner} onClick={() => void transferOwnership()}>转移店主身份</button>
+        </div>
+        <button className="danger-button" type="button" disabled={busy} onClick={() => void deleteStore()}>删除店铺</button>
+      </div>
+    </section>}
   </section>;
 }
 
@@ -456,6 +495,7 @@ function CatalogCreateForm({ storeId, kind, busy, run, reload, onCreated }: { st
 }
 
 function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, canMoveUp, canMoveDown, onMove }: { storeId: string; type: CatalogKind; item: ServiceItem | AddonItem | DiscountItem; canManage: boolean; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void>; canMoveUp: boolean; canMoveDown: boolean; onMove: (direction: -1 | 1) => Promise<void> }) {
+  const decision = useDecision();
   const service = type === "SERVICE" ? item as ServiceItem : null;
   const addon = type === "ADDON" ? item as AddonItem : null;
   const discount = type === "DISCOUNT" ? item as DiscountItem : null;
@@ -527,12 +567,13 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, 
             : { type, version: item.version, name, shortName, amountCents: percentage ? 0 : parseMoney(amount, "折扣金额"), rateBps: percentage ? parsePercent(amount, "折扣比例") : null, isEnabled };
         await apiRequest(`/stores/${storeId}/catalog/items/${item.id}`, { method: "PATCH", idempotent: true, body });
         await reload();
-      })}>保存修改</button><button className="secondary-action compact" disabled={busy} type="button" onClick={cancelEditing}>取消</button><button className="table-action danger" disabled={busy} type="button" onClick={() => { const reason = window.prompt("请填写删除项目原因"); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${storeId}/catalog/items/${item.id}`, { method: "DELETE", idempotent: true, body: { type, version: item.version, reason: reason.trim() } }); await reload(); }); }}>删除</button></div>
+      })}>保存修改</button><button className="secondary-action compact" disabled={busy} type="button" onClick={cancelEditing}>取消</button><button className="table-action danger" disabled={busy} type="button" onClick={async () => { const reason = await decision.prompt("请填写删除项目原因", { action: "删除", required: true, danger: true }); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${storeId}/catalog/items/${item.id}`, { method: "DELETE", idempotent: true, body: { type, version: item.version, reason: reason.trim() } }); await reload(); }); }}>删除</button></div>
     </div>}
   </article>;
 }
 
 export function AuditPanel({ storeId, members, onUndone }: { storeId: string; members: StoreMember[]; onUndone?: () => Promise<void> }) {
+  const decision = useDecision();
   const { t } = useLanguage();
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -567,7 +608,7 @@ export function AuditPanel({ storeId, members, onUndone }: { storeId: string; me
   reload.current = load;
   async function undo(item: AuditLogItem) {
     if (undoLock.current || !item.undo?.available) return;
-    if (!window.confirm(t("撤销这条操作？同一次提交中的关联变更也会一并撤销，原操作历史会保留。"))) return;
+    if (!await decision.confirm(t("撤销这条操作？同一次提交中的关联变更也会一并撤销，原操作历史会保留。"))) return;
     undoLock.current = true; setUndoing(item.id); setError(""); setNotice("");
     const key = keys.current.get(item.id) ?? crypto.randomUUID(); keys.current.set(item.id, key);
     try {

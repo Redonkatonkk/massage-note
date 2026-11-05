@@ -69,6 +69,7 @@ When the document description is inconsistent with the current implementation, c
 - [`CODE_CLEANUP_2026-09-29.md`](archive/CODE_CLEANUP_2026-09-29.md): 1.13.7 repository cleanup inventory, implemented changes, and retained items.
 - [`CODE_CLEANUP_2026-10-04.md`](archive/CODE_CLEANUP_2026-10-04.md): 1.18.4 repository-wide cleanup evidence, outdated rules and retention reasons.
 - [`CODE_CLEANUP_2026-10-12.md`](archive/CODE_CLEANUP_2026-10-12.md): 1.25.1 repository-wide code review, dead code and duplicate implementation cleanup and verification evidence.
+- [`CODE_CLEANUP_2026-11-04.md`](archive/CODE_CLEANUP_2026-11-04.md) records the 1.52.4 cleanup and retention decisions.
 - [`LANGBOT_MASSAGE_NOTE_WORK_BOT_IMPLEMENTATION.md`](archive/LANGBOT_MASSAGE_NOTE_WORK_BOT_IMPLEMENTATION.md): Early 1.0.2 cross-project integration records.
 
 All rules, routes, directories, and "to-be-implemented" in the archive are historical references only and are not current requirements. Reason: Keep these files for decision-making and version tracing, and do not allow one-time prompts to regain control of current maintenance.

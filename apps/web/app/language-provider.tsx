@@ -152,7 +152,6 @@ export function LanguageProvider({
 
   return (
     <LanguageContext.Provider value={value}>
-      <div className="app-utility-bar"><LanguageSwitcher /></div>
       {children}
     </LanguageContext.Provider>
   );

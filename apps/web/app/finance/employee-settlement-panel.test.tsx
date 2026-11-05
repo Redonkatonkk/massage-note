@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 import { act } from "react";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { JSDOM } from "jsdom";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest } from "../../lib/api";
@@ -40,6 +44,100 @@ beforeEach(async () => {
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 
 describe("工资结算复选框", () => {
+  it("全部员工、日历、来源类型与操作同处一个工作区，生成前保留不可用的付款和分享入口", async () => {
+    const members = Array.from({ length: 12 }, (_, index) => ({ ...member, id: index ? `member-${index}` : member.id, displayName: `Employee ${index + 1}` }));
+    await act(async () => root.render(<EmployeeSettlementPanel storeId="store" businessDate="2026-10-25" members={members} settlements={[]} busy={false} run={async action => action()} onSettled={async () => {}} />));
+    const workspace = container.querySelector(".payroll-workspace-grid")!;
+    expect(workspace.querySelectorAll(".payroll-employee-list button")).toHaveLength(12);
+    expect(workspace.querySelectorAll('input[type="checkbox"]')).toHaveLength(4);
+    expect(workspace.querySelector(".settlement-calendar")).not.toBeNull();
+    expect(workspace.querySelector("select")).toBeNull();
+    for (const label of ["已付款", "复制分享链接"]) expect([...workspace.querySelectorAll("button")].find(node => node.textContent === label)?.disabled).toBe(true);
+    await click("生成结算单");
+    expect(workspace.querySelector('input[inputmode="decimal"]')).not.toBeNull();
+    for (const label of ["生成结算单", "已付款", "复制分享链接"]) {
+      const button = [...workspace.querySelectorAll("button")].find(node => node.textContent === label)!;
+      expect(button.closest("details")).toBeNull();
+      expect(button.disabled).toBe(false);
+    }
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="下个月"]')!.click());
+    expect(workspace.querySelectorAll(".settlement-calendar-days > *")).toHaveLength(42);
+    expect(workspace.querySelector('time[datetime="2026-11-30"]')).not.toBeNull();
+  });
+
+  it("桌面并排保留员工、日历和金额，名单不截断；手机恢复触控尺寸和任务顺序", async () => {
+    await click("生成结算单");
+    const checkerPath = pathToFileURL(resolve(process.cwd(), "../../scripts/check-mobile-ui.mjs")).href;
+    const { stylesAtWidth } = await import(/* @vite-ignore */ checkerPath);
+    const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
+    for (const width of [390, 760, 1024, 1274, 1440]) {
+      const dom = new JSDOM(`<style>${stylesAtWidth(sources, width)}</style>${container.innerHTML}`);
+      const style = (selector: string) => dom.window.getComputedStyle(dom.window.document.querySelector(selector)!);
+      expect(["", "none"], `${width}px roster must not clip employees`).toContain(style(".payroll-employee-list").maxHeight);
+      expect(["", "visible"], `${width}px roster must not scroll internally`).toContain(style(".payroll-employee-list").overflowY);
+      if (width > 760) {
+        expect(style(".payroll-workspace-grid").gridTemplateColumns).toBe("minmax(460px, 536px) minmax(0, 1fr)");
+        expect(style(".payroll-setup").gridTemplateColumns).toBe("minmax(152px, 188px) minmax(0, 1fr)");
+        expect(style(".settlement-payment-amounts").gridTemplateColumns).toBe("repeat(3, minmax(0, 1fr))");
+        expect(parseFloat(style(".settlement-calendar-day").minHeight)).toBe(32);
+      } else {
+        for (const selector of [".payroll-employee-list button", ".settlement-calendar-day", ".employee-settlement-send-actions button"]) expect(parseFloat(style(selector).minHeight)).toBeGreaterThanOrEqual(44);
+        expect(style(".payroll-setup-choices").display).toBe("contents");
+        expect([style(".payroll-employee-field").order, style(".settlement-calendar").order, style(".payroll-setup-options").order, style(".payroll-setup-choices > button").order]).toEqual(["0", "1", "2", "3"]);
+      }
+      dom.window.close();
+    }
+  });
+
+  it("生成前展示真实选择，生成后总额与来源对应且不把结算单当作已付款", async () => {
+    const pending = container.querySelector('[aria-label="结算单预览"]')!;
+    expect(pending.textContent).toContain("Amy");
+    expect(pending.textContent).toContain("2026-10-01");
+    expect(pending.textContent).toContain("生成结算单不会登记付款");
+    expect(pending.textContent).not.toContain("$0.00");
+    await toggle("现金");
+    await click("生成结算单");
+    expect(container.querySelector(".settlement-ledger-total strong")?.textContent).toBe("$23.00");
+    const rows = [...container.querySelectorAll(".settlement-source-table tbody tr")];
+    expect(rows.map(row => [...row.children].map(cell => cell.textContent))).toEqual([
+      ["现金", "$0.00", "$0.00"], ["刷卡＋礼物卡", "$0.00", "$23.00"],
+    ]);
+    expect(container.querySelector(".payroll-payment-status")?.textContent).toBe("待付款确认");
+    expect(request.mock.calls.some(([path]) => path.endsWith("/confirm"))).toBe(false);
+  });
+
+  it("生成等待中保留选择并禁用重复提交，返回后恢复操作", async () => {
+    let finish!: (value: EmployeeSettlementPreview) => void;
+    request.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    await click("生成结算单");
+    expect(container.querySelector('[aria-label="结算单预览"]')?.getAttribute("aria-busy")).toBe("true");
+    expect(container.textContent).toContain("Amy");
+    expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true);
+    await act(async () => finish(quoted(new URLSearchParams({ paymentScope: "NON_CASH", amountType: "ALL" }))));
+    expect(container.querySelector('[aria-label="结算单汇总"]')?.getAttribute("aria-busy")).toBe("false");
+    expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
+  });
+
+  it("保留空记录的零值，禁止付款和分享", async () => {
+    const empty = quoted(new URLSearchParams({ paymentScope: "NON_CASH", amountType: "ALL" }));
+    empty.records = [];
+    empty.summary = Object.fromEntries(Object.keys(empty.summary).map(key => [key, 0])) as EmployeeSettlementPreview["summary"];
+    empty.payment = { ...empty.payment!, unsettledCents: 0 };
+    request.mockImplementationOnce(async () => empty);
+    await click("生成结算单");
+    expect(container.querySelector(".settlement-ledger-total strong")?.textContent).toBe("$0.00");
+    expect(container.textContent).toContain("当前范围没有符合条件的已确认记工");
+    for (const label of ["已付款", "复制分享链接"]) expect([...container.querySelectorAll("button")].find(node => node.textContent === label)?.disabled).toBe(true);
+  });
+
+  it("Owner 结算仅供核对，不展示付款登记", async () => {
+    await act(async () => root.render(<EmployeeSettlementPanel storeId="store" businessDate="2026-10-25" members={[{ ...member, role: "OWNER" }]} settlements={[]} busy={false} run={async action => action()} onSettled={async () => {}} />));
+    await click("生成结算单");
+    expect(container.querySelector(".payroll-payment-status")?.textContent).toBe("仅查看结算");
+    expect(container.querySelector('[aria-label="付款登记"]')).toBeNull();
+    expect(container.querySelector(".settlement-ledger-total strong")?.textContent).toBe("$23.00");
+  });
+
   it("默认刷卡与全部类型，支持单选、多选且每组至少一项", async () => {
     expect([checkbox("刷卡").checked, checkbox("现金").checked, checkbox("大费").checked, checkbox("小费").checked]).toEqual([true, false, true, true]);
     await toggle("刷卡"); expect(checkbox("刷卡").checked).toBe(true);

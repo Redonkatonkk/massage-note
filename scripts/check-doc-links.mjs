@@ -3,6 +3,11 @@ import { access, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+export function repositoryMarkdownFiles(root) {
+  const output = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "*.md"], { cwd: root, encoding: "utf8" });
+  return [...new Set(output.split("\0").filter(Boolean))];
+}
+
 function withoutCode(markdown) {
   let fence = null;
   return markdown.split("\n").map(line => {
@@ -55,8 +60,7 @@ export async function checkDocumentLinks(root, files) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const root = resolve(import.meta.dirname, "..");
-  const output = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "*.md"], { cwd: root, encoding: "utf8" });
-  const files = [...new Set(output.split("\0").filter(Boolean))];
+  const files = repositoryMarkdownFiles(root);
   const { errors, linkCount } = await checkDocumentLinks(root, files);
   if (errors.length) {
     console.error(`本地文档链接失效：\n${errors.join("\n")}`);

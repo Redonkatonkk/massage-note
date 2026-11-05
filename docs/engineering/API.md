@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.54.0`
+> Applies to version: `1.54.1`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -429,6 +429,8 @@ The hourly statistics interface still returns a complete 24 hours; the two hourl
 <a id="排序解释快照"></a>
 
 ### Sorting explanation snapshot
+
+The explanation question mark is independent of the generation action on historical and closed dates. Owners/managers read the saved snapshot without writes, regeneration or changes to closing. A missing snapshot has a read-only explanation; management access restrictions remain in force.
 
 `GET /stores/:storeId/boards/:businessDate` of `ranking.explanation` Returns the interpreted snapshot when it was last generated, if unsaved `null`. only have `MEMBERSHIP_MANAGE` Members of a capability are readable, other members are always returned `null`, including a personal history view.
 

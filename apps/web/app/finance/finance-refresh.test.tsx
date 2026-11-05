@@ -115,6 +115,10 @@ it("queries the selected highlights across the complete monthly report, details 
     expect(request.mock.calls.filter(([path]) => /\/finance\/(summary|analytics)\?/.test(String(path)))).toHaveLength(4);
     expect(request.mock.calls.every(([path]) => new URL(String(path), "http://local").searchParams.get("highlightFilter") === filter)).toBe(true);
   }
+  request.mockClear();
+  await act(async () => container.querySelector<HTMLButtonElement>(".employee-subtotal-card header button")!.click());
+  const employeeDetailsPath = request.mock.calls.find(([path]) => String(path).includes("/finance/details?"))![0];
+  expect(new URL(String(employeeDetailsPath), "http://local").searchParams.get("membershipIds")).toMatch(/^[^,]+$/);
 });
 
 it("retries a failed monthly query using its applied highlight condition", async () => {

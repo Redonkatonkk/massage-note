@@ -183,7 +183,7 @@ describe("responsive CSS applied to actual rare-page markup", () => {
     const checkerPath = pathToFileURL(resolve(process.cwd(), "../../scripts/check-mobile-ui.mjs")).href;
     const { stylesAtWidth } = await import(/* @vite-ignore */ checkerPath);
     const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
-    const markup = renderToStaticMarkup(<main className="app-shell"><div className="manage-shell">{recovery()}<AuditDetails item={audit} entityLabel="成员" /></div><div className="finance-shell">{pay()}<ClosingDeliveryQueue value={queue} busy={false} onCancel={noop} expanded /><GiftCardLedger ledger={ledger} /><FinanceGiftSaleCards sales={finance.giftCardSales} /><section className="settlement-preview-compact"><SettlementSummary preview={preview} /></section></div></main>);
+    const markup = renderToStaticMarkup(<main className="app-shell"><div className="manage-shell">{recovery()}<AuditDetails item={audit} entityLabel="成员" /></div><div className="finance-shell">{pay()}<ClosingDeliveryQueue value={queue} busy={false} onCancel={noop} expanded /><GiftCardLedger ledger={ledger} /><FinanceGiftSaleCards sales={finance.giftCardSales} /><section><SettlementSummary preview={preview} /></section></div></main>);
     for (const width of [320, 360, 390, 414, 480, 600, 760, 900, 1200]) {
       const dom = new JSDOM(`<style>${stylesAtWidth(sources, width)}</style>${markup}`); const doc = dom.window.document; const style = (node: Element) => dom.window.getComputedStyle(node);
       for (const view of doc.querySelectorAll(".responsive-data-view")) {

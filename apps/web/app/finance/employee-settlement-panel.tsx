@@ -2,7 +2,7 @@
 
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ApiError, apiRequest, errorMessage } from "../../lib/api";
 import { formatUsdPrecise } from "../../lib/money";
 import type { EmployeeSettlementCalendar, EmployeeSettlementShare, EmployeeSettlementPaymentScope, EmployeeSettlementPreview, PayrollSettlement, StoreMember } from "../../lib/types";
@@ -36,6 +36,8 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
   const [paymentScope, setPaymentScope] = useState<EmployeeSettlementPaymentScope>("NON_CASH");
   const [amountType, setAmountType] = useState<EmployeeSettlementAmountType>("ALL");
   const [preview, setPreview] = useState<EmployeeSettlementPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const deductionErrorId = useId();
   const { t, locale } = useLanguage();
   const [sharing, setSharing] = useState(false);
   const [shareText, setShareText] = useState("");
@@ -80,6 +82,7 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
     previewRequest.current++;
     shareRequest.current++;
     setPreview(null);
+    setPreviewLoading(false);
     setDeduction("0");
     setShareText("");
     setShareMessage("");
@@ -90,8 +93,13 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
     const request = ++previewRequest.current;
     const selected = JSON.stringify({ storeId, membershipId, dateFrom, dateTo, paymentScope, amountType });
     const params = new URLSearchParams({ membershipId, dateFrom, dateTo, paymentScope, amountType });
-    const result = await apiRequest<EmployeeSettlementPreview>(`/stores/${storeId}/employee-settlements/preview?${params}`);
-    if (previewRequest.current === request && selectionRef.current === selected) setPreview(result);
+    setPreviewLoading(true);
+    try {
+      const result = await apiRequest<EmployeeSettlementPreview>(`/stores/${storeId}/employee-settlements/preview?${params}`);
+      if (previewRequest.current === request && selectionRef.current === selected) setPreview(result);
+    } finally {
+      if (previewRequest.current === request) setPreviewLoading(false);
+    }
   }, [storeId, membershipId, dateFrom, dateTo, paymentScope, amountType]);
   // Ledger edits/deletion/restoration refresh both payment totals and calendar marks.
   useEffect(() => {
@@ -165,45 +173,58 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
     }
   }
   return (
-    <section className="employee-settlement-builder">
-      <div className="employee-settlement-builder-heading"><div><p className="eyebrow">员工结算区</p><h2>生成区间结算单</h2><p>选择员工和日期范围，结算单始终包含已结与未结记录。</p></div></div>
-      <div className={`settlement-selection-layout${preview ? " has-preview" : ""}${payable.length > 6 ? " has-many-employees" : ""}`}>
-        <div className="settlement-selection-sidebar">
-          <div className="settlement-employee-buttons" role="group" aria-label="选择员工">{payable.map((member) => <button key={member.id} type="button" disabled={busy || sharing} aria-pressed={membershipId === member.id} className={membershipId === member.id ? "is-selected" : ""} onClick={() => { setMembershipId(member.id); clearPreview(); }}>{member.displayName}</button>)}</div>
-          <form className="employee-settlement-controls settlement-calendar-controls" onSubmit={(event) => { event.preventDefault(); setDeduction("0"); void run(generate); }}>
-            <SettlementOptions paymentScope={paymentScope} amountType={amountType} disabled={busy || sharing || !dateTo} onPaymentScope={value => { setPaymentScope(value); clearPreview(); }} onAmountType={value => { setAmountType(value); clearPreview(); }} />
-            <button className="primary-action" type="submit" disabled={busy || sharing || !membershipId || !dateTo}>生成结算单</button>
-          </form>
-        </div>
-        <div className="settlement-calendar-column">
-          {payable.length === 0 ? <p className="empty-state">没有可查看的在职成员。</p> : <SettlementCalendar month={month} range={range} data={calendar?.membershipId === membershipId && calendar.month === month ? calendar : null} loading={calendarLoading} error={calendarError} failed={calendarFailed} disabled={busy || sharing} onMonth={setMonth} onDate={(date) => { setRange((current) => selectSettlementDate(current, date)); clearPreview(); }} retry={() => setCalendarEpoch((value) => value + 1)} />}
-        </div>
-        {preview && <section className="employee-settlement-preview settlement-preview-compact" aria-label="结算单汇总">
-          <header>
-            <div><p className="eyebrow">{preview.storeName} · 员工区间结算</p><h2>{preview.employee.displayName}</h2><p>{preview.dateFrom} 至 {preview.dateTo} · {scopeLabel(preview.paymentScope)} · {amountLabel(preview.amountType)} · {preview.records.length} 笔</p></div>
+    <section className="payroll-workspace">
+      <div className="payroll-workspace-grid">
+        <form className="payroll-setup" aria-label="结算条件" onSubmit={(event) => { event.preventDefault(); setDeduction("0"); void run(generate); }}>
+          <div className="payroll-setup-choices">
+            <div className="payroll-employee-field">
+              <h2>选择员工</h2>
+              <div className="payroll-employee-list" role="group" aria-label="选择员工">{payable.map((member) => <button key={member.id} type="button" disabled={busy || sharing || previewLoading} aria-pressed={membershipId === member.id} onClick={() => { setMembershipId(member.id); clearPreview(); }}>{member.displayName}</button>)}</div>
+            </div>
+            <div className="payroll-setup-options"><SettlementOptions paymentScope={paymentScope} amountType={amountType} disabled={busy || sharing || previewLoading || !dateTo} onPaymentScope={value => { setPaymentScope(value); clearPreview(); }} onAmountType={value => { setAmountType(value); clearPreview(); }} /></div>
+            <button className={preview ? "secondary-action" : "primary-action"} type="submit" disabled={busy || sharing || previewLoading || !membershipId || !dateTo}>{previewLoading ? "正在生成结算单…" : "生成结算单"}</button>
+          </div>
+          {payable.length === 0 ? <p className="empty-state">没有可查看的在职成员。</p> : <SettlementCalendar month={month} range={range} data={calendar?.membershipId === membershipId && calendar.month === month ? calendar : null} loading={calendarLoading} error={calendarError} failed={calendarFailed} disabled={busy || sharing || previewLoading} onMonth={setMonth} onDate={(date) => { setRange((current) => selectSettlementDate(current, date)); clearPreview(); }} retry={() => setCalendarEpoch((value) => value + 1)} />}
+        </form>
+        {preview ? <section className="payroll-statement" aria-label="结算单汇总" aria-busy={previewLoading}>
+          <header className="payroll-statement-heading">
+            <h2>{preview.employee.displayName}</h2>
+            <span className={`payroll-payment-status${alreadyRegistered ? " is-confirmed" : ""}`}>{!preview.records.length ? "无可结算记工" : isOwnerPreview || !preview.payment ? "仅查看结算" : alreadyRegistered ? "已确认结清" : "待付款确认"}</span>
           </header>
-          <SettlementSummary preview={preview} />
+          <div className="payroll-statement-scope"><p><time dateTime={preview.dateFrom}>{preview.dateFrom}</time><span>至</span><time dateTime={preview.dateTo}>{preview.dateTo}</time><span>{locale === "en-US" ? `${preview.records.length} records` : `${preview.records.length} 笔记工`}</span></p></div>
+          <SettlementSummary preview={preview} layout="ledger" />
           {!isOwnerPreview && preview.payment && <section className="settlement-payment" aria-label="付款登记">
+            <h3>付款登记</h3>
             <div className="settlement-payment-amounts">
               <article><span>本次未结金额</span><strong>{money(preview.payment.unsettledCents)}</strong></article>
-              <label>抵扣金额（美元）<input disabled={busy || sharing || alreadyRegistered || preview.records.length === 0} inputMode="decimal" value={deduction} aria-invalid={invalidDeduction} onChange={(event) => setDeduction(event.target.value)} /></label>
-              <article><span>本次实付金额</span><strong>{paidCents === null ? "—" : money(paidCents)}</strong></article>
+              <label>抵扣金额（美元）<input disabled={busy || sharing || previewLoading || alreadyRegistered || preview.records.length === 0} inputMode="decimal" value={deduction} aria-invalid={invalidDeduction} aria-describedby={invalidDeduction ? deductionErrorId : undefined} onChange={(event) => setDeduction(event.target.value)} /></label>
+              <article className="payroll-paid-amount"><span>本次实付金额</span><strong>{paidCents === null ? "—" : money(paidCents)}</strong></article>
             </div>
             <details className="settlement-payment-note"><summary>抵扣说明</summary><p>抵扣此前已付金额；此前付款应已登记到账本或现金结算中。本次只登记实付金额，并确认所选日期、来源和工资类型结清。</p></details>
-            {invalidDeduction && <p role="alert">抵扣金额需精确到美分，且不能超过本次未结金额。</p>}
+            {invalidDeduction && <p id={deductionErrorId} role="alert">抵扣金额需精确到美分，且不能超过本次未结金额。</p>}
           </section>}
-          <div className="employee-settlement-preview-actions settlement-preview-footer">
+          <div className="payroll-statement-actions">
             <div className="employee-settlement-send-actions">
-              {!isOwnerPreview && preview.payment && <button className="primary-action" type="button" disabled={busy || sharing || alreadyRegistered || preview.records.length === 0 || invalidDeduction} onClick={settle}>{alreadyRegistered ? "已确认结清" : "已付款"}</button>}
-              <button className="secondary-action" type="button" disabled={busy || sharing || preview.records.length === 0} onClick={() => void share()}>{sharing ? "正在生成链接…" : "复制分享链接"}</button>
+              {!isOwnerPreview && preview.payment && <button className="primary-action" type="button" disabled={busy || sharing || previewLoading || alreadyRegistered || preview.records.length === 0 || invalidDeduction} onClick={settle}>{alreadyRegistered ? "已确认结清" : "已付款"}</button>}
+              <button className="secondary-action" type="button" disabled={busy || sharing || previewLoading || preview.records.length === 0} onClick={() => void share()}>{sharing ? "正在生成链接…" : "复制分享链接"}</button>
             </div>
             {shareMessage && <p className="employee-settlement-send-message" role="status">{t(shareMessage)}</p>}
             {shareError && <p className="employee-settlement-send-message" role="alert">{t(shareError)}</p>}
-            {shareText && <label className="settlement-share-link">分享内容（链接 14 天有效）<textarea readOnly rows={5} value={shareText} onFocus={event => event.currentTarget.select()} /></label>}
+            {shareText && <label className="settlement-share-link">分享内容（链接 14 天有效）<textarea readOnly rows={3} value={shareText} onFocus={event => event.currentTarget.select()} /></label>}
           </div>
+        </section> : <section className="payroll-statement payroll-statement-empty" aria-label="结算单预览" aria-busy={previewLoading}>
+          <header><h2>{previewLoading ? "正在生成结算单…" : "待生成结算单"}</h2><p>生成后可核对大费、小费与未结金额。</p></header>
+          <dl className="payroll-selection-facts">
+            <div><dt>员工</dt><dd>{payable.find(member => member.id === membershipId)?.displayName ?? "—"}</dd></div>
+            <div><dt>日期范围</dt><dd>{dateFrom} <span>至</span> {dateTo || t("请选择结束日期")}</dd></div>
+            <div><dt>工资来源</dt><dd>{scopeLabel(paymentScope)}</dd></div>
+            <div><dt>工资类型</dt><dd>{amountLabel(amountType)}</dd></div>
+          </dl>
+          <p className="payroll-statement-notice">生成结算单不会登记付款。</p>
+          <div className="payroll-statement-actions"><div className="employee-settlement-send-actions"><button className="primary-action" type="button" disabled>已付款</button><button className="secondary-action" type="button" disabled>复制分享链接</button></div></div>
         </section>}
       </div>
-      {preview && <section className="employee-settlement-preview">
+      {preview && <section className="payroll-records-panel">
         <SettlementRecords preview={preview} />
       </section>}
     </section>

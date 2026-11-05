@@ -5,7 +5,7 @@ import { useAutoDismissState } from "./use-auto-dismiss-state";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiRequest, errorMessage } from "../lib/api";
-import { aiPreviewRows, previewValue } from "../lib/ai-preview";
+import { AiPreviewCard } from "./ai-preview-card";
 import type { AiMessageResponse, AiPreview } from "../lib/types";
 import { useLanguage } from "./language-provider";
 import { useAiVoiceInput } from "./use-ai-voice-input";
@@ -19,12 +19,6 @@ type ChatMessage = {
   preview?: AiPreview | null | undefined;
   providerConfigured?: boolean;
 };
-
-const operationText = {
-  CREATE_WORK_RECORD: "新增记工",
-  UPDATE_WORK_RECORD: "修改记工",
-  DELETE_WORK_RECORD: "删除记工",
-} as const;
 
 const content = {
   work: {
@@ -40,30 +34,6 @@ const content = {
     examples: ["今天全店大费和小费是多少？", "最近 7 天刷卡小费", "本月老板尚欠多少？"],
   },
 } as const;
-
-function PreviewCard({
-  preview,
-  timezone,
-  busy,
-  confirm,
-  cancel,
-}: {
-  preview: AiPreview;
-  timezone: string;
-  busy: boolean;
-  confirm: (id: string) => Promise<void>;
-  cancel: (id: string) => Promise<void>;
-}) {
-  const rows = aiPreviewRows(preview, timezone);
-  return (
-    <section className={`ai-preview ${preview.operation === "DELETE_WORK_RECORD" ? "delete" : ""}`}>
-      <header><div><strong>{operationText[preview.operation]}</strong><span>预览将在 {new Date(preview.expiresAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 过期</span></div><em>尚未写入</em></header>
-      <dl>{rows.map(([label, value]) => <div key={String(label)}><dt>{String(label)}</dt><dd>{previewValue(value)}</dd></div>)}</dl>
-      {preview.warnings.length > 0 && <div className="preview-warnings">{preview.warnings.map((warning) => <span key={warning}>{warning}</span>)}</div>}
-      <div className="preview-actions"><button className={preview.operation === "DELETE_WORK_RECORD" ? "danger-button" : "primary-action"} type="button" disabled={busy} onClick={() => void confirm(preview.previewId)}>确认执行</button><button className="secondary-action" type="button" disabled={busy} onClick={() => void cancel(preview.previewId)}>放弃</button></div>
-    </section>
-  );
-}
 
 export function FloatingAiAssistant({
   storeId,
@@ -191,7 +161,7 @@ export function FloatingAiAssistant({
       {open && createPortal(<div ref={rootRef} className="ai-dialog-root"><section id={`floating-ai-${type}`} className="floating-ai-dialog" role="dialog" aria-label={settings.title} onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}>
         <header className="floating-ai-heading"><div><span aria-hidden="true"><UiIcon name="sparkles" /></span><div><strong>{settings.title}</strong><small>{type === "work" ? "确认后才会修改记工" : "财务数据只读"}</small></div></div><button type="button" aria-label="关闭 AI 助手" onClick={close}>×</button></header>
         <div className="floating-ai-examples">{settings.examples.map((example) => <button key={example} type="button" onClick={() => setInput(t(example))}>{example}</button>)}</div>
-        <div className="chat-messages floating-ai-messages">{messages.map((message) => <article key={message.id} className={`chat-message ${message.role}`}><span>{message.role === "user" ? "你" : "助"}</span><div><p>{message.text}</p>{message.role === "assistant" && message.providerConfigured === false && <small>当前使用安全降级模式。</small>}{message.preview && <PreviewCard timezone={timezone} preview={message.preview} busy={busy} confirm={confirm} cancel={cancel} />}</div></article>)}{busy && <article className="chat-message assistant"><span>助</span><div><p>正在核对权限和数据…</p></div></article>}<div ref={endRef} /></div>
+        <div className="chat-messages floating-ai-messages">{messages.map((message) => <article key={message.id} className={`chat-message ${message.role}`}><span>{message.role === "user" ? "你" : "助"}</span><div><p>{message.text}</p>{message.role === "assistant" && message.providerConfigured === false && <small>当前使用安全降级模式。</small>}{message.preview && <AiPreviewCard timezone={timezone} preview={message.preview} busy={busy} confirm={confirm} cancel={cancel} />}</div></article>)}{busy && <article className="chat-message assistant"><span>助</span><div><p>正在核对权限和数据…</p></div></article>}<div ref={endRef} /></div>
         {error && <p className="form-error floating-ai-error" role="alert">{error}</p>}
         <form className="chat-composer floating-ai-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><textarea aria-label={`给${settings.title}的消息`} maxLength={4000} rows={2} placeholder={settings.placeholder} value={input} onChange={(event) => setInput(event.target.value)} /><div><span>{input.length}/4000</span><div className="composer-actions">{type === "work" && <button className={`voice-button ${voice.recording ? "recording" : ""}`} type="button" disabled={busy || voice.transcribing || voice.finishingRecording} onClick={voice.recording ? voice.stopRecording : () => void voice.startRecording()}>{voice.transcribing ? "正在转写…" : voice.finishingRecording ? "正在完成录音…" : voice.recording ? "停止并转写" : "语音输入"}</button>}<button className="primary-action" type="submit" disabled={inputBusy || voice.recording || !input.trim()}>{inputBusy ? "处理中…" : "发送"}</button></div></div></form>
       </section></div>, document.body)}

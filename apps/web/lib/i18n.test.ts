@@ -71,6 +71,10 @@ describe("bilingual UI translation", () => {
     expect(translateText("高亮标记", "en-US")).toBe("Highlight");
     expect(translateText("每日开门排位", "en-US")).toBe("Daily opening order");
     expect(translateText("重新生成今日顺序", "en-US")).toBe("Regenerate today's order");
+    expect(translateText("重新生成顺序", "en-US")).toBe("Regenerate order");
+    expect(translateText("复制排工顺序", "en-US")).toBe("Copy work order");
+    expect(translateText("排工顺序已复制", "en-US")).toBe("Work order copied");
+    expect(translateText("复制排工顺序失败，请重试。", "en-US")).toBe("Could not copy the work order. Please try again.");
     expect(translateText("礼卡", "en-US")).toBe("Gift card");
     expect(translateText("刷卡 30 美元", "en-US")).toBe("Card 30 dollars");
     expect(translateText("现金 50 美元", "en-US")).toBe("Cash 50 dollars");

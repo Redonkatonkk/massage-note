@@ -78,6 +78,26 @@ describe.skipIf(process.env.DATABASE_INTEGRATION_TESTS !== "1").sequential("date
     expect(repeated.fullTimeOrder).toEqual(generated.fullTimeOrder);
     expect(repeated.rows.map(row => row.membershipId)).toEqual(generated.rows.map(row => row.membershipId));
   });
+  it("keeps Sara Jessie Jessica internally after moving Jessie last on the board, then rotates to Jessie Jessica Sara", async () => {
+    const [sara, jessie, jessica] = full as [string, string, string];
+    await board("2026-11-03", full, [jessica, sara, jessie]);
+    await board("2026-11-04", full);
+    const yesterday = await rank("2026-11-04");
+    expect(yesterday.fullTimeOrder).toEqual([sara, jessie, jessica]);
+    const rowFor = (id: string) => yesterday.rows.find(row => row.membershipId === id)!.id;
+    await at("2026-11-04", () => boards.reorder(actor, storeId, "2026-11-04", {
+      version: yesterday.version,
+      rowIds: [sara, jessica, jessie].map(rowFor),
+    }, randomUUID(), randomUUID()));
+    expect((await read("2026-11-04")).fullTimeOrder).toEqual([sara, jessie, jessica]);
+    await board("2026-11-05", full);
+    const settings = await at("2026-11-05", () => boards.getWeeklyDispatch(actor, storeId, "2026-11-05"));
+    expect(settings.fullTimeOrder).toEqual([jessie, jessica, sara]);
+    const today = await rank("2026-11-05");
+    expect(today.fullTimeOrder).toEqual([jessie, jessica, sara]);
+    expect(today.rows.map(row => row.membershipId)).toEqual([jessie, jessica, sara]);
+  });
+
   it("rotates full-time staff on working days even when resting, skips closed days, and blocks missing days", async () => {
     await board("2026-11-09", all, full);
     await board("2026-11-10", [full[0]!, full[2]!, ...part]);

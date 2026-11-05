@@ -1,5 +1,7 @@
 "use client";
 
+import { useDecision } from "../decision-dialog";
+
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
 import { displayUsPhone, effectiveClosingDeliveryPhone } from "../../lib/member-closing-delivery";
@@ -29,6 +31,7 @@ interface MembersPanelProps {
 }
 
 export function MembersPanel({ storeId, dailyRankingEnabled, members, requests, catalog, busy, run, reload, onDirtyChange }: MembersPanelProps) {
+  const decision = useDecision();
   const { t, locale } = useLanguage();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<MemberFilter>("ACTIVE");
@@ -61,25 +64,25 @@ export function MembersPanel({ storeId, dailyRankingEnabled, members, requests, 
   }, [dirty]);
   useEffect(() => { if (selectedMember) detailHeading.current?.focus(); }, [selectedMember?.id]);
 
-  function mayLeave() {
-    return !disabled && (!dirty || window.confirm(t("有未保存的修改，确认放弃吗？")));
+  async function mayLeave() {
+    return !disabled && (!dirty || await decision.confirm(t("有未保存的修改，确认放弃吗？")));
   }
-  function choose(member: StoreMember | null) {
-    if (selectedMember?.id === member?.id || !mayLeave()) return;
+  async function choose(member: StoreMember | null) {
+    if (selectedMember?.id === member?.id || !await mayLeave()) return;
     setSelectedMember(member); setDetailTab("settings"); setDirty(false); setError(""); setEditorRevision((value) => value + 1);
   }
-  function discard() {
-    if (!mayLeave()) return;
+  async function discard() {
+    if (!await mayLeave()) return;
     if (latest) setSelectedMember(latest);
     setDirty(false); setError(""); setEditorRevision((value) => value + 1);
   }
-  function open(next: DialogState) {
-    if (!mayLeave()) return;
+  async function open(next: DialogState) {
+    if (!await mayLeave()) return;
     if (latest) setSelectedMember(latest);
     setEditorRevision((value) => value + 1); setError(""); setDirty(false); setDialog(next);
   }
-  function close() {
-    if (submitting.current || !mayLeave()) return;
+  async function close() {
+    if (submitting.current || !await mayLeave()) return;
     setDialog(null); setDirty(false); setError("");
   }
   async function act(action: () => Promise<void>) {
@@ -132,8 +135,8 @@ export function MembersPanel({ storeId, dailyRankingEnabled, members, requests, 
             <div className="members-person"><span className="member-avatar" aria-hidden="true">{Array.from(current.displayName)[0]}</span><div><p className="eyebrow">员工档案</p><h2 ref={detailHeading} tabIndex={-1}>{current.displayName}</h2><p><span>{roleText[current.role]}</span> · <span>{current.status === "ACTIVE" ? current.isServiceProvider ? "参与记工" : "不参与记工" : "已离职/停用"}</span></p></div></div>
           </header>
           {selectedMember.status === "ACTIVE" && latest ? <>
-            <nav className="member-detail-tabs" aria-label="员工设置">{([["settings", "资料与工资"], ["commission", "项目专属提成"], ["account", "账号与状态"]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={detailTab === value} disabled={disabled} onClick={() => {
-              if (value === detailTab || !mayLeave()) return;
+            <nav className="member-detail-tabs" aria-label="员工设置">{([["settings", "资料与工资"], ["commission", "项目专属提成"], ["account", "账号与状态"]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={detailTab === value} disabled={disabled} onClick={async () => {
+              if (value === detailTab || !await mayLeave()) return;
               setSelectedMember(latest); setDetailTab(value); setDirty(false); setError(""); setEditorRevision((revision) => revision + 1);
             }}>{label}</button>)}</nav>
             {detailTab === "settings" && !dialog && <MemberEditor key={`${selectedMember.id}-${editorRevision}`} member={selectedMember} latest={latest} dailyRankingEnabled={dailyRankingEnabled} busy={disabled} onDirty={setDirty} onCancel={discard} clearError={() => setError("")} onSubmit={(member, draft, progress) => act(async () => {
@@ -254,7 +257,7 @@ function ItemCommissionForm({ storeId, member, latest, catalog, busy, onDirty, o
     return () => controller.abort();
   }, [storeId, member.id, attempt]);
   useEffect(() => { onDirty(Boolean(itemKey)); }, [itemKey, onDirty]);
-  function choose(value: string) {
+  async function choose(value: string) {
     setItemKey(value);
     const [itemType, itemId] = value.split(":");
     const rule = rules.find((rule) => rule.itemType === itemType && rule.itemId === itemId);

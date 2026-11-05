@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](NAS_DEPLOYMENT.zh-CN.md)**
 
-> Current version: `1.54.0` · Mirror: `ghcr.io/redonkatonkk/massage-note`
+> Current version: `1.54.1` · Mirror: `ghcr.io/redonkatonkk/massage-note`
 > Historical version changes can be viewed in a unified manner [`CHANGELOG.md`](../../CHANGELOG.md) and will not be accumulated repeatedly in this manual.
 
 Standard release link:
@@ -32,6 +32,8 @@ Release authorization and workspace retention follow [Maintenance Rules](../../A
 ## Default update deployment process
 
 After the user explicitly requests "update deployment", subsequent AI will be executed continuously as shown below by default; when the user only requests to modify documents, code or test CI, the NAS will not be updated accordingly. Reason: Release authorization and verification scope respectively determine whether to switch to the production environment. Existing release authorization should not stop again and wait for the same confirmation after CI is successful.
+
+Reconcile pending files with the CHANGELOG and the user's recent requested updates before selecting release contents. An ordinary update deployment includes completed, documented pending features unless explicitly excluded; preserve unfinished or unrelated work and state any exclusions before publishing. Reason: a healthy image proves only the selected commit, and silently releasing only the latest feature can leave other completed updates offline.
 
 | Sequence | Basis for execution and completion |
 | --- | --- |

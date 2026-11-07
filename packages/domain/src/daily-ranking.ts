@@ -50,8 +50,29 @@ export function rotateFullTimeOrder(order: string[], days = 1): string[] {
   const offset = days % order.length;
   return [...order.slice(offset), ...order.slice(0, offset)];
 }
+export type FullTimeRotationHead = {
+  businessDate: string;
+  membershipId: string;
+  displayName: string;
+  employmentType: EmploymentType;
+};
+export type FullTimeRotationBasis = {
+  rule: "LEGACY_ONE_STEP" | "PART_TIME_HEAD" | "FULL_TIME_HEAD" | "MANUAL_ORDER" | "CLOSED_DAY";
+  referenceHead?: FullTimeRotationHead;
+  movedMembershipIds: string[];
+};
+/** The actual first employee consumes the full-time turn only when full-time. */
+export function advanceFullTimeOrder(order: string[], head: FullTimeRotationHead | null) {
+  const index = head?.employmentType === "FULL_TIME" ? order.indexOf(head.membershipId) : -1;
+  const fullTimeRotation: FullTimeRotationBasis = head?.employmentType === "PART_TIME"
+    ? { rule: "PART_TIME_HEAD", referenceHead: head, movedMembershipIds: [] }
+    : head && index >= 0
+      ? { rule: "FULL_TIME_HEAD", referenceHead: head, movedMembershipIds: order.slice(0, index + 1) }
+      : { rule: "LEGACY_ONE_STEP", movedMembershipIds: order.slice(0, 1) };
+  return { order: rotateFullTimeOrder(order, fullTimeRotation.rule === "PART_TIME_HEAD" ? 0 : fullTimeRotation.movedMembershipIds.length), fullTimeRotation };
+}
 /** Reserve part-time slots, fill gaps with full-time staff, then append newcomers. */
-export function rankRotationCandidates(candidates: RotationCandidate[], fullTimeOrder: string[] = []): string[] {
+export function rankRotationCandidates(candidates: RotationCandidate[], fullTimeOrder: string[] = [], fullTimeTailId?: string): string[] {
   const fullIndex = (id: string) => {
     const index = fullTimeOrder.indexOf(id);
     return index < 0 ? Number.MAX_SAFE_INTEGER : index;
@@ -76,10 +97,18 @@ export function rankRotationCandidates(candidates: RotationCandidate[], fullTime
   const newcomers = candidates.filter(candidate => candidate.lastPosition === null).sort((a, b) =>
     a.employmentType !== b.employmentType ? a.employmentType === "FULL_TIME" ? -1 : 1
       : a.employmentType === "FULL_TIME" ? byFullOrder(a, b) : a.membershipId.localeCompare(b.membershipId));
-  return [...order, ...tail.map(candidate => candidate.membershipId), ...newcomers.map(candidate => candidate.membershipId)];
+  const result = [...order, ...tail.map(candidate => candidate.membershipId), ...newcomers.map(candidate => candidate.membershipId)];
+  if (!fullTimeTailId) return result;
+  const fullIds = new Set(candidates.filter(candidate => candidate.employmentType === "FULL_TIME").map(candidate => candidate.membershipId));
+  if (!fullIds.has(fullTimeTailId)) return result;
+  // Newcomers normally follow returning staff. The previous head's final-tail
+  // priority also covers new full-time staff, while all part-time slots stay put.
+  const fullSlots = result.filter(id => fullIds.has(id) && id !== fullTimeTailId).concat(fullTimeTailId);
+  let fullSlot = 0;
+  return result.map(id => fullIds.has(id) ? fullSlots[fullSlot++]! : id);
 }
-export function explainRotationCandidates(candidates: RotationCandidate[], fullTimeOrder: string[] = []) {
-  const order = rankRotationCandidates(candidates, fullTimeOrder);
+export function explainRotationCandidates(candidates: RotationCandidate[], fullTimeOrder: string[] = [], fullTimeTailId?: string) {
+  const order = rankRotationCandidates(candidates, fullTimeOrder, fullTimeTailId);
   return order.map((membershipId, index) => {
     const candidate = candidates.find(item => item.membershipId === membershipId)!;
     const targetPosition = candidate.employmentType === "PART_TIME" && candidate.lastPosition !== null && candidate.lastPosition > 1 ? candidate.lastPosition - 1 : null;

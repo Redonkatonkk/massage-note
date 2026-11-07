@@ -246,13 +246,14 @@ export class BoardsService {
           const previousExplanation = rankingExplanationSchema.safeParse(fresh.rankingExplanation).data;
           if (completeOrder.some((id, index) => id !== rows[index]?.membershipId)
             || !isDeepStrictEqual(fresh.fullTimeOrder, context.order)
+            || !isDeepStrictEqual(previousExplanation?.fullTimeRotation, context.fullTimeRotation)
             || !isDeepStrictEqual(previousExplanation?.entries, entries)) {
             for (const [index, id] of completeOrder.entries()) {
               const row = rows.find((item) => item.membershipId === id)!;
               await transaction.dailyEmployeeRow.update({ where: { id: row.id }, data: { position: new Prisma.Decimal(index + 1), version: { increment: 1 } } });
             }
             rankedAt = new Date();
-            explanation = { schemaVersion: 2, generatedAt: rankedAt.toISOString(), fullTimeOrder: context.order, entries };
+            explanation = { schemaVersion: 3, generatedAt: rankedAt.toISOString(), fullTimeOrder: context.order, fullTimeRotation: context.fullTimeRotation, entries };
             await transaction.dailyBoard.update({ where: { id: board.id }, data: { fullTimeOrder: context.order } });
           }
         }

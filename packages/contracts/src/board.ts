@@ -69,10 +69,22 @@ export type WeeklyDispatchInput = z.input<typeof weeklyDispatchSchema>;
 export type UpdateWeeklyDispatchInput = z.input<typeof updateWeeklyDispatchSchema>;
 export type RemoveBoardRowInput = z.input<typeof removeBoardRowSchema>;
 
+export const fullTimeRotationBasisSchema = z.object({
+  rule: z.enum(["LEGACY_ONE_STEP", "PART_TIME_HEAD", "FULL_TIME_HEAD", "MANUAL_ORDER", "CLOSED_DAY"]),
+  referenceHead: z.object({
+    businessDate: businessDateSchema,
+    membershipId: z.string(),
+    displayName: z.string(),
+    employmentType: z.enum(["FULL_TIME", "PART_TIME"]),
+  }).optional(),
+  movedMembershipIds: z.array(z.string()),
+});
+
 export const rankingExplanationSchema = z.object({
-  schemaVersion: z.union([z.literal(1), z.literal(2)]),
+  schemaVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   generatedAt: z.string(),
   fullTimeOrder: z.array(z.string()).optional(),
+  fullTimeRotation: fullTimeRotationBasisSchema.optional(),
   entries: z.array(z.object({
     membershipId: z.string(),
     displayName: z.string(),

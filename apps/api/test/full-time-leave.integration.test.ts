@@ -88,12 +88,14 @@ describe.skipIf(!enabled).sequential("full-time leave returns", () => {
     await rank("2027-01-06");
     await board("2027-01-07");
     const returned = await rank("2027-01-07");
-    expect(returned.fullTimeOrder).toEqual([d, b, c, a]);
+    // C led the preceding day and follows the returning A at the final tail.
+    expect(returned.fullTimeOrder).toEqual([d, b, a, c]);
     expect(explanation(returned).entries.find(entry => entry.membershipId === a)?.leaveStartDate).toBe("2027-01-04");
     expect((await rank("2027-01-07")).fullTimeOrder).toEqual(returned.fullTimeOrder);
     await board("2027-01-08");
     const next = await rank("2027-01-08");
-    expect(next.fullTimeOrder).toEqual([b, c, a, d]);
+    // The part-time employee headed January 7, so the full-time turn is retained.
+    expect(next.fullTimeOrder).toEqual([d, b, a, c]);
     expect(explanation(next).entries.every(entry => !entry.leaveStartDate)).toBe(true);
   });
 
@@ -155,7 +157,7 @@ describe.skipIf(!enabled).sequential("full-time leave returns", () => {
     await save("2027-01-05", [d, a, c, b], { ...schedule(), monday: [] });
     await rank("2027-01-05");
     await board("2027-01-06");
-    expect((await rank("2027-01-06")).fullTimeOrder).toEqual([c, b, d, a]);
+    expect((await rank("2027-01-06")).fullTimeOrder).toEqual([c, b, a, d]);
   });
 
   it("shares the rule between future automatic initialization and explicit regeneration", async () => {

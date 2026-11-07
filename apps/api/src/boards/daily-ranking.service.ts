@@ -159,8 +159,9 @@ export class DailyRankingService {
             fullTimeOrder: context.order,
             rankingPending: false,
             rankingExplanation: {
-              schemaVersion: 2,
+              schemaVersion: 3,
               fullTimeOrder: context.order,
+              fullTimeRotation: context.fullTimeRotation,
               generatedAt: rankedAt.toISOString(),
               entries: explained,
             },

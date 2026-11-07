@@ -2,15 +2,44 @@ import type { RankingExplanation } from "@massage-note/contracts";
 
 export function rankingReason(entry: RankingExplanation["entries"][number], snapshot: RankingExplanation, english = false): string[] {
   const reasons: string[] = [];
-  if (snapshot.schemaVersion === 2) {
+  if (snapshot.schemaVersion >= 2) {
+    const rotation = snapshot.schemaVersion === 3 ? snapshot.fullTimeRotation : undefined;
+    const head = rotation?.referenceHead;
+    if (entry.employmentType === "FULL_TIME" && rotation) {
+      if (rotation.rule === "PART_TIME_HEAD" && head) reasons.push(english
+        ? `${head.displayName} (part-time) led the final visible order on ${head.businessDate}; the full-time queue keeps its turn.`
+        : `${head.businessDate} 最终可见名单由兼职 ${head.displayName} 打头，全职队列不轮转。`);
+      else if (rotation.rule === "FULL_TIME_HEAD" && head) reasons.push(english
+        ? `${head.displayName} (full-time) led the final visible order on ${head.businessDate}. The first ${rotation.movedMembershipIds.length} full-time queue members rotate together to the tail, even if that employee rests today; that employee follows leave returners.`
+        : `${head.businessDate} 最终可见名单由全职 ${head.displayName} 打头，完整全职队列从队首至该人员的 ${rotation.movedMembershipIds.length} 人一起轮到末尾；其当天休息仍照算，且排在请假返岗者之后。`);
+      else if (rotation.rule === "MANUAL_ORDER") reasons.push(english
+        ? "Uses the saved manual full-time order; automatic head-based rotation is skipped. Leave-return rules still apply."
+        : "采用当日保存的人工全职顺序，跳过按打头者自动轮转；请假返岗规则仍生效。");
+      else if (rotation.rule === "LEGACY_ONE_STEP") reasons.push(english
+        ? "No eligible previous working-day head under the new rules; uses the existing one-step full-time rotation."
+        : "前一营业日没有新规则下的有效打头依据，沿用原有全职前移一位规则。");
+    }
     if (entry.employmentType === "FULL_TIME" && entry.leaveStartDate) reasons.push(english
       ? `Returning from leave starting ${entry.leaveStartDate}: moved to the end of the complete full-time queue, including resting staff, after today's rotation or manual internal order. This order continues on later days.`
       : `自 ${entry.leaveStartDate} 请假后首次返岗：在当天轮转或人工内部顺序基础上，移到完整全职队列末尾（包括休息人员之后），后续沿新顺序轮转。`);
-    if (entry.lastPosition === null) reasons.push(english ? "No attendance history: placed after all returning employees." : "没有出勤历史，排在所有有历史人员之后。");
+    if (entry.leaveStartDate && rotation?.rule === "FULL_TIME_HEAD") reasons.push(english
+      ? "The previous full-time head has final-tail priority and is placed after leave returners."
+      : "前一营业日打头的全职具有最终队尾优先级，排在请假返岗人员之后。");
+    if (entry.lastPosition === null) {
+      const aheadOfPreviousHead = entry.employmentType === "FULL_TIME" && rotation?.rule === "FULL_TIME_HEAD"
+        && snapshot.entries.some(other => other.membershipId === head?.membershipId && other.generatedPosition > entry.generatedPosition);
+      reasons.push(aheadOfPreviousHead
+        ? english ? "No attendance history: joins as a newcomer, ahead of the previous full-time head because that employee has final-tail priority." : "没有出勤历史，按新人加入；前日打头的全职需排在全职末位，因此排在该人员之前。"
+        : english ? "No attendance history: placed after all returning employees." : "没有出勤历史，排在所有有历史人员之后。");
+    }
     else if (entry.employmentType === "FULL_TIME") reasons.push(english ? `Full-time internal position ${entry.fullTimePosition}; fills a slot left by part-time staff. Resting staff remain in the internal rotation.` : `全职内部第 ${entry.fullTimePosition} 位，依次填入兼职留下的空位；休息者仍参与内部轮转。`);
     else {
       reasons.push(english ? `Last attended on ${entry.lastBusinessDate}, at position ${entry.lastPosition}.` : `最近一次出勤是 ${entry.lastBusinessDate}，当时排第 ${entry.lastPosition}。`);
-      reasons.push(entry.lastPosition === 1 ? english ? "Previously first: placed at the end of returning staff, before newcomers." : "上次第一，排在有历史人员末尾、新人之前。" : english ? `Targets position ${entry.targetPosition}; collisions move later and overflowing targets compress towards the end.` : `目标第 ${entry.targetPosition} 位；撞位顺延，超出人数时向末端压缩。`);
+      reasons.push(entry.lastPosition === 1
+        ? rotation?.rule === "FULL_TIME_HEAD"
+          ? english ? "Previously first: keeps the slot assigned by the part-time rotation; full-time final-tail priority does not move this slot." : "上次第一，保留按兼职原有轮转计算的位置；全职打头者排末只调整全职之间的顺序。"
+          : english ? "Previously first: placed at the end of returning staff, before newcomers." : "上次第一，排在有历史人员末尾、新人之前。"
+        : english ? `Targets position ${entry.targetPosition}; collisions move later and overflowing targets compress towards the end.` : `目标第 ${entry.targetPosition} 位；撞位顺延，超出人数时向末端压缩。`);
     }
     for (const tie of entry.ties) {
       const other = snapshot.entries.find(item => item.membershipId === tie.membershipId);

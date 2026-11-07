@@ -4,6 +4,12 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.55.0 — 2026-11-07
+
+- Rotate the full-time queue by the preceding working day’s actual first visible employee: part-time leadership keeps its turn; full-time leadership moves the entire prefix through that employee to the tail, even when that employee rests next day.
+- Keep dated manual orders authoritative, preserve leave handling, and place the previous full-time head after leave returners on automatic dates.
+- Save v3 rotation references with bilingual explanations, activate from new generation without retrofitting old dates, and verify undo and anonymized backup imports. NAS requires Web/API updates; no database migration or independent plugin/agent update.
+
 ## 1.54.1 — 2026-11-05
 
 - Publish the completed local updates omitted from 1.54.0: the Framed Sheet edition and edition switch, read-only ranking explanations on historical/closed dates, payroll workspace refinements, future-order copying, and the documented cleanup.

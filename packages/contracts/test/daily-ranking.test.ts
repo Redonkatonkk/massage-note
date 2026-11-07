@@ -20,4 +20,9 @@ describe("dated full-time settings contracts", () => {
     expect(rankingExplanationSchema.parse(snapshot).entries[0]?.leaveStartDate).toBe("2026-11-02");
     expect(rankingExplanationSchema.safeParse({ ...snapshot, entries: [{ ...snapshot.entries[0], leaveStartDate: "yesterday" }] }).success).toBe(false);
   });
+  it("preserves version three rotation references and rejects invalid reference types", () => {
+    const snapshot = { schemaVersion: 3, generatedAt: "2027-02-02", fullTimeOrder: [id], entries: [], fullTimeRotation: { rule: "PART_TIME_HEAD", referenceHead: { membershipId: id, displayName: "K", employmentType: "PART_TIME", businessDate: "2027-02-01" }, movedMembershipIds: [] } };
+    expect(rankingExplanationSchema.parse(snapshot).fullTimeRotation).toEqual(snapshot.fullTimeRotation);
+    expect(rankingExplanationSchema.safeParse({ ...snapshot, fullTimeRotation: { ...snapshot.fullTimeRotation, referenceHead: { ...snapshot.fullTimeRotation.referenceHead, employmentType: "UNKNOWN" } } }).success).toBe(false);
+  });
 });

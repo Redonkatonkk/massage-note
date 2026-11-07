@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.54.1`
+> 适用版本：`1.55.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -394,7 +394,7 @@ Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，
 
 `GET /stores/:storeId/boards/:businessDate` 的 `ranking.explanation` 返回最后一次生成时的解释快照，未保存时为 `null`。仅具有 `MEMBERSHIP_MANAGE` 能力的成员可读取，其他成员始终返回 `null`，包括个人历史视图。
 
-共享契约 `RankingExplanation` 同时支持旧 `schemaVersion: 1` 与新 `2`。新版保存完整 `fullTimeOrder`，每项保留姓名／类型、历史日期／位置、生成位置，新增 `targetPosition` 与 `fullTimePosition`，兼职同目标使用 `EARLIER_ATTENDANCE`；旧快照按原规则解释，不回填。
+共享契约 `RankingExplanation` 支持 `schemaVersion: 1`、`2`、`3`。新生成写入 v3，可选 `fullTimeRotation: { rule, referenceHead?, movedMembershipIds }`；`referenceHead` 包含 `{ businessDate, membershipId, displayName, employmentType }`。规则为 `LEGACY_ONE_STEP`、`PART_TIME_HEAD`、`FULL_TIME_HEAD`、`MANUAL_ORDER` 或 `CLOSED_DAY`。新版保存完整 `fullTimeOrder`，每项保留姓名／类型、历史日期／位置、生成位置，新增 `targetPosition` 与 `fullTimePosition`，兼职同目标使用 `EARLIER_ATTENDANCE`；旧快照按原规则解释，不回填。
 
 现有 `POST .../rank` 在原有营业日锁、版本检查和幂等事务中同时保存顺序与快照。重新生成替换快照，手动调序、员工行变化和成员资料变更不改写快照。前端根据当前名单对比展示变化，不能用当前资料重新推算当时原因。旧数据不回填推测解释。保留原因：解释应反映生成时决策，不能由当前资料推测旧原因。
 
@@ -420,6 +420,8 @@ Web 营业额日历直接消费当前 `finance/analytics.days[].revenueCents`，
 - `PUT /stores/:storeId/weekly-dispatch`：原 `{ version, schedule }` 继续兼容；Web 同时提交 `businessDate`、`boardVersion`、`fullTimeOrder`，三字段必须一起出现，完整包含全部在职全职且不重复。营业日锁、店铺及表格版本、成员权限／归属／日结检查后，原子保存全部设置及审计/outbox。内部顺序写入该日人工基准并标记待生成，不改员工行或解释快照。历史／已日结日期内部顺序只读，省略这三字段仍可保存每周出勤。
 - “应用”及一次性覆盖接口已移除。`POST /stores/:storeId/boards/:businessDate/apply-weekly-dispatch` 保留供加载时同步名单；过去、已日结及已初始化今日跳过，未来按模板同步无记工／班次的自动行，手动名单和人工顺序保护保留，新增行追加。待生成日期只同步名单、不重排；无变化不递增版本或重复发送 outbox。历史 `overwritten` 审计继续兼容。
 - `POST /stores/:storeId/boards/:businessDate/rank` 主动生成后解除待生成状态。缺少完整全职基准或遇缺表返回 409 `DAILY_RANKING_SETUP_REQUIRED` 并提供 `missingDate`，Web 打开每周排工进行初始化。新人、兼职占位、全职轮转共用领域排序；新日期仅在基准和历史完整时自动生成。
+
+v3 生成只采用前一非空营业日的 v3 标记及最终可见第一名，包含人工调行。兼职打头保留全职轮次；全职打头将队首至该人员的前缀移末，其次日休息仍照算。再处理成员变化、请假返岗，最后将前日打头的全职排至最末（包括全职新人之后），只交换全职位置、保留兼职位置。当日人工内部顺序跳过打头调整，仍处理返岗。旧版／未生成营业日不提供依据，空表日跳过，缺表保留初始化错误。新规则首日回退原有单步计算，旧中间日期不追溯套用。读取、主动及自动生成共用计算，沿用保存／生成／日结边界，无新增请求或数据库字段。保留原因：实际打头才消耗轮次，快照版本提供可随备份迁移的启用边界。
 
 迁移 `20261031010000_independent_full_time_rotation` 添加 `daily_boards.full_time_order`、`full_time_order_override`、`ranking_pending`，旧值默认空／false。已有空表跳过、缺表停止推算；人工基准当日直接使用，后续营业日轮转，休息者保留在内部队列。备份和撤销支持新字段，旧备份补默认值，匿名化及导入映射队列成员 ID。保留原因：完整内部队列、人工确认与实际生成必须分开持久化，保存不能意外重排当前表格。
 

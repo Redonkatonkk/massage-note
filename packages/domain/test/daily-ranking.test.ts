@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { rankRotationCandidates, explainRotationCandidates, rotateFullTimeOrder, resolveFullTimeLeaveReturns, moveFullTimeLeaveReturnersToTail } from "../src/daily-ranking.js";
+import { rankRotationCandidates, explainRotationCandidates, rotateFullTimeOrder, resolveFullTimeLeaveReturns, moveFullTimeLeaveReturnersToTail, advanceFullTimeOrder, type FullTimeRotationHead } from "../src/daily-ranking.js";
 const candidate = (membershipId: string, lastPosition: number | null, employmentType: "FULL_TIME" | "PART_TIME" = "PART_TIME", lastBusinessDate = "2026-09-03") => ({ membershipId, lastPosition, employmentType, lastBusinessDate });
 describe("independent daily rotation", () => {
+  const head = (membershipId: string, employmentType: "FULL_TIME" | "PART_TIME" = "FULL_TIME"): FullTimeRotationHead => ({ membershipId, displayName: membershipId, employmentType, businessDate: "2027-02-01" });
+  it("keeps the full-time turn when part-time K heads the complete attendance list", () => {
+    expect(advanceFullTimeOrder(["A", "B", "C"], head("K", "PART_TIME"))).toMatchObject({ order: ["A", "B", "C"], fullTimeRotation: { rule: "PART_TIME_HEAD", movedMembershipIds: [] } });
+  });
+  it("rotates the entire prefix through the actual full-time head, independent of tomorrow's attendance", () => {
+    expect(advanceFullTimeOrder(["A", "B", "C", "D"], head("B"))).toMatchObject({ order: ["C", "D", "A", "B"], fullTimeRotation: { rule: "FULL_TIME_HEAD", movedMembershipIds: ["A", "B"] } });
+    expect(advanceFullTimeOrder(["A", "B", "C", "D", "E"], head("C")).order).toEqual(["D", "E", "A", "B", "C"]);
+    expect(advanceFullTimeOrder(["A", "B", "C"], head("C")).order).toEqual(["A", "B", "C"]);
+  });
+  it("falls back to one step without inventing a full-time head", () => {
+    expect(advanceFullTimeOrder(["A", "B", "C"], null)).toMatchObject({ order: ["B", "C", "A"], fullTimeRotation: { rule: "LEGACY_ONE_STEP" } });
+    expect(advanceFullTimeOrder(["A", "B", "C"], head("UNKNOWN")).order).toEqual(["B", "C", "A"]);
+    expect(advanceFullTimeOrder([], null).order).toEqual([]);
+    expect(advanceFullTimeOrder(["A"], head("A")).order).toEqual(["A"]);
+  });
   it("reserves part-time second before filling full-time gaps", () => {
     expect(rankRotationCandidates([candidate("P", 3), ...["A", "B", "C"].map(id => candidate(id, 1, "FULL_TIME"))], ["B", "C", "A"])).toEqual(["B", "P", "C", "A"]);
   });
@@ -19,6 +34,11 @@ describe("independent daily rotation", () => {
   });
   it("places all newcomers last while respecting full-time internal order", () => {
     expect(rankRotationCandidates([candidate("P", 1), candidate("A", null, "FULL_TIME"), candidate("B", null, "FULL_TIME"), candidate("N", null)], ["B", "A"])).toEqual(["P", "B", "A", "N"]);
+  });
+  it("gives the previous full-time head final-tail priority over newcomers without moving part-time slots", () => {
+    const people = [candidate("B", 1, "FULL_TIME"), candidate("P", 1), candidate("N", null, "FULL_TIME")];
+    expect(rankRotationCandidates(people, ["N", "B"])).toEqual(["B", "P", "N"]);
+    expect(rankRotationCandidates(people, ["N", "B"], "B")).toEqual(["N", "P", "B"]);
   });
   it("explains targets and earlier attendance with the generated sequence", () => {
     const result = explainRotationCandidates([candidate("A", 2, "PART_TIME", "2026-09-01"), candidate("B", 2)]);

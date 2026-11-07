@@ -98,7 +98,7 @@ describe.skipIf(process.env.DATABASE_INTEGRATION_TESTS !== "1").sequential("date
     expect(today.rows.map(row => row.membershipId)).toEqual([jessie, jessica, sara]);
   });
 
-  it("rotates full-time staff on working days even when resting, skips closed days, and blocks missing days", async () => {
+  it("rotates through the actual full-time head, skips closed days, and blocks missing days", async () => {
     await board("2026-11-09", all, full);
     await board("2026-11-10", [full[0]!, full[2]!, ...part]);
     const day2 = await rank("2026-11-10");
@@ -106,13 +106,14 @@ describe.skipIf(process.env.DATABASE_INTEGRATION_TESTS !== "1").sequential("date
     expect(day2.rows.filter(row => full.includes(row.membershipId)).map(row => row.membershipId)).toEqual([full[2], full[0]]);
     await board("2026-11-11", []);
     await board("2026-11-12");
-    expect((await rank("2026-11-12")).fullTimeOrder).toEqual([full[2], full[0], full[1]]);
+    // Staff 2 headed the last working day; the full prefix moves behind them.
+    expect((await rank("2026-11-12")).fullTimeOrder).toEqual(full);
     await board("2026-11-14");
     await expect(rank("2026-11-14")).rejects.toMatchObject({ response: { code: "DAILY_RANKING_SETUP_REQUIRED", missingDate: "2026-11-13" } });
     await save("2026-11-14");
     expect((await rank("2026-11-14")).fullTimeOrder).toEqual(full);
   });
-  it("automatically initializes a new date and ordinary row moves do not change the complete queue", async () => {
+  it("keeps the current queue after row moves and uses their final actual head for the next date", async () => {
     await board("2026-11-16", all, full);
     await save("2026-11-16");
     expect(await at("2026-11-16", () => boards.applyWeeklyDispatch(actor, storeId, "2026-11-17", randomUUID()))).toMatchObject({ ranked: true });
@@ -121,7 +122,8 @@ describe.skipIf(process.env.DATABASE_INTEGRATION_TESTS !== "1").sequential("date
     await at("2026-11-17", () => boards.reorder(actor, storeId, "2026-11-17", { version: initial.version, rowIds: initial.rows.map(row => row.id).reverse() }, randomUUID(), randomUUID()));
     expect((await read("2026-11-17")).fullTimeOrder).toEqual(initial.fullTimeOrder);
     await board("2026-11-18");
-    expect((await rank("2026-11-18")).fullTimeOrder).toEqual([full[2], full[0], full[1]]);
+    // Reversing the board put Staff 0 first, at the internal queue's tail.
+    expect((await rank("2026-11-18")).fullTimeOrder).toEqual([full[1], full[2], full[0]]);
   });
   it("rejects invalid rosters and stale board versions atomically and preserves locks", async () => {
     await board("2026-11-23", all, full);
@@ -140,13 +142,13 @@ describe.skipIf(process.env.DATABASE_INTEGRATION_TESTS !== "1").sequential("date
     await at("2026-11-30", () => audit.undo(actor, storeId, log.id, randomUUID(), randomUUID()));
     expect((await read("2026-11-30")).fullTimeOrderOverride).toEqual(full);
   });
-  it("appends a converted full-time member after rotating the existing cohort", async () => {
+  it("adds a converted full-time member before the previous full-time head's final tail", async () => {
     await board("2026-12-01", all, full);
     await board("2026-12-02");
     await rank("2026-12-02");
     await prisma.storeMembership.update({ where: { id: part[0]! }, data: { employmentType: "FULL_TIME" } });
     await board("2026-12-03");
-    expect((await rank("2026-12-03")).fullTimeOrder).toEqual([full[2], full[0], full[1], part[0]]);
+    expect((await rank("2026-12-03")).fullTimeOrder).toEqual([full[2], full[0], part[0], full[1]]);
     await prisma.storeMembership.update({ where: { id: part[0]! }, data: { employmentType: "PART_TIME" } });
   });
   it("undoes pre-migration daily board snapshots with default new fields", async () => {

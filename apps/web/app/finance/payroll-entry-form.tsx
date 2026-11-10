@@ -1,5 +1,7 @@
 "use client";
 
+import { NumericInput } from "../numeric-input";
+
 import { useRef, useState } from "react";
 import { payrollSettlementEntrySchema, type EmployeeSettlementAmountType, type EmployeeSettlementPaymentScope } from "@massage-note/contracts";
 import { apiRequest } from "../../lib/api";
@@ -51,7 +53,7 @@ export function PayrollEntryForm({ storeId, businessDate, members, settlement, b
       <label>员工<select required disabled={busy} value={membershipId} onChange={(event) => setMembershipId(event.target.value)}>{payable.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
       <label>开始日期<input required disabled={busy} type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} /></label>
       <label>结束日期<input required disabled={busy} type="date" min={periodStart} value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} /></label>
-      <label>金额（美元）<input required disabled={busy} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
+      <label>金额（美元）<NumericInput required disabled={busy} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
       <SettlementOptions paymentScope={paymentScope} amountType={amountType} disabled={busy} onPaymentScope={setPaymentScope} onAmountType={setAmountType} />
     </div>
     <button className="primary-action" type="submit" disabled={busy || !membershipId || !paymentScope}>{settlement ? "保存修改" : "保存工资结算"}</button>

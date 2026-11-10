@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.56.0`
+> 适用版本：`1.56.8`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -58,7 +58,7 @@
 | PATCH/DELETE | `/stores/:storeId/lost-customers/:recordId` | 修改跑客时间、人数、备注、Walk-in 来源或软删除；`customerCount` 可选，1–999 整数，新增省略时为 1，修改省略时保留原人数；备注最多 500 字符并去除首尾空白，PATCH 省略 `note` 保留原备注，传空字符串清空；PATCH 省略 `isWalkIn` 保留原标记，传 `false` 取消；使用 `version`、`Idempotency-Key`、营业日锁，并在事务中写审计与 outbox |
 | POST | `/stores/:storeId/shifts/clock-in`、`shifts/:shiftId/clock-out` | 上下班；当前 Web 只向符合条件的普通员工显示“上班” |
 | POST | `/stores/:storeId/boards/:businessDate/rows` | 新增每日员工行 |
-| PATCH | `/stores/:storeId/boards/:businessDate/rows/:rowId` | 隐藏/恢复每日员工行；已日结历史允许，今天/未来已日结须先取消 |
+| PATCH | `/stores/:storeId/boards/:businessDate/rows/:rowId` | 隐藏/恢复每日员工行；今天/未来无未删除实际记工时移除，保留占位及删除历史；已日结历史允许，今天/未来已日结须先取消 |
 | POST | `/stores/:storeId/boards/:businessDate/reorder` | 原子调整每日员工行顺序 |
 | POST | `/stores/:storeId/boards/:businessDate/rank` | 店长或经理按最近一次可见出勤名次生成今天或未来日期员工顺序（过去日期返回 DAILY_RANKING_PAST_DAY_NOT_ALLOWED）；使用营业日锁、表格版本和幂等键 |
 | POST | `/stores/:storeId/boards/:businessDate/rows/:rowId/remove` | 移除尚无当天活动的误加员工 |
@@ -335,7 +335,7 @@ START 的开始时间由 API 从 rawText 解析，使用店铺时区及 occurred
 
 `finance/summary.totals` 增加 `averageRevenueCents: number | null` 和 `averageRevenueDayCount: number`。按所选日期范围（含两端）内去重后的 `CLOSED` 营业日计算当前筛选的折后大费业绩减礼卡大费再加卖卡实际收款的平均值，无匹配记工及卖卡的日结日按零计入，沿用领域层整数美分舍入；没有已日结日期时分别返回 `null`、`0`。不含未日结日期和小费；卖卡沿用店铺级销售的权限及筛选规则，不限制为30天。
 
-`PATCH /stores/:storeId/boards/:date/rows/:rowId` 由店主/经理隐藏或恢复员工行。设备日期上下文判定为过去日期时，允许已日结历史仅调整 `isHidden`，包括空行在内均保留员工行、班次、记工及日结快照，返回 `{ row, board, removed: false }`。今天/未来继续校验日结；隐藏无任何记工（含已删除历史）的员工时，同一事务内删除员工行及班次，返回 `removed: true`，`row` 为移除前更新后的快照；有记工仅隐藏。所有路径保留营业日锁、归属、幂等、行版本、表格版本与审计/outbox。隐藏日期不计入后续轮转历史，其他员工历史位置按可见行重新编号；今日初次自动生成、主动生成与未来自动排工共用此规则，今日已生成顺序需主动重新生成。保留原因：出勤纠正只改变排工依据，不能删除历史或改动已结财务。
+`PATCH /stores/:storeId/boards/:date/rows/:rowId` 由店主/经理隐藏或恢复员工行。设备日期上下文判定为过去日期时，允许已日结历史仅调整 `isHidden`，包括空行在内均保留员工行、班次、记工及日结快照，返回 `{ row, board, removed: false }`。今天/未来继续校验日结；隐藏时只统计 `deletedAt: null` 且 `status` 非 `PLACEHOLDER` 的记工（含待结账）。无此类记录时，同一事务内删除员工行及班次，返回 `removed: true`，`row` 为移除前更新后的快照；否则仅隐藏，返回 `removed: false`。占位及已删除记工保持不变，重新加入后显示原占位，恢复已删除记工会补建缺失员工行。Web 两种结果统一使用此 PATCH 操作；旧 POST 移除接口沿用原有限制作兼容。所有路径保留营业日锁、归属、幂等、行版本、表格版本与审计/outbox。隐藏日期不计入后续轮转历史，其他员工历史位置按可见行重新编号；今日初次自动生成、主动生成与未来自动排工共用此规则，今日已生成顺序需主动重新生成。保留原因：出勤纠正只改变排工依据，不能删除历史或改动已结财务。
 
 ### 设备日期上下文
 

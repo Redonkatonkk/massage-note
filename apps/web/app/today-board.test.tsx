@@ -240,6 +240,112 @@ it.each([true, false])("总收入读取服务端结果并显示原收入公式�
   expect(container.textContent).not.toContain("总收入");
 });
 
+describe("员工小卡直接操作", () => {
+  it.each([false, true])("隐藏入口根据服务端 removed=%s 提示结果并刷新员工行", async removed => {
+    await render();
+    request.mockResolvedValueOnce({ removed });
+    await click("隐藏", container.querySelector(".row-actions")!);
+    expect(request).toHaveBeenLastCalledWith("/stores/store/boards/2026-10-06/rows/row", {
+      method: "PATCH", idempotent: true, body: { version: 1, isHidden: true },
+    });
+    expect(document.querySelector(".screen-feedback[role=status]")!.textContent).toContain(
+      removed ? `已移除 ${employee.displayName} 的当天上班记录` : `已隐藏 ${employee.displayName}`,
+    );
+    expect(reload).toHaveBeenCalledOnce();
+    props.board = { ...props.board, rows: removed ? [] : props.board.rows.map(row => ({ ...row, isHidden: true, version: 2 })) };
+    await render();
+    expect(container.querySelector(".employee-row")).toBeNull();
+    expect(Boolean(container.querySelector(".hidden-rows-panel"))).toBe(!removed);
+  });
+
+  it.each([false, true])("自动排工=%s 时直接展示上下移图标和隐藏，保留排序与隐藏写入", async rankingEnabled => {
+    props.board.ranking.enabled = rankingEnabled;
+    props.board.rows.push({ ...props.board.rows[0]!, id: "second-row", membershipId: "second-employee", membership: { ...employee, id: "second-employee", displayName: "Sara" } });
+    await render();
+    const [first, second] = container.querySelectorAll<HTMLElement>(".row-actions");
+    expect(first!.closest("details")).toBeNull();
+    expect(first!.querySelectorAll("button")).toHaveLength(3);
+    expect(first!.textContent).toBe("隐藏");
+    expect(first!.getAttribute("aria-label")).toContain(employee.displayName);
+    for (const label of ["上移", "下移"]) {
+      const action = button(label, first!);
+      expect(action.textContent).toBe("");
+      expect(action.title).toBe(label);
+      expect(action.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    }
+    expect(button("上移", first!).disabled).toBe(true);
+    expect(button("下移", second!).disabled).toBe(true);
+    await click("下移", first!);
+    expect(request).toHaveBeenCalledWith("/stores/store/boards/2026-10-06/reorder", { method: "POST", idempotent: true, body: { version: props.board.version, rowIds: ["second-row", "row"] } });
+    await click("上移", second!);
+    expect(request.mock.calls.filter(([path]) => path.endsWith("/reorder"))).toHaveLength(2);
+    request.mockResolvedValueOnce({ removed: false });
+    await click("隐藏", first!);
+    expect(request).toHaveBeenLastCalledWith("/stores/store/boards/2026-10-06/rows/row", { method: "PATCH", idempotent: true, body: { version: 1, isHidden: true } });
+    expect(reload).toHaveBeenCalledTimes(3);
+  });
+
+  it("收起和展开保留同一身份按钮及操作区，状态和可访问名称随点击更新", async () => {
+    await render();
+    const toggle = container.querySelector<HTMLButtonElement>(".employee-toggle")!;
+    const hint = toggle.querySelector(".chevron")!;
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.getAttribute("aria-label")).toBe(`${employee.displayName} · 收起`);
+    expect(hint.getAttribute("aria-hidden")).toBe("true");
+    await act(async () => toggle.click());
+    expect(container.querySelector(".employee-toggle")).toBe(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.getAttribute("aria-label")).toBe(`${employee.displayName} · 展开`);
+    expect(container.querySelector(".employee-content")).toBeNull();
+    expect(container.querySelectorAll(".row-actions button")).toHaveLength(3);
+    await act(async () => toggle.click());
+    expect(container.querySelector(".employee-toggle")).toBe(toggle);
+    expect(toggle.querySelector(".chevron")).toBe(hint);
+    expect(container.querySelector(".employee-content")).not.toBeNull();
+    expect(writes()).toHaveLength(0);
+  });
+
+  it("新旧版各宽度都隐藏展开提示但保留其布局与身份按钮触控区域", async () => {
+    await render();
+    const { readFile } = await import("node:fs/promises");
+    const { resolve } = await import("node:path");
+    const { pathToFileURL } = await import("node:url");
+    const { JSDOM } = await import("jsdom");
+    const checker = pathToFileURL(resolve(process.cwd(), "../../scripts/check-mobile-ui.mjs")).href;
+    const { stylesAtWidth } = await import(/* @vite-ignore */ checker);
+    const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css", "new-edition.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
+    for (const edition of ["legacy", "new"]) {
+      for (const width of [320, 390, 760, 761, 1200, 1440]) {
+        const dom = new JSDOM(`<html data-ui-edition="${edition}"><head><style>${stylesAtWidth(sources, width, edition)}</style></head><body>${container.innerHTML}</body></html>`);
+        const style = (selector: string) => dom.window.getComputedStyle(dom.window.document.querySelector(selector)!);
+        expect(style(".employee-toggle .chevron").visibility).toBe("hidden");
+        expect(style(".employee-toggle .chevron").display).not.toBe("none");
+        expect(style(".employee-toggle").visibility).toBe("visible");
+        expect(parseFloat(style(".employee-toggle").minHeight)).toBeGreaterThanOrEqual(44);
+        expect(parseFloat(style(".row-move-action").minHeight)).toBeGreaterThanOrEqual(44);
+        expect(parseFloat(style(".row-move-action").minWidth)).toBeGreaterThanOrEqual(44);
+        if (width > 760) {
+          expect(style(".row-actions").gridColumn).toBe("1 / -1");
+          expect(style(".row-closing-action").gridColumn).toBe("2");
+        }
+        dom.window.close();
+      }
+    }
+  });
+
+  it("排序请求等待时禁用全部员工操作，成功后恢复按钮", async () => {
+    props.board.rows.push({ ...props.board.rows[0]!, id: "second-row", membershipId: "second-employee" });
+    await render();
+    let finish!: (value: unknown) => void;
+    request.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    await click("下移", container.querySelector(".row-actions")!);
+    expect([...container.querySelectorAll<HTMLButtonElement>(".row-actions button")].every(action => action.disabled)).toBe(true);
+    await act(async () => finish({}));
+    expect(button("隐藏", container.querySelector(".row-actions")!).disabled).toBe(false);
+    expect(reload).toHaveBeenCalledOnce();
+  });
+});
+
 describe("历史员工出勤隐藏", () => {
   it.each(["OWNER", "MANAGER"] as const)("%s 可在已日结历史隐藏、恢复员工，记工仍只读", async (role) => {
     props.membership.role = role;
@@ -248,8 +354,8 @@ describe("历史员工出勤隐藏", () => {
     props.board.rows[0]!.workRecords = [ordinary];
     await render();
     expect(document.querySelector(".closed-banner")!.textContent).toContain("影响后续生成顺序");
-    expect(document.querySelector(".row-management")!.textContent).toContain("隐藏");
-    expect(document.querySelector(".row-management")!.textContent).not.toMatch(/上移|下移|移除/);
+    expect(document.querySelector(".row-actions")!.textContent).toBe("隐藏");
+    expect(document.querySelector('.row-actions [aria-label="上移"], .row-actions [aria-label="下移"]')).toBeNull();
     expect(document.querySelector(".add-record")).toBeNull();
     await act(async () => document.querySelector<HTMLButtonElement>(".record-card")!.click());
     expect(document.querySelector(".normal-record-editor")!.getAttribute("data-readonly")).toBe("true");
@@ -278,7 +384,7 @@ describe("历史员工出勤隐藏", () => {
     props.isFutureBusinessDay = kind === "future";
     if (kind === "employee") props.membership.role = "EMPLOYEE";
     await render();
-    expect(document.querySelector(".row-management")).toBeNull();
+    expect(document.querySelector(".row-actions")).toBeNull();
     props.board = { ...props.board, rows: props.board.rows.map(row => ({ ...row, isHidden: true })) };
     await render();
     if (kind === "employee") expect(document.querySelector(".hidden-rows-panel")).toBeNull();
@@ -393,22 +499,41 @@ describe("项目时长默认值", () => {
     expect(writes().at(-1)![1]!.body).toMatchObject({ isHighlighted: true });
   });
 
-  it.each([[[30, 60, 90], 60], [[90, 30], 90]] as const)("详情切换到 %j 档位默认 %i 分钟，同步价格和结束时间", async (durations, expected) => {
+  it.each([
+    { label: "保留已有时长和实际结束时间", durations: [90, 30, 60], isNew: false, manualDuration: null, expected: 30, initialEnd: "14:35", expectedEnd: "14:35", clock: ["10", "35"] },
+    { label: "保留编辑时手动选择的时长", durations: [30, 60, 90], isNew: false, manualDuration: 90, expected: 90, initialEnd: "14:30", expectedEnd: "15:30", clock: ["11", "30"] },
+    { label: "保留新建时手动选择的时长", durations: [30, 60, 90], isNew: true, manualDuration: 90, expected: 90, initialEnd: "14:30", expectedEnd: "15:30", clock: ["11", "30"] },
+    { label: "没有匹配时长时回退到60分钟", durations: [90, 60], isNew: false, manualDuration: null, expected: 60, initialEnd: "14:30", expectedEnd: "15:00", clock: ["11", "00"] },
+    { label: "没有匹配时长和60分钟时回退到首档", durations: [90, 120], isNew: false, manualDuration: null, expected: 90, initialEnd: "14:30", expectedEnd: "15:30", clock: ["11", "30"] },
+  ])("详情切换项目：$label，并同步新项目价格", async ({ durations, isNew, manualDuration, expected, initialEnd, expectedEnd, clock }) => {
     const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
     props.catalog.serviceItems[0]!.priceOptions = priceOptions([30, 60, 90]);
     props.catalog.serviceItems.push({ ...props.catalog.serviceItems[0]!, id: "body", fullName: "全身按摩", priceOptions: priceOptions([...durations]) });
-    const record = { ...ordinary, status: "PENDING_PAYMENT" as const, endAt: "2026-10-06T14:30:00.000Z", serviceSnapshot: { ...ordinary.serviceSnapshot!, durationMinutes: 30, amountCents: 4000 } };
-    await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={record} catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={vi.fn()} onSaved={vi.fn()} onChanged={reload} />));
+    const record = isNew
+      ? newWorkRecord({ employeeMembershipId: employee.id, startAt: ordinary.startAt, businessDate: "2026-10-06", storeTimezoneSnapshot: store.timezone, businessCutoffSnapshot: "04:00", isHighlighted: false, isDispatchExcluded: false })
+      : { ...ordinary, status: "PENDING_PAYMENT" as const, endAt: `2026-10-06T${initialEnd}:00.000Z`, serviceSnapshot: { ...ordinary.serviceSnapshot!, durationMinutes: 30, amountCents: 3500 } };
+    await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={record} isNew={isNew} initialServiceItemId="service" catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={vi.fn()} onSaved={vi.fn()} onChanged={reload} />));
     const fields = document.querySelector(".record-service-section")!;
     const [service, duration] = fields.querySelectorAll<HTMLSelectElement>("select");
-    expect(duration!.value).toBe("30");
+    expect(duration!.value).toBe(isNew ? "60" : "30");
+    if (manualDuration !== null) {
+      await act(async () => { duration!.value = String(manualDuration); duration!.dispatchEvent(new Event("change", { bubbles: true })); });
+    }
     await act(async () => { service!.value = "body"; service!.dispatchEvent(new Event("change", { bubbles: true })); });
     expect(duration!.value).toBe(String(expected));
     expect(fields.querySelector<HTMLInputElement>("input[inputmode=decimal]")!.value).toBe(String(expected + 10));
     const endFields = document.querySelector('[aria-label="结束时间"]')!;
-    expect([...endFields.querySelectorAll<HTMLInputElement>("input")].map(item => item.value)).toEqual(["11", expected === 60 ? "00" : "30"]);
+    expect([...endFields.querySelectorAll<HTMLInputElement>("input")].map(item => item.value)).toEqual(clock);
     request.mockResolvedValue(record); await click("保存");
-    expect(request.mock.calls.find(([, options]) => options?.method === "PATCH")![1]!.body).toMatchObject({ serviceItemId: "body", serviceDurationMinutes: expected, mainServiceAmountCents: (expected + 10) * 100, endAt: expected === 60 ? "2026-10-06T15:00:00.000Z" : "2026-10-06T15:30:00.000Z" });
+    if (isNew) {
+      expect(writes()[0]![1]!.body).toMatchObject({ create: { serviceItemId: "body", serviceDurationMinutes: expected }, details: { mainServiceAmountCents: (expected + 10) * 100, endAt: `2026-10-06T${expectedEnd}:00.000Z` } });
+    } else {
+      const payload = request.mock.calls.find(([, options]) => options?.method === "PATCH")![1]!.body;
+      expect(payload).toMatchObject({ serviceItemId: "body", serviceDurationMinutes: expected, mainServiceAmountCents: (expected + 10) * 100 });
+      expect(payload).not.toHaveProperty("startAt");
+      if (expectedEnd === initialEnd) expect(payload).not.toHaveProperty("endAt");
+      else expect(payload).toHaveProperty("endAt", `2026-10-06T${expectedEnd}:00.000Z`);
+    }
   });
 });
 
@@ -604,7 +729,28 @@ describe("快速记工占位", () => {
     expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, headers: { "Idempotency-Key": expect.any(String) }, body: { employeeMembershipId: "employee", startAt: "2026-10-06T14:00:00.000Z", isPlaceholder: true } }]]);
     expect(document.querySelector(".quick-work-modal")).toBeNull(); expect(reload).toHaveBeenCalledTimes(1); expect(document.querySelector(".work-save-results")!.textContent).toContain("记工已保存");
   });
-  it("普通、占位与高亮混排，占位卡显示所选时间和整卡对角线且不计工数", async () => {
+  it.each([false, true])("员工小卡宽布局=%s 只统计左侧普通记工与占位，排除高亮和不算排工", async wideLayout => {
+    props.wideLayout = wideLayout;
+    const rightRecords = [
+      { ...ordinary, id: "highlight", isHighlighted: true },
+      { ...ordinary, id: "excluded", isDispatchExcluded: true },
+      { ...ordinary, id: "both", isHighlighted: true, isDispatchExcluded: true },
+    ];
+    for (const [records, count] of [
+      [[], 0],
+      [[placeholder], 1],
+      [rightRecords, 0],
+      [[ordinary, { ...ordinary, id: "pending", status: "PENDING_PAYMENT" }, placeholder, ...rightRecords], 3],
+    ] as Array<[WorkRecord[], number]>) {
+      props.board.rows[0]!.workRecords = records;
+      await render();
+      const badge = container.querySelector(".row-work-count")!;
+      expect(badge.querySelector("strong")!.textContent).toBe(String(count));
+      expect(badge.getAttribute("aria-label")).toBe(`${count} 条记工`);
+      expect(badge.getAttribute("title")).toBe("左侧记工数（含占位）");
+    }
+  });
+  it("普通、占位与高亮混排，占位卡显示所选时间和整卡对角线", async () => {
     props.board.rows[0]!.workRecords = [ordinary, placeholder, { ...ordinary, id: "highlight", isHighlighted: true }]; await render();
     const card = container.querySelector<HTMLButtonElement>(".record-card--placeholder")!;
     expect(card.textContent).toBe("11:00 AM"); expect(card.getAttribute("aria-label")).toBe("占位");
@@ -656,12 +802,13 @@ describe("不算排工", () => {
     await render();
     const cards = () => [...container.querySelectorAll<HTMLButtonElement>(".record-track > button")];
     expect(cards().map(card => card.className)).toEqual(["record-card", "add-record", "record-card record-card--right-group record-card--highlighted", "record-card record-card--right-group"]);
-    expect(container.querySelector(".row-work-count strong")!.textContent).toBe("3");
+    expect(container.querySelector(".row-work-count strong")!.textContent).toBe("1");
     props.isCurrentBusinessDay = false; props.membership.role = "EMPLOYEE"; await render();
     expect(cards().at(-1)!.disabled).toBe(true);
     expect(cards().at(-1)!.classList.contains("record-card--highlighted")).toBe(false);
     props.board.rows[0]!.workRecords[1]!.isDispatchExcluded = false; await render();
     expect(cards().map(card => card.className)).toEqual(["record-card", "record-card", "record-card record-card--right-group record-card--highlighted"]);
+    expect(container.querySelector(".row-work-count strong")!.textContent).toBe("2");
   });
   it("详情入口在高亮左侧，草稿恢复后保存，冲突不覆盖旧版本", async () => {
     const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
@@ -709,12 +856,12 @@ describe("详情回车保存", () => {
     expect(writes()).toHaveLength(0);
     expect(reload).toHaveBeenCalledTimes(1);
   });
-  it("回车沿用付款校验，纠正后与详情同时保存付款", async () => {
+  it("付款拒绝非数字输入，合法金额按回车与详情同时保存", async () => {
     await renderEditor();
     const input = document.querySelector<HTMLInputElement>('[aria-label="现金大费（美元）"]')!;
-    await inputValue(input, "-1"); await pressEnter(input);
+    await inputValue(input, "-1");
+    expect(input.value).toBe("");
     expect(request).not.toHaveBeenCalled();
-    expect(document.querySelector(".record-error-toast")!.textContent).toContain("非负金额");
     await inputValue(input, "60"); await pressEnter(input);
     expect(request).toHaveBeenCalledWith("/stores/store/work-records/ordinary/save", expect.objectContaining({ method: "POST", body: expect.objectContaining({ details: expect.objectContaining({ version: ordinary.version }), payment: expect.objectContaining({ version: ordinary.version, cashServiceCents: 6000, cashTipCents: 0 }) }) }));
   });
@@ -776,6 +923,29 @@ describe("未选项目的记工详情", () => {
   });
 });
 
+
+describe("详情折扣数值输入", () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
+
+  it.each([
+    { type: "fixed", amount: "2.75", amountCents: 275, rateBps: null },
+    { type: "percentage", amount: "15.25%", amountCents: 0, rateBps: 1525 },
+  ])("已有百分比折扣在同一输入框改为 $type，并正确保存", async ({ amount, amountCents, rateBps }) => {
+    const { RecordEditor } = await vi.importActual<typeof import("./record-editor")>("./record-editor");
+    const record: WorkRecord = { ...ordinary, status: "PENDING_PAYMENT", discountSnapshots: [{ id: "discount", sourceDiscountItemId: null, isCustom: true, isAutomatic: false, name: "会员优惠", amountCents: 750, rateBps: 1250, position: 0 }] };
+    request.mockResolvedValue(record);
+    await act(async () => root.render(<RecordEditor storeId="store" timezone={store.timezone} businessDate="2026-10-06" autoDiscountSettings={store} record={record} catalog={props.catalog} members={props.members} canManage isClosed={false} onClose={vi.fn()} onSaved={vi.fn()} onChanged={reload} />));
+    const field = document.querySelector<HTMLInputElement>('[aria-label="折扣金额或百分比"]')!;
+    expect(document.querySelector('[aria-label="折扣类型"]')).toBeNull();
+    expect(field.value).toBe("12.5%");
+    expect(field.inputMode).toBe("text");
+    await inputValue(field, "20%%");
+    expect(field.value).toBe("12.5%");
+    await inputValue(field, amount); await click("保存");
+    expect(request).toHaveBeenCalledWith("/stores/store/work-records/ordinary", expect.objectContaining({ method: "PATCH", body: expect.objectContaining({ discounts: [{ isCustom: true, name: "会员优惠", amountCents, rateBps }] }) }));
+  });
+});
 
 describe("快速记工进入详细记工", () => {
   it("关闭位于详细记工右侧同排，沿用时间和标记，打开或取消均不写入", async () => {

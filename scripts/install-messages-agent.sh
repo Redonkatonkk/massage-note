@@ -57,9 +57,20 @@ if launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
   exit 1
 fi
 "$pnpm_bin" --dir "$repo_dir" --filter @massage-note/messages-agent deploy --prod --legacy --force "$agent_dir/app"
+# Detach deployment hardlinks before any later workspace build can alter this runtime.
+"$node_bin" "$repo_dir/scripts/isolate-agent-runtime.mjs" "$agent_dir/app"
 # Legacy deploy temporarily marks the shared workspace node_modules as production-only.
 # Restore the lockfile-defined development links so installing the agent never breaks the checkout.
 "$pnpm_bin" --dir "$repo_dir" install --frozen-lockfile
+# Import renderers without claiming or sending jobs; reject incomplete dependencies.
+"$node_bin" --input-type=module - "$agent_dir/app" <<'JS'
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+for (const module of ["render.js", "employee-summary-render.js"]) {
+  await import(pathToFileURL(resolve(process.argv[2], "dist", module)).href);
+}
+console.log("Installed agent renderer dependencies ready");
+JS
 
 stager_source_hash="$(cat "$stager_source" "$monitor_source" "$stager_script" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')"
 installed_stager_hash="$(cat "$stager_hash_path" 2>/dev/null || true)"

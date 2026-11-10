@@ -1,5 +1,7 @@
 "use client";
 
+import { NumericInput } from "./numeric-input";
+
 import { useDecision } from "./decision-dialog";
 
 import { useAutoDismissState } from "./use-auto-dismiss-state";
@@ -272,14 +274,14 @@ export function GiftCardSales({
             <div className="gift-card-sale-form">
               <GiftCardIdentityField value={serialNumber} onChange={value => { setSerialNumber(value); if (!editing) setSerialNumberWasEdited(true); }} autoFocus={Boolean(editing)} disabled={busy} />
               {!editing && <p className="field-help gift-card-sale-form__serial-help">{isGiftCardSerialNumber(nextSerialNumber) ? "默认使用系统建议号码，也可填写其他四位序列号或用户名。多人同时使用默认号码时，以保存后的号码为准。" : "自动号码已用完，可填写未使用的四位序列号或用户名。"}</p>}
-              <label className="field-label gift-card-sale-form__face-value">礼物卡总金额（美元）<input autoFocus={!editing} inputMode="decimal" placeholder="例如 100" value={faceValueAmount} onChange={(event) => setFaceValueAmount(event.target.value)} /></label>
+              <label className="field-label gift-card-sale-form__face-value">礼物卡总金额（美元）<NumericInput autoFocus={!editing} inputMode="decimal" placeholder="例如 100" value={faceValueAmount} onChange={(event) => setFaceValueAmount(event.target.value)} /></label>
               <div className="gift-card-sale-discount">
                 <span>规则折扣</span>
                 <strong>{discountCents > 0 ? `${(discountRateBps / 100).toFixed(2)}% · -${money(discountCents)}` : "本单无折扣"}</strong>
                 {discountRateBps > 0 && discountCents === 0 && <small>面值满 {money(discountThresholdCents)} 时应用 {(discountRateBps / 100).toFixed(2)}%</small>}
               </div>
-              <label className="field-label">现金付款（美元）<input inputMode="decimal" placeholder="可留空，按 0 计算" value={cashAmount} onChange={(event) => setCashAmount(event.target.value)} /></label>
-              <label className="field-label">刷卡付款（美元）<input inputMode="decimal" placeholder="可留空，按 0 计算" value={cardAmount} onChange={(event) => setCardAmount(event.target.value)} /></label>
+              <label className="field-label">现金付款（美元）<NumericInput inputMode="decimal" placeholder="可留空，按 0 计算" value={cashAmount} onChange={(event) => setCashAmount(event.target.value)} /></label>
+              <label className="field-label">刷卡付款（美元）<NumericInput inputMode="decimal" placeholder="可留空，按 0 计算" value={cardAmount} onChange={(event) => setCardAmount(event.target.value)} /></label>
               <label className="field-label">操作人<select value={operatorMembershipId} onChange={(event) => setOperatorMembershipId(event.target.value)}><option value="">请选择员工</option>{activeMembers.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
               <div className="gift-card-sale-total"><span>折后应付金额</span><strong>{payableCents === null ? "请先输入礼物卡总金额" : money(payableCents)}</strong></div>
               <div className="gift-card-sale-payment-check"><span>现金＋刷卡</span><strong>{totalCents === null ? "请检查付款金额" : money(totalCents)}</strong></div>

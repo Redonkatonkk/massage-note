@@ -1,5 +1,6 @@
 import { cashSettlementSettingsSchema } from "@massage-note/contracts";
 import type { StoreDetails } from "../../lib/types";
+import { NumericInput } from "../numeric-input";
 
 export interface CashSettlementDraft {
   enabled: boolean;
@@ -38,7 +39,7 @@ export function CashSettlementSettings({ value, onChange, disabled }: {
       {value.cycle === "WEEKLY"
         ? <label>每周重置日<select disabled={disabled || !value.enabled} value={value.weekday} onChange={event => update({ weekday: Number(event.target.value) })}>{weekdays.map((day, index) => <option key={day} value={index + 1}>{day}</option>)}</select></label>
         : <label>每月重置日<select disabled={disabled || !value.enabled} value={value.monthDay} onChange={event => update({ monthDay: Number(event.target.value) })}>{Array.from({ length: 31 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label>}
-      <label>重置为多少（美元）<input disabled={disabled || !value.enabled} required={value.enabled} inputMode="decimal" value={value.amount} onChange={event => update({ amount: event.target.value })} /></label>
+      <label>重置为多少（美元）<NumericInput disabled={disabled || !value.enabled} required={value.enabled} inputMode="decimal" value={value.amount} onChange={event => update({ amount: event.target.value })} /></label>
     </div>
     <p className="field-help">重置日营业开始时设为指定金额，再累计当天及之后的现金净变化；短月使用最后一天。修改设置也会重新计算历史余额，原日结快照保留。</p>
   </section>;

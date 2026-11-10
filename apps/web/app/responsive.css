@@ -120,7 +120,7 @@ button, summary { overflow-wrap: anywhere; }
   .employee-totals div { padding: 10px 8px; }
   .employee-totals dt { font-size: .75rem; }
   .employee-totals dd { font-size: .9rem; white-space: normal; overflow-wrap: anywhere; }
-  .row-tools button, .row-tools .row-closing-action, .row-management summary { min-height: 44px; font-weight: 600; }
+  .row-tools button, .row-tools .row-closing-action { min-height: 44px; font-weight: 600; }
   .record-card, .add-record { border-radius: var(--radius-control); }
   .gift-card-sales__header { flex-wrap: wrap; gap: 10px; }
   .gift-card-sales__header h2 { font-size: 1rem; }
@@ -274,15 +274,13 @@ button, summary { overflow-wrap: anywhere; }
   .employee-row:not(.employee-row--collapsed) .chevron { grid-column: 2; margin-left: 0; font-size: .75rem; }
   .employee-row:not(.employee-row--collapsed) .hidden-badge { grid-column: 1 / -1; }
   .employee-row:not(.employee-row--collapsed) .row-tools {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto; width: 100%;
+    display: grid; grid-template-columns: auto minmax(0, 1fr); width: 100%;
     padding: 4px 0 0; gap: 4px; align-items: center;
   }
-  .employee-row:not(.employee-row--collapsed) .row-management summary { min-height: 44px; padding: 10px 0; font-size: .75rem; white-space: normal; }
-  .employee-row:not(.employee-row--collapsed) .row-management[open] { grid-column: 1 / -1; }
-  .employee-row:not(.employee-row--collapsed) .row-management > div { gap: 2px; padding: 0; }
+  .employee-row:not(.employee-row--collapsed) .row-actions { grid-column: 1 / -1; }
   .employee-row:not(.employee-row--collapsed) .row-tools button { min-height: 44px; padding: 6px; font-size: .75rem; }
   .employee-row:not(.employee-row--collapsed) .row-work-count { min-height: 44px; padding: 0; gap: 3px; font-size: .75rem; }
-  .employee-row:not(.employee-row--collapsed) .row-closing-action { grid-column: 1 / -1; width: 100%; white-space: normal; }
+  .employee-row:not(.employee-row--collapsed) .row-closing-action { grid-column: 2; width: 100%; white-space: normal; }
   .employee-content { grid-template-columns: minmax(0, 1fr) 156px; }
   .employee-content--records-only { grid-template-columns: minmax(0, 1fr); }
   .employee-totals { grid-template-columns: 1fr; grid-template-rows: repeat(3, minmax(0, 1fr)); margin: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; }

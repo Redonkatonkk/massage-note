@@ -4,6 +4,45 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.56.8 — 2026-11-10
+
+- Use one Hide action: today/future attendance is hidden when undeleted service records exist, including pending payments, and removed with its shifts otherwise. Placeholders and deleted records no longer prevent removal and remain intact; rejoining shows original placeholders and deleted records remain restorable.
+- Keep historical rows and shifts restorable, including closed dates, and retain current/future closing restrictions and the legacy remove API. Add API and component regressions and synchronize bilingual guidance. NAS requires Web/API updates; no database migration or independent plugin/agent update.
+
+## 1.56.7 — 2026-11-10
+
+- Hide employee-card expand/collapse hint text while retaining the original button, layout space and click area, with named expand/collapse states for keyboard and screen-reader access.
+- Replace the staff-actions submenu with direct Move up/Move down outline-icon buttons and a text Hide/Restore action. Use the existing Hide flow for attendance removal; retain ordering limits, saving protection, manager permissions and closed-day rules.
+- Keep controls usable in both editions and across narrow/desktop layouts, with component, click and CSS regressions. NAS requires a Web update; no API, migration or independent plugin/agent update.
+
+## 1.56.6 — 2026-11-10
+
+- Restore a single amount-or-percentage input for record discounts and remove its separate type selector. Allow one trailing percent sign, preserve two-decimal precision and saved percentage discounts, and expose a phone keyboard with access to `%`.
+- Keep numeric restrictions on other fields and reject malformed percentage text in typing and paste. Verify numeric-input boundaries and fixed/percentage discount saves; synchronize bilingual guidance. NAS requires a Web update; no API, migration or independent plugin/agent update.
+
+## 1.56.5 — 2026-11-10
+
+- Count only left-track entries in the employee-card badge: include ordinary work records and placeholders, and exclude highlighted or dispatch-excluded records, including records with both flags. Update the count when records move back to the left.
+- Keep financial/service counts unchanged, clarify the bilingual badge tooltip and product rules, and cover empty, placeholder-only, right-only and mixed tracks in both layouts. NAS requires a Web update; no API, migration or independent plugin/agent update.
+
+## 1.56.4 — 2026-11-10
+
+- Restrict all time/duration inputs to digits and all price, payment, tip, payroll, expense, deduction and percentage inputs to digits with one decimal point and at most two fractional digits. Share keyboard, paste, drop and composition handling while preserving existing amounts, editing shortcuts and required/range validation.
+- Separate record-discount type selection from its numeric value while retaining saved percentage discounts and draft compatibility. Cover numeric boundaries, work-time fields, discount saves and existing Web flows with code-only regressions. NAS requires a Web update; no API, database migration or independent plugin/agent update.
+
+## 1.56.3 — 2026-11-10
+
+- Preserve the current duration when switching services in detailed entry or record details whenever the new service supports it, and update the matching price. Keep start/end times unchanged unless a duration fallback is necessary; use 60 minutes or the first option only when no matching duration exists.
+- Add component regressions for saved and manually selected durations, new entries, fallback options and submitted prices/times; synchronize bilingual product rules and help. NAS requires a Web update; no API, migration or independent agent/plugin update.
+
+## 1.56.2 — 2026-11-09
+
+- Prevent local builds from corrupting the installed Mac Messages agent through pnpm deployment hardlinks. Isolate runtime files and verify renderer dependencies before startup so missing modules cannot silently leave SMS jobs queued.
+
+## 1.56.1 — 2026-11-09
+
+- Top-align homepage summary metrics so Cash balance, Store income and adjacent labels/amounts stay aligned when cash balance includes a reset-date or missing-history note. Preserve the note and shared desktop/mobile styling in both editions.
+
 ## 1.56.0 — 2026-11-09
 
 - Add optional store cash settlement with weekly/monthly opening resets, exact starting amounts and short-month handling; keep Gift card total after closing when disabled.

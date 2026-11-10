@@ -353,7 +353,7 @@ html[data-ui-edition="new"] .placeholder-delete-dialog .modal-heading { padding-
 html[data-ui-edition="new"] .weekly-dispatch-dialog .weekly-dispatch-table-wrap { border-radius: var(--radius-panel); }
 html[data-ui-edition="new"] .ranking-explanation-dialog .modal-heading { align-items: start; }
 html[data-ui-edition="new"] .business-date-picker__popover { border-color: var(--line); border-radius: var(--radius-panel); }
-html[data-ui-edition="new"] :is(.row-management[open] > div, .board-more-actions__body) { border-radius: var(--radius-panel); }
+html[data-ui-edition="new"] .board-more-actions__body { border-radius: var(--radius-panel); }
 html[data-ui-edition="new"] .decision-dialog {
   width: min(450px, calc(100% - 32px));
   max-height: calc(100dvh - 32px);

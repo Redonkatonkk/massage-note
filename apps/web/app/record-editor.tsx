@@ -1,5 +1,7 @@
 "use client";
 
+import { NumericInput } from "./numeric-input";
+
 import { useAutoDismissState } from "./use-auto-dismiss-state";
 import { GiftCardIdentityField } from "./gift-card-identity-field";
 
@@ -379,11 +381,13 @@ export function RecordEditor({
     if (value === "__custom__") return;
     const item = catalog.serviceItems.find((candidate) => candidate.id === value);
     if (!item) return;
-    const option = (!service ? item.priceOptions.find((option) => option.durationMinutes === Number(serviceDuration)) : undefined) ?? defaultServicePriceOption(item.priceOptions);
+    const option = item.priceOptions.find((option) => option.durationMinutes === Number(serviceDuration)) ?? defaultServicePriceOption(item.priceOptions);
     if (!option) return;
     setServiceName(item.fullName);
     setServiceShortName(item.shortName);
-    changeServiceDuration(option.durationMinutes.toString());
+    if (option.durationMinutes !== Number(serviceDuration)) {
+      changeServiceDuration(option.durationMinutes.toString());
+    }
     setServiceAmount(dollars(option.priceCents));
   }
 
@@ -912,7 +916,7 @@ export function RecordEditor({
             <>
               <label className="field-label">项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} /></label>
               <label className="field-label">项目简称<input value={serviceShortName} onChange={(event) => setServiceShortName(event.target.value)} /></label>
-              <label className="field-label">时长（分钟）<input type="text" inputMode="numeric" value={serviceDuration} onChange={(event) => changeCustomServiceDuration(event.target.value)} /></label>
+              <label className="field-label">时长（分钟）<NumericInput inputMode="numeric" value={serviceDuration} onChange={(event) => changeCustomServiceDuration(event.target.value)} /></label>
             </>
           )}
           {serviceChoice === "__unassigned__" && <label className="field-label">时长（分钟）<input value={serviceDuration} readOnly /></label>}
@@ -926,8 +930,8 @@ export function RecordEditor({
               </select>
             </label>
           )}
-          <label className="field-label">主要项目金额（美元）<input inputMode="decimal" value={serviceAmount} disabled={serviceChoice === "__unassigned__"} onChange={(event) => setServiceAmount(event.target.value)} /></label>
-          <label className="field-label">本单主要项目提成（%）<input inputMode="decimal" value={serviceCommission} placeholder="按项目规则计算" disabled={!canManage || serviceChoice === "__unassigned__"} onChange={(event) => setServiceCommission(event.target.value)} /><small>{canManage ? "修改会保留审计记录" : "只有店长或经理可以修改"}</small></label>
+          <label className="field-label">主要项目金额（美元）<NumericInput inputMode="decimal" value={serviceAmount} disabled={serviceChoice === "__unassigned__"} onChange={(event) => setServiceAmount(event.target.value)} /></label>
+          <label className="field-label">本单主要项目提成（%）<NumericInput inputMode="decimal" value={serviceCommission} placeholder="按项目规则计算" disabled={!canManage || serviceChoice === "__unassigned__"} onChange={(event) => setServiceCommission(event.target.value)} /><small>{canManage ? "修改会保留审计记录" : "只有店长或经理可以修改"}</small></label>
         </div>
 
         </section>
@@ -942,9 +946,9 @@ export function RecordEditor({
                 <option value="__custom__">自定义额外项目</option>
               </select></label>
               {item.sourceItemId === "__custom__" && <label className="field-label">额外项目名称<input aria-label="额外项目名称" placeholder="额外项目名称" value={item.name} onChange={(event) => updateAddon(item.key, { name: event.target.value, shortName: event.target.value.slice(0, 30) })} /></label>}
-              <label className="field-label">金额（美元）<input aria-label="额外项目金额" inputMode="decimal" placeholder="金额" value={item.amount} onChange={(event) => updateAddon(item.key, { amount: event.target.value })} /></label>
-              <label className="field-label">加时（分钟）<input aria-label="额外项目加时分钟" type="text" inputMode="numeric" placeholder="加时分钟" value={item.durationMinutes} onChange={(event) => changeAddonDuration(item.key, event.target.value)} /></label>
-              {canManage && <label className="field-label">提成（%）<input aria-label="额外项目提成百分比" inputMode="decimal" placeholder="提成 %（留空按规则）" value={item.commissionPercent} onChange={(event) => updateAddon(item.key, { commissionPercent: event.target.value })} /></label>}
+              <label className="field-label">金额（美元）<NumericInput aria-label="额外项目金额" inputMode="decimal" placeholder="金额" value={item.amount} onChange={(event) => updateAddon(item.key, { amount: event.target.value })} /></label>
+              <label className="field-label">加时（分钟）<NumericInput aria-label="额外项目加时分钟" inputMode="numeric" placeholder="加时分钟" value={item.durationMinutes} onChange={(event) => changeAddonDuration(item.key, event.target.value)} /></label>
+              {canManage && <label className="field-label">提成（%）<NumericInput aria-label="额外项目提成百分比" inputMode="decimal" placeholder="提成 %（留空按规则）" value={item.commissionPercent} onChange={(event) => updateAddon(item.key, { commissionPercent: event.target.value })} /></label>}
               <button className="danger-link" type="button" onClick={() => removeAddon(item)}>移除</button>
             </div>
           ))}
@@ -975,7 +979,7 @@ export function RecordEditor({
                 <option value="__custom__">自定义折扣</option>
               </select>
               {item.sourceItemId === "__custom__" && <input aria-label="折扣名称" value={item.name} onChange={(event) => updateDiscount(item.key, { name: event.target.value })} />}
-              <input aria-label="折扣金额或百分比" inputMode="text" placeholder="例如 10 或 10%" value={item.amount} onChange={(event) => updateDiscount(item.key, { amount: event.target.value })} />
+              <NumericInput aria-label="折扣金额或百分比" inputMode="decimal" allowPercent placeholder="例如 10 或 10%" value={item.amount} onChange={(event) => updateDiscount(item.key, { amount: event.target.value })} />
               <button className="danger-link" type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => current.filter((candidate) => candidate.key !== item.key)); }}>移除</button>
             </div>
           ))}
@@ -987,20 +991,20 @@ export function RecordEditor({
           <div className="payment-method-rows">
             <div className="payment-method-row" role="group" aria-label="刷卡">
               <strong><span>刷卡</span><span aria-hidden="true">：</span></strong>
-              <label className="field-label"><span>大费</span><input aria-label="刷卡大费（美元）" inputMode="decimal" placeholder="可留空" value={cardService} onChange={(event) => setCardService(event.target.value)} /></label>
-              <label className="field-label"><span>小费</span><input aria-label="刷卡小费（美元）" inputMode="decimal" placeholder="空白按 0" value={cardTip} onChange={(event) => setCardTip(event.target.value)} /></label>
+              <label className="field-label"><span>大费</span><NumericInput aria-label="刷卡大费（美元）" inputMode="decimal" placeholder="可留空" value={cardService} onChange={(event) => setCardService(event.target.value)} /></label>
+              <label className="field-label"><span>小费</span><NumericInput aria-label="刷卡小费（美元）" inputMode="decimal" placeholder="空白按 0" value={cardTip} onChange={(event) => setCardTip(event.target.value)} /></label>
             </div>
             <div className="payment-method-row" role="group" aria-label="现金">
               <strong><span>现金</span><span aria-hidden="true">：</span></strong>
-              <label className="field-label"><span>大费</span><input aria-label="现金大费（美元）" inputMode="decimal" placeholder="可留空" value={cashService} onChange={(event) => setCashService(event.target.value)} /></label>
-              <label className="field-label"><span>小费</span><input aria-label="现金小费（美元）" inputMode="decimal" placeholder="空白按 0" value={cashTip} onChange={(event) => setCashTip(event.target.value)} /></label>
+              <label className="field-label"><span>大费</span><NumericInput aria-label="现金大费（美元）" inputMode="decimal" placeholder="可留空" value={cashService} onChange={(event) => setCashService(event.target.value)} /></label>
+              <label className="field-label"><span>小费</span><NumericInput aria-label="现金小费（美元）" inputMode="decimal" placeholder="空白按 0" value={cashTip} onChange={(event) => setCashTip(event.target.value)} /></label>
             </div>
           </div>
           <label className="gift-card-toggle"><input type="checkbox" checked={usesGiftCard} onChange={(event) => setUsesGiftCard(event.target.checked)} /> 使用礼物卡付款</label>
           {usesGiftCard && <div className="editor-grid editor-grid--gift-card">
             <GiftCardIdentityField value={giftCardSerialNumber} onChange={setGiftCardSerialNumber} disabled={busy} />
-            <label className="field-label">礼物卡大费（美元）<input inputMode="decimal" placeholder="可填 0" value={giftCardService} onChange={(event) => setGiftCardService(event.target.value)} /></label>
-            <label className="field-label">礼物卡小费（美元）<input inputMode="decimal" placeholder="可填 0" value={giftCardTip} onChange={(event) => setGiftCardTip(event.target.value)} /></label>
+            <label className="field-label">礼物卡大费（美元）<NumericInput inputMode="decimal" placeholder="可填 0" value={giftCardService} onChange={(event) => setGiftCardService(event.target.value)} /></label>
+            <label className="field-label">礼物卡小费（美元）<NumericInput inputMode="decimal" placeholder="可填 0" value={giftCardTip} onChange={(event) => setGiftCardTip(event.target.value)} /></label>
           </div>}
         </section>
 

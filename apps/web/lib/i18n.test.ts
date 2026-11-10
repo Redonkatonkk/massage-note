@@ -26,6 +26,7 @@ describe("bilingual UI translation", () => {
     expect(translateText("  店铺设置 ", "en-US")).toBe("  Store settings ");
     expect(translateText("现金大费", "en-US")).toBe("Cash service fees");
     expect(translateText("详细记工", "en-US")).toBe("Detailed entry");
+    expect(translateText("左侧记工数（含占位）", "en-US")).toBe("Left-side records (including placeholders)");
     expect(translateText("改为待结账", "en-US")).toBe("Set payment pending");
     expect(translateText("空白按 0", "en-US")).toBe("Blank = 0");
     expect(translateText("实收金额全为 0 或空白时保存为待结账；录入付款后，大费至少填一项，小费空白按 0 处理。", "en-US"))
@@ -42,6 +43,8 @@ describe("bilingual UI translation", () => {
 
   it("translates dynamic status text without changing user names", () => {
     expect(translateText("已隐藏 Amy", "en-US")).toBe("Hidden Amy");
+    expect(translateText("已移除 Amy 的当天上班记录", "en-US")).toBe("Removed today’s attendance for Amy");
+    expect(translateText("已恢复 Amy", "en-US")).toBe("Restored Amy");
     expect(translateText("Amy的个人日结", "en-US")).toBe("Amy's employee closing");
     expect(translateText("逐笔记工", "en-US")).toBe("Work records");
     expect(translateText("现金大费工资", "en-US")).toBe("Cash service-fee wages");

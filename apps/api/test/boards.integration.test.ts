@@ -8,6 +8,7 @@ import { BoardsService } from "../src/boards/boards.service.js";
 import { IdempotencyService } from "../src/common/idempotency.service.js";
 import { PrismaService } from "../src/database/prisma.service.js";
 import { StoreAccessService } from "../src/stores/store-access.service.js";
+import { WorkRecordsService } from "../src/work-records/work-records.service.js";
 
 const enabled = process.env.DATABASE_INTEGRATION_TESTS === "1";
 const prisma = new PrismaService();
@@ -20,6 +21,14 @@ const employeeId = randomUUID();
 const ownerMembershipId = randomUUID();
 const employeeMembershipId = randomUUID();
 const actor = (id: string) => ({ id }) as User;
+const visibilityCases = [
+  { name: "待结账记工", records: [{ status: "PENDING_PAYMENT", deleted: false }], removed: false },
+  { name: "已确认记工", records: [{ status: "CONFIRMED", deleted: false }], removed: false },
+  { name: "仅占位", records: [{ status: "PLACEHOLDER", deleted: false }], removed: true },
+  { name: "仅已删除记工", records: [{ status: "CONFIRMED", deleted: true }], removed: true },
+  { name: "占位和删除历史", records: [{ status: "PLACEHOLDER", deleted: false }, { status: "PENDING_PAYMENT", deleted: true }], removed: true },
+  { name: "实际记工和占位及删除历史", records: [{ status: "PENDING_PAYMENT", deleted: false }, { status: "PLACEHOLDER", deleted: false }, { status: "CONFIRMED", deleted: true }], removed: false },
+] as const;
 
 describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
   it("今日日期使用设备时间和时区，不受店铺关门时间影响", async () => {
@@ -289,6 +298,106 @@ describe.skipIf(!enabled).sequential("打卡与今日表格", () => {
       { version: again.row.version, isHidden: true }, "empty-hide-closed-today", "empty-hide-closed-today")))
       .rejects.toMatchObject({ response: { code: "BUSINESS_DAY_CLOSED" } });
     expect(await prisma.dailyEmployeeRow.findUniqueOrThrow({ where: { id: again.row.id } })).toMatchObject({ isHidden: false, version: again.row.version });
+  });
+
+  it.each(visibilityCases.flatMap((scenario, index) => ["今天", "未来"].map((timing, offset) => ({
+    ...scenario, timing, date: `2026-02-${String(index * 2 + offset + 1).padStart(2, "0")}`,
+  }))))("$timing 隐藏 $name 时按有效记工分流，记录保留且可重新加入或恢复", async ({ name, records, removed, timing, date }) => {
+    const onDate = <T>(task: () => T, nowDate = timing === "今天" ? date : "2026-01-31") =>
+      deviceTimeContext.run({ timezone: "America/New_York", now: new Date(`${nowDate}T18:00:00Z`) }, task);
+    const added = await boards.addRow(actor(ownerId), storeId, date,
+      { membershipId: employeeMembershipId }, randomUUID(), randomUUID());
+    const shift = await prisma.shift.create({ data: {
+      storeId, membershipId: employeeMembershipId, businessDate: new Date(`${date}T00:00:00Z`),
+      clockInAt: new Date(`${date}T15:00:00Z`), clockOutAt: new Date(`${date}T16:00:00Z`),
+      createdBy: employeeId, updatedBy: employeeId,
+    } });
+    const saved = await Promise.all(records.map((record, index) => prisma.workRecord.create({ data: {
+      storeId, employeeMembershipId, businessDate: new Date(`${date}T00:00:00Z`),
+      storeTimezoneSnapshot: "America/New_York", businessCutoffSnapshot: "22:00",
+      startAt: new Date(`${date}T${16 + index}:00:00Z`), status: record.status,
+      mainServiceAmountCents: record.status === "PLACEHOLDER" ? 0 : 10000,
+      grossFeeBaseCents: record.status === "PLACEHOLDER" ? 0 : 10000,
+      discountedFeePerformanceCents: record.status === "PLACEHOLDER" ? 0 : 10000,
+      mainServiceWageCents: record.status === "PLACEHOLDER" ? 0 : 5000,
+      totalLargeFeeWageCents: record.status === "PLACEHOLDER" ? 0 : 5000,
+      createdBy: employeeId, updatedBy: employeeId,
+      ...(record.status === "CONFIRMED" ? {
+        cashServiceCents: 10000, cardServiceCents: 0, giftCardServiceCents: 0,
+        cashTipCents: 0, cardTipCents: 0, giftCardTipCents: 0, totalTipCents: 0,
+        actualServiceCollectedCents: 10000, customerTotalPaidCents: 10000, paymentDifferenceCents: 0,
+        employeeTotalIncomeCents: 5000, cashAllocatedServiceWageCents: 5000,
+        cashAcquiredServiceWageCents: 5000, cashWageShortfallCents: 0,
+      } : {}),
+      ...(record.deleted ? { deletedAt: new Date(`${date}T17:00:00Z`), deletedBy: ownerId, deleteReason: "测试删除历史" } : {}),
+    } })));
+    const before = await boards.getBoard(actor(ownerId), storeId, date);
+    const key = randomUUID();
+    const hide = () => onDate(() => boards.updateRow(actor(ownerId), storeId, date, added.row.id,
+      { version: added.row.version, isHidden: true }, key, randomUUID()));
+    const result = await hide();
+    expect(result.removed).toBe(removed);
+    expect(result.board.version).toBe(added.board.version + 1);
+    expect((await hide()).removed).toBe(removed);
+    for (const record of saved) {
+      expect(await prisma.workRecord.findUniqueOrThrow({ where: { id: record.id } })).toEqual(record);
+    }
+    expect(await prisma.auditLog.count({ where: { storeId, entityId: added.row.id,
+      action: removed ? "board.row_removed" : "board.row_hidden" } })).toBe(1);
+    const after = await boards.getBoard(actor(ownerId), storeId, date);
+    expect(after.statistics).toEqual(before.statistics);
+    if (removed) {
+      expect(after.rows).toHaveLength(0);
+      expect(await prisma.dailyEmployeeRow.findUnique({ where: { id: added.row.id } })).toBeNull();
+      expect(await prisma.shift.findUnique({ where: { id: shift.id } })).toBeNull();
+      if (name === "仅已删除记工") {
+        const workRecords = new WorkRecordsService(prisma, access, idempotency);
+        const record = saved[0]!;
+        const restored = await onDate(() => workRecords.restore(actor(ownerId), storeId, record.id,
+          { version: record.version }, randomUUID(), randomUUID()), date);
+        expect(restored).toMatchObject({ id: record.id, deletedAt: null, version: record.version + 1 });
+      } else {
+        await boards.addRow(actor(ownerId), storeId, date, { membershipId: employeeMembershipId }, randomUUID(), randomUUID());
+      }
+      const rejoined = (await boards.getBoard(actor(ownerId), storeId, date)).rows[0]!;
+      expect(rejoined.id).not.toBe(added.row.id);
+      expect(rejoined.isHidden).toBe(false);
+      expect(rejoined.workRecords.map(record => record.id).sort()).toEqual(
+        saved.filter(record => !record.deletedAt || name === "仅已删除记工").map(record => record.id).sort(),
+      );
+    } else {
+      expect(after.rows[0]).toMatchObject({ id: added.row.id, isHidden: true });
+      expect(await prisma.shift.findUniqueOrThrow({ where: { id: shift.id } })).toEqual(shift);
+      const restored = await onDate(() => boards.updateRow(actor(ownerId), storeId, date, added.row.id,
+        { version: result.row.version, isHidden: false }, randomUUID(), randomUUID()));
+      expect(restored).toMatchObject({ removed: false, row: { id: added.row.id, isHidden: false } });
+    }
+  });
+
+  it.each([false, true])("历史无实际记工行只隐藏并可恢复，已日结=%s", async closed => {
+    const date = closed ? "2026-03-02" : "2026-03-01";
+    const added = await boards.addRow(actor(ownerId), storeId, date,
+      { membershipId: employeeMembershipId }, randomUUID(), randomUUID());
+    const shift = await prisma.shift.create({ data: {
+      storeId, membershipId: employeeMembershipId, businessDate: new Date(`${date}T00:00:00Z`),
+      clockInAt: new Date(`${date}T15:00:00Z`), clockOutAt: new Date(`${date}T16:00:00Z`),
+      createdBy: employeeId, updatedBy: employeeId,
+    } });
+    const closing = closed ? await prisma.businessDayClosing.create({ data: {
+      storeId, businessDate: new Date(`${date}T00:00:00Z`), cycleNo: 1,
+      warningSnapshotJson: {}, totalsSnapshotJson: {}, closedBy: ownerId,
+    } }) : null;
+    const onDate = <T>(task: () => T) => deviceTimeContext.run({
+      timezone: "America/New_York", now: new Date("2026-03-03T18:00:00Z"),
+    }, task);
+    const hidden = await onDate(() => boards.updateRow(actor(ownerId), storeId, date, added.row.id,
+      { version: added.row.version, isHidden: true }, randomUUID(), randomUUID()));
+    expect(hidden).toMatchObject({ removed: false, row: { id: added.row.id, isHidden: true } });
+    const restored = await onDate(() => boards.updateRow(actor(ownerId), storeId, date, added.row.id,
+      { version: hidden.row.version, isHidden: false }, randomUUID(), randomUUID()));
+    expect(restored).toMatchObject({ removed: false, row: { id: added.row.id, isHidden: false } });
+    expect(await prisma.shift.findUniqueOrThrow({ where: { id: shift.id } })).toEqual(shift);
+    if (closing) expect(await prisma.businessDayClosing.findUniqueOrThrow({ where: { id: closing.id } })).toEqual(closing);
   });
 
   it("员工只能结束自己的未结束班次，旧版本不能重复下班", async () => {

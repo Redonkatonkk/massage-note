@@ -1,5 +1,7 @@
 "use client";
 
+import { NumericInput } from "../numeric-input";
+
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -197,7 +199,7 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
             <h3>付款登记</h3>
             <div className="settlement-payment-amounts">
               <article><span>本次未结金额</span><strong>{money(preview.payment.unsettledCents)}</strong></article>
-              <label>抵扣金额（美元）<input disabled={busy || sharing || previewLoading || alreadyRegistered || preview.records.length === 0} inputMode="decimal" value={deduction} aria-invalid={invalidDeduction} aria-describedby={invalidDeduction ? deductionErrorId : undefined} onChange={(event) => setDeduction(event.target.value)} /></label>
+              <label>抵扣金额（美元）<NumericInput disabled={busy || sharing || previewLoading || alreadyRegistered || preview.records.length === 0} inputMode="decimal" value={deduction} aria-invalid={invalidDeduction} aria-describedby={invalidDeduction ? deductionErrorId : undefined} onChange={(event) => setDeduction(event.target.value)} /></label>
               <article className="payroll-paid-amount"><span>本次实付金额</span><strong>{paidCents === null ? "—" : money(paidCents)}</strong></article>
             </div>
             <details className="settlement-payment-note"><summary>抵扣说明</summary><p>抵扣此前已付金额；此前付款应已登记到账本或现金结算中。本次只登记实付金额，并确认所选日期、来源和工资类型结清。</p></details>

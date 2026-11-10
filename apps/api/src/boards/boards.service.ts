@@ -904,12 +904,15 @@ export class BoardsService {
           await this.throwRowConflict(transaction, rowId, storeId);
         }
         // Historical rows remain restorable, including empty rows and shifts.
-        // Include deleted records: their recoverable history must remain intact.
+        // Only live service records require a current/future row to stay hidden.
+        // Keep placeholders and deleted records intact when removing attendance.
         const removed = !isPast && input.isHidden && await transaction.workRecord.count({
           where: {
             storeId,
             employeeMembershipId: row.membershipId,
             businessDate: dateAtUtc(businessDate),
+            deletedAt: null,
+            status: { not: "PLACEHOLDER" },
           },
         }) === 0;
         const isFullTimeLeave = input.isHidden && !row.isHidden

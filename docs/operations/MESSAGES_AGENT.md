@@ -62,6 +62,8 @@ The installation script authenticates the "shard/task" two-level probe of the Me
 
 The script uses the SHA-256 combination of two Swift source codes and the sending script module to identify the attached App, and puts the same AppleScript into the App resources. Preserve existing binaries and signatures when the code has not changed; rebuild signatures when installing for the first time or when the source code changes. If the permissions become invalid after the upgrade, close and enable full disk access permissions for the app, and then rerun the installation. Reason: Script resources are also signature products. Re-signing may invalidate existing permissions. Joint verification prevents continued use of the old app after script changes.
 
+After deployment, the installer copies hardlinked runtime files into independent files and imports both renderers to verify their dependencies before starting the agent. Reason: legacy pnpm deployment can hardlink workspace outputs; a later local build can otherwise update the installed domain entry point without installing its new modules, crashing the agent and leaving tasks queued. For an existing broken installation, rerun the installer with the saved credentials; preserve `journal.json` so accepted messages are not sent again.
+
 During maintenance, you can add `--no-start` at the end of the installation command: first build, disable and stop the old agent, then replace the installation file and verify permissions, and keep the sending service disabled; after checking the historical results and obtaining actual sending authorization, re-enable it according to the normal installation process. Permission check failures also remain disabled. Reason: The running old agent cannot continue to receive tasks or read the running files being replaced. Updates, probes or re-login should not implicitly reissue the backlog of SMS messages.
 
 <a id="安装后验证"></a>
@@ -115,6 +117,7 @@ Database, permissions and auditing always save E.164 numbers. For `+1` numbers, 
 | Phenomenon | Priority Check |
 | --- | --- |
 | Queue shows "Queue, Attempt 0" | LaunchAgent Status, API URL, Token and Network |
+| Agent repeatedly exits with `ERR_MODULE_NOT_FOUND` after a local build | Reinstall the agent to restore missing dependencies and isolate runtime files from workspace hardlinks; preserve the sending journal |
 | Number of attempts increased but failed | Page queue details and local `agent-error.log` |
 | Send reports `Access denied`, but the old version of the staging probe passes | Update the attachment App to confirm that it reads and sends it; turn off and on its full disk access permissions and check the automated authorization, and cannot use the background Node to send |
 | The heartbeat returns 400 and the number of sending times continues to increase | Check whether it is still an old agent with no limit on the error length; update the agent, first check the historical sending results, and do not directly reset the sending status |

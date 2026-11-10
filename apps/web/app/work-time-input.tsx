@@ -1,5 +1,7 @@
 "use client";
 
+import { NumericInput } from "./numeric-input";
+
 import { useEffect, useState } from "react";
 import { parseWorkTimeParts } from "../lib/time";
 import { useLanguage } from "./language-provider";
@@ -37,11 +39,11 @@ export function WorkTimeInput({ id, value, onChange, onValidityChange, optional 
   }
 
   return <span className="work-time-field">
-    <input id={id} type="text" inputMode="numeric" autoComplete="off" maxLength={2}
+    <NumericInput id={id} inputMode="numeric" autoComplete="off" maxLength={2}
       aria-label={english ? "Hour" : "小时"} placeholder={english ? "Hour" : "小时"}
       onFocus={(event) => event.currentTarget.select()} onClick={(event) => event.currentTarget.select()}
       value={fields.hour} aria-invalid={!valid} onChange={(event) => update("hour", event.target.value)} />
-    <input type="text" inputMode="numeric" autoComplete="off" maxLength={2}
+    <NumericInput inputMode="numeric" autoComplete="off" maxLength={2}
       aria-label={english ? "Minute" : "分钟"} placeholder={english ? "Minute" : "分钟"}
       onFocus={(event) => event.currentTarget.select()} onClick={(event) => event.currentTarget.select()}
       value={fields.minute} aria-invalid={!valid} onChange={(event) => update("minute", event.target.value)} />

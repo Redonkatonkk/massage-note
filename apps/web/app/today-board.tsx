@@ -13,6 +13,7 @@ import {
   recordPaymentDisplay,
   recordTrackItems,
   serviceRecordCount,
+  leftTrackRecordCount,
 } from "../lib/board";
 import { homeClosingAction } from "../lib/closing";
 import {
@@ -156,6 +157,7 @@ function TodayBoardContent({
   onInitialRecordOpened,
   onReload, onSaveReload,
 }: TodayBoardProps) {
+  const { t } = useLanguage();
   const saves = useWorkRecordSaveManager()!;
   const { tasks: saveTasks, recovery } = useWorkRecordSaveTasks(saves);
   const scope = { storeId: membership.store.id, businessDate: currentDay.businessDate };
@@ -593,6 +595,7 @@ function TodayBoardContent({
             viewerMembershipId: membership.id,
             rowMembershipId: row.membershipId,
           });
+          const workCount = leftTrackRecordCount(row.workRecords);
           return (
             <article className={`employee-row${isCollapsed ? " employee-row--collapsed" : ""}${row.isHidden && canManage ? " employee-row--hidden" : ""}`} key={row.id}>
               <header className="employee-header">
@@ -601,6 +604,7 @@ function TodayBoardContent({
                   type="button"
                   onClick={() => setCollapsed((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id])}
                   aria-expanded={!isCollapsed}
+                  aria-label={`${row.membership.displayName} · ${t(isCollapsed ? "展开" : "收起")}`}
                 >
                   <span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span>
                   <span>
@@ -611,14 +615,13 @@ function TodayBoardContent({
                   <span className="chevron" aria-hidden="true">{isCollapsed ? "展开" : "收起"}</span>
                 </button>
                 <div className="row-tools">
-                  {canChangeRowVisibility && <AutoCloseDetails className="row-management"><summary>员工操作</summary><div>
-                    {!board.isClosed && <><button type="button" disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}>上移</button><button type="button" disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}>下移</button></>}
-                    {board.ranking.enabled && !board.isClosed && <button type="button" disabled={busy} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}/remove`, { method: "POST", idempotent: true, body: { version: row.version } }); setNotice(`已移除 ${row.membership.displayName}`); await onReload(); })}>移除</button>}
+                  {canChangeRowVisibility && <div className="row-actions" role="group" aria-label={`${row.membership.displayName} · ${t("员工操作")}`}>
+                    {!board.isClosed && <><button className="row-move-action" type="button" aria-label={t("上移")} title={t("上移")} disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}><UiIcon name="arrow-up" /></button><button className="row-move-action" type="button" aria-label={t("下移")} title={t("下移")} disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}><UiIcon name="arrow-down" /></button></>}
                     <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>
-                  </div></AutoCloseDetails>}
-                  <span className="row-work-count" title="记工数" aria-label={`${serviceRecordCount(row.workRecords)} 条记工`}>
+                  </div>}
+                  <span className="row-work-count" title="左侧记工数（含占位）" aria-label={`${workCount} 条记工`}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="16" rx="2" /><path d="M9 5V3h6v2M9 11h6M9 16h6" /></svg>
-                    <strong>{serviceRecordCount(row.workRecords)}</strong>
+                    <strong>{workCount}</strong>
                   </span>
                   {(canManage || row.membershipId === membership.id) && <button className="row-closing-action" type="button" onClick={() => setClosingEmployee({ id: row.membershipId, displayName: row.membership.displayName })}>个人日结</button>}
                 </div>

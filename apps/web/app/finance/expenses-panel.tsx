@@ -1,5 +1,7 @@
 "use client";
 
+import { NumericInput } from "../numeric-input";
+
 import { useDecision } from "../decision-dialog";
 
 import { useEffect, useRef, useState } from "react";
@@ -193,12 +195,12 @@ function ExpenseEditor({ editor, today, month, busy, save, close }: { editor: Ed
       <option value="monthly">{t("每月固定", "Monthly fixed")}</option><option value="days">{t("每 X 天一次", "Every X days")}</option><option value="months">{t("每 X 个月一次", "Every X months")}</option>{editor.mode === "create" && <option value="once">{t("一次性", "One-time")}</option>}
     </select></label>}
     {schedule && (preset === "days" || preset === "months") && <>
-      <label>{preset === "days" ? t("每几天", "Number of days") : t("每几个月", "Number of months")}<input type="number" min={1} max={1200} step={1} required disabled={busy} value={interval} onChange={e => setInterval(e.target.value)} /></label>
+      <label>{preset === "days" ? t("每几天", "Number of days") : t("每几个月", "Number of months")}<NumericInput inputMode="numeric" min={1} max={1200} step={1} required disabled={busy} value={interval} onChange={e => setInterval(e.target.value)} /></label>
     </>}
     {(schedule || editor.mode === "stop" || (editor.mode === "edit" && item?.kind === "ONCE")) && <label>{editor.mode === "stop" ? t("停止生效日期", "Stop effective date") : editor.mode === "rule" ? t("新规则生效日期", "New rule effective date") : preset === "once" ? t("发生日期", "Expense date") : isMonth ? t("开始月份", "Starting month") : t("开始日期", "Starting date")}
       <input type={isMonth && editor.mode !== "stop" ? "month" : "date"} required disabled={busy} value={isMonth && editor.mode !== "stop" ? start.slice(0, 7) : start} onChange={e => setStart(isMonth && editor.mode !== "stop" ? `${e.target.value}-01` : e.target.value)} />
     </label>}
-    {(schedule || editor.mode === "period" || (editor.mode === "edit" && item?.kind === "ONCE")) && <label>{editor.mode === "period" ? t("当期整期金额（美元）", "This full-period amount (USD)") : preset === "once" ? t("金额（美元）", "Amount (USD)") : t("常用整期金额（美元）", "Usual full-period amount (USD)")}<input inputMode="decimal" pattern="[0-9]+(\.[0-9]{1,2})?" required disabled={busy} value={amount} onChange={e => setAmount(e.target.value)} /></label>}
+    {(schedule || editor.mode === "period" || (editor.mode === "edit" && item?.kind === "ONCE")) && <label>{editor.mode === "period" ? t("当期整期金额（美元）", "This full-period amount (USD)") : preset === "once" ? t("金额（美元）", "Amount (USD)") : t("常用整期金额（美元）", "Usual full-period amount (USD)")}<NumericInput inputMode="decimal" pattern="[0-9]+(\.[0-9]{1,2})?" required disabled={busy} value={amount} onChange={e => setAmount(e.target.value)} /></label>}
     {(editor.mode === "create" || editor.mode === "edit") && <label>{t("备注", "Note")}<textarea maxLength={2000} disabled={busy} value={note} onChange={e => setNote(e.target.value)} /></label>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <button type="submit" className="primary-action" disabled={busy}>{busy ? t("保存中…", "Saving…") : t("保存", "Save")}</button>

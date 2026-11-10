@@ -13,6 +13,11 @@ export function serviceRecordCount(records: readonly { status: string }[]): numb
   return records.filter((record) => record.status !== "PLACEHOLDER").length;
 }
 
+/** The employee badge counts every left-track entry, including placeholders. */
+export function leftTrackRecordCount(records: readonly { isHighlighted: boolean; isDispatchExcluded?: boolean }[]): number {
+  return records.filter((record) => !record.isHighlighted && !record.isDispatchExcluded).length;
+}
+
 export function deduplicateMembershipRows<T extends { membershipId: string }>(rows: T[]): T[] {
   const seen = new Set<string>();
   return rows.filter((row) => {

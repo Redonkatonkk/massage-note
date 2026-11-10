@@ -109,7 +109,7 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .overview-heading h2 { margin: 0; font-size: .875rem; font-weight: 600; letter-spacing: 0; }
 .overview-heading > span { color: var(--muted); font-size: .8rem; }
 .board-overview .summary-strip { gap: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); box-shadow: none; }
-.board-overview .summary-strip > .overview-metric { position: relative; min-width: 0; min-height: 106px; gap: 10px; padding: 20px 16px; border: 0; border-radius: 0; background: var(--surface); box-shadow: none; text-align: left; }
+.board-overview .summary-strip > .overview-metric { position: relative; justify-content: flex-start; min-width: 0; min-height: 106px; gap: 10px; padding: 20px 16px; border: 0; border-radius: 0; background: var(--surface); box-shadow: none; text-align: left; }
 .board-overview .summary-strip > .overview-metric + .overview-metric { border-left: 1px solid var(--line); }
 .overview-metric .overview-metric__label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .8rem; font-weight: 400; line-height: 1.45; }
 .overview-metric__label .ui-icon { width: 16px; height: 16px; color: var(--muted); }

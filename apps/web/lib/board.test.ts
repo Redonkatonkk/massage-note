@@ -8,6 +8,7 @@ import {
   recordPaymentDisplay,
   recordTrackItems,
   serviceRecordCount,
+  leftTrackRecordCount,
 } from "./board";
 
 describe("今日表格行整理", () => {
@@ -21,10 +22,12 @@ describe("今日表格行整理", () => {
     expect(recordTrackItems(records, true).map(record => record?.id ?? "add")).toEqual(["ordinary", "add", "both", "highlight", "early-excluded"]);
     expect(recordTrackItems(records, false).map(record => record?.id)).toEqual(["ordinary", "both", "highlight", "early-excluded"]);
     expect(serviceRecordCount(records)).toBe(4);
+    expect(leftTrackRecordCount(records)).toBe(1);
+    expect(leftTrackRecordCount(records.filter(record => record.id !== "ordinary"))).toBe(0);
     expect(recordTrackItems([{ ...records[0]!, isDispatchExcluded: false }, ...records.slice(1)], true).map(record => record?.id ?? "add")).toEqual(["early-excluded", "ordinary", "add", "both", "highlight"]);
     expect(records[0]!.isHighlighted).toBe(false);
   });
-  it("占位按普通时间顺序混排但不计入工数", () => {
+  it("占位按普通时间顺序混排，计入左侧数量但不计入服务工数", () => {
     const records = [
       { id: "first", status: "CONFIRMED", isHighlighted: false },
       { id: "placeholder", status: "PLACEHOLDER", isHighlighted: false },
@@ -34,6 +37,9 @@ describe("今日表格行整理", () => {
     expect(recordTrackItems(records, true).map((record) => record?.id ?? "add")).toEqual(["first", "placeholder", "last", "add", "highlighted"]);
     expect(serviceRecordCount(records)).toBe(3);
     expect(serviceRecordCount([records[1]!])).toBe(0);
+    expect(leftTrackRecordCount(records)).toBe(3);
+    expect(leftTrackRecordCount([records[1]!])).toBe(1);
+    expect(leftTrackRecordCount([])).toBe(0);
   });
   it("普通记工在左、新增居中，高亮按原时间顺序从右向左排列且不修改源记录", () => {
     const records = [

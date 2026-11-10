@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type IconName = "log" | "chart" | "store" | "user" | "arrow" | "gift" | "discount" | "wallet" | "trend" | "clock" | "check" | "sparkles" | "help" | "plus" | "walk-in";
+export type IconName = "log" | "chart" | "store" | "user" | "arrow" | "arrow-up" | "arrow-down" | "gift" | "discount" | "wallet" | "trend" | "clock" | "check" | "sparkles" | "help" | "plus" | "walk-in";
 
 const iconPaths: Record<IconName, ReactNode> = {
   log: <><rect x="5" y="4" width="14" height="17" rx="3" /><path d="M9 4V2m6 2V2M9 10h6m-6 4h4" /></>,
@@ -8,6 +8,8 @@ const iconPaths: Record<IconName, ReactNode> = {
   store: <><path d="m3 9 2-6h14l2 6M5 13v8h14v-8M9 21v-6h6v6" /><path d="M3 9v1a3 3 0 0 0 6 0V9m0 0v1a3 3 0 0 0 6 0V9m0 0v1a3 3 0 0 0 6 0V9" /></>,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>,
   arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
+  "arrow-up": <path d="M12 19V5m-6 6 6-6 6 6" />,
+  "arrow-down": <path d="M12 5v14m-6-6 6 6 6-6" />,
   gift: <><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M5 12v9h14v-9M12 8v13" /><path d="M12 8H8a2.5 2.5 0 1 1 2.4-3.2L12 8Zm0 0h4a2.5 2.5 0 1 0-2.4-3.2L12 8Z" /></>,
   discount: <><path d="m4 4 6-1 11 11-7 7L3 10l1-6Z" /><circle cx="7.5" cy="7.5" r=".5" /></>,
   wallet: <><path d="M20 8V5a2 2 0 0 0-2-2H6a3 3 0 0 0 0 6h14v12H6a3 3 0 0 1-3-3V6" /><path d="M20 12h-5v5h5m-3-2.5h.1" /></>,

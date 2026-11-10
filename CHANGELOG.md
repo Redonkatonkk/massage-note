@@ -4,6 +4,18 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.56.0 — 2026-11-09
+
+- Add optional store cash settlement with weekly/monthly opening resets, exact starting amounts and short-month handling; keep Gift card total after closing when disabled.
+- Show server-calculated closing cash balances across the reset period, including confirmed receipts from skipped closing days. Recalculate historical balances after settings changes while preserving daily cash-change snapshots; identify missing historical dates rather than guessing.
+- Add schema/backup compatibility and code-only financial, permission, settings and refresh regressions. NAS requires the new database migration and Web/API update; no independent plugin or Messages agent update.
+
+## 1.55.1 — 2026-11-08
+
+- Give full-table backup checksums a bounded 15-minute query budget on both the source snapshot and isolated restore; retain the existing 120-second budget for other verification queries. Include the affected table in timeout status without logging SQL or business values.
+- Add subprocess regression coverage for delayed results, timeout privacy and terminated sessions, and document how to distinguish backup activation from recent successful execution.
+- Install the independent recovery-tool fix on NAS and rerun the existing daily task. No application image update or database migration is required for this backup repair.
+
 ## 1.55.0 — 2026-11-07
 
 - Rotate the full-time queue by the preceding working day’s actual first visible employee: part-time leadership keeps its turn; full-time leadership moves the entire prefix through that employee to the tail, even when that employee rests next day.

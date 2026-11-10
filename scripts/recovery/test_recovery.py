@@ -4,6 +4,7 @@ import io
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -224,6 +225,44 @@ class SafetyTests(unittest.TestCase):
             with patch.object(restore, "run") as mocked:
                 with self.assertRaises(r.RecoveryError): restore.cleanup(root)
                 mocked.assert_not_called()
+
+
+class SqlSessionTests(unittest.TestCase):
+    def session(self):
+        worker = subprocess.Popen([sys.executable, "-u", "-c", """
+import sys, time
+for line in sys.stdin:
+    if line.startswith('slow'):
+        time.sleep(0.2)
+        print('complete', flush=True)
+    elif line.startswith('exit'):
+        break
+    elif line.startswith('\\\\echo '):
+        print(line.strip().split(' ', 1)[1], flush=True)
+    else:
+        print('ready', flush=True)
+"""], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
+        with patch.object(r.subprocess, "Popen", return_value=worker):
+            session = r.SqlSession("unused-container")
+        self.addCleanup(session.close)
+        return session
+
+    def test_larger_budget_completes_slow_query_and_preserves_next_result(self):
+        session = self.session()
+        self.assertEqual(session.query("slow", timeout=2), "complete")
+        self.assertEqual(session.query("next"), "ready")
+
+    def test_timeout_reports_operation_without_sql_or_row_values(self):
+        session = self.session()
+        with self.assertRaises(r.RecoveryError) as caught:
+            session.query("slow secret-row-value", timeout=0.05, operation="Table checksum (audit_logs)")
+        self.assertEqual(str(caught.exception), "Table checksum (audit_logs) query timed out")
+        self.assertNotIn("secret", str(caught.exception))
+
+    def test_terminated_session_fails_without_waiting_for_deadline(self):
+        session = self.session()
+        with self.assertRaisesRegex(r.RecoveryError, "Database snapshot session failed"):
+            session.query("exit", timeout=2)
 
 
 if __name__ == "__main__": unittest.main()

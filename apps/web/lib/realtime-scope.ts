@@ -3,12 +3,12 @@ import type { RealtimeChange } from "./realtime-client";
 const boardEntities = new Set(["work_record", "shift", "daily_employee_row", "daily_board", "daily_cash_settlement", "business_day_closing"]);
 const attendanceEntities = new Set(["daily_employee_row", "daily_board"]);
 /** Unknown entities must keep the conservative full refresh path. */
-export function boardRefreshScope(change: RealtimeChange, date: string): "full" | "board" | "none" {
+export function boardRefreshScope(change: RealtimeChange, date: string, cashResetDate?: string | null): "full" | "board" | "none" {
   if (change.full || !change.changes.length || change.changes.some(item => !boardEntities.has(item.entityType))) return "full";
   return change.changes.some(item => {
     const changedDate = item.businessDate?.slice(0, 10);
     // Earlier attendance can change the automatic order of a later board.
-    return !changedDate || changedDate === date || (changedDate < date && attendanceEntities.has(item.entityType));
+    return !changedDate || changedDate === date || (changedDate < date && (attendanceEntities.has(item.entityType) || (!!cashResetDate && changedDate >= cashResetDate && ["work_record", "business_day_closing", "daily_cash_settlement"].includes(item.entityType))));
   }) ? "board" : "none";
 }
 

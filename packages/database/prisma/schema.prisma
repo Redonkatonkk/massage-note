@@ -133,6 +133,11 @@ model Store {
   giftCardAutoDiscountEnabled               Boolean     @default(false) @map("gift_card_auto_discount_enabled")
   giftCardAutoDiscountThresholdCents        BigInt      @default(0) @map("gift_card_auto_discount_threshold_cents")
   giftCardAutoDiscountBps                   Int         @default(0) @map("gift_card_auto_discount_bps")
+  cashSettlementEnabled                    Boolean     @default(false) @map("cash_settlement_enabled")
+  cashSettlementCycle                      String      @default("WEEKLY") @map("cash_settlement_cycle") @db.VarChar(7)
+  cashResetWeekday                         Int         @default(1) @map("cash_reset_weekday")
+  cashResetMonthDay                        Int         @default(1) @map("cash_reset_month_day")
+  cashResetAmountCents                     BigInt      @default(0) @map("cash_reset_amount_cents")
   automaticDispatchEnabled                 Boolean     @default(false) @map("automatic_dispatch_enabled")
   weeklyDispatchJson                       Json?       @map("weekly_dispatch_json")
   weeklyDispatchEffectiveFrom              DateTime?   @map("weekly_dispatch_effective_from") @db.Date

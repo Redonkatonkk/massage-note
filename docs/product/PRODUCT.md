@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](PRODUCT.zh-CN.md)**
 
-> Applies to version: `1.55.0`
+> Applies to version: `1.56.0`
 > Check basis: domain functions, shared contracts, API services and their tests. See [API](../engineering/API.md) for the HTTP fields, see [UI Design](../engineering/UI_DESIGN.md) for the layout, and see [Development Guide](../engineering/DEVELOPMENT.md) for the maintenance process.
 
 <a id="产品范围与数据原则"></a>
@@ -187,7 +187,7 @@ Let P be the main item, E be the add-on total, and D be the discount; CS/CC/GCS 
 
 ## Daily closing and automatic sending
 
-- After daily closing, the homepage replaces Gift card total with Cash change: confirmed cash service receipts + valid cash gift-card sales − employee cash wages due. Ordinary employees use cash-allocated service wages; daily-full-settlement employees use all service wages plus card/gift-card tips, counted once. Owner/manager receipts count but their wages are excluded; cash tips bypass the drawer. Settlement status does not affect this expected amount. Positive/negative values have an explicit +/− sign and cents. The closing freezes the result; only reopening and closing again recalculates it. Older closings without the snapshot show a dash and an explanation. Reason: drawer reconciliation needs a stable expected movement distinct from actual payment confirmations.
+- Store cash settlement defaults to disabled: Gift card total remains before and after daily closing. When enabled, the closed homepage shows Cash balance = reset amount + expected cash movements from the latest reset date through the selected business date, inclusive. Weekly resets select Monday–Sunday; monthly resets select 1–31 and clamp to the last day of shorter months, at the start of the business day. Movement = confirmed cash service receipts + valid cash gift-card sales − employee cash wages due: ordinary staff use cash-allocated wages, daily-full staff use all service wages plus card/gift-card tips; owner/manager wages and cash tips are excluded, regardless of settlement status. Use frozen movements for active closed days and confirmed live receipts for unclosed days; exclude pending, placeholder and deleted records. Settings changes recalculate all displayed historical balances without altering daily snapshots. Any closed date missing its movement makes that period unavailable until reopened and closed again. Keep exact cents and negative balances without a positive sign. Reason: expected drawer cash needs a defined opening amount and complete period data without rewriting payment history.
 
 - Owner/Manager can perform normal, forced, cancel and repeat daily closing, and can enter the next day without daily closing; cash settlement does not prevent daily closing, daily closing does not automatically settle cash, and the rollback will be used if canceled. Reason: Closing the accounts is independent of the actual cash disbursement.
 - Preview and check pending payment, unconfirmed tips, payment difference, lack of closing; manual price change to non-blocking reminder, ordinary daily closing can pass, mandatory reason is required. Reason: The five checks of `ClosingsService` do not have an additional check for negative numbers for old documents, negative numbers are handled by input/database constraints.

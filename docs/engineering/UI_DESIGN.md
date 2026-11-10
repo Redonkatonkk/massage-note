@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](UI_DESIGN.zh-CN.md)**
 
-> Applies to version: `1.55.0` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
+> Applies to version: `1.56.0` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
 
 This article is the design basis for subsequent AI modifications to the front end and generation of payroll share pages and individual daily statement images. Aesthetic judgment comes from store working scenes, user feedback on adjacent panels, highlight colors, member operations, phone reading and generated pictures, and existing implementations. New requirements from users are given priority; specific business rules are subject to [Product Document](../product/PRODUCT.md). For specific style values, check the source code entry below. Reason: The design rationale needs to be sustained and needs to be able to be revised with clear feedback.
 
@@ -265,6 +265,6 @@ The user selected the work record card version on 2026-10-12: Page, webpage PNG 
 
 The existing audit tab/link becomes Data operations. Owners first see peer export/import sections, followed by the original operation history; managers see history only. Demo export is selected by default and states that real amounts/dates remain. Import presents source/target, date range and counts before the full recovery download, saved-backup checkbox and exact target-name confirmation. Narrow screens stack the sections naturally. Reason: replacement needs a clear target and recovery path without changing familiar audit reading.
 
-### Homepage cash-change metric
+### Homepage cash-balance metric
 
-Before closing, keep Gift card total. After closing, replace that metric in both desktop and mobile layouts with Cash change from the server snapshot, using the shared metric surface and wallet icon. Show an explicit + or - before the currency and preserve cents; zero has no sign. Missing older snapshots show a dash and explain that reopening and closing again generates the value. Reason: money-drawer reconciliation needs direction, exact cents and a clear distinction between missing history and zero.
+Keep Gift card total before closing and whenever store cash settlement is disabled. When enabled and closed, replace the same metric in both desktop and mobile layouts with server-calculated Cash balance, using the shared surface and wallet icon, exact cents and no positive sign. Show the reset date beside the result; missing history shows a dash and the dates requiring closing repair. Store settings use a peer rule section with an enable checkbox, weekly/monthly cycle, matching reset-day select and dollar amount, retaining both day selections when switching cycles. Explain opening resets, short months and historical recalculation; preserve read-only and saving states. Reason: drawer reconciliation needs a clear period and starting amount, with missing history distinct from zero.

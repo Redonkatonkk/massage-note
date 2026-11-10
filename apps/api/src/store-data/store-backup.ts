@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { BadRequestException } from "@nestjs/common";
 import { Prisma } from "@massage-note/database";
-import { storeBackupSchema, storeBackupTables, weeklyDispatchSchema, STORE_BACKUP_MAX_BYTES, type BackupRow, type StoreBackup, type StoreBackupTable } from "@massage-note/contracts";
+import { cashSettlementSettingsSchema, storeBackupSchema, storeBackupTables, weeklyDispatchSchema, STORE_BACKUP_MAX_BYTES, type BackupRow, type StoreBackup, type StoreBackupTable } from "@massage-note/contracts";
 
 export const backupModels = new Map(Prisma.dmmf.datamodel.models.map(model => [model.name[0]!.toLowerCase() + model.name.slice(1), model]));
 export const childScopes: Partial<Record<StoreBackupTable, object>> = {
@@ -72,6 +72,14 @@ export function validateBackup(input: unknown): StoreBackup {
     const ids = new Set<string>();
     rowIds.set(model.name, ids);
     for (const row of rows) {
+      if (table === "store") {
+        const defaults = { cashSettlementEnabled: false, cashSettlementCycle: "WEEKLY", cashResetWeekday: 1, cashResetMonthDay: 1, cashResetAmountCents: "0" };
+        const keys = Object.keys(defaults);
+        // Only complete legacy absence is compatible; partially missing settings are malformed.
+        if (keys.every(key => !(key in row))) Object.assign(row, defaults);
+        const amount = row.cashResetAmountCents;
+        if (!cashSettlementSettingsSchema.safeParse({ ...row, cashResetAmountCents: typeof amount === "string" && /^\d+$/.test(amount) ? Number(amount) : amount }).success) invalidBackup("店内现金结算设置无效");
+      }
       if (table === "dailyBoard") {
         if (!("fullTimeOrder" in row)) row.fullTimeOrder = null;
         if (!("fullTimeOrderOverride" in row)) row.fullTimeOrderOverride = null;

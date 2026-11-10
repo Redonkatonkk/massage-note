@@ -142,6 +142,28 @@ describe.skipIf(!enabled).sequential("single-store backup and recovery", () => {
     }
   });
 
+  it("preserves cash settings in full and demo restores and defaults legacy backups to disabled", async () => {
+    const configured = structuredClone(full);
+    const fields = { cashSettlementEnabled: true, cashSettlementCycle: "MONTHLY", cashResetWeekday: 7, cashResetMonthDay: 31, cashResetAmountCents: "20001" };
+    Object.assign(configured.data.store, fields);
+    for (const backup of [sealBackup(configured), anonymizeBackup(sealBackup(configured))]) {
+      const verified = validateBackup(backup);
+      expect(verified.data.store).toMatchObject(fields);
+      await service.confirm(actor(), stores[1]!, await prepare(verified), randomUUID(), randomUUID());
+      expect((await service.export(actor(), stores[1]!, "full")).data.store).toMatchObject(fields);
+    }
+    const legacy = structuredClone(full);
+    for (const key of Object.keys(fields)) delete legacy.data.store[key];
+    const normalized = validateBackup(sealBackup(legacy));
+    expect(normalized.data.store).toMatchObject({ cashSettlementEnabled: false, cashSettlementCycle: "WEEKLY", cashResetWeekday: 1, cashResetMonthDay: 1, cashResetAmountCents: "0" });
+    expect(validateBackup(normalized)).toEqual(normalized);
+    const partial = structuredClone(configured);
+    delete partial.data.store.cashResetMonthDay;
+    expect(() => validateBackup(sealBackup(partial))).toThrow();
+    configured.data.store.cashResetMonthDay = 32;
+    expect(() => validateBackup(sealBackup(configured))).toThrow();
+  });
+
   it("normalizes verified older backups without earnings types and rejects invalid types", () => {
     const older = structuredClone(full);
     for (const table of ["payrollSettlement"] as const) {

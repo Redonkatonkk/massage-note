@@ -13,3 +13,4 @@ export { createEmployeeClosingSvg, type ClosingSnapshot } from "./employee-closi
 export { createEmployeeClosingTemplate, type EmployeeClosingTemplate, type ClosingPaymentPart } from "./employee-closing-template.js";
 export * from "./image-format.js";
 export * from "./expenses.js";
+export * from "./cash-balance.js";

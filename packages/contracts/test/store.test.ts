@@ -159,3 +159,22 @@ it("每日结清可单独更新，旧客户端省略时不覆盖设置", () => {
   expect(updateMembershipSchema.parse({ version: 1, displayName: "员工" })).not.toHaveProperty("dailySettlementEnabled");
   expect(updateMembershipSchema.safeParse({ version: 1, dailySettlementEnabled: "yes" }).success).toBe(false);
 });
+
+describe("store cash settlement settings", () => {
+  const settings = { version: 1, cashSettlementEnabled: true, cashSettlementCycle: "WEEKLY", cashResetWeekday: 1, cashResetMonthDay: 31, cashResetAmountCents: 20000 };
+  it("accepts complete settings and zero amounts", () => {
+    expect(updateStoreSchema.parse(settings)).toEqual(settings);
+    expect(updateStoreSchema.safeParse({ ...settings, cashSettlementCycle: "MONTHLY", cashResetAmountCents: 0 }).success).toBe(true);
+    expect(updateStoreSchema.safeParse({ ...settings, cashSettlementEnabled: false }).success).toBe(true);
+  });
+  it.each([
+    { cashResetWeekday: 0 }, { cashResetWeekday: 8 }, { cashResetMonthDay: 32 },
+    { cashResetMonthDay: 0 }, { cashResetAmountCents: -1 }, { cashResetAmountCents: 1.5 },
+    { cashResetAmountCents: Number.MAX_SAFE_INTEGER + 1 }, { cashSettlementCycle: "DAILY" },
+  ])("rejects invalid settings %j", patch => expect(updateStoreSchema.safeParse({ ...settings, ...patch }).success).toBe(false));
+  it("rejects partial groups while allowing unrelated updates", () => {
+    expect(updateStoreSchema.safeParse({ version: 1, cashSettlementEnabled: true }).success).toBe(false);
+    expect(updateStoreSchema.safeParse({ version: 1, cashResetAmountCents: 0 }).success).toBe(false);
+    expect(updateStoreSchema.safeParse({ version: 1, name: "Store" }).success).toBe(true);
+  });
+});

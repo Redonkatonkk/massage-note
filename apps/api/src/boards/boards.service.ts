@@ -1,3 +1,4 @@
+import { readCashBalance, savedCashChange } from "./cash-balance.js";
 import { isDeepStrictEqual } from "node:util";
 import { businessDateFor, deviceNow, deviceTimezone } from "../common/device-time.js";
 import {
@@ -505,10 +506,12 @@ export class BoardsService {
     }
     statistics.storeIncomeCents = calculateStoreIncome(statistics);
     const mayReadStoreFinance = hasStoreCapability(actorMembership.role, "FINANCE_READ_STORE");
-    const snapshot = closing?.totalsSnapshotJson;
-    const snapshotStore = snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? snapshot.store : null;
-    const savedCashChange = snapshotStore && typeof snapshotStore === "object" && !Array.isArray(snapshotStore) ? snapshotStore.cashChangeCents : null;
-    const cashChangeCents = mayReadStoreFinance && typeof savedCashChange === "number" && Number.isSafeInteger(savedCashChange) ? savedCashChange : null;
+    const cashChangeCents = mayReadStoreFinance ? savedCashChange(closing?.totalsSnapshotJson) : null;
+    const cashBalance = mayReadStoreFinance && closing
+      ? store.cashSettlementEnabled
+        ? await this.prisma.$transaction(transaction => readCashBalance(transaction, storeId, businessDate, store), { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead })
+        : { enabled: false, resetDate: null, balanceCents: null, missingClosingDates: [] as string[] }
+      : null;
     return {
       id: board?.id ?? null,
       storeId,
@@ -527,6 +530,7 @@ export class BoardsService {
       statistics: {
         ...statistics,
         cashChangeCents,
+        cashBalance,
         recentClosedRevenue,
         revenueCents: calculateRevenue({ ...statistics, giftCardServiceCents }),
         totalIncomeCents: calculateBoardTotalIncome({
@@ -1263,6 +1267,11 @@ export class BoardsService {
         businessCutoffLocal: true,
         automaticDispatchEnabled: true,
         nextGiftCardSerialNumber: true,
+        cashSettlementEnabled: true,
+        cashSettlementCycle: true,
+        cashResetWeekday: true,
+        cashResetMonthDay: true,
+        cashResetAmountCents: true,
         version: true,
         weeklyDispatchJson: true,
         weeklyDispatchEffectiveFrom: true,

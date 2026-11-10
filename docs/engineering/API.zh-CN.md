@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.55.0`
+> 适用版本：`1.56.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -475,9 +475,13 @@ v3 生成只采用前一非空营业日的 v3 标记及最终可见第一名，�
 
 保留目标店铺 ID、编号和当前店长账号，将来源店长档案绑定该账号，其他成员档案不绑定登录。关闭发送、撤销发送凭据、解除机器人群绑定，并取消待执行 AI 变更。目标原有审计继续保留，导入历史按来源 ID 去重，通过操作人快照保留可读姓名。仅导入完成审计触发全量客户端刷新，历史行不逐条产生事件。备份范围和恢复步骤见[运维指南](../operations/OPERATIONS.zh-CN.md#店铺数据文件)。
 
-### 首页现金变化
+### 店内现金结算与首页余额
 
-`GET /stores/:storeId/boards/:businessDate` 新增 `statistics.cashChangeCents`，为有符号整数美分或 `null`。Owner/Manager 读取有效日结的 `totalsSnapshotJson.store.cashChangeCents`；未日结、旧快照缺失及员工视图返回 null。员工视图包含当天在内均返回 `closing: null`。全店日结预览增加 `storeTotals.cashChangeCents`；新的手动、强制及自动日结原子保存该值。金额按应发工资计算，与现金已结状态独立，取消再日结前保持固定。收入含卖卡现金；普通员工扣现金分摊工资，每日结清扣全部大费工资及刷卡／礼卡小费；不扣店长经理工资，不计现金小费。保留原因：调用方须区分历史缺失与真实零，不得重算或暴露全店数据。
+`GET/PATCH /stores/:storeId` 包含 `cashSettlementEnabled`（默认 false）、`cashSettlementCycle`（默认 `WEEKLY`，可选 `MONTHLY`）、`cashResetWeekday`（周一=1 至周日=7，默认 1）、`cashResetMonthDay`（1–31，默认 1）和 `cashResetAmountCents`（非负安全整数美分，默认 0）。PATCH 五项一起提交，沿用版本、设置权限、幂等和审计保护。重置发生在营业开始时，短月取最后一天。完整／演示备份保留设置；校验通过的旧备份五项全部缺失时默认关闭，部分缺失则拒绝。
+
+`GET /stores/:storeId/boards/:businessDate` 在店主／经理查看已日结日期时增加 `statistics.cashBalance`：`{ enabled, resetDate, balanceCents, missingClosingDates }`，其他情况为 null。关闭功能返回 false、空日期／金额和空缺失日期列表；开启时返回最近重置日，以及重置金额加周期净变化，包含重置日和所选日期。有效已日结日期使用冻结现金变化；未日结日期使用已确认且未删除的记工和有效卖卡现金。旧日结快照缺失／无效则余额为 null，返回排序后的缺失日期。在一致事务内读取，不持久化累计余额，修改设置不重写历史快照。普通员工不返回全店余额或日结快照。
+
+保留 `statistics.cashChangeCents` 及日结 `storeTotals.cashChangeCents` 兼容旧调用方。每日净变化＝现金大费实收＋卖卡现金实收－员工应发现金：普通员工扣现金分摊工资，每日结清员工扣全部大费工资及刷卡／礼卡小费；店长经理工资及现金小费不计，结清状态不影响。手动、强制和自动日结均原子保存每日快照。保留原因：历史余额重算需要保留每日财务依据，并区分历史不足与真实零。
 
 AI 金额文本在两种语言下统一使用 `$`，兼容并移除模型输出的 `US$` 前缀，沿用现有整美元舍入规则。币种代码、以美分表示的 API 字段及用户自填内容保持原样。保留原因：展示格式化不能改写财务数据或用户内容。
 

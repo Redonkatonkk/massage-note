@@ -60,6 +60,11 @@ export interface StoreDetails extends StoreSummary {
   giftCardAutoDiscountEnabled: boolean;
   giftCardAutoDiscountThresholdCents: number;
   giftCardAutoDiscountBps: number;
+  cashSettlementEnabled: boolean;
+  cashSettlementCycle: "WEEKLY" | "MONTHLY";
+  cashResetWeekday: number;
+  cashResetMonthDay: number;
+  cashResetAmountCents: number;
   closingDefaultLocale: "zh_CN" | "en_US";
   version: number;
   ownerMembershipId: string | null;
@@ -471,6 +476,13 @@ export interface BoardRow {
   statistics: BoardStatistics;
 }
 
+export interface CashBalance {
+  enabled: boolean;
+  resetDate: string | null;
+  balanceCents: number | null;
+  missingClosingDates: string[];
+}
+
 export interface BoardResponse {
   id: string | null;
   storeId: string;
@@ -480,7 +492,7 @@ export interface BoardResponse {
   rows: BoardRow[];
   giftCardSales: GiftCardSale[];
   nextGiftCardSerialNumber: string;
-  statistics: BoardStatistics & { cashChangeCents: number | null; revenueCents: number; totalIncomeCents: number; recentClosedRevenue: { dayCount: number; averageCents: number } | null };
+  statistics: BoardStatistics & { cashBalance?: CashBalance | null; cashChangeCents: number | null; revenueCents: number; totalIncomeCents: number; recentClosedRevenue: { dayCount: number; averageCents: number } | null };
   ranking: {
     enabled: boolean;
     rankedAt: string | null;

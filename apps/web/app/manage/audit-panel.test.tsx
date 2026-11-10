@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { apiRequest } from "../../lib/api";
 import { translateText } from "../../lib/i18n";
 import type { AuditLogItem } from "../../lib/types";
+import { auditFacts } from "./audit-details";
 import { AuditPanel } from "./manage-page-client";
 
 vi.mock("../../lib/api", () => ({ apiRequest: vi.fn(), errorMessage: (error: Error) => error.message }));
@@ -76,4 +77,11 @@ it("shows unavailable reasons in Details and retries failures with the same key"
   expect(onUndone).not.toHaveBeenCalled();
   expect(translateText("撤销", "en-US")).toBe("Undo");
   expect(translateText("已撤销", "en-US")).toBe("Undone");
+});
+
+it("describes cash settings with dates, cycle and exact money", () => {
+  expect(auditFacts({ cashSettlementEnabled: true, cashSettlementCycle: "WEEKLY", cashResetWeekday: 1, cashResetMonthDay: 31, cashResetAmountCents: "20001" })).toEqual([
+    { label: "店内现金结算", value: "是" }, { label: "结算周期", value: "按周结" }, { label: "每周重置日", value: "周一" },
+    { label: "每月重置日", value: "31" }, { label: "重置为多少（美元）", value: "$200.01" },
+  ]);
 });

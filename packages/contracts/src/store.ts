@@ -47,8 +47,17 @@ export const createJoinRequestSchema = z.object({
   displayName: z.string().trim().min(1, "店内显示名称不能为空").max(80),
 });
 
+export const cashSettlementSettingsSchema = z.object({
+  cashSettlementEnabled: z.boolean(),
+  cashSettlementCycle: z.enum(["WEEKLY", "MONTHLY"]),
+  cashResetWeekday: z.number().int().min(1).max(7),
+  cashResetMonthDay: z.number().int().min(1).max(31),
+  cashResetAmountCents: moneyCentsSchema,
+});
+
 export const updateStoreSchema = z
   .object({
+    ...cashSettlementSettingsSchema.partial().shape,
     version: versionSchema,
     name: z.string().trim().min(1, "店铺名称不能为空").max(100).optional(),
     timezone: timezoneSchema.optional(),
@@ -64,6 +73,10 @@ export const updateStoreSchema = z
     automaticDispatchEnabled: z.boolean().optional(),
   })
   .superRefine((value, context) => {
+    const cashFields = Object.keys(cashSettlementSettingsSchema.shape) as Array<keyof typeof cashSettlementSettingsSchema.shape>;
+    if (cashFields.some(key => value[key] !== undefined) && cashFields.some(key => value[key] === undefined)) {
+      context.addIssue({ code: "custom", message: "现金结算开关、周期、重置日和金额必须一起保存", path: ["cashSettlementEnabled"] });
+    }
     const fields = [
       value.mondayThursdayAutoDiscountEnabled,
       value.mondayThursdayAutoDiscountThresholdCents,
@@ -158,6 +171,7 @@ export const updateStoreSchema = z
   })
   .refine(
     (value) =>
+      value.cashSettlementEnabled !== undefined ||
       value.name !== undefined ||
       value.timezone !== undefined ||
       value.businessCutoffLocal !== undefined ||

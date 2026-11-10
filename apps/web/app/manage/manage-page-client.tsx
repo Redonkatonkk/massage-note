@@ -1,5 +1,7 @@
 "use client";
 
+import { CashSettlementSettings, cashSettlementDraft, cashSettlementPayload } from "./cash-settlement-settings";
+
 import { useDecision } from "../decision-dialog";
 
 import { appHref } from "../../lib/demo-mode";
@@ -287,7 +289,7 @@ export function ManagePageClient() {
 }
 
 
-function StorePanel({ store, membership, members, busy, run, reload }: { store: StoreDetails; membership: MembershipSummary; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
+export function StorePanel({ store, membership, members, busy, run, reload }: { store: StoreDetails; membership: MembershipSummary; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
   const decision = useDecision();
   const [name, setName] = useState(store.name);
   const [timezone, setTimezone] = useState(store.timezone);
@@ -298,6 +300,7 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
   const [giftCardDiscountEnabled, setGiftCardDiscountEnabled] = useState(store.giftCardAutoDiscountEnabled);
   const [giftCardDiscountThreshold, setGiftCardDiscountThreshold] = useState(formatMoneyInput(store.giftCardAutoDiscountThresholdCents));
   const [giftCardDiscountPercent, setGiftCardDiscountPercent] = useState((store.giftCardAutoDiscountBps / 100).toString());
+  const [cashSettings, setCashSettings] = useState(() => cashSettlementDraft(store));
   const [closingDefaultLocale, setClosingDefaultLocale] = useState(store.closingDefaultLocale);
   const [automaticDispatchEnabled, setAutomaticDispatchEnabled] = useState(store.automaticDispatchEnabled);
   const [agentStatus, setAgentStatus] = useState<null | { tokenPrefix: string; lastSeenAt: string | null; revokedAt: string | null; lastStatusJson?: { messagesAvailable?: boolean; serviceTypes?: string[]; lastError?: string | null } | null }>(null);
@@ -313,7 +316,7 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
 
   useEffect(() => {
     setSaved(false);
-  }, [name, timezone, commission, autoDiscountEnabled, autoDiscountThreshold, autoDiscountAmount, giftCardDiscountEnabled, giftCardDiscountThreshold, giftCardDiscountPercent, closingDefaultLocale, automaticDispatchEnabled]);
+  }, [cashSettings, name, timezone, commission, autoDiscountEnabled, autoDiscountThreshold, autoDiscountAmount, giftCardDiscountEnabled, giftCardDiscountThreshold, giftCardDiscountPercent, closingDefaultLocale, automaticDispatchEnabled]);
 
   async function transferOwnership() {
     if (!await decision.confirm("确认把店主身份转移给所选成员吗？", { action: "转移店主身份", danger: true })) return;
@@ -345,6 +348,7 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
       const giftCardDiscountBps = giftCardDiscountEnabled ? parsePercent(giftCardDiscountPercent, "礼物卡自动折扣") : 0;
       await apiRequest(`/stores/${store.id}`, { method: "PATCH", idempotent: true, body: {
         version: store.version,
+        ...cashSettlementPayload(cashSettings),
         name,
         timezone,
         globalCommissionBps: parsePercent(commission, "全店默认提成"),
@@ -377,6 +381,7 @@ function StorePanel({ store, membership, members, busy, run, reload }: { store: 
         <div className="manage-form-grid auto-discount-fields"><label>礼物卡满多少（美元）<input disabled={!canManage || !giftCardDiscountEnabled} required={giftCardDiscountEnabled} inputMode="decimal" placeholder="例如 100" value={giftCardDiscountThreshold} onChange={(event) => setGiftCardDiscountThreshold(event.target.value)} /></label><label>自动折扣（%）<input disabled={!canManage || !giftCardDiscountEnabled} required={giftCardDiscountEnabled} inputMode="decimal" placeholder="例如 5" value={giftCardDiscountPercent} onChange={(event) => setGiftCardDiscountPercent(event.target.value)} /></label></div>
         <p className="field-help">例如设置“满 $100、折扣 5%”，录入 $100 面值礼物卡时，系统会要求现金和刷卡合计为 $95。历史记录保留售出时的折扣规则快照。</p>
       </section>
+      <CashSettlementSettings value={cashSettings} onChange={setCashSettings} disabled={!canManage || busy} />
       {saved && <p className="success-banner manage-save-success" role="status">✓ 店铺设置已保存</p>}
       {canManage && <button className="primary-action" disabled={busy} type="submit">{busy ? "正在保存…" : "保存店铺设置"}</button>}
     </form>

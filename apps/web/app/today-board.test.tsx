@@ -46,10 +46,10 @@ const cancelMotion = vi.mocked(cancelWorkRecordSaveMotion);
 const deleteMotion = vi.mocked(beginWorkRecordDeleteMotion);
 const releaseDeleteMotion = vi.fn();
 const language = vi.hoisted(() => ({ locale: "zh-CN" as "zh-CN" | "en-US" }));
-vi.mock("./language-provider", () => ({ useLanguage: () => language }));
+vi.mock("./language-provider", () => ({ useLanguage: () => ({ ...language, t: (text: string) => text }) }));
 const stats: BoardStatistics = { recordCount: 0, grossFeeBaseCents: 0, discountTotalCents: 0, discountedFeePerformanceCents: 0, totalTipCents: 0, totalLargeFeeWageCents: 0, employeeIncomeCents: 0, giftCardSaleCount: 0, giftCardCashCents: 0, giftCardCardCents: 0, giftCardSalesAmountCents: 0, giftCardRedemptionCents: 0, storeIncomeCents: 0 };
 const employee: StoreMember = { id: "employee", displayName: "Alexandria · 姓名很长的员工", role: "EMPLOYEE", isServiceProvider: true, employmentType: "PART_TIME", status: "ACTIVE", version: 1, defaultCommissionBps: 6000, closingDeliveryEnabled: false, closingDeliveryPhoneE164: null, closingImageLocale: null, deletedAt: null };
-const store: StoreDetails = { id: "store", storeCode: "123456", name: "门店", timezone: "America/New_York", businessCutoffLocal: "04:00", status: "ACTIVE", globalCommissionBps: 6000, mondayThursdayAutoDiscountEnabled: false, mondayThursdayAutoDiscountThresholdCents: 6000, mondayThursdayAutoDiscountAmountCents: 1000, giftCardAutoDiscountEnabled: false, giftCardAutoDiscountThresholdCents: 10000, giftCardAutoDiscountBps: 1000, closingDefaultLocale: "zh_CN", version: 1, ownerMembershipId: "owner", ownerMembership: null, automaticDispatchEnabled: false };
+const store: StoreDetails = { id: "store", storeCode: "123456", name: "门店", timezone: "America/New_York", businessCutoffLocal: "04:00", status: "ACTIVE", globalCommissionBps: 6000, mondayThursdayAutoDiscountEnabled: false, mondayThursdayAutoDiscountThresholdCents: 6000, mondayThursdayAutoDiscountAmountCents: 1000, giftCardAutoDiscountEnabled: false, giftCardAutoDiscountThresholdCents: 10000, giftCardAutoDiscountBps: 1000, closingDefaultLocale: "zh_CN", version: 1, ownerMembershipId: "owner", ownerMembership: null, automaticDispatchEnabled: false, cashSettlementEnabled: false, cashSettlementCycle: "WEEKLY", cashResetWeekday: 1, cashResetMonthDay: 1, cashResetAmountCents: 0 };
 const placeholder: WorkRecord = { id: "placeholder", employeeMembershipId: employee.id, businessDate: "2026-10-06", storeTimezoneSnapshot: store.timezone, businessCutoffSnapshot: "04:00", startAt: "2026-10-06T15:00:00.000Z", endAt: null, actualDurationMinutes: null, status: "PLACEHOLDER", mainServiceAmountCents: 0, addonTotalCents: 0, grossFeeBaseCents: 0, discountTotalCents: 0, discountedFeePerformanceCents: 0, cashServiceCents: null, cardServiceCents: null, giftCardSerialNumber: null, giftCardServiceCents: null, cashTipCents: null, cardTipCents: null, giftCardTipCents: null, totalTipCents: null, actualServiceCollectedCents: null, customerTotalPaidCents: null, paymentDifferenceCents: null, mainServiceWageCents: 0, addonWageCents: 0, totalLargeFeeWageCents: 0, employeeTotalIncomeCents: null, tipSettledManualFlag: false, largeFeeSettledManualFlag: false, automaticDiscountSuppressed: false, isHighlighted: false, isDispatchExcluded: false, note: "", version: 7, deletedAt: null, serviceSnapshot: null, addonSnapshots: [], discountSnapshots: [], payment: null };
 const ordinary: WorkRecord = { ...placeholder, id: "ordinary", startAt: "2026-10-06T14:00:00.000Z", endAt: "2026-10-06T15:00:00.000Z", status: "CONFIRMED", serviceSnapshot: { sourceServiceItemId: "service", isCustom: false, name: "足疗", shortName: "足疗", amountCents: 6000, durationMinutes: 60, commissionBps: 6000, commissionSource: "STORE", wageCents: 3600 } };
 let root: Root;
@@ -893,35 +893,40 @@ describe("详细记工新建与零实收", () => {
 });
 
 
-describe("日结后的现金变化", () => {
-  it.each([true, false])("桌面和手机指标在日结后替换礼物卡总额，并在取消后恢复：%s", async wideLayout => {
+describe("日结后的现金余额", () => {
+  const balance = { enabled: true, resetDate: "2026-10-05", balanceCents: 12345, missingClosingDates: [] };
+  it.each([true, false])("桌面和手机仅开启且已日结时替换礼物卡总额：%s", async wideLayout => {
     props.wideLayout = wideLayout;
+    props.board.statistics.cashBalance = balance;
     await render();
     expect(container.textContent).toContain("礼物卡总额");
-    expect(container.textContent).not.toContain("现金变化");
-    props.board = { ...props.board, isClosed: true, statistics: { ...props.board.statistics, cashChangeCents: 12345 } };
+    props.board = { ...props.board, isClosed: true };
     await render();
     expect(container.textContent).not.toContain("礼物卡总额");
-    const metrics = [...container.querySelectorAll(".overview-metric")].filter(node => node.textContent?.includes("现金变化"));
+    const metrics = [...container.querySelectorAll(".overview-metric")].filter(node => node.textContent?.includes("现金余额"));
     expect(metrics).toHaveLength(2);
-    for (const metric of metrics) expect(metric.querySelector("strong")?.textContent).toBe("+$123.45");
+    for (const metric of metrics) expect(metric.querySelector("strong")?.textContent).toBe("$123.45");
     props.board = { ...props.board, isClosed: false };
     await render();
     expect(container.textContent).toContain("礼物卡总额");
-    expect(container.textContent).not.toContain("现金变化");
-  });
-  it.each([[12345, "+$123.45"], [-12345, "-$123.45"], [0, "$0.00"], [null, "—"]] as const)("英文保留正负号、美分、零及旧日结缺失：%s", async (cashChangeCents, expected) => {
-    language.locale = "en-US";
-    props.board = { ...props.board, isClosed: true, statistics: { ...props.board.statistics, cashChangeCents } };
+    props.board = { ...props.board, isClosed: true, statistics: { ...props.board.statistics, cashBalance: { ...balance, enabled: false } } };
     await render();
-    const metric = [...container.querySelectorAll(".overview-metric")].find(node => node.textContent?.includes("现金变化"))!;
-    expect(metric.querySelector("strong")?.textContent).toBe(expected);
-    if (cashChangeCents === null) expect(metric.textContent).toContain("旧日结未记录，重新日结后生成");
-    else expect(metric.querySelector(".overview-metric__note")).toBeNull();
+    expect(container.textContent).toContain("礼物卡总额");
+    expect(container.textContent).not.toContain("现金余额");
   });
-  it("普通员工没有全店现金变化指标", async () => {
+  it.each([[12345, "$123.45"], [-12345, "-$123.45"], [0, "$0.00"], [null, "—"]] as const)("保留美分、负数、零及旧日结缺失：%s", async (balanceCents, expected) => {
+    language.locale = "en-US";
+    props.board = { ...props.board, isClosed: true, statistics: { ...props.board.statistics, cashBalance: { ...balance, balanceCents, missingClosingDates: balanceCents === null ? ["2026-10-05"] : [] } } };
+    await render();
+    const metric = [...container.querySelectorAll(".overview-metric")].find(node => node.textContent?.includes("现金余额"))!;
+    expect(metric.querySelector("strong")?.textContent).toBe(expected);
+    expect(metric.textContent).toContain("2026-10-05");
+    if (balanceCents === null) expect(metric.textContent).toContain("历史数据不足");
+  });
+  it("普通员工没有全店现金余额指标", async () => {
     props.membership = { ...props.membership, role: "EMPLOYEE", id: employee.id };
     props.board = { ...props.board, isClosed: true };
+    props.board.statistics.cashBalance = balance;
     await render();
     expect(container.querySelector(".board-overview")).toBeNull();
   });

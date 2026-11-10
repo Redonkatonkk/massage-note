@@ -25,6 +25,11 @@ function storeSnapshot(store: {
   giftCardAutoDiscountEnabled: boolean;
   giftCardAutoDiscountThresholdCents: bigint;
   giftCardAutoDiscountBps: number;
+  cashSettlementEnabled: boolean;
+  cashSettlementCycle: string;
+  cashResetWeekday: number;
+  cashResetMonthDay: number;
+  cashResetAmountCents: bigint;
   closingDefaultLocale: string;
   automaticDispatchEnabled: boolean;
   ownerMembershipId: string | null;
@@ -47,6 +52,11 @@ function storeSnapshot(store: {
     giftCardAutoDiscountThresholdCents:
       store.giftCardAutoDiscountThresholdCents.toString(),
     giftCardAutoDiscountBps: store.giftCardAutoDiscountBps,
+    cashSettlementEnabled: store.cashSettlementEnabled,
+    cashSettlementCycle: store.cashSettlementCycle,
+    cashResetWeekday: store.cashResetWeekday,
+    cashResetMonthDay: store.cashResetMonthDay,
+    cashResetAmountCents: store.cashResetAmountCents.toString(),
     closingDefaultLocale: store.closingDefaultLocale,
     automaticDispatchEnabled: store.automaticDispatchEnabled,
     ownerMembershipId: store.ownerMembershipId,
@@ -163,6 +173,13 @@ export class StoreManagementService {
                     input.giftCardAutoDiscountThresholdCents!,
                   giftCardAutoDiscountBps: input.giftCardAutoDiscountBps!,
                 }),
+            ...(input.cashSettlementEnabled === undefined ? {} : {
+              cashSettlementEnabled: input.cashSettlementEnabled,
+              cashSettlementCycle: input.cashSettlementCycle!,
+              cashResetWeekday: input.cashResetWeekday!,
+              cashResetMonthDay: input.cashResetMonthDay!,
+              cashResetAmountCents: input.cashResetAmountCents!,
+            }),
             ...(input.closingDefaultLocale === undefined
               ? {}
               : { closingDefaultLocale: input.closingDefaultLocale }),

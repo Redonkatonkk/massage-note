@@ -28,6 +28,7 @@ FORMAT = 1
 PREFIX = re.compile(r"^mn-recovery-\d{8}T\d{6}Z-[0-9a-f]{8}\.tar\.gz\.age$")
 SERVICES = {"app", "postgres", "redis", "migrate", "harden"}
 ACCOUNT = "jr24839652@gmail.com"
+TABLE_CHECKSUM_TIMEOUT = 15 * 60
 
 
 class RecoveryError(Exception):
@@ -140,11 +141,11 @@ class SqlSession:
         ], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.error_file, bufsize=0)
         self.pending = b""
 
-    def query(self, sql):
+    def query(self, sql, *, timeout=120, operation="Database verification"):
         marker = "end_" + secrets.token_hex(16)
         self.process.stdin.write((sql.rstrip(";\n") + ";\n\\echo " + marker + "\n").encode())
         self.process.stdin.flush()
-        result, deadline = [], time.monotonic() + 120
+        result, deadline = [], time.monotonic() + timeout
         while True:
             while b"\n" in self.pending:
                 line, self.pending = self.pending.split(b"\n", 1)
@@ -152,7 +153,7 @@ class SqlSession:
                 result.append(line.decode())
             remaining = deadline - time.monotonic()
             if remaining <= 0 or not select.select([self.process.stdout], [], [], remaining)[0]:
-                raise RecoveryError("Database verification query timed out")
+                raise RecoveryError(operation + " query timed out")
             chunk = os.read(self.process.stdout.fileno(), 65536)
             if not chunk: raise RecoveryError("Database snapshot session failed")
             self.pending += chunk
@@ -195,7 +196,10 @@ def database_baseline(session):
     for table in tables:
         # Sort row hashes, including duplicates, independent of scan and restore order.
         query = "SELECT json_build_object('rows',count(*),'digest',md5(coalesce(string_agg(h,'' ORDER BY h),''))) FROM (SELECT md5(to_jsonb(t)::text) h FROM public." + identifier(table) + " t) rows"
-        result["tables"][table] = json.loads(session.query(query))
+        # Full-row hashing grows with table size; use the same bounded budget on
+        # the source snapshot and isolated restore without omitting any rows.
+        result["tables"][table] = json.loads(session.query(
+            query, timeout=TABLE_CHECKSUM_TIMEOUT, operation="Table checksum (" + table + ")"))
     result["constraints"] = constraint_baseline(session)
     result["indexes"] = json.loads(session.query("SELECT coalesce(json_agg(x ORDER BY x::text),'[]') FROM (SELECT tablename,indexname,indexdef FROM pg_indexes WHERE schemaname='public') x"))
     result["grants"] = json.loads(session.query("SELECT coalesce(json_agg(x ORDER BY x::text),'[]') FROM (SELECT grantor,grantee,table_schema,table_name,privilege_type,is_grantable FROM information_schema.role_table_grants WHERE table_schema='public') x"))

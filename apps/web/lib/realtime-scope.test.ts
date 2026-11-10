@@ -23,3 +23,15 @@ it("refreshes later boards after historical attendance changes without refreshin
     expect(boardRefreshScope({ full: false, changes: [{ entityType, businessDate: "2026-10-12" }] }, "2026-10-13")).toBe("none");
   }
 });
+
+it("refreshes a closed balance for earlier changes inside its reset period", () => {
+  for (const entityType of ["work_record", "business_day_closing", "daily_cash_settlement"]) {
+    const change = { full: false, changes: [{ entityType, businessDate: "2026-11-10" }] };
+    expect(boardRefreshScope(change, "2026-11-11", "2026-11-09")).toBe("board");
+    expect(boardRefreshScope(change, "2026-11-11", "2026-11-11")).toBe("none");
+    expect(boardRefreshScope(change, "2026-11-09", "2026-11-09")).toBe("none");
+  }
+  for (const entityType of ["store", "gift_card_sale", "store_membership"]) {
+    expect(boardRefreshScope({ full: false, changes: [{ entityType, businessDate: "2026-11-10" }] }, "2026-11-11", "2026-11-09")).toBe("full");
+  }
+});

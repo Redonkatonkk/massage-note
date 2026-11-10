@@ -389,7 +389,7 @@ function MassageNotePage() {
   }, [membership, loadStore]);
   const realtimeState = useStoreRealtime(membership?.store.id, async change => {
     // Automatic synchronization refreshes board data while retaining the month calendar cache.
-    const scope = boardRefreshScope(change, viewDateRef.current);
+    const scope = boardRefreshScope(change, viewDateRef.current, board?.statistics.cashBalance?.resetDate);
     if (scope === "none") return;
     if (scope === "full") fullRefreshPending.current = true;
     storeLoadGeneration.current += 1;

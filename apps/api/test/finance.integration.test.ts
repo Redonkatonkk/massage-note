@@ -15,6 +15,7 @@ import { ClosingsService } from "../src/finance/closings.service.js";
 import { ClosingDeliveriesService } from "../src/finance/closing-deliveries.service.js";
 import { FinanceQueriesService } from "../src/finance/finance-queries.service.js";
 import { PayrollSettlementsService } from "../src/finance/payroll-settlements.service.js";
+import { StoreManagementService } from "../src/stores/store-management.service.js";
 import { StoreAccessService } from "../src/stores/store-access.service.js";
 import { WorkRecordsService } from "../src/work-records/work-records.service.js";
 
@@ -1122,6 +1123,51 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     expect((await read()).statistics.cashChangeCents).toBe(-200);
     await prisma.businessDayClosing.update({ where: { id: second.closing.id }, data: { totalsSnapshotJson: { store: {} } } });
     expect((await read()).statistics.cashChangeCents).toBeNull();
+    await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { dailySettlementEnabled: false } });
+  });
+
+  it("现金余额使用新重置规则回算历史，累计漏日结并保留每日快照", async () => {
+    const management = new StoreManagementService(prisma, access, idempotency);
+    const dates = ["2025-03-03", "2025-03-04", "2025-03-05"];
+    await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { dailySettlementEnabled: false } });
+    for (const date of dates) {
+      const record = await workRecords.create(actor(managerId), storeId, { employeeMembershipId, serviceItemId, startAt: `${date}T15:00:00Z` }, randomUUID(), randomUUID());
+      await workRecords.confirmPayment(actor(managerId), storeId, record.id, { version: record.version, cashServiceCents: 5000, cardServiceCents: 5000, cashTipCents: 999, cardTipCents: 501, giftCardTipCents: 200, giftCardSerialNumber: "balance-test" }, randomUUID(), randomUUID());
+    }
+    await prisma.giftCardSale.create({ data: { storeId, businessDate: new Date(dates[1]!), serialNumber: "balance-sale", serialNumberNormalized: "balance-sale", faceValueCents: 1501n, amountCents: 1501n, cashCents: 1501n, cardCents: 0n, operatorMembershipId: managerMembershipId, createdBy: managerId, updatedBy: managerId } });
+    const monday = await closings.close(actor(managerId), storeId, dates[0]!, { force: false }, randomUUID(), randomUUID());
+    const wednesday = await closings.close(actor(managerId), storeId, dates[2]!, { force: false }, randomUUID(), randomUUID());
+    const read = () => boards.getBoard(actor(managerId), storeId, dates[2]!);
+    expect((await read()).statistics.cashBalance).toMatchObject({ enabled: false, balanceCents: null });
+    const current = await management.get(actor(managerId), storeId);
+    const settings = { version: current.version, cashSettlementEnabled: true, cashSettlementCycle: "WEEKLY" as const, cashResetWeekday: 1, cashResetMonthDay: 1, cashResetAmountCents: 20000 };
+    const key = randomUUID();
+    const updated = await management.update(actor(managerId), storeId, settings, key, key);
+    expect(await management.update(actor(managerId), storeId, settings, key, key)).toMatchObject({ id: updated.id, version: updated.version });
+    await expect(management.update(actor(managerId), storeId, settings, randomUUID(), randomUUID())).rejects.toBeInstanceOf(ConflictException);
+    await expect(management.update(actor(employeeId), storeId, { ...settings, version: updated.version }, randomUUID(), randomUUID())).rejects.toBeInstanceOf(ForbiddenException);
+    expect((await read()).statistics.cashBalance).toEqual({ enabled: true, resetDate: dates[0], balanceCents: 27501, missingClosingDates: [] });
+    expect((await boards.getBoard(actor(employeeId), storeId, dates[2]!)).statistics.cashBalance).toBeNull();
+    expect((await boards.getBoard(actor(managerId), storeId, dates[1]!)).statistics.cashBalance).toBeNull();
+    // Current employee settings affect skipped days only; closed days keep their frozen wage scope.
+    await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { dailySettlementEnabled: true } });
+    expect((await read()).statistics.cashBalance?.balanceCents).toBe(23800);
+    const changed = await management.update(actor(ownerId), storeId, { ...settings, version: updated.version, cashResetAmountCents: 0 }, randomUUID(), randomUUID());
+    expect((await read()).statistics.cashBalance?.balanceCents).toBe(3800);
+    expect((await prisma.businessDayClosing.findUniqueOrThrow({ where: { id: wednesday.closing.id } })).totalsSnapshotJson).toEqual(wednesday.closing.totalsSnapshotJson);
+    await closings.cancel(actor(managerId), storeId, dates[0]!, { version: monday.closing.version }, randomUUID(), randomUUID());
+    expect((await read()).statistics.cashBalance?.balanceCents).toBe(99);
+    const reclosed = await closings.close(actor(managerId), storeId, dates[0]!, { force: false }, randomUUID(), randomUUID());
+    expect((await read()).statistics.cashBalance?.balanceCents).toBe(99);
+    await prisma.businessDayClosing.update({ where: { id: reclosed.closing.id }, data: { totalsSnapshotJson: { store: {} } } });
+    expect((await read()).statistics.cashBalance).toMatchObject({ balanceCents: null, missingClosingDates: [dates[0]] });
+    await closings.cancel(actor(managerId), storeId, dates[0]!, { version: reclosed.closing.version }, randomUUID(), randomUUID());
+    await closings.close(actor(managerId), storeId, dates[0]!, { force: false }, randomUUID(), randomUUID());
+    expect((await read()).statistics.cashBalance?.balanceCents).toBe(99);
+    const shifted = await management.update(actor(managerId), storeId, { ...settings, version: changed.version, cashResetAmountCents: 0, cashResetWeekday: 3 }, randomUUID(), randomUUID());
+    expect((await read()).statistics.cashBalance).toMatchObject({ resetDate: dates[2], balanceCents: 2000 });
+    await management.update(actor(managerId), storeId, { ...settings, version: shifted.version, cashSettlementEnabled: false }, randomUUID(), randomUUID());
+    expect((await read()).statistics.cashBalance).toMatchObject({ enabled: false, balanceCents: null });
     await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { dailySettlementEnabled: false } });
   });
 

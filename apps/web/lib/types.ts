@@ -3,6 +3,9 @@ import type { StoreRole } from "@massage-note/domain";
 
 export type { EmployeeSettlementPaymentScope } from "@massage-note/contracts";
 export type { StoreRole } from "@massage-note/domain";
+export type { WorkRecordCustomerType } from "@massage-note/contracts";
+
+export interface CustomerTypeCounts { newCount: number; returningCount: number; unmarkedCount: number }
 
 export interface StoreSummary {
   id: string;
@@ -326,6 +329,8 @@ export interface DiscountSnapshot {
 }
 
 export interface WorkRecord {
+  // Optional for cached responses and portfolio snapshots created before 1.57.
+  customerType?: import("@massage-note/contracts").WorkRecordCustomerType | null;
   id: string;
   employeeMembershipId: string;
   businessDate: string;
@@ -492,7 +497,7 @@ export interface BoardResponse {
   rows: BoardRow[];
   giftCardSales: GiftCardSale[];
   nextGiftCardSerialNumber: string;
-  statistics: BoardStatistics & { cashBalance?: CashBalance | null; cashChangeCents: number | null; revenueCents: number; totalIncomeCents: number; recentClosedRevenue: { dayCount: number; averageCents: number } | null };
+  statistics: BoardStatistics & { customerTypeCounts?: CustomerTypeCounts; cashBalance?: CashBalance | null; cashChangeCents: number | null; revenueCents: number; totalIncomeCents: number; recentClosedRevenue: { dayCount: number; averageCents: number } | null };
   ranking: {
     enabled: boolean;
     rankedAt: string | null;

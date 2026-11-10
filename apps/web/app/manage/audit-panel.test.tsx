@@ -85,3 +85,11 @@ it("describes cash settings with dates, cycle and exact money", () => {
     { label: "每月重置日", value: "31" }, { label: "重置为多少（美元）", value: "$200.01" },
   ]);
 });
+
+
+it("describes customer classification and keeps placeholders empty", () => {
+  expect(auditFacts({ customerType: "NEW" })).toEqual([{ label: "客人类型", value: "新客" }]);
+  expect(auditFacts({ customerType: "RETURNING" })).toEqual([{ label: "客人类型", value: "老客" }]);
+  expect(auditFacts({ customerType: null })).toEqual([{ label: "客人类型", value: "未设置" }]);
+  expect(auditFacts({ status: "PLACEHOLDER", customerType: null })).toEqual([{ label: "状态", value: "占位" }]);
+});

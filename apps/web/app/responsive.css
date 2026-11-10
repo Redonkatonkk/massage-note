@@ -88,6 +88,12 @@ button, summary { overflow-wrap: anywhere; }
   .board-overview .board-extra-metrics > .overview-metric:nth-child(odd) { border-left: 0; }
   .board-overview .board-extra-metrics > .overview-metric:nth-child(n+3) { border-top: 1px solid var(--line); }
   .board-overview .board-extra-metrics > .overview-metric:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .board-overview .board-extra-metrics:has(> .customer-type-metric) > .overview-metric:not(.customer-type-metric) { border-top: 1px solid var(--line); }
+  .board-overview .board-extra-metrics:has(> .customer-type-metric) > .overview-metric:not(.customer-type-metric):nth-child(even) { border-left: 0; }
+  .board-overview .board-extra-metrics:has(> .customer-type-metric) > .overview-metric:not(.customer-type-metric):nth-child(odd) { border-left: 1px solid var(--line); }
+  .board-overview .board-extra-metrics:has(> .customer-type-metric) > .overview-metric:not(.customer-type-metric):last-child:nth-child(odd) { grid-column: auto; }
+  .board-overview .board-extra-metrics:has(> .customer-type-metric) > .overview-metric:not(.customer-type-metric):last-child:nth-child(even) { grid-column: 1 / -1; border-left: 0; }
+  .board-overview .board-extra-metrics:has(> .customer-type-metric) > .customer-type-metric:first-child { grid-column: 1 / -1; border-left: 0; border-top: 0; }
 }
 @media (max-width: 760px) {
   html { font-size: 16px; }
@@ -249,6 +255,9 @@ button, summary { overflow-wrap: anywhere; }
   }
   .board-overview .board-desktop-metrics:has(> div:nth-child(6)) {
     grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .board-overview .board-desktop-metrics:has(> div:nth-child(7)) {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
   }
   .board-desktop-metrics strong { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 }

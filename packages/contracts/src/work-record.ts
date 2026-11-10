@@ -9,6 +9,9 @@ import {
 } from "./common.js";
 import { giftCardSerialNumberSchema, isGiftCardUsername } from "./gift-card.js";
 
+export const workRecordCustomerTypeSchema = z.enum(["NEW", "RETURNING"]);
+export type WorkRecordCustomerType = z.infer<typeof workRecordCustomerTypeSchema>;
+
 const namedAmountFields = {
   name: z.string().trim().min(1).max(120),
   shortName: z.string().trim().min(1).max(30),
@@ -59,6 +62,7 @@ export const createWorkRecordSchema = z.object({
   employeeMembershipId: uuidSchema,
   startAt: instantSchema,
   isPlaceholder: z.boolean().optional(),
+  customerType: workRecordCustomerTypeSchema.nullable().optional(),
   durationMinutes: z.number().int().min(1).max(720).nullable().optional(),
   serviceItemId: uuidSchema.optional(),
   serviceDurationMinutes: z.number().int().min(1).max(720).optional(),
@@ -87,6 +91,7 @@ export const createWorkRecordSchema = z.object({
 
 export const updateWorkRecordSchema = z.object({
   version: versionSchema,
+  customerType: workRecordCustomerTypeSchema.nullable().optional(),
   employeeMembershipId: uuidSchema.optional(),
   businessDate: businessDateSchema.optional(),
   startAt: instantSchema.optional(),

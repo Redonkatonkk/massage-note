@@ -10,6 +10,7 @@ export type WorkRecordSaveDraft = {
   serviceId: string;
   mode: "NORMAL" | "PLACEHOLDER" | "DISPATCH_EXCLUDED" | "HIGHLIGHTED";
   startTime: string;
+  customerType?: WorkRecord["customerType"];
 } | {
   kind: "editor";
   record: WorkRecord;

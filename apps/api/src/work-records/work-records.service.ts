@@ -191,6 +191,7 @@ export class WorkRecordsService {
             actualDurationMinutes: isPlaceholder ? null : input.durationMinutes ?? null,
             status: isPlaceholder ? "PLACEHOLDER" : "PENDING_PAYMENT",
             isHighlighted: !isPlaceholder && (input.isHighlighted ?? false),
+            customerType: isPlaceholder ? null : input.customerType ?? null,
             isDispatchExcluded: !isPlaceholder && (input.isDispatchExcluded ?? false),
             mainServiceAmountCents: 0n,
             grossFeeBaseCents: 0n,
@@ -221,12 +222,14 @@ export class WorkRecordsService {
               businessDate,
               startAt: startAt.toISOString(),
               status: record.status,
+              customerType: record.customerType,
               version: record.version,
               ...(!isPlaceholder ? {
                 endAt: endAt?.toISOString() ?? null,
                 durationMinutes: input.durationMinutes,
                 isHighlighted: record.isHighlighted,
                 isDispatchExcluded: record.isDispatchExcluded,
+                customerType: record.customerType,
               } : {}),
             },
             requestId,
@@ -327,6 +330,7 @@ export class WorkRecordsService {
           actualDurationMinutes: durationMinutes,
           status: "PENDING_PAYMENT",
           isHighlighted: input.isHighlighted ?? false,
+          customerType: input.customerType ?? null,
           isDispatchExcluded: input.isDispatchExcluded ?? false,
           mainServiceAmountCents: amountCents,
           addonTotalCents: 0n,
@@ -768,6 +772,7 @@ export class WorkRecordsService {
               ...(input.isHighlighted === undefined
                 ? {}
                 : { isHighlighted: input.isHighlighted }),
+              ...(input.customerType === undefined ? {} : { customerType: input.customerType }),
               ...(input.isDispatchExcluded === undefined
                 ? {}
                 : { isDispatchExcluded: input.isDispatchExcluded }),
@@ -851,6 +856,7 @@ export class WorkRecordsService {
                   record.automaticDiscountSuppressed,
                 isHighlighted: record.isHighlighted,
                 isDispatchExcluded: record.isDispatchExcluded,
+                customerType: record.customerType,
                 version: record.version,
               },
               afterJson: {
@@ -863,6 +869,7 @@ export class WorkRecordsService {
                   updated.automaticDiscountSuppressed,
                 isHighlighted: updated.isHighlighted,
                 isDispatchExcluded: updated.isDispatchExcluded,
+                customerType: updated.customerType,
                 version: updated.version,
               },
               requestId,
@@ -1320,6 +1327,7 @@ export class WorkRecordsService {
             businessDate: record.businessDate,
             beforeJson: {
               status: record.status,
+              customerType: record.customerType,
               version: record.version,
             },
             afterJson: {

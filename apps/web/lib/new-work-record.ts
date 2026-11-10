@@ -4,9 +4,10 @@ import type { WorkRecord } from "./types";
 export function newWorkRecord(input: Pick<WorkRecord,
   "employeeMembershipId" | "businessDate" | "storeTimezoneSnapshot" | "businessCutoffSnapshot" |
   "startAt" | "isHighlighted" | "isDispatchExcluded"
->): WorkRecord {
+> & Pick<WorkRecord, "customerType">): WorkRecord {
   return {
     id: "new", version: 1, status: "PENDING_PAYMENT", deletedAt: null,
+    customerType: null,
     endAt: new Date(Date.parse(input.startAt) + 60 * 60_000).toISOString(), actualDurationMinutes: 60,
     mainServiceAmountCents: 0, addonTotalCents: 0, grossFeeBaseCents: 0, discountTotalCents: 0,
     discountedFeePerformanceCents: 0, mainServiceWageCents: 0, addonWageCents: 0, totalLargeFeeWageCents: 0,

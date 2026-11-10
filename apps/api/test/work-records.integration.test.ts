@@ -1567,4 +1567,40 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
       .rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it("persists optional customer types, preserves omitted fields, clears explicitly and restores deleted records", async () => {
+    const created = await workRecords.createDetailed(actor(ownerId), storeId, { create: { employeeMembershipId, startAt: "2026-02-13T16:00:00.000Z", durationMinutes: 60, customerType: "NEW" }, details: { version: 1 } }, randomUUID(), "customer-create");
+    expect(created.customerType).toBe("NEW");
+    const preserved = await workRecords.update(actor(ownerId), storeId, created.id, { version: created.version, note: "preserve type" }, randomUUID(), "customer-preserve");
+    expect(preserved.customerType).toBe("NEW");
+    const returning = await workRecords.update(actor(ownerId), storeId, created.id, { version: preserved.version, customerType: "RETURNING" }, randomUUID(), "customer-returning");
+    await expect(workRecords.update(actor(ownerId), storeId, created.id, { version: preserved.version, customerType: null }, randomUUID(), "customer-stale")).rejects.toBeInstanceOf(ConflictException);
+    const removed = await workRecords.remove(actor(ownerId), storeId, created.id, { version: returning.version, reason: "classification restore test" }, randomUUID(), "customer-delete");
+    const restored = await workRecords.restore(actor(ownerId), storeId, created.id, { version: removed.version }, randomUUID(), "customer-restore");
+    expect(restored.customerType).toBe("RETURNING");
+    const cleared = await workRecords.update(actor(ownerId), storeId, created.id, { version: restored.version, customerType: null }, randomUUID(), "customer-clear");
+    expect(cleared.customerType).toBeNull();
+    await prisma.businessDayClosing.create({ data: { storeId, businessDate: new Date("2026-02-13"), cycleNo: 1, closedBy: ownerId, totalsSnapshotJson: {}, warningSnapshotJson: [] } });
+    await expect(workRecords.update(actor(ownerId), storeId, created.id, { version: cleared.version, customerType: "NEW" }, randomUUID(), "customer-closed")).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it("counts all undeleted service records including hidden employees, pending, highlighted and dispatch-excluded records", async () => {
+    const startAt = "2026-02-14T16:00:00.000Z";
+    const create = { employeeMembershipId, startAt, durationMinutes: 60 };
+    const first = await workRecords.create(actor(ownerId), storeId, { ...create, customerType: "NEW", isHighlighted: true }, randomUUID(), "mix-new");
+    const second = await workRecords.create(actor(ownerId), storeId, { employeeMembershipId, startAt, customService: { name: "Mix test", shortName: "Mix", amountCents: 1000, durationMinutes: 60 }, customerType: "RETURNING", isDispatchExcluded: true }, randomUUID(), "mix-returning");
+    await workRecords.confirmPayment(actor(ownerId), storeId, second.id, { version: second.version, cashServiceCents: 1000, cardServiceCents: 0, giftCardSerialNumber: null, giftCardServiceCents: 0, cashTipCents: 0, cardTipCents: 0, giftCardTipCents: 0 }, randomUUID(), "mix-confirm");
+    const unmarked = await workRecords.create(actor(ownerId), storeId, create, randomUUID(), "mix-unmarked");
+    expect(unmarked.customerType).toBeNull();
+    const deleted = await workRecords.create(actor(ownerId), storeId, { ...create, customerType: "NEW" }, randomUUID(), "mix-deleted");
+    await workRecords.remove(actor(ownerId), storeId, deleted.id, { version: deleted.version }, randomUUID(), "mix-delete");
+    const placeholder = await workRecords.create(actor(ownerId), storeId, { employeeMembershipId, startAt, isPlaceholder: true }, randomUUID(), "mix-placeholder");
+    await expect(prisma.workRecord.update({ where: { id: placeholder.id }, data: { customerType: "NEW" } })).rejects.toThrow();
+    await prisma.dailyEmployeeRow.updateMany({ where: { storeId, membershipId: employeeMembershipId, board: { businessDate: new Date("2026-02-14") } }, data: { isHidden: true } });
+    const board = await boards.getBoard(actor(ownerId), storeId, "2026-02-14");
+    expect(board.statistics.customerTypeCounts).toEqual({ newCount: 1, returningCount: 1, unmarkedCount: 1 });
+    expect(board.rows.find(row => row.membershipId === employeeMembershipId)?.isHidden).toBe(true);
+    expect(board.rows.flatMap(row => row.workRecords).find(record => record.id === first.id)?.customerType).toBe("NEW");
+    expect((await boards.getBoard(actor(ownerId), storeId, "2026-02-15")).statistics.customerTypeCounts).toEqual({ newCount: 0, returningCount: 0, unmarkedCount: 0 });
+  });
+
 });

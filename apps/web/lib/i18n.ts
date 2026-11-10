@@ -8,6 +8,14 @@ export function isAppLocale(value: unknown): value is AppLocale {
 }
 
 const ENGLISH_TRANSLATIONS: Record<string, string> = {
+  "新客或老客可以不选，每次新记工默认不选，再点已选项可取消。快速记工在项目右侧选择，转入详细记工会保留；详情在使用礼物卡付款右侧修改，小卡在项目与时间之间显示标志。": "New or Returning is optional and starts unselected for each new record; click the selected choice again to clear it. Select beside the service in quick entry; detailed entry inherits the choice. Edit beside Use gift card; the board badge appears between service and time.",
+  "客人类型": "Customer type",
+  "新客": "New",
+  "老客": "Returning",
+  "未标记": "Unmarked",
+  "新老客占比": "Customer mix",
+  "客人类型（选填）": "Customer type (optional)",
+  "暂无记工": "No work records",
   "记工机器人": "Work bot",
   "微信群 · 智能记工": "WeChat groups · Smart work log",
   "让机器人听懂店里的话": "Help the bot understand your team",

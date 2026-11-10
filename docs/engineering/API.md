@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.56.9`
+> Applies to version: `1.57.0`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -546,3 +546,9 @@ The whole original transaction is reversed with exact private row images, includ
 Return 409 `AUDIT_UNDO_CONFLICT` for later modifications, closed days or dependent rows; return 409 `AUDIT_UNDO_UNAVAILABLE` for incomplete snapshots, imported history, store lifecycle/overwrite imports, credentials, claimed/sent messages and undo entries. Owner identity changes require an Owner. Legacy work-record creation/deletion/recovery uses existing record recovery rules only when the recorded version still matches. Complete images start with migration `20261029010000_audit_undo`; they are private and excluded from portable store exports. Reason: partial summaries and external effects do not provide a safe inverse operation.
 
 Share creation accepts `{ membershipId, dateFrom, dateTo, paymentScope, amountType? }`. Tokens contain 32 random bytes encoded as 43 base64url characters; the share table stores only SHA-256 hashes. The server calculates a fixed 14-day expiry and rejects access at or after it, or when the store is inactive/deleted. The snapshot excludes payroll revision/payment state, membership IDs and recipient numbers. Idempotent retries return the original token and expiry. The Web URL is `/share/settlement?token=...`; the copied message includes employee name, dates, exact total and URL. Store data replacement deletes existing shares. Reason: public viewing must reveal only the intended statement and cannot extend access through retries.
+
+## Work-record customer classification
+
+`customerType` is an optional nullable field accepted by work-record creation and PATCH, including the `create` and `details` objects used by detailed creation and atomic saves. Values are `NEW`, `RETURNING` or `null`. Omission during updates preserves the saved value; explicit `null` clears it. Responses include the saved value. Placeholder creation rejects this field even when null; the database also requires placeholder classification to be null. Existing permissions, closing locks, versions and idempotency apply.
+
+The board response adds `statistics.customerTypeCounts` with integer `newCount`, `returningCount` and `unmarkedCount`. Counts use the selected store/business date and the existing authorized record scope, include pending and confirmed services regardless of highlight, dispatch exclusion or employee-row visibility, and exclude deleted records and placeholders. Each record counts once. Historical rows and verified older backups missing the field default to null; full and anonymized backups preserve classifications.

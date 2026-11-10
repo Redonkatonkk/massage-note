@@ -52,7 +52,7 @@ describe.skipIf(!enabled).sequential("single-store backup and recovery", () => {
     await prisma.shift.create({ data: { storeId, membershipId: memberId, businessDate: date, clockInAt: date, createdBy: users[0]!, updatedBy: users[0]! } });
     const board = await prisma.dailyBoard.create({ data: { storeId, businessDate: date, fullTimeOrder: [memberId], fullTimeOrderOverride: [memberId], rankingPending: true, rankingExplanation: { schemaVersion: 1, generatedAt: date.toISOString(), entries: [{ membershipId: memberId, displayName: secret, position: 1 }] } } });
     await prisma.dailyEmployeeRow.create({ data: { storeId, boardId: board.id, membershipId: memberId, position: new Prisma.Decimal("0.0000000001"), addedBy: users[0]! } });
-    const work = await prisma.workRecord.create({ data: { storeId, employeeMembershipId: memberId, businessDate: date, startAt: date, status: "CONFIRMED", storeTimezoneSnapshot: "America/New_York", businessCutoffSnapshot: "22:00", mainServiceAmountCents: 10000n, addonTotalCents: 2000n, grossFeeBaseCents: 12000n, discountTotalCents: 1000n, discountedFeePerformanceCents: 11000n, mainServiceWageCents: 5500n, addonWageCents: 1000n, totalLargeFeeWageCents: 6500n, giftCardSerialNumber: "PRIVATE_ONLINE_USER", giftCardIsOnline: true, giftCardServiceCents: 11000n, cashServiceCents: 0n, cardServiceCents: 0n, cashTipCents: 0n, cardTipCents: 0n, giftCardTipCents: 0n, totalTipCents: 0n, actualServiceCollectedCents: 11000n, customerTotalPaidCents: 11000n, paymentDifferenceCents: 0n, employeeTotalIncomeCents: 6500n, cashAllocatedServiceWageCents: 0n, cashAcquiredServiceWageCents: 0n, cashWageShortfallCents: 0n, createdBy: users[0]!, updatedBy: users[0]!, note: secret } });
+    const work = await prisma.workRecord.create({ data: { customerType: "RETURNING", storeId, employeeMembershipId: memberId, businessDate: date, startAt: date, status: "CONFIRMED", storeTimezoneSnapshot: "America/New_York", businessCutoffSnapshot: "22:00", mainServiceAmountCents: 10000n, addonTotalCents: 2000n, grossFeeBaseCents: 12000n, discountTotalCents: 1000n, discountedFeePerformanceCents: 11000n, mainServiceWageCents: 5500n, addonWageCents: 1000n, totalLargeFeeWageCents: 6500n, giftCardSerialNumber: "PRIVATE_ONLINE_USER", giftCardIsOnline: true, giftCardServiceCents: 11000n, cashServiceCents: 0n, cardServiceCents: 0n, cashTipCents: 0n, cardTipCents: 0n, giftCardTipCents: 0n, totalTipCents: 0n, actualServiceCollectedCents: 11000n, customerTotalPaidCents: 11000n, paymentDifferenceCents: 0n, employeeTotalIncomeCents: 6500n, cashAllocatedServiceWageCents: 0n, cashAcquiredServiceWageCents: 0n, cashWageShortfallCents: 0n, createdBy: users[0]!, updatedBy: users[0]!, note: secret } });
     await prisma.workRecordServiceSnapshot.create({ data: { workRecordId: work.id, sourceServiceItemId: serviceItem.id, isCustom: false, name: secret, shortName: secret, amountCents: 10000n, durationMinutes: 60, commissionBps: 5500, commissionSource: "EMPLOYEE_ITEM", wageCents: 5500n } });
     await prisma.workRecordAddonSnapshot.create({ data: { workRecordId: work.id, sourceAddonItemId: addon.id, isCustom: false, name: `${secret}-addon`, shortName: `${secret}-addon`, amountCents: 2000n, commissionBps: 5000, commissionSource: "STORE_DEFAULT", wageCents: 1000n, position: 0 } });
     await prisma.workRecordDiscountSnapshot.create({ data: { workRecordId: work.id, sourceDiscountItemId: discount.id, isCustom: false, name: `${secret}-discount`, amountCents: 1000n, position: 0 } });
@@ -100,6 +100,23 @@ describe.skipIf(!enabled).sequential("single-store backup and recovery", () => {
       delete row.fullTimeOrder; delete row.fullTimeOrderOverride; delete row.rankingPending;
     }
     expect(validateBackup(sealBackup(older)).data.tables.dailyBoard[0]).toMatchObject({ fullTimeOrder: null, fullTimeOrderOverride: null, rankingPending: false });
+  });
+
+  it("preserves customer types in full and anonymous restores, and normalizes older backups", async () => {
+    expect(full.data.tables.workRecord[0]!.customerType).toBe("RETURNING");
+    expect(demo.data.tables.workRecord[0]!.customerType).toBe("RETURNING");
+    for (const backup of [full, demo]) {
+      await service.confirm(actor(), stores[1]!, await prepare(backup), randomUUID(), randomUUID());
+      expect((await service.export(actor(), stores[1]!, "full")).data.tables.workRecord[0]!.customerType).toBe("RETURNING");
+    }
+    const older = structuredClone(full);
+    for (const row of older.data.tables.workRecord) delete row.customerType;
+    const normalized = validateBackup(sealBackup(older));
+    expect(normalized.data.tables.workRecord[0]!.customerType).toBeNull();
+    expect(validateBackup(normalized)).toEqual(normalized);
+    const invalid = structuredClone(full);
+    invalid.data.tables.workRecord[0]!.customerType = "OLD";
+    expect(() => validateBackup(sealBackup(invalid))).toThrow();
   });
 
   it("exports every supported table, preserves precision and masks the entire file", async () => {

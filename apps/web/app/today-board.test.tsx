@@ -422,7 +422,7 @@ describe("项目时长默认值", () => {
     const select = modal.querySelector<HTMLSelectElement>("#quick-service")!;
     expect(select.value).toBe("service");
     expect(select.previousElementSibling?.textContent).toBe("选择项目");
-    expect(select.nextElementSibling).toBe(modal.querySelector(".duration-picker"));
+    expect(select.closest(".quick-service-customer-row")?.nextElementSibling).toBe(modal.querySelector(".duration-picker"));
     expect(writes()).toHaveLength(0);
     expect(modal.querySelector(".duration-picker")!.classList.contains("duration-picker--three-options")).toBe(durations.length === 3);
     expect([...modal.querySelectorAll(".duration-picker strong")].map(node => node.textContent)).toEqual([...durations].sort((a, b) => a - b).map(value => `${value} 分钟`));
@@ -1066,23 +1066,24 @@ describe("详细记工新建与零实收", () => {
 
 describe("日结后的现金余额", () => {
   const balance = { enabled: true, resetDate: "2026-10-05", balanceCents: 12345, missingClosingDates: [] };
-  it.each([true, false])("桌面和手机仅开启且已日结时替换礼物卡总额：%s", async wideLayout => {
+  it.each([true, false])("桌面和手机饼图常驻，仅开启且已日结时另显示现金余额：%s", async wideLayout => {
     props.wideLayout = wideLayout;
     props.board.statistics.cashBalance = balance;
     await render();
-    expect(container.textContent).toContain("礼物卡总额");
+    expect(container.querySelectorAll(".customer-type-metric")).toHaveLength(2);
     props.board = { ...props.board, isClosed: true };
     await render();
+    expect(container.querySelectorAll(".customer-type-metric")).toHaveLength(2);
     expect(container.textContent).not.toContain("礼物卡总额");
     const metrics = [...container.querySelectorAll(".overview-metric")].filter(node => node.textContent?.includes("现金余额"));
     expect(metrics).toHaveLength(2);
     for (const metric of metrics) expect(metric.querySelector("strong")?.textContent).toBe("$123.45");
     props.board = { ...props.board, isClosed: false };
     await render();
-    expect(container.textContent).toContain("礼物卡总额");
+    expect(container.querySelectorAll(".customer-type-metric")).toHaveLength(2);
     props.board = { ...props.board, isClosed: true, statistics: { ...props.board.statistics, cashBalance: { ...balance, enabled: false } } };
     await render();
-    expect(container.textContent).toContain("礼物卡总额");
+    expect(container.querySelectorAll(".customer-type-metric")).toHaveLength(2);
     expect(container.textContent).not.toContain("现金余额");
   });
   it.each([[12345, "$123.45"], [-12345, "-$123.45"], [0, "$0.00"], [null, "—"]] as const)("保留美分、负数、零及旧日结缺失：%s", async (balanceCents, expected) => {
@@ -1139,12 +1140,14 @@ describe("独立保存任务", () => {
     await render();
     if (isNew) { await click("新增记工"); await click("详细记工"); }
     else await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!.click());
+    await click("老客");
     await note("上一笔完整备注 / retained note");
     let fail!: (error: unknown) => void;
     request.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
     await click("保存");
     expect(document.querySelector(".record-editor")).toBeNull();
     expect(writes()).toHaveLength(1);
+    expect(writes()[0]![1]!.body).toMatchObject({ details: { customerType: "RETURNING" } });
     if (!isNew) expect(container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!.disabled).toBe(true);
     await click("新增记工"); await click("详细记工"); await note("下一笔还在填写");
     const next = document.querySelector(".record-editor");
@@ -1154,6 +1157,7 @@ describe("独立保存任务", () => {
     expect(document.querySelector<HTMLTextAreaElement>(".record-editor textarea")!.value).toBe("下一笔还在填写");
     await click("关闭");
     expect(document.querySelector<HTMLTextAreaElement>(".record-editor textarea")!.value).toBe("上一笔完整备注 / retained note");
+    expect(button("老客").getAttribute("aria-pressed")).toBe("true");
     expect(document.querySelector(".record-error-toast[role=alert]")!.textContent).toContain("版本冲突");
     expect(writes()).toHaveLength(1);
     request.mockResolvedValueOnce({ ...ordinary, id: "saved", version: 8 });
@@ -1169,5 +1173,78 @@ describe("独立保存任务", () => {
     expect(document.querySelector(".work-save-results")!.textContent).toContain("记工已保存，同步暂时失败");
     await click("重新同步");
     expect(writes()).toHaveLength(1); expect(reload).toHaveBeenCalledTimes(2);
+  });
+});
+
+
+describe("新老客标记", () => {
+  it("默认不选，可切换和取消；新表单重置，快速转详细继承", async () => {
+    await render(); await click("新增记工");
+    expect(document.querySelectorAll('.customer-type-switch [aria-pressed="true"]')).toHaveLength(0);
+    await click("新客"); await click("新客");
+    expect(document.querySelectorAll('.customer-type-switch [aria-pressed="true"]')).toHaveLength(0);
+    await click("老客"); await click("详细记工");
+    expect(JSON.parse(document.querySelector(".normal-record-editor")!.getAttribute("data-record")!)).toMatchObject({ customerType: "RETURNING" });
+    await click("取消详细记工"); await click("新增记工");
+    expect(document.querySelectorAll('.customer-type-switch [aria-pressed="true"]')).toHaveLength(0);
+  });
+  it("快速保存发送选择，失败恢复保留；占位隐藏并且不发送类型", async () => {
+    await render(); await click("新增记工"); await click("新客");
+    request.mockRejectedValueOnce(new ApiError(400, { code: "VALIDATION_ERROR", messageZh: "保存失败" }));
+    await chooseDuration(60);
+    expect(writes()[0]![1]!.body).toMatchObject({ customerType: "NEW" });
+    await click("恢复填写内容");
+    expect(button("新客").getAttribute("aria-pressed")).toBe("true");
+    await click("占位");
+    expect(document.querySelector(".customer-type-switch")).toBeNull();
+    request.mockResolvedValueOnce(placeholder);
+    await click("确认");
+    expect(writes()[1]![1]!.body).not.toHaveProperty("customerType");
+  });
+  it.each(["NEW", "RETURNING", null] as const)("小卡 %s 的标志位于项目与时间之间", async customerType => {
+    props.board.rows[0]!.workRecords = [{ ...ordinary, customerType }];
+    await render();
+    const card = container.querySelector('[data-work-record-id="ordinary"]')!;
+    const badge = card.querySelector(".record-customer-type");
+    if (customerType) {
+      expect(badge?.textContent).toBe(customerType === "NEW" ? "新客" : "老客");
+      expect(badge?.previousElementSibling?.className).toBe("record-card__topline");
+      expect(badge?.nextElementSibling?.className).toBe("record-time");
+    } else expect(badge).toBeNull();
+  });
+  it("详情回显可清空；旧人工结算值不随普通编辑提交", async () => {
+    editorRendering.actual = true;
+    props.board.rows[0]!.workRecords = [{ ...ordinary, customerType: "NEW", tipSettledManualFlag: true, largeFeeSettledManualFlag: true }];
+    await render();
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!.click());
+    expect(button("新客").getAttribute("aria-pressed")).toBe("true");
+    expect(document.querySelector(".record-editor")!.textContent).not.toContain("已人工结算");
+    expect(document.querySelector(".payment-customer-controls .customer-type-switch")).not.toBeNull();
+    await click("老客"); await click("关闭");
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!.click());
+    expect(button("老客").getAttribute("aria-pressed")).toBe("true");
+    await click("老客"); await click("关闭");
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!.click());
+    expect(document.querySelectorAll('.customer-type-switch [aria-pressed="true"]')).toHaveLength(0);
+    request.mockResolvedValueOnce(ordinary); await click("保存");
+    const body = writes()[0]![1]!.body as { details: Record<string, unknown> };
+    expect(body.details.customerType).toBeNull();
+    expect(body.details).not.toHaveProperty("tipSettledManualFlag");
+    expect(body.details).not.toHaveProperty("largeFeeSettledManualFlag");
+  });
+  it("首页使用服务端三类计数而非可见员工记录，并兼容旧快照", async () => {
+    await render();
+    expect(container.querySelector(".customer-type-metric__empty")?.textContent).toBe("暂无记工");
+    expect(container.querySelector(".customer-type-metric dd")).toBeNull();
+    props.board.statistics.customerTypeCounts = { newCount: 1, returningCount: 2, unmarkedCount: 1 };
+    await render();
+    for (const chart of container.querySelectorAll(".customer-type-metric")) {
+      expect([...chart.querySelectorAll("dd")].map(node => node.textContent)).toEqual(["125.0%", "250.0%", "125.0%"]);
+      expect(chart.querySelectorAll("svg path")).toHaveLength(3);
+    }
+    delete props.board.statistics.customerTypeCounts; props.board.statistics.recordCount = 3;
+    await render();
+    expect([...container.querySelectorAll(".customer-type-metric dd")].at(2)?.textContent).toBe("3100.0%");
+    expect(container.querySelector(".customer-type-metric svg circle")).not.toBeNull();
   });
 });

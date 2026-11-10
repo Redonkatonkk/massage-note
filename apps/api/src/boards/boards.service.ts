@@ -529,6 +529,11 @@ export class BoardsService {
       nextGiftCardSerialNumber: store.nextGiftCardSerialNumber <= 9999 ? String(store.nextGiftCardSerialNumber) : "",
       statistics: {
         ...statistics,
+        customerTypeCounts: {
+          newCount: serviceRecords.filter(record => record.customerType === "NEW").length,
+          returningCount: serviceRecords.filter(record => record.customerType === "RETURNING").length,
+          unmarkedCount: serviceRecords.filter(record => record.customerType === null).length,
+        },
         cashChangeCents,
         cashBalance,
         recentClosedRevenue,

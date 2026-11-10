@@ -1,5 +1,7 @@
 "use client";
 
+import { CustomerTypeSwitch } from "./customer-type-switch";
+
 import { NumericInput } from "./numeric-input";
 
 import { useAutoDismissState } from "./use-auto-dismiss-state";
@@ -252,10 +254,7 @@ export function RecordEditor({
   const [cashTip, setCashTip] = useState(dollars(record.cashTipCents));
   const [cardTip, setCardTip] = useState(dollars(record.cardTipCents));
   const [giftCardTip, setGiftCardTip] = useState(dollars(record.giftCardTipCents));
-  const [tipSettled, setTipSettled] = useState(record.tipSettledManualFlag);
-  const [largeFeeSettled, setLargeFeeSettled] = useState(
-    record.largeFeeSettledManualFlag,
-  );
+  const [customerType, setCustomerType] = useState(record.customerType ?? null);
   const [note, setNote] = useState(record.note);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useAutoDismissState("");
@@ -265,7 +264,7 @@ export function RecordEditor({
   const [newSessionId] = useState(() => sessionId ?? crypto.randomUUID());
   const draftKey = `massage_note_record_draft_${isNew ? newSessionId : record.id}`;
   function captureDraft(): Record<string, unknown> {
-    return { storeId, savedAt: Date.now(), recordVersion, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note };
+    return { storeId, savedAt: Date.now(), recordVersion, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, customerType, note };
   }
   function submitInBackground(path: string, method: "POST" | "PATCH", body: unknown) {
     if (!onSubmitSave) return false;
@@ -322,8 +321,7 @@ export function RecordEditor({
           if (typeof draft.cashTip === "string") setCashTip(draft.cashTip);
           if (typeof draft.cardTip === "string") setCardTip(draft.cardTip);
           if (typeof draft.giftCardTip === "string") setGiftCardTip(draft.giftCardTip);
-          if (typeof draft.tipSettled === "boolean") setTipSettled(draft.tipSettled);
-          if (typeof draft.largeFeeSettled === "boolean") setLargeFeeSettled(draft.largeFeeSettled);
+          if (draft.customerType === null || draft.customerType === "NEW" || draft.customerType === "RETURNING") setCustomerType(draft.customerType);
           if (typeof draft.note === "string") setNote(draft.note);
           setDraftDirty(true);
         } else {
@@ -339,8 +337,8 @@ export function RecordEditor({
 
   useEffect(() => {
     if (isNew || !draftLoaded || !draftDirty) return;
-    browserStorage.setItem(draftKey, JSON.stringify({ storeId, savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note }));
-  }, [isNew, draftLoaded, draftDirty, draftKey, storeId, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, tipSettled, largeFeeSettled, note]);
+    browserStorage.setItem(draftKey, JSON.stringify({ storeId, savedAt: Date.now(), recordVersion: record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, customerType, note }));
+  }, [isNew, draftLoaded, draftDirty, draftKey, storeId, record.version, employeeId, startAt, endAt, serviceChoice, serviceName, serviceShortName, serviceDuration, serviceAmount, serviceCommission, addons, discounts, automaticDiscountSuppressed, isHighlighted, isDispatchExcluded, cashService, cardService, usesGiftCard, giftCardSerialNumber, giftCardService, cashTip, cardTip, giftCardTip, customerType, note]);
 
   const initialAddonSignature = JSON.stringify(
     initialAddons.map(({ key: _key, ...item }) => item),
@@ -547,8 +545,7 @@ export function RecordEditor({
     const payload: Record<string, unknown> = {
       version,
       note,
-      tipSettledManualFlag: tipSettled,
-      largeFeeSettledManualFlag: largeFeeSettled,
+      customerType,
     };
     if (employeeId !== record.employeeMembershipId) {
       payload.employeeMembershipId = employeeId;
@@ -749,6 +746,7 @@ export function RecordEditor({
           customService: details.customService,
           isHighlighted,
           isDispatchExcluded,
+          customerType,
         },
         details,
         ...(willConfirmPayment ? { payment } : {}),
@@ -1000,7 +998,10 @@ export function RecordEditor({
               <label className="field-label"><span>小费</span><NumericInput aria-label="现金小费（美元）" inputMode="decimal" placeholder="空白按 0" value={cashTip} onChange={(event) => setCashTip(event.target.value)} /></label>
             </div>
           </div>
-          <label className="gift-card-toggle"><input type="checkbox" checked={usesGiftCard} onChange={(event) => setUsesGiftCard(event.target.checked)} /> 使用礼物卡付款</label>
+          <div className="payment-customer-controls">
+            <label className="gift-card-toggle"><input type="checkbox" checked={usesGiftCard} onChange={(event) => setUsesGiftCard(event.target.checked)} /> 使用礼物卡付款</label>
+            <CustomerTypeSwitch value={customerType} disabled={busy || dayClosed} onChange={value => { setDraftDirty(true); setCustomerType(value); }} />
+          </div>
           {usesGiftCard && <div className="editor-grid editor-grid--gift-card">
             <GiftCardIdentityField value={giftCardSerialNumber} onChange={setGiftCardSerialNumber} disabled={busy} />
             <label className="field-label">礼物卡大费（美元）<NumericInput inputMode="decimal" placeholder="可填 0" value={giftCardService} onChange={(event) => setGiftCardService(event.target.value)} /></label>
@@ -1009,10 +1010,6 @@ export function RecordEditor({
         </section>
 
         <section className="editor-section">
-          <div className="check-grid">
-            <label><input type="checkbox" checked={tipSettled} onChange={(event) => setTipSettled(event.target.checked)} /> 小费已人工结算</label>
-            <label><input type="checkbox" checked={largeFeeSettled} onChange={(event) => setLargeFeeSettled(event.target.checked)} /> 大费已人工结算</label>
-          </div>
           <label className="field-label">备注<textarea rows={4} maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} /></label>
         </section>
 

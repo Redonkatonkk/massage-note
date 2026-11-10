@@ -4,6 +4,12 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.57.0 — 2026-11-10
+
+- Add optional New / Returning customer classification to quick entry and detailed work records, with repeat-click clearing, draft/recovery retention and compact board-card labels. Remove manual tip/service settlement checkboxes from the editor while retaining API and historical data compatibility.
+- Replace the homepage Gift card total metric with a New / Returning / Unmarked pie chart for the selected business date. Count all undeleted service records, including pending, highlighted, dispatch-excluded and hidden-employee records; exclude placeholders. Retain Cash balance as an independent metric under its existing conditions.
+- Add a nullable database enum, placeholder constraint and backward-compatible backup import/export, including anonymized copies. Verify contracts, components, mobile styles, persistence and counts. NAS requires Web/API updates and the new migration; no independent plugin or agent update.
+
 ## 1.56.9 — 2026-11-10
 
 - Split employee-card style regressions into independent edition/width cases, preserving all 12 combinations and assertions while keeping each within the CI test time budget. Always close each jsdom instance after its assertions.

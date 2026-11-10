@@ -55,6 +55,8 @@ import { RecordEditor } from "./record-editor";
 import { PlaceholderDeleteDialog } from "./placeholder-delete-dialog";
 import { AutoCloseDetails } from "./auto-close-details";
 import { OverviewMetric, UiIcon } from "./ui/primitives";
+import { CustomerTypeSwitch } from "./customer-type-switch";
+import { CustomerTypeMetric } from "./customer-type-metric";
 import { QuickWorkModeSwitch, type QuickWorkMode } from "./quick-work-mode-switch";
 import { beginDetachedWorkRecordSaveMotion, preloadWorkRecordSaveMotion } from "../lib/work-record-save-motion";
 
@@ -172,6 +174,7 @@ function TodayBoardContent({
   const [quickEmployeeId, setQuickEmployeeId] = useState<string | null>(null);
   const [quickServiceId, setQuickServiceId] = useState("");
   const [quickMode, setQuickMode] = useState<QuickWorkMode>("NORMAL");
+  const [quickCustomerType, setQuickCustomerType] = useState<NonNullable<WorkRecord["customerType"]> | null>(null);
   const quickDialog = useRef<HTMLElement>(null);
   const [quickSessionId, setQuickSessionId] = useState(() => crypto.randomUUID());
   const [editorSessionId, setEditorSessionId] = useState(() => crypto.randomUUID());
@@ -312,7 +315,7 @@ function TodayBoardContent({
     const draft = task.draft;
     if (draft.kind === "quick") {
       setQuickSessionId(crypto.randomUUID()); setQuickEmployeeId(draft.employeeId);
-      setQuickServiceId(draft.serviceId); setQuickMode(draft.mode); setStartTime(draft.startTime); setStartTimeValid(true);
+      setQuickCustomerType(draft.customerType ?? null); setQuickServiceId(draft.serviceId); setQuickMode(draft.mode); setStartTime(draft.startTime); setStartTimeValid(true);
     } else {
       setEditorSessionId(crypto.randomUUID());
       if (draft.isNew) setCreatingRecord(draft.record); else setEditingRecord(draft.record);
@@ -396,6 +399,7 @@ function TodayBoardContent({
       storeTimezoneSnapshot: currentDay.timezone,
       businessCutoffSnapshot: currentDay.businessCutoffLocal,
       startAt: businessTimeToIso(currentDay.businessDate, startTime, currentDay.timezone),
+      customerType: quickCustomerType,
       isHighlighted: quickMode === "HIGHLIGHTED",
       isDispatchExcluded: quickMode === "DISPATCH_EXCLUDED",
     }));
@@ -413,11 +417,11 @@ function TodayBoardContent({
       const accepted = saves.submit({
         id: quickSessionId, ...scope, storeName: membership.store.name,
         employeeName: members.find(member => member.id === quickEmployeeId)?.displayName ?? "员工",
-        draft: { kind: "quick", employeeId: quickEmployeeId, serviceId: quickService?.id ?? "", mode: quickMode, startTime },
+        draft: { kind: "quick", employeeId: quickEmployeeId, serviceId: quickService?.id ?? "", mode: quickMode, startTime, customerType: quickCustomerType },
         motion: beginDetachedWorkRecordSaveMotion(quickDialog.current),
         request: { path: `/stores/${membership.store.id}/work-records`, method: "POST", body: {
           employeeMembershipId: quickEmployeeId, startAt,
-          ...(durationMinutes !== null ? { serviceItemId: quickService!.id, serviceDurationMinutes: durationMinutes,
+          ...(durationMinutes !== null ? { customerType: quickCustomerType, serviceItemId: quickService!.id, serviceDurationMinutes: durationMinutes,
             isHighlighted: quickMode === "HIGHLIGHTED", isDispatchExcluded: quickMode === "DISPATCH_EXCLUDED" } : { isPlaceholder: true }),
         } },
       });
@@ -551,7 +555,8 @@ function TodayBoardContent({
           <OverviewMetric icon="chart" title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
           {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric icon="clock" label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
           <OverviewMetric icon="discount" label="折扣总额" value={money(board.statistics.discountTotalCents)} />
-          {board.isClosed && board.statistics.cashBalance?.enabled ? <CashBalanceMetric balance={board.statistics.cashBalance} /> : <OverviewMetric icon="gift" title="礼物卡销售实际收款" label="礼物卡总额" value={money(board.statistics.giftCardSalesAmountCents)} />}
+          <CustomerTypeMetric counts={board.statistics.customerTypeCounts ?? { newCount: 0, returningCount: 0, unmarkedCount: board.statistics.recordCount }} />
+          {board.isClosed && board.statistics.cashBalance?.enabled && <CashBalanceMetric balance={board.statistics.cashBalance} />}
           <OverviewMetric icon="wallet" title="营业额＋现金小费＋刷卡小费－员工应得" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
           <OverviewMetric icon="trend" title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
         </div>
@@ -563,9 +568,10 @@ function TodayBoardContent({
         <details className="board-summary-details">
           <summary>更多汇总</summary>
           <div className="summary-strip board-extra-metrics">
+            <CustomerTypeMetric counts={board.statistics.customerTypeCounts ?? { newCount: 0, returningCount: 0, unmarkedCount: board.statistics.recordCount }} />
             {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric icon="clock" label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
             <OverviewMetric icon="discount" label="折扣总额" value={money(board.statistics.discountTotalCents)} />
-            {board.isClosed && board.statistics.cashBalance?.enabled ? <CashBalanceMetric balance={board.statistics.cashBalance} /> : <OverviewMetric icon="gift" title="礼物卡销售实际收款" label="礼物卡总额" value={money(board.statistics.giftCardSalesAmountCents)} />}
+            {board.isClosed && board.statistics.cashBalance?.enabled && <CashBalanceMetric balance={board.statistics.cashBalance} />}
             <OverviewMetric icon="wallet" title="营业额＋现金小费＋刷卡小费－员工应得" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
           </div>
         </details>
@@ -632,7 +638,7 @@ function TodayBoardContent({
                   <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
                       if (record === null) return (
-                        <button key="add-record" className="add-record" type="button" onClick={() => { setQuickSessionId(crypto.randomUUID()); setRestoredSave(null); setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickMode("NORMAL"); setQuickEmployeeId(row.membershipId); }}>
+                        <button key="add-record" className="add-record" type="button" onClick={() => { setQuickSessionId(crypto.randomUUID()); setRestoredSave(null); setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickMode("NORMAL"); setQuickCustomerType(null); setQuickEmployeeId(row.membershipId); }}>
                           <span aria-hidden="true"><UiIcon name="plus" /></span>新增记工
                         </button>
                       );
@@ -677,6 +683,7 @@ function TodayBoardContent({
                             )}
                           </span>
                         </span>
+                        {record.customerType && <span className="record-customer-type">{record.customerType === "NEW" ? "新客" : "老客"}</span>}
                         <span className="record-time">{displayTime(record.startAt, currentDay.timezone)}–{displayTime(record.endAt, currentDay.timezone)}</span>
                         <span className="record-money">
                           <span className="record-service-amount">
@@ -763,11 +770,16 @@ function TodayBoardContent({
               <label className="field-label" htmlFor="start-time">开始时间</label>
               <WorkTimeInput id="start-time" value={startTime} onChange={setStartTime} onValidityChange={setStartTimeValid} />
               {quickMode === "PLACEHOLDER" ? <button className="primary-action quick-placeholder-save" type="button" disabled={busy || board.isClosed} onClick={() => saveQuickRecord("PLACEHOLDER")}>确认</button> : <>
-                <label className="field-label" htmlFor="quick-service">选择项目</label>
-                <select id="quick-service" value={quickService?.id ?? ""} disabled={busy || board.isClosed || quickServices.length === 0} onChange={(event) => setQuickServiceId(event.target.value)}>
-                  {quickServices.length === 0 && <option value="">没有可用项目，请先在项目设置中添加。</option>}
-                  {quickServices.map((service) => <option key={service.id} value={service.id}>{service.fullName}</option>)}
-                </select>
+                <div className="quick-service-customer-row">
+                  <div className="quick-service-field">
+                    <label className="field-label" htmlFor="quick-service">选择项目</label>
+                    <select id="quick-service" value={quickService?.id ?? ""} disabled={busy || board.isClosed || quickServices.length === 0} onChange={(event) => setQuickServiceId(event.target.value)}>
+                      {quickServices.length === 0 && <option value="">没有可用项目，请先在项目设置中添加。</option>}
+                      {quickServices.map((service) => <option key={service.id} value={service.id}>{service.fullName}</option>)}
+                    </select>
+                  </div>
+                  <CustomerTypeSwitch value={quickCustomerType} onChange={setQuickCustomerType} disabled={busy || board.isClosed} />
+                </div>
                 <fieldset className={`duration-picker${quickDurations.length === 3 ? " duration-picker--three-options" : ""}`} disabled={busy || board.isClosed}>
                   <legend>选择时长</legend>
                   {quickDurations.map((durationMinutes) => (

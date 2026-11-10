@@ -435,6 +435,11 @@ model EmployeeItemCommission {
   @@map("employee_item_commissions")
 }
 
+enum WorkRecordCustomerType {
+  NEW
+  RETURNING
+}
+
 model WorkRecord {
   id                              String           @id @default(uuid()) @db.Uuid
   storeId                         String           @map("store_id") @db.Uuid
@@ -446,6 +451,7 @@ model WorkRecord {
   endAt                           DateTime?        @map("end_at") @db.Timestamptz(3)
   actualDurationMinutes           Int?             @map("actual_duration_minutes")
   status                          WorkRecordStatus @default(PENDING_PAYMENT)
+  customerType                    WorkRecordCustomerType? @map("customer_type")
   mainServiceAmountCents          BigInt           @map("main_service_amount_cents")
   addonTotalCents                 BigInt           @default(0) @map("addon_total_cents")
   grossFeeBaseCents               BigInt           @map("gross_fee_base_cents")

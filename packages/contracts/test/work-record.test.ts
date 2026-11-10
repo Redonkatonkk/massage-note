@@ -309,3 +309,18 @@ describe("详细记工新建契约", () => {
     expect(createDetailedWorkRecordSchema.safeParse({ create, details: { version: 1 }, payment: { version: 1, cashServiceCents: -1 } }).success).toBe(false);
   });
 });
+
+
+describe("optional customer classification", () => {
+  const create = { employeeMembershipId: "10000000-0000-4000-8000-000000000001", startAt: "2026-11-10T15:00:00.000Z", durationMinutes: 60 };
+  it.each(["NEW", "RETURNING", null, undefined])("accepts customerType %s in create and update", customerType => {
+    expect(createWorkRecordSchema.parse({ ...create, customerType }).customerType).toBe(customerType);
+    expect(updateWorkRecordSchema.parse({ version: 1, customerType }).customerType).toBe(customerType);
+  });
+  it("rejects invalid classifications and any classification field on placeholders", () => {
+    expect(updateWorkRecordSchema.safeParse({ version: 1, customerType: "OLD" }).success).toBe(false);
+    for (const customerType of ["NEW", "RETURNING", null]) {
+      expect(createWorkRecordSchema.safeParse({ employeeMembershipId: create.employeeMembershipId, startAt: create.startAt, isPlaceholder: true, customerType }).success).toBe(false);
+    }
+  });
+});

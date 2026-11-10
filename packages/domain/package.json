@@ -1,6 +1,6 @@
 {
   "name": "@massage-note/domain",
-  "version": "1.56.8",
+  "version": "1.56.9",
   "private": true,
   "type": "module",
   "exports": {

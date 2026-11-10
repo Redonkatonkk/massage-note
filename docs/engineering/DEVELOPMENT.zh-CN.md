@@ -2,7 +2,7 @@
 
 **[English](DEVELOPMENT.md)** | **简体中文**
 
-> 适用版本：`1.56.8`
+> 适用版本：`1.56.9`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.zh-CN.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.zh-CN.md)，HTTP 细节看 [`API.md`](API.zh-CN.md)。
 
@@ -76,6 +76,8 @@ DEV_AUTH_SECRET=replace-with-a-local-random-secret-at-least-32-characters
 | `pnpm ui:mobile` | 核对全部路由与常用弹层在 320–760px 的 DOM 层叠样式，不启动浏览器 |
 
 手机阅读顺序和低频操作另由 [真实组件回归](../../apps/web/app/ui/mobile-reading.test.tsx) 验证，包含真实 DOM 在 320–900px 与桌面的展示切换、恢复/取消确认、金额对应、权限与帮助主题展开。复核范围见 [手机复核记录](MOBILE_REVIEW_2026-10-04.zh-CN.md)。保留原因：代表性样式结构不能替代真实组件和操作验证，二者都不构成浏览器视觉实测。
+
+员工小卡样式回归按版本与宽度分别执行，并始终关闭对应 jsdom 实例。保留原因：全部 12 组组合均须保留断言，在较慢的 CI 机器上不能共用单个五秒测试时限。
 
 `pnpm test:integration` 默认使用 `massage_note_test`，不会清空 `massage_note` 开发库。若默认数据库端口被占用：
 

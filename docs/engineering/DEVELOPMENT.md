@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](DEVELOPMENT.zh-CN.md)**
 
-> Applies to version: `1.56.8`
+> Applies to version: `1.56.9`
 
 This guide describes the current repository’s development workflow. See [`PRODUCT.md`](../product/PRODUCT.md) for business rules, [`ARCHITECTURE.md`](ARCHITECTURE.md) for code boundaries, and [`API.md`](API.md) for HTTP details.
 
@@ -90,6 +90,8 @@ Run `pnpm demo:seed` only when the user explicitly requests synthetic demo scena
 The mobile reading order and low-frequency operations are also verified by [Real Component Regression](../../apps/web/app/ui/mobile-reading.test.tsx), including real DOM display switching between 320–900px and desktop, recovery/cancellation confirmation, amount correspondence, permissions and help topic expansion. For the scope of review, please see [Mobile Phone Review Record](MOBILE_REVIEW_2026-10-04.md). Reason: Representative style structures are not a substitute for real components and operational verification, neither of which constitute browser visual testing.
 
 [Page click regressions](../../apps/web/app/page-clicks.test.tsx) mount the actual work-record page with its shared providers and synthetic API responses. They replay press/focus/release/one-click sequences across background refreshes, periodic updates, language changes and dialog operations under Strict Mode, checking that a pressed button remains connected until release. Run `pnpm --filter @massage-note/web exec vitest run app/page-clicks.test.tsx` for this scope. Reason: calling `.click()` alone misses changes between mouse-down and mouse-up; jsdom still cannot prove Chrome's native event delivery, hit testing or window focus behavior.
+
+Employee-card style regressions run as separate edition/width cases and always close their jsdom instances. Reason: all 12 combinations must retain their assertions without sharing one five-second test budget on slower CI runners.
 
 `pnpm test:integration` uses `massage_note_test` by default and will not clear the `massage_note` development database. If the default database port is occupied:
 

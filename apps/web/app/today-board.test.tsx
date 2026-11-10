@@ -305,7 +305,9 @@ describe("员工小卡直接操作", () => {
     expect(writes()).toHaveLength(0);
   });
 
-  it("新旧版各宽度都隐藏展开提示但保留其布局与身份按钮触控区域", async () => {
+  it.each(
+    ["legacy", "new"].flatMap(edition => [320, 390, 760, 761, 1200, 1440].map(width => ({ edition, width }))),
+  )("$edition 版 $width px 隐藏展开提示但保留其布局与身份按钮触控区域", async ({ edition, width }) => {
     await render();
     const { readFile } = await import("node:fs/promises");
     const { resolve } = await import("node:path");
@@ -314,22 +316,21 @@ describe("员工小卡直接操作", () => {
     const checker = pathToFileURL(resolve(process.cwd(), "../../scripts/check-mobile-ui.mjs")).href;
     const { stylesAtWidth } = await import(/* @vite-ignore */ checker);
     const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css", "new-edition.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
-    for (const edition of ["legacy", "new"]) {
-      for (const width of [320, 390, 760, 761, 1200, 1440]) {
-        const dom = new JSDOM(`<html data-ui-edition="${edition}"><head><style>${stylesAtWidth(sources, width, edition)}</style></head><body>${container.innerHTML}</body></html>`);
-        const style = (selector: string) => dom.window.getComputedStyle(dom.window.document.querySelector(selector)!);
-        expect(style(".employee-toggle .chevron").visibility).toBe("hidden");
-        expect(style(".employee-toggle .chevron").display).not.toBe("none");
-        expect(style(".employee-toggle").visibility).toBe("visible");
-        expect(parseFloat(style(".employee-toggle").minHeight)).toBeGreaterThanOrEqual(44);
-        expect(parseFloat(style(".row-move-action").minHeight)).toBeGreaterThanOrEqual(44);
-        expect(parseFloat(style(".row-move-action").minWidth)).toBeGreaterThanOrEqual(44);
-        if (width > 760) {
-          expect(style(".row-actions").gridColumn).toBe("1 / -1");
-          expect(style(".row-closing-action").gridColumn).toBe("2");
-        }
-        dom.window.close();
+    const dom = new JSDOM(`<html data-ui-edition="${edition}"><head><style>${stylesAtWidth(sources, width, edition)}</style></head><body>${container.innerHTML}</body></html>`);
+    try {
+      const style = (selector: string) => dom.window.getComputedStyle(dom.window.document.querySelector(selector)!);
+      expect(style(".employee-toggle .chevron").visibility).toBe("hidden");
+      expect(style(".employee-toggle .chevron").display).not.toBe("none");
+      expect(style(".employee-toggle").visibility).toBe("visible");
+      expect(parseFloat(style(".employee-toggle").minHeight)).toBeGreaterThanOrEqual(44);
+      expect(parseFloat(style(".row-move-action").minHeight)).toBeGreaterThanOrEqual(44);
+      expect(parseFloat(style(".row-move-action").minWidth)).toBeGreaterThanOrEqual(44);
+      if (width > 760) {
+        expect(style(".row-actions").gridColumn).toBe("1 / -1");
+        expect(style(".row-closing-action").gridColumn).toBe("2");
       }
+    } finally {
+      dom.window.close();
     }
   });
 

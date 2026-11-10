@@ -4,6 +4,10 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.56.9 — 2026-11-10
+
+- Split employee-card style regressions into independent edition/width cases, preserving all 12 combinations and assertions while keeping each within the CI test time budget. Always close each jsdom instance after its assertions.
+
 ## 1.56.8 — 2026-11-10
 
 - Use one Hide action: today/future attendance is hidden when undeleted service records exist, including pending payments, and removed with its shifts otherwise. Placeholders and deleted records no longer prevent removal and remain intact; rejoining shows original placeholders and deleted records remain restorable.

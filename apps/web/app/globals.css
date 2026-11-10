@@ -35,6 +35,13 @@
   --work-record-burn-glow: #ffe3a0;
   --chart-secondary: #728ba3;
   --chart-loss: #b35d50;
+  --customer-new: #2563a6;
+  --customer-new-soft: #e8f2fd;
+  --customer-new-ink: #184b7a;
+  --customer-returning: #b45309;
+  --customer-returning-soft: #fff0da;
+  --customer-returning-ink: #7f430d;
+  --customer-unmarked: #cbd2cc;
   --radius-control: 6px;
   --radius-panel: 10px;
   --radius-dialog: 12px;
@@ -3194,6 +3201,21 @@ body { position: relative; }
 .record-editor .sticky-heading { margin-bottom: 16px; padding-top: 16px; padding-bottom: 12px; }
 .record-editor .field-label { align-content: start; gap: 6px; }
 .record-editor .record-time-row .work-time-field { min-width: 0; }
+/* At the 880px drawer width: 2 × 400px columns + 24px gap + 2 × 28px padding. */
+.record-adjustments { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 24px; }
+.record-adjustments__section { min-width: 0; }
+.record-adjustments .section-heading { min-height: 44px; }
+.record-adjustments .section-heading h3 { font-size: 1.05rem; }
+.record-adjustments .section-heading button { flex-shrink: 0; min-height: 44px; }
+.record-adjustments .line-item { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 12px; margin: 0; padding: 14px; }
+.record-adjustments .line-item + .line-item { margin-top: 12px; }
+.record-adjustments .line-item__wide { grid-column: 1 / -1; }
+.record-adjustments .line-item > .danger-link { grid-column: 2; justify-self: end; min-height: 44px; }
+.record-adjustments .automatic-discount-line > div { flex-basis: 100%; }
+.record-adjustments :is(.field-label, .field-help, .empty-note, .automatic-discount-line) { overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .record-adjustments { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 520px) {
   .record-time-row { grid-template-columns: 1fr; }
 }

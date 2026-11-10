@@ -683,7 +683,7 @@ function TodayBoardContent({
                             )}
                           </span>
                         </span>
-                        {record.customerType && <span className="record-customer-type">{record.customerType === "NEW" ? "新客" : "老客"}</span>}
+                        {record.customerType && <span className="record-customer-type" data-customer-type={record.customerType}>{record.customerType === "NEW" ? "新客" : "老客"}</span>}
                         <span className="record-time">{displayTime(record.startAt, currentDay.timezone)}–{displayTime(record.endAt, currentDay.timezone)}</span>
                         <span className="record-money">
                           <span className="record-service-amount">

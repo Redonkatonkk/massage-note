@@ -4,6 +4,16 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.57.2 — 2026-11-10
+
+- Arrange Add-ons on the left and Discounts on the right in the shared work-record editor, with equal columns, aligned headings and consistent controls. Keep names full-width, pair add-on amount/duration fields, and add visible discount labels; stack the sections at 760px and below.
+- Preserve existing add/remove, automatic discounts, amounts and saving behavior. NAS requires a Web update; no API, database migration or independent plugin/agent update.
+
+## 1.57.1 — 2026-11-10
+
+- Distinguish New customers in blue, Returning customers in orange and Unmarked in gray with shared category tokens across both interface editions. Use solid selected capsules with white text, tinted card badges with dark text, and matching pie/legend colors; preserve labels, optional selection and keyboard focus.
+- Verify selected states and badge colors at every mobile breakpoint, category contrast and existing component behavior. NAS requires a Web update; no API, database migration or independent plugin/agent update.
+
 ## 1.57.0 — 2026-11-10
 
 - Add optional New / Returning customer classification to quick entry and detailed work records, with repeat-click clearing, draft/recovery retention and compact board-card labels. Remove manual tip/service settlement checkboxes from the editor while retaining API and historical data compatibility.

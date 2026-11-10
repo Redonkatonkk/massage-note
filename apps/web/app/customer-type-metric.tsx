@@ -5,9 +5,9 @@ import type { CustomerTypeCounts } from "../lib/types";
 export function CustomerTypeMetric({ counts }: { counts: CustomerTypeCounts }) {
   const total = counts.newCount + counts.returningCount + counts.unmarkedCount;
   const parts = [
-    { label: "新客", count: counts.newCount, color: "var(--brand)" },
-    { label: "老客", count: counts.returningCount, color: "var(--muted)" },
-    { label: "未标记", count: counts.unmarkedCount, color: "var(--line)" },
+    { label: "新客", count: counts.newCount, color: "var(--customer-new)" },
+    { label: "老客", count: counts.returningCount, color: "var(--customer-returning)" },
+    { label: "未标记", count: counts.unmarkedCount, color: "var(--customer-unmarked)" },
   ];
   let offset = 0;
   return <div className="overview-metric customer-type-metric">

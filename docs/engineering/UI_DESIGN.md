@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](UI_DESIGN.zh-CN.md)**
 
-> Applies to version: `1.57.0` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
+> Applies to version: `1.57.2` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
 
 This article is the design basis for subsequent AI modifications to the front end and generation of payroll share pages and individual daily statement images. Aesthetic judgment comes from store working scenes, user feedback on adjacent panels, highlight colors, member operations, phone reading and generated pictures, and existing implementations. New requirements from users are given priority; specific business rules are subject to [Product Document](../product/PRODUCT.md). For specific style values, check the source code entry below. Reason: The design rationale needs to be sustained and needs to be able to be revised with clear feedback.
 
@@ -48,6 +48,8 @@ Member management insists on selecting an existing employee first, and then cent
 ### Density is determined by content relationships
 
 The work-record employee list shares one `.board-panel` outer frame, with no gaps or individual row corners. Separate adjacent employees with one thin line, including collapsed rows, while retaining each employee's identity, record track and totals. The empty state keeps its existing single panel. Reason: a continuous roster saves vertical space and keeps employee boundaries clear without shrinking text or controls.
+
+In work-record details and detailed entry, place Add-ons on the left and Discounts on the right in equal columns with a 24px gutter. Share the section divider, align headings and Add actions, and let each section keep its natural height. Keep item names full-width, pair add-on amount/duration fields, and give discount controls visible labels. At 760px and below, stack Add-ons before Discounts while retaining control sizes and complete automatic-discount notices. Reason: related price adjustments should be easy to compare without squeezing their editable fields.
 
 Labels, values, states, and operations belonging to the same object are arranged close together; leave large gaps between different tasks. Title, body text, form, and amounts are aligned to a common baseline, and field helper text stays within its own field without pulling up adjacent controls. Reason: Distance and alignment express information relationships, and users can understand groupings without reading sentence by sentence.
 
@@ -277,4 +279,4 @@ Keep Customer mix visible before and after closing. When cash settlement is enab
 
 Use one optional two-button capsule for New / Returning, with neither selected initially and repeat-click clearing. Reuse the existing spring travel between choices, visible-current-position interruption, resize/language alignment, reduced motion, keyboard focus and disabled states; clearing hides the capsule. Quick entry aligns it to the right of the service selector; detailed creation/editing groups it beside Use gift card and removes manual tip/service settlement controls. Narrow rows wrap instead of shrinking controls. Board service cards show a small text badge between service name and time, without a badge for unmarked records. Reason: optional classification must not imply a default or obscure service and payment status.
 
-Replace Gift card total with a compact SVG Customer mix pie and a labeled count/one-decimal-percentage legend for New, Returning and Unmarked. Use shared green and neutral tokens, preserve genuine zero counts, show No work records for an empty date, and retain the mobile More summary entry. Cash balance is independent and appears under its original conditions. Keep the metric strip aligned with five, six or seven metrics in both editions. Reason: category shares need an explicit denominator while cash reconciliation remains available.
+Replace Gift card total with a compact SVG Customer mix pie and a labeled count/one-decimal-percentage legend for New, Returning and Unmarked. Use shared customer-category tokens: New is blue, Returning is orange, and Unmarked is gray in both editions. Selected capsules use solid category fill with white text; badges use category-tinted surfaces and dark text. Keep the same category colors in the pie and legend, retain text labels and visible keyboard focus, preserve genuine zero counts, show No work records for an empty date, and retain the mobile More summary entry. Cash balance is independent and appears under its original conditions. Keep the metric strip aligned with five, six or seven metrics in both editions. Reason: category shares need an explicit denominator while cash reconciliation remains available.

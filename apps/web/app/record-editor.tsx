@@ -934,54 +934,56 @@ export function RecordEditor({
 
         </section>
 
-        <section className="editor-section">
-          <div className="section-heading"><h3>额外项目</h3><button type="button" onClick={addAddon}>＋ 添加</button></div>
-          {addons.length === 0 && <p className="empty-note">本单没有额外项目</p>}
-          {addons.map((item) => (
-            <div className="line-item line-item--addon" key={item.key}>
-              <label className="field-label">额外项目<select value={item.sourceItemId} onChange={(event) => selectAddon(item.key, event.target.value)}>
-                {catalog.addonItems.filter((candidate) => candidate.isEnabled && !candidate.deletedAt).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
-                <option value="__custom__">自定义额外项目</option>
-              </select></label>
-              {item.sourceItemId === "__custom__" && <label className="field-label">额外项目名称<input aria-label="额外项目名称" placeholder="额外项目名称" value={item.name} onChange={(event) => updateAddon(item.key, { name: event.target.value, shortName: event.target.value.slice(0, 30) })} /></label>}
-              <label className="field-label">金额（美元）<NumericInput aria-label="额外项目金额" inputMode="decimal" placeholder="金额" value={item.amount} onChange={(event) => updateAddon(item.key, { amount: event.target.value })} /></label>
-              <label className="field-label">加时（分钟）<NumericInput aria-label="额外项目加时分钟" inputMode="numeric" placeholder="加时分钟" value={item.durationMinutes} onChange={(event) => changeAddonDuration(item.key, event.target.value)} /></label>
-              {canManage && <label className="field-label">提成（%）<NumericInput aria-label="额外项目提成百分比" inputMode="decimal" placeholder="提成 %（留空按规则）" value={item.commissionPercent} onChange={(event) => updateAddon(item.key, { commissionPercent: event.target.value })} /></label>}
-              <button className="danger-link" type="button" onClick={() => removeAddon(item)}>移除</button>
-            </div>
-          ))}
-        </section>
+        <div className="editor-section record-adjustments">
+          <section className="record-adjustments__section" aria-labelledby="record-addons-title">
+            <div className="section-heading"><h3 id="record-addons-title">额外项目</h3><button type="button" onClick={addAddon}>＋ 添加</button></div>
+            {addons.length === 0 && <p className="empty-note">本单没有额外项目</p>}
+            {addons.map((item) => (
+              <div className="line-item line-item--addon" key={item.key}>
+                <label className="field-label line-item__wide">额外项目<select value={item.sourceItemId} onChange={(event) => selectAddon(item.key, event.target.value)}>
+                  {catalog.addonItems.filter((candidate) => candidate.isEnabled && !candidate.deletedAt).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
+                  <option value="__custom__">自定义额外项目</option>
+                </select></label>
+                {item.sourceItemId === "__custom__" && <label className="field-label line-item__wide">额外项目名称<input aria-label="额外项目名称" placeholder="额外项目名称" value={item.name} onChange={(event) => updateAddon(item.key, { name: event.target.value, shortName: event.target.value.slice(0, 30) })} /></label>}
+                <label className="field-label">金额（美元）<NumericInput aria-label="额外项目金额" inputMode="decimal" placeholder="金额" value={item.amount} onChange={(event) => updateAddon(item.key, { amount: event.target.value })} /></label>
+                <label className="field-label">加时（分钟）<NumericInput aria-label="额外项目加时分钟" inputMode="numeric" placeholder="加时分钟" value={item.durationMinutes} onChange={(event) => changeAddonDuration(item.key, event.target.value)} /></label>
+                {canManage && <label className="field-label">提成（%）<NumericInput aria-label="额外项目提成百分比" inputMode="decimal" placeholder="提成 %（留空按规则）" value={item.commissionPercent} onChange={(event) => updateAddon(item.key, { commissionPercent: event.target.value })} /></label>}
+                <button className="danger-link" type="button" onClick={() => removeAddon(item)}>移除</button>
+              </div>
+            ))}
+          </section>
 
-        <section className="editor-section">
-          <div className="section-heading"><h3>折扣</h3><button type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => [...current, catalog.discountItems[0] ? discountFromItem(catalog.discountItems[0]) : { key: crypto.randomUUID(), sourceItemId: "__custom__", name: "自定义折扣", amount: "0" }]); }}>＋ 添加</button></div>
-          {automaticDiscountSuppressed ? (
-            <div className="automatic-discount-line automatic-discount-line--removed">
-              <div><strong>本单已手动移除自动折扣</strong><small>只影响这笔记工，不会关闭店铺的周一至周四自动折扣规则</small></div>
-              <button className="secondary-action compact" type="button" onClick={() => { setDraftDirty(true); setAutomaticDiscountSuppressed(false); }}>恢复自动折扣</button>
-            </div>
-          ) : isHighlighted ? (
-            <p className="field-help">高亮记工不应用周一至周四自动折扣。</p>
-          ) : draftAutomaticDiscount > 0 && (
-            <div className="automatic-discount-line">
-              <div><strong>周一至周四自动折扣</strong><small>保存时将按当前店铺规则重新应用</small></div>
-              <span>-{dollars(draftAutomaticDiscount)}</span>
-              <button className="danger-link" type="button" onClick={removeAutomaticDiscount}>移除</button>
-            </div>
-          )}
-          <p className="field-help">可输入金额或百分比（如 10%）；百分比按大费与全部加项合计计算。</p>
-          {discounts.length === 0 && draftAutomaticDiscount === 0 && !automaticDiscountSuppressed && <p className="empty-note">本单没有折扣</p>}
-          {discounts.map((item) => (
-            <div className="line-item" key={item.key}>
-              <select value={item.sourceItemId} onChange={(event) => selectDiscount(item.key, event.target.value)}>
-                {catalog.discountItems.filter((candidate) => candidate.isEnabled && !candidate.deletedAt).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
-                <option value="__custom__">自定义折扣</option>
-              </select>
-              {item.sourceItemId === "__custom__" && <input aria-label="折扣名称" value={item.name} onChange={(event) => updateDiscount(item.key, { name: event.target.value })} />}
-              <NumericInput aria-label="折扣金额或百分比" inputMode="decimal" allowPercent placeholder="例如 10 或 10%" value={item.amount} onChange={(event) => updateDiscount(item.key, { amount: event.target.value })} />
-              <button className="danger-link" type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => current.filter((candidate) => candidate.key !== item.key)); }}>移除</button>
-            </div>
-          ))}
-        </section>
+          <section className="record-adjustments__section" aria-labelledby="record-discounts-title">
+            <div className="section-heading"><h3 id="record-discounts-title">折扣</h3><button type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => [...current, catalog.discountItems[0] ? discountFromItem(catalog.discountItems[0]) : { key: crypto.randomUUID(), sourceItemId: "__custom__", name: "自定义折扣", amount: "0" }]); }}>＋ 添加</button></div>
+            {automaticDiscountSuppressed ? (
+              <div className="automatic-discount-line automatic-discount-line--removed">
+                <div><strong>本单已手动移除自动折扣</strong><small>只影响这笔记工，不会关闭店铺的周一至周四自动折扣规则</small></div>
+                <button className="secondary-action compact" type="button" onClick={() => { setDraftDirty(true); setAutomaticDiscountSuppressed(false); }}>恢复自动折扣</button>
+              </div>
+            ) : isHighlighted ? (
+              <p className="field-help">高亮记工不应用周一至周四自动折扣。</p>
+            ) : draftAutomaticDiscount > 0 && (
+              <div className="automatic-discount-line">
+                <div><strong>周一至周四自动折扣</strong><small>保存时将按当前店铺规则重新应用</small></div>
+                <span>-{dollars(draftAutomaticDiscount)}</span>
+                <button className="danger-link" type="button" onClick={removeAutomaticDiscount}>移除</button>
+              </div>
+            )}
+            <p className="field-help">可输入金额或百分比（如 10%）；百分比按大费与全部加项合计计算。</p>
+            {discounts.length === 0 && draftAutomaticDiscount === 0 && !automaticDiscountSuppressed && <p className="empty-note">本单没有折扣</p>}
+            {discounts.map((item) => (
+              <div className="line-item" key={item.key}>
+                <label className="field-label line-item__wide">折扣项目<select value={item.sourceItemId} onChange={(event) => selectDiscount(item.key, event.target.value)}>
+                  {catalog.discountItems.filter((candidate) => candidate.isEnabled && !candidate.deletedAt).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
+                  <option value="__custom__">自定义折扣</option>
+                </select></label>
+                {item.sourceItemId === "__custom__" && <label className="field-label line-item__wide">折扣名称<input aria-label="折扣名称" value={item.name} onChange={(event) => updateDiscount(item.key, { name: event.target.value })} /></label>}
+                <label className="field-label line-item__wide">折扣金额或百分比<NumericInput aria-label="折扣金额或百分比" inputMode="decimal" allowPercent placeholder="例如 10 或 10%" value={item.amount} onChange={(event) => updateDiscount(item.key, { amount: event.target.value })} /></label>
+                <button className="danger-link" type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => current.filter((candidate) => candidate.key !== item.key)); }}>移除</button>
+              </div>
+            ))}
+          </section>
+        </div>
 
         <section className="editor-section">
           <h3>客人付款</h3>

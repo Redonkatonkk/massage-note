@@ -122,12 +122,18 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .payment-customer-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; margin-top: 16px; }
 .payment-customer-controls .gift-card-toggle { margin: 0; }
 .customer-type-switch { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 0 0 auto; width: 176px; padding: 0; overflow: hidden; border-radius: 999px; background: var(--surface-soft); }
-.customer-type-switch__capsule { position: absolute; z-index: -1; visibility: hidden; pointer-events: none; border: 1px solid var(--brand); border-radius: 999px; background: var(--surface); }
+.customer-type-switch__capsule { position: absolute; z-index: -1; visibility: hidden; pointer-events: none; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.customer-type-switch[data-customer-type="NEW"] .customer-type-switch__capsule { border-color: var(--customer-new); background: var(--customer-new); }
+.customer-type-switch[data-customer-type="RETURNING"] .customer-type-switch__capsule { border-color: var(--customer-returning); background: var(--customer-returning); }
 .customer-type-switch button { min-width: 0; min-height: 44px; padding: 6px 8px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; line-height: 1.3; cursor: pointer; }
-.customer-type-switch button[aria-pressed="true"] { color: var(--brand-dark); }
-.customer-type-switch button:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.customer-type-switch button[data-customer-type="NEW"] { color: var(--customer-new-ink); }
+.customer-type-switch button[data-customer-type="RETURNING"] { color: var(--customer-returning-ink); }
+.customer-type-switch button[aria-pressed="true"] { color: var(--surface); font-weight: 600; }
+.customer-type-switch button:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
 .customer-type-switch button:disabled { opacity: .65; cursor: default; }
-.record-customer-type { align-self: flex-start; padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); color: var(--ink); background: var(--surface); font-size: 12px; line-height: 18px; white-space: nowrap; }
+.record-customer-type { align-self: flex-start; padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); color: var(--ink); background: var(--surface); font-size: 12px; font-weight: 600; line-height: 18px; white-space: nowrap; }
+.record-customer-type[data-customer-type="NEW"] { border-color: var(--customer-new); color: var(--customer-new-ink); background: var(--customer-new-soft); }
+.record-customer-type[data-customer-type="RETURNING"] { border-color: var(--customer-returning); color: var(--customer-returning-ink); background: var(--customer-returning-soft); }
 .customer-type-metric__body { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
 .customer-type-metric__body svg { flex: 0 0 48px; width: 48px; height: 48px; }
 .customer-type-metric__body dl { flex: 1 1 100px; min-width: 0; margin: 0; font-size: 12px; line-height: 20px; font-variant-numeric: tabular-nums; }

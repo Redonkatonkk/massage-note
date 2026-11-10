@@ -54,9 +54,9 @@ export function CustomerTypeSwitch({ value, onChange, disabled = false }: {
     return () => { resize?.disconnect(); labels.disconnect(); window.removeEventListener("resize", settle); reduced?.removeEventListener("change", settle); };
   }, [value, locale]);
   useLayoutEffect(() => () => { animationRef.current?.cancel(); }, []);
-  return <div ref={trackRef} className="customer-type-switch" role="group" aria-label="客人类型（选填）">
+  return <div ref={trackRef} className="customer-type-switch" data-customer-type={value ?? "UNMARKED"} role="group" aria-label="客人类型（选填）">
     <span ref={capsuleRef} className="customer-type-switch__capsule" aria-hidden="true" />
-    {options.map((option, index) => <button key={option.value} type="button" disabled={disabled}
+    {options.map((option, index) => <button key={option.value} type="button" disabled={disabled} data-customer-type={option.value}
       aria-pressed={value === option.value} onClick={() => onChange(value === option.value ? null : option.value)}
       onKeyDown={event => {
         const next = event.key === "Home" ? 0 : event.key === "End" ? 1

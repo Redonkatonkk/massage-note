@@ -159,7 +159,7 @@ export function EmployeeClosingSummary({ preview: initialPreview, canSend = fals
 
       <section className="employee-closing-handoff" aria-labelledby="employee-closing-settlement-title">
         <div><h3 id="employee-closing-settlement-title">现金交接</h3><p>{preview.dailySettlementEnabled ? (locale === "en-US" ? "All service wages and card/gift card tips; cash tips are received directly from guests." : "当天全部大费工资＋刷卡/礼物卡小费；现金小费已由客人直接给员工，不计入交接。") : "店里应发给员工的现金大费工资；现金小费由员工自行收取。"}</p></div>
-        <article><span>{preview.dailySettlementEnabled ? (locale === "en-US" ? "Daily wages to pay" : "当日应发工资") : "现金大费"}</span><strong>{money(preview.dailySettlementEnabled ? preview.dailySettlementPayoutCents ?? 0 : employee.cashLargeFeeDividendCents, locale)}</strong><small>{preview.dailySettlementEnabled ? (locale === "en-US" ? "Includes service wages from every payment method and card/gift card tips." : "包含现金、刷卡和礼物卡的全部大费提成，以及刷卡/礼物卡小费。") : "已确认项目按折前金额和提成比例计算，混合付款按现金占比分摊；折扣由店里承担。"}</small></article>
+        <article><span>{preview.dailySettlementEnabled ? (locale === "en-US" ? "Daily wages to pay" : "当日应发工资") : "现金大费"}</span><strong>{money(preview.dailySettlementEnabled ? preview.dailySettlementPayoutCents ?? 0 : employee.cashLargeFeeDividendCents, locale)}</strong><small>{preview.dailySettlementEnabled ? (locale === "en-US" ? "Includes service wages from every payment method and card/gift card tips." : "包含现金、刷卡和礼物卡的全部大费提成，以及刷卡/礼物卡小费。") : "按折前金额和提成比例计算；混合付款先将店铺承担的折扣补回现金大费，再分摊工资。"}</small></article>
       </section>
 
       <div className="employee-closing-image-actions">

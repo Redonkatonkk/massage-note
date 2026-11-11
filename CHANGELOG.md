@@ -4,6 +4,11 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.57.3 — 2026-11-10
+
+- Restore store-funded discounts to the cash service basis before allocating mixed-payment commissions. A $130 service at 60%, with $5 off and receipts of $25 cash + $100 card, now yields $18 cash wages + $60 non-cash wages; preserve item-specific commissions, tips, rounding and actual-cash shortfalls.
+- Forward-repair stored allocations for existing confirmed orders, including deleted records, while preserving receipts, total wages, payroll payments and frozen settlement/closing/shared snapshots. Verify domain rules, migration replay and saved-order/closing/settlement flows; synchronize bilingual explanations. NAS requires Web/API updates and the repair migration; no independent plugin or agent update.
+
 ## 1.57.2 — 2026-11-10
 
 - Arrange Add-ons on the left and Discounts on the right in the shared work-record editor, with equal columns, aligned headings and consistent controls. Keep names full-width, pair add-on amount/duration fields, and add visible discount labels; stack the sections at 760px and below.

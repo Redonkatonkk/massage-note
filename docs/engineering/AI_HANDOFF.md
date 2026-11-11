@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](AI_HANDOFF.zh-CN.md)**
 
-> Last verified: 2026-11-02 (America/New_York) · Current version: `1.57.2`
+> Last verified: 2026-11-02 (America/New_York) · Current version: `1.57.3`
 
 <a id="接手"></a>
 

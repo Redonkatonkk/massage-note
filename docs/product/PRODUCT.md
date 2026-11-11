@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](PRODUCT.zh-CN.md)**
 
-> Applies to version: `1.57.2`
+> Applies to version: `1.57.3`
 > Check basis: domain functions, shared contracts, API services and their tests. See [API](../engineering/API.md) for the HTTP fields, see [UI Design](../engineering/UI_DESIGN.md) for the layout, and see [Development Guide](../engineering/DEVELOPMENT.md) for the maintenance process.
 
 <a id="产品范围与数据原则"></a>
@@ -132,7 +132,7 @@ Let P be the main item, E be the add-on total, and D be the discount; CS/CC/GCS 
 | --- | --- | --- |
 | Service fee base | P + E | Salary and original card price are calculated based on the amount before discount. |
 | Service fee performance after discount | P + E − D | Discount affects performance and cannot rewrite actual receipts. |
-| Actual service fee | CS + CC + GCS | The payment ratio requires three methods to form the denominator. |
+| Actual service fee | CS + CC + GCS | All three payment methods are included; wages restore discounts separately. |
 | tips/guest payment | CT + CCT + GCT; actual service fee + tips | tips are separate from service fee, and wages and cash are attributed differently. |
 | service commission | Amount of each project × respective final commission, totaled after rounding off | Multiple projects can have different commissions, and cannot be multiplied by one proportion as a whole. |
 | Total employee income | service commission + all tips | Discounts are borne by the store. |
@@ -160,7 +160,7 @@ Let P be the main item, E be the add-on total, and D be the discount; CS/CC/GCS 
 
 ## Cash, daily full settlement and payroll ledger
 
-- Cash corresponds to service commission according to this order service commission × cash service fee / all paid service fees are apportioned; if the actual receipt is zero, the cash salary is zero, and the remaining salary is still to be paid. Reason: Mixed payment and free items cannot use fixed 60% or divide by zero.
+- When cash service receipts are positive, cash service wages equal total service wages × (cash service receipts + discounts) / (all service receipts + discounts), rounded half up to cents. Store-funded discounts restore the cash basis; non-cash wages receive the remainder. With no cash service receipt, cash wages are zero. For $130 at 60%, $5 off and receipts of $25 cash + $100 card, wages are $18 cash + $60 card. Different item commissions still determine total wages separately; tips and receipt mismatches remain separate. Reason: allocating by discounted receipts incorrectly shifts cash commission into non-cash wages.
 - The actual salary received in cash is min (cash service fee, cash corresponding salary), which should be left as the actual salary plus cash tips, and should be paid as cash service fee minus the actual salary received, and the gap continues to be unpaid. Reason: Money not received by the employee cannot be recorded as earned, nor can a cash submission be negative.
 - Cash settlement only includes those with valid work records on the day, and supports single/full settlement, rollback, historical details and audit; the status is only open/settled, and partial payment or net balance of both parties is not recorded. Reason: The existing cash position is separate from the payroll payment ledger, and one net amount cannot be used to offset both obligations.
 - Ordinary individual daily statement "cash service fee" indicates the cash salary `cashLargeFeeDividendCents` that should be paid in the store. Cash tips are collected by employees themselves; the old payable field is reserved for financial compatibility only. Reason: The salary standard on the personal page has changed and cannot be interpreted as handing over 40%.
@@ -177,7 +177,7 @@ Let P be the main item, E be the add-on total, and D be the discount; CS/CC/GCS 
 
 - Card/Cash and Service/Tips use checkboxes in the settlement builder and payroll entry/edit forms. Each group permits one or both options; new entries default to Card and both earnings types. Card includes gift cards and residual non-cash wages. Previews, payment confirmation and shared statements use the selected types; payroll entries retain them, and older entries cover both types. Separate service/tip confirmations only clear their own balances; a calendar source is complete after both types are covered. Reason: changing selection must preserve the same financial scope throughout reconciliation and payment.
 - The manager selects the employee, the date range including the beginning and the end, and the salary source, and generates a complete settlement from the valid confirmed records, which can include not closed days, up to 999 transactions; the owner only generates data. Reason: The data is not a payment authorization. If the limit is exceeded, the range needs to be shortened but not truncated.
-- Cash/non-cash wages are allocated according to the payment ratio of this order. Non-cash wages include credit cards, gift cards and wages that are not distributed through cash; closed records are still entered into the data. Reason: The settlement statement states the income for the entire period, not just the portion that remains to be paid.
+- Cash/non-cash wages use the same allocation with discounts restored to the cash basis when cash service receipts are positive. Non-cash wages include credit cards, gift cards and wages that are not distributed through cash; closed records are still entered into the data. Reason: The settlement statement states the income for the entire period, not just the portion that remains to be paid.
 - Calendar yellow indicates cash confirmation, green indicates non-cash confirmation, all contributions are on both sides, and there is no relevant source. If there is a gap in cash settlement, it can still be marked yellow but the gap remains to be paid. Reason: Business confirmation and actual amount obtained are expressed separately.
 - This outstanding payment excludes the effective confirmation range and deducts the actual daily cash income; the deduction is manually filled in, defaults to zero, and cannot exceed the outstanding amount. This actual payment is the unsettled deduction minus the deduction. Reason: Date allocation cannot be automatically inferred from historical payments, and manual deductions cannot cause negative payments.
 - "Paid" saves the actual payment and confirmation according to the preview revision, idempotency key and business day lock, and can have zero actual payment; empty records, Owner, all closed or old revisions are rejected, and only the unsettled part is paid in the overlapping range. Reason: The user cannot continue to pay according to the old preview after the income verified by the user changes.

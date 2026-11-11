@@ -239,12 +239,14 @@ export function calculateWorkRecordFinance(
   );
   const totalLargeFeeWageCents = mainServiceWageCents + addonWageCents;
   const employeeTotalIncomeCents = totalLargeFeeWageCents + totalTipCents;
+  // The store funds discounts on the cash portion; non-cash receipts keep their
+  // service basis. With no cash service receipt, no wage is allocated to cash.
   const cashAllocatedServiceWageCents =
-    actualServiceCollectedCents === 0n
+    cashServiceCents === 0n
       ? 0n
       : roundHalfUp(
-          totalLargeFeeWageCents * cashServiceCents,
-          actualServiceCollectedCents,
+          totalLargeFeeWageCents * (cashServiceCents + discountTotalCents),
+          actualServiceCollectedCents + discountTotalCents,
         );
   const cashAcquiredServiceWageCents = minCents(
     cashServiceCents,
@@ -379,7 +381,7 @@ export interface PersonalClosingPaymentDividends {
 }
 
 /**
- * 个人日结的四项分红只汇总已确认记工：大费工资先按现金付款比例分配，
+ * 个人日结的四项分红只汇总已确认记工：现金大费工资沿用已补回折扣的分配结果，
  * 其余未通过现金分配的工资归入刷卡／非现金，小费按实际确认方式归类。
  */
 export function calculatePersonalClosingPaymentDividends(

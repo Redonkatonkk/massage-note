@@ -159,6 +159,30 @@ describe.skipIf(!enabled).sequential("工资日历、抵扣与结清事务", () 
     expect((await calendar()).days.find((d) => d.businessDate === "2026-09-03")).toMatchObject({ cashSettled: true, nonCashSettled: true });
   });
 
+  it("折扣混付在确认、修改、个人日结、区间预览和现金结清中使用相同的折前工资拆分", async () => {
+    const date = "2026-08-30";
+    const created = await work.create(owner, storeId, { employeeMembershipId: membershipId, startAt: `${date}T16:00:00Z`, serviceItemId }, key(), key());
+    const edited = await work.update(owner, storeId, created.id, {
+      version: created.version, mainServiceAmountCents: 12_000,
+      addons: [{ isCustom: true, name: "椰子油", shortName: "椰子油", amountCents: 1_000 }],
+      discounts: [{ isCustom: true, name: "off5", amountCents: 500 }],
+    }, key(), key());
+    const paid = await work.confirmPayment(owner, storeId, created.id, {
+      version: edited.version, cashServiceCents: 2_500, cardServiceCents: 10_000, cashTipCents: 3_500, cardTipCents: 0,
+    }, key(), key());
+    expect(paid).toMatchObject({ totalLargeFeeWageCents: 7_800n, employeeTotalIncomeCents: 11_300n, cashAllocatedServiceWageCents: 1_800n });
+    const updated = await work.update(owner, storeId, created.id, { version: paid.version, note: "核对混合付款" }, key(), key());
+    expect(updated.cashAllocatedServiceWageCents).toBe(1_800n);
+    const personal = await closings.previewMember(employee, storeId, date, membershipId);
+    expect(personal.employee).toMatchObject({ cashLargeFeeDividendCents: 1800, cardLargeFeeDividendCents: 6000, cashTipDividendCents: 3500 });
+    expect((await preview(date)).summary).toMatchObject({ cashLargeFeeWageCents: 1800, nonCashLargeFeeWageCents: 6000, totalIncomeCents: 11300 });
+    expect((await preview(date, date, "CASH")).payment.unsettledCents).toBe(5300);
+    expect((await preview(date, date, "NON_CASH")).payment.unsettledCents).toBe(6000);
+    const settled = await cash.settle(owner, storeId, date, membershipId, { version: 0 }, key(), key());
+    expect(settled).toMatchObject({ cashAllocatedServiceWageCents: 1_800n, cashRetainedCents: 5_300n, cashToSubmitToStoreCents: 700n });
+    expect((await preview(date)).payment.unsettledCents).toBe(6000);
+  });
+
   it("抵扣不能超额，全部抵扣后零实付也确认结清", async () => {
     const quoted = await preview("2026-09-05");
     await expect(payments.confirm(owner, storeId, { ...query("2026-09-05"), deductionCents: 9301, revision: quoted.payment.revision }, key(), key())).rejects.toBeInstanceOf(BadRequestException);

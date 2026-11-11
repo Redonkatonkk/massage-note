@@ -205,6 +205,68 @@ describe("单条记工财务", () => {
     expect(result.cashToSubmitToStoreCents).toBe(1_200n);
   });
 
+  it("混合付款先把店铺折扣补回现金基数：130 大费、现金25、刷卡100应分现金18及刷卡60", () => {
+    const result = calculateWorkRecordFinance(record({
+      mainServiceAmountCents: 12_000n,
+      addons: [{ amountCents: 1_000n, commissionBps: 6_000 }],
+      discountAmountsCents: [500n],
+      cashServiceCents: 2_500n,
+      cardServiceCents: 10_000n,
+      cashTipCents: 3_500n,
+    }));
+    expect(result.hasPaymentMismatch).toBe(false);
+    expect(result.employeeTotalIncomeCents).toBe(11_300n);
+    expect(result.cashAllocatedServiceWageCents).toBe(1_800n);
+    expect(result.cashAcquiredServiceWageCents).toBe(1_800n);
+    expect(result.cashToSubmitToStoreCents).toBe(700n);
+    expect(calculatePersonalClosingPaymentDividends([result])).toEqual({
+      cashLargeFeeDividendCents: 1_800n, cardLargeFeeDividendCents: 6_000n,
+      cashTipDividendCents: 3_500n, cardTipDividendCents: 0n,
+    });
+    expect(calculateCashChange({ giftCardSaleCashCents: 0n, records: [{ ...result, role: "EMPLOYEE", dailySettlementEnabled: false }] })).toBe(700n);
+  });
+
+  it("现金与刷卡、礼卡混付时全部折扣只补回现金，保留各项目不同提成和工资总额", () => {
+    const result = calculateWorkRecordFinance(record({
+      addons: [{ amountCents: 2_000n, commissionBps: 5_000 }],
+      discountAmountsCents: [500n, 500n],
+      cashServiceCents: 2_000n, cardServiceCents: 6_000n, giftCardServiceCents: 3_000n,
+    }));
+    expect(result.totalLargeFeeWageCents).toBe(7_000n);
+    expect(result.cashAllocatedServiceWageCents).toBe(1_750n);
+    expect(calculatePersonalClosingPaymentDividends([result]).cardLargeFeeDividendCents).toBe(5_250n);
+  });
+
+  it.each(["cardServiceCents", "giftCardServiceCents"] as const)("折扣不凭空产生现金工资：仅%s付款，现金小费独立", (method) => {
+    const result = calculateWorkRecordFinance(record({
+      discountAmountsCents: [500n], cashServiceCents: 0n, [method]: 9_500n,
+    }));
+    expect(result.cashAllocatedServiceWageCents).toBe(0n);
+    expect(result.employeeCashRetainedCents).toBe(2_000n);
+    expect(result.totalLargeFeeWageCents).toBe(6_000n);
+  });
+
+  it("含折扣混付保留美分，现金不足的工资继续欠付", () => {
+    const result = calculateWorkRecordFinance(record({
+      mainServiceAmountCents: 101n, mainServiceCommissionBps: 5_000,
+      discountAmountsCents: [99n], cashServiceCents: 1n, cardServiceCents: 1n,
+    }));
+    expect(result.cashAllocatedServiceWageCents).toBe(50n);
+    expect(result.cashAcquiredServiceWageCents).toBe(1n);
+    expect(result.cashWageShortfallCents).toBe(49n);
+    expect(result.totalLargeFeeWageCents - result.cashAllocatedServiceWageCents).toBe(1n);
+  });
+
+  it("补回折扣后的现金工资恰好半美分时向上舍入，非现金承接余额", () => {
+    const result = calculateWorkRecordFinance(record({
+      mainServiceAmountCents: 4n, mainServiceCommissionBps: 5_000,
+      discountAmountsCents: [1n], cashServiceCents: 2n, cardServiceCents: 1n,
+    }));
+    expect(result.totalLargeFeeWageCents).toBe(2n);
+    expect(result.cashAllocatedServiceWageCents).toBe(2n);
+    expect(calculatePersonalClosingPaymentDividends([result]).cardLargeFeeDividendCents).toBe(0n);
+  });
+
   it("礼物卡大费和小费计入本单付款，但不计入员工收到的现金", () => {
     const result = calculateWorkRecordFinance(
       record({

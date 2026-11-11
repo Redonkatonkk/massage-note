@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.57.2`
+> 适用版本：`1.57.3`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -75,7 +75,7 @@
 | GET | `/stores/:storeId/gift-card-sales/deleted` | 店长查看已删除卖卡记录 |
 | POST | `/stores/:storeId/gift-card-sales/:saleId/restore` | 恢复已删除卖卡记录 |
 | GET | `/stores/:storeId/closings/:businessDate/preview` | 全店日结预览 |
-| GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人；返回目标员工按开始时间排序的逐笔记工、项目/加项名称、逐笔 `grossFeeBaseCents` 折前大费、`discountTotalCents` 折扣及 `isHighlighted` 高亮标记、现金/刷卡/礼物卡实收拆分、单笔工资收入，以及现金/刷卡大费分红、现金/刷卡小费分红和对应合计；仅计已确认付款；每日小结“现金大费”使用 `cashLargeFeeDividendCents` 表示店里应付员工的现金大费工资（折前提成按现金付款占比分摊，不含现金小费）；`cashToSubmitToStoreCents` 仅保留旧口径兼容；不含全店或他人数据 |
+| GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人；返回目标员工按开始时间排序的逐笔记工、项目/加项名称、逐笔 `grossFeeBaseCents` 折前大费、`discountTotalCents` 折扣及 `isHighlighted` 高亮标记、现金/刷卡/礼物卡实收拆分、单笔工资收入，以及现金/刷卡大费分红、现金/刷卡小费分红和对应合计；仅计已确认付款；每日小结“现金大费”使用 `cashLargeFeeDividendCents` 表示店里应付员工的现金大费工资（现金大费实收为正时，按总大费工资 ×（现金大费实收＋折扣）/（全部大费实收＋折扣）舍入至美分；否则为零，不含现金小费）；`cashToSubmitToStoreCents` 仅保留旧口径兼容；不含全店或他人数据 |
 | POST | `/stores/:storeId/closings/:businessDate`、`.../cancel` | 正常/强制日结与取消日结；现金结清状态不阻止正常日结，日结不自动结清现金；取消仅需 `version`，`reason` 可省略 |
 | GET | `/stores/:storeId/closings/:businessDate/deliveries` | 店主或经理查看个人日结短信发送历史、错误和 Mac 代理状态 |
 | POST | `/stores/:storeId/closings/:businessDate/deliveries/batch` | 日结后把所有已开启、号码有效且当天有记工的成员幂等加入发送队列 |

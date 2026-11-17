@@ -368,9 +368,9 @@ export class BoardsService {
       timezone: deviceTimezone(store.timezone),
       cutoffLocal: store.businessCutoffLocal,
     });
+    const mayReadStoreFinance = hasStoreCapability(actorMembership.role, "FINANCE_READ_STORE");
     const personalHistoryMembershipId =
-      businessDate !== currentDate &&
-      !hasStoreCapability(actorMembership.role, "FINANCE_READ_STORE")
+      businessDate !== currentDate && !mayReadStoreFinance
         ? actorMembership.id
         : null;
 
@@ -454,7 +454,7 @@ export class BoardsService {
     const serviceRecords = records.filter((record) => record.status !== "PLACEHOLDER");
     const giftCardServiceCents = serviceRecords.reduce((total, record) => total + (record.giftCardServiceCents ?? 0n), 0n);
     let recentClosedRevenue = null;
-    if (closing && hasStoreCapability(actorMembership.role, "FINANCE_READ_STORE")) {
+    if (closing && mayReadStoreFinance) {
       const start = dateAtUtc(businessDate);
       start.setUTCDate(start.getUTCDate() - 29);
       const { closedDates } = await this.openWorkDates(actor, storeId, {
@@ -505,9 +505,8 @@ export class BoardsService {
       statistics.giftCardSalesAmountCents += sale.amountCents;
     }
     statistics.storeIncomeCents = calculateStoreIncome(statistics);
-    const mayReadStoreFinance = hasStoreCapability(actorMembership.role, "FINANCE_READ_STORE");
     const cashChangeCents = mayReadStoreFinance ? savedCashChange(closing?.totalsSnapshotJson) : null;
-    const cashBalance = mayReadStoreFinance && closing
+    const cashBalance = mayReadStoreFinance && (closing || businessDate === currentDate)
       ? store.cashSettlementEnabled
         ? await this.prisma.$transaction(transaction => readCashBalance(transaction, storeId, businessDate, store), { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead })
         : { enabled: false, resetDate: null, balanceCents: null, missingClosingDates: [] as string[] }

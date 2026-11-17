@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.59.0`
+> Applies to version: `1.59.1`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -542,7 +542,7 @@ The target store ID/code and current Owner account remain; the source Owner prof
 
 `GET/PATCH /stores/:storeId` includes `cashSettlementEnabled` (default false), `cashSettlementCycle` (`WEEKLY` by default or `MONTHLY`), `cashResetWeekday` (Monday=1 through Sunday=7, default 1), `cashResetMonthDay` (1–31, default 1), and `cashResetAmountCents` (nonnegative safe integer cents, default 0). PATCH submits all five together with the existing version, settings permission, idempotency and audit protections. Resets happen at business-day opening; short months use their last day. Full/demo backups preserve the settings; verified older backups missing all five fields default to disabled, while partial groups are rejected.
 
-`GET /stores/:storeId/boards/:businessDate` adds `statistics.cashBalance`: `{ enabled, resetDate, balanceCents, missingClosingDates }` for Owner/Manager on closed days, otherwise null. Disabled settings return false, null dates/amount and an empty missing-date list. Enabled settings return the latest reset date and reset amount plus period movements, including that date and the selected date. Active closed dates use their frozen cash changes; unclosed dates use confirmed, undeleted records and valid gift-card cash sales. Missing/invalid closed snapshots return null balance and sorted missing dates. Read within a consistent transaction; never persist the cumulative balance or rewrite historical snapshots when settings change. Ordinary employees receive no store balance or closing snapshot.
+`GET /stores/:storeId/boards/:businessDate` adds `statistics.cashBalance`: `{ enabled, resetDate, balanceCents, missingClosingDates }` for Owner/Manager on the current business day or any closed date. Other requests receive null. Disabled settings return false, null dates/amount and an empty missing-date list. Enabled settings return the latest reset date and reset amount plus period movements, including that date and the selected date. Active closed dates use their frozen cash changes; unclosed dates use confirmed, undeleted records and valid gift-card cash sales. Missing/invalid closed snapshots return null balance and sorted missing dates. Read within a consistent transaction; never persist the cumulative balance or rewrite historical snapshots when settings change. Ordinary employees receive no store balance or closing snapshot.
 
 Retain `statistics.cashChangeCents` and closing `storeTotals.cashChangeCents` for compatibility. Daily movement = cash service receipts + cash gift-card sales − expected employee cash wages: ordinary staff use cash-allocated wages; daily-full staff use all service wages plus card/gift-card tips. Owner/manager wages and cash tips are excluded, independently of settlement status. Manual, forced and automatic closings save this daily snapshot atomically. Reason: historical balance recalculation must preserve daily financial evidence and distinguish missing history from zero.
 

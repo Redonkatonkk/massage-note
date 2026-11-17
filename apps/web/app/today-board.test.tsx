@@ -1064,40 +1064,36 @@ describe("详细记工新建与零实收", () => {
 });
 
 
-describe("日结后的现金余额", () => {
+describe("经营概览的现金余额", () => {
   const balance = { enabled: true, resetDate: "2026-10-05", balanceCents: 12345, missingClosingDates: [] };
-  it.each([true, false])("桌面和手机饼图常驻，仅开启且已日结时另显示现金余额：%s", async wideLayout => {
-    props.wideLayout = wideLayout;
+  it.each([false, true])("桌面和手机均显示开启后的现金余额和饼图，已日结：%s", async isClosed => {
+    props.board = { ...props.board, isClosed };
     props.board.statistics.cashBalance = balance;
     await render();
     expect(container.querySelectorAll(".customer-type-metric")).toHaveLength(2);
-    props.board = { ...props.board, isClosed: true };
-    await render();
-    expect(container.querySelectorAll(".customer-type-metric")).toHaveLength(2);
     expect(container.textContent).not.toContain("礼物卡总额");
-    const metrics = [...container.querySelectorAll(".overview-metric")].filter(node => node.textContent?.includes("现金余额"));
-    expect(metrics).toHaveLength(2);
-    for (const metric of metrics) expect(metric.querySelector("strong")?.textContent).toBe("$123.45");
-    props.board = { ...props.board, isClosed: false };
-    await render();
-    expect(container.querySelectorAll(".customer-type-metric")).toHaveLength(2);
-    props.board = { ...props.board, isClosed: true, statistics: { ...props.board.statistics, cashBalance: { ...balance, enabled: false } } };
+    for (const scope of [".board-desktop-metrics", ".board-summary-details"]) {
+      const metrics = [...container.querySelectorAll(`${scope} .overview-metric`)].filter(node => node.textContent?.includes("现金余额"));
+      expect(metrics).toHaveLength(1);
+      expect(metrics[0]?.querySelector("strong")?.textContent).toBe("$123.45");
+    }
+    props.board = { ...props.board, statistics: { ...props.board.statistics, cashBalance: { ...balance, enabled: false } } };
     await render();
     expect(container.querySelectorAll(".customer-type-metric")).toHaveLength(2);
     expect(container.textContent).not.toContain("现金余额");
   });
   it.each([[12345, "$123.45"], [-12345, "-$123.45"], [0, "$0.00"], [null, "—"]] as const)("保留美分、负数、零及旧日结缺失：%s", async (balanceCents, expected) => {
     language.locale = "en-US";
-    props.board = { ...props.board, isClosed: true, statistics: { ...props.board.statistics, cashBalance: { ...balance, balanceCents, missingClosingDates: balanceCents === null ? ["2026-10-05"] : [] } } };
+    props.board.statistics.cashBalance = { ...balance, balanceCents, missingClosingDates: balanceCents === null ? ["2026-10-05"] : [] };
     await render();
     const metric = [...container.querySelectorAll(".overview-metric")].find(node => node.textContent?.includes("现金余额"))!;
     expect(metric.querySelector("strong")?.textContent).toBe(expected);
     expect(metric.textContent).toContain("2026-10-05");
     if (balanceCents === null) expect(metric.textContent).toContain("历史数据不足");
   });
-  it("普通员工没有全店现金余额指标", async () => {
+  it.each([false, true])("普通员工没有全店现金余额指标，已日结：%s", async isClosed => {
     props.membership = { ...props.membership, role: "EMPLOYEE", id: employee.id };
-    props.board = { ...props.board, isClosed: true };
+    props.board = { ...props.board, isClosed };
     props.board.statistics.cashBalance = balance;
     await render();
     expect(container.querySelector(".board-overview")).toBeNull();

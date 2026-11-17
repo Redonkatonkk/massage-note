@@ -1140,7 +1140,11 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     const monday = await closings.close(actor(managerId), storeId, dates[0]!, { force: false }, randomUUID(), randomUUID());
     const wednesday = await closings.close(actor(managerId), storeId, dates[2]!, { force: false }, randomUUID(), randomUUID());
     const read = () => boards.getBoard(actor(managerId), storeId, dates[2]!);
+    const readOpenDay = (userId = managerId, currentDate = dates[1]!) => deviceTimeContext.run({
+      timezone: "America/New_York", now: new Date(`${currentDate}T18:00:00Z`),
+    }, () => boards.getBoard(actor(userId), storeId, dates[1]!));
     expect((await read()).statistics.cashBalance).toMatchObject({ enabled: false, balanceCents: null });
+    expect((await readOpenDay()).statistics.cashBalance).toMatchObject({ enabled: false, balanceCents: null });
     const current = await management.get(actor(managerId), storeId);
     const settings = { version: current.version, cashSettlementEnabled: true, cashSettlementCycle: "WEEKLY" as const, cashResetWeekday: 1, cashResetMonthDay: 1, cashResetAmountCents: 20000 };
     const key = randomUUID();
@@ -1150,10 +1154,16 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     await expect(management.update(actor(employeeId), storeId, { ...settings, version: updated.version }, randomUUID(), randomUUID())).rejects.toBeInstanceOf(ForbiddenException);
     expect((await read()).statistics.cashBalance).toEqual({ enabled: true, resetDate: dates[0], balanceCents: 27501, missingClosingDates: [] });
     expect((await boards.getBoard(actor(employeeId), storeId, dates[2]!)).statistics.cashBalance).toBeNull();
-    expect((await boards.getBoard(actor(managerId), storeId, dates[1]!)).statistics.cashBalance).toBeNull();
+    expect(await readOpenDay()).toMatchObject({
+      isClosed: false,
+      statistics: { cashChangeCents: null, cashBalance: { enabled: true, resetDate: dates[0], balanceCents: 25501, missingClosingDates: [] } },
+    });
+    expect((await readOpenDay(employeeId)).statistics.cashBalance).toBeNull();
+    expect((await readOpenDay(managerId, dates[2])).statistics.cashBalance).toBeNull();
     // Current employee settings affect skipped days only; closed days keep their frozen wage scope.
     await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { dailySettlementEnabled: true } });
     expect((await read()).statistics.cashBalance?.balanceCents).toBe(23800);
+    expect((await readOpenDay(ownerId)).statistics.cashBalance?.balanceCents).toBe(21800);
     const changed = await management.update(actor(ownerId), storeId, { ...settings, version: updated.version, cashResetAmountCents: 0 }, randomUUID(), randomUUID());
     expect((await read()).statistics.cashBalance?.balanceCents).toBe(3800);
     expect((await prisma.businessDayClosing.findUniqueOrThrow({ where: { id: wednesday.closing.id } })).totalsSnapshotJson).toEqual(wednesday.closing.totalsSnapshotJson);
@@ -1163,6 +1173,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     expect((await read()).statistics.cashBalance?.balanceCents).toBe(99);
     await prisma.businessDayClosing.update({ where: { id: reclosed.closing.id }, data: { totalsSnapshotJson: { store: {} } } });
     expect((await read()).statistics.cashBalance).toMatchObject({ balanceCents: null, missingClosingDates: [dates[0]] });
+    expect((await readOpenDay()).statistics.cashBalance).toMatchObject({ balanceCents: null, missingClosingDates: [dates[0]] });
     await closings.cancel(actor(managerId), storeId, dates[0]!, { version: reclosed.closing.version }, randomUUID(), randomUUID());
     await closings.close(actor(managerId), storeId, dates[0]!, { force: false }, randomUUID(), randomUUID());
     expect((await read()).statistics.cashBalance?.balanceCents).toBe(99);

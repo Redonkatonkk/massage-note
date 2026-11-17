@@ -4,6 +4,10 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.59.1 — 2026-11-17
+
+- Show Cash balance in Business overview before the current business day is closed when store cash settlement is enabled. Use confirmed cash activity for open days and frozen movements for closed days. A NAS Web/API update is required.
+
 ## 1.59.0 — 2026-11-16
 
 - Send individual daily earnings in four lines of plain text with a 14-day personal snapshot link. Open the saved business date first and browse the employee's own earlier dates and month-to-date earnings.

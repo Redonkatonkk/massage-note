@@ -167,6 +167,7 @@ function TodayBoardContent({
   const recordLocked = (id: string) => saveTasks.some(task => task.storeId === scope.storeId && task.recordId === id && recordSaveLocked(task));
   useEffect(() => saves.registerView({ storeId: membership.store.id, businessDate: currentDay.businessDate, refresh: onSaveReload ?? onReload }), [saves, membership.store.id, currentDay.businessDate, onSaveReload, onReload]);
   const canManage = membership.role !== "EMPLOYEE";
+  const cashBalance = board.statistics.cashBalance;
   const canChangeRowVisibility = canManage && (!board.isClosed || (!isCurrentBusinessDay && !isFutureBusinessDay));
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
@@ -556,7 +557,7 @@ function TodayBoardContent({
           {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric icon="clock" label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
           <OverviewMetric icon="discount" label="折扣总额" value={money(board.statistics.discountTotalCents)} />
           <CustomerTypeMetric counts={board.statistics.customerTypeCounts ?? { newCount: 0, returningCount: 0, unmarkedCount: board.statistics.recordCount }} />
-          {board.isClosed && board.statistics.cashBalance?.enabled && <CashBalanceMetric balance={board.statistics.cashBalance} />}
+          {cashBalance?.enabled && <CashBalanceMetric balance={cashBalance} />}
           <OverviewMetric icon="wallet" title="营业额＋现金小费＋刷卡小费－员工应得" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
           <OverviewMetric icon="trend" title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
         </div>
@@ -571,7 +572,7 @@ function TodayBoardContent({
             <CustomerTypeMetric counts={board.statistics.customerTypeCounts ?? { newCount: 0, returningCount: 0, unmarkedCount: board.statistics.recordCount }} />
             {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric icon="clock" label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
             <OverviewMetric icon="discount" label="折扣总额" value={money(board.statistics.discountTotalCents)} />
-            {board.isClosed && board.statistics.cashBalance?.enabled && <CashBalanceMetric balance={board.statistics.cashBalance} />}
+            {cashBalance?.enabled && <CashBalanceMetric balance={cashBalance} />}
             <OverviewMetric icon="wallet" title="营业额＋现金小费＋刷卡小费－员工应得" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
           </div>
         </details>

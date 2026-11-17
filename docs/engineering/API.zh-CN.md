@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.59.0`
+> 适用版本：`1.59.1`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -490,7 +490,7 @@ v3 生成只采用前一非空营业日的 v3 标记及最终可见第一名，�
 
 `GET/PATCH /stores/:storeId` 包含 `cashSettlementEnabled`（默认 false）、`cashSettlementCycle`（默认 `WEEKLY`，可选 `MONTHLY`）、`cashResetWeekday`（周一=1 至周日=7，默认 1）、`cashResetMonthDay`（1–31，默认 1）和 `cashResetAmountCents`（非负安全整数美分，默认 0）。PATCH 五项一起提交，沿用版本、设置权限、幂等和审计保护。重置发生在营业开始时，短月取最后一天。完整／演示备份保留设置；校验通过的旧备份五项全部缺失时默认关闭，部分缺失则拒绝。
 
-`GET /stores/:storeId/boards/:businessDate` 在店主／经理查看已日结日期时增加 `statistics.cashBalance`：`{ enabled, resetDate, balanceCents, missingClosingDates }`，其他情况为 null。关闭功能返回 false、空日期／金额和空缺失日期列表；开启时返回最近重置日，以及重置金额加周期净变化，包含重置日和所选日期。有效已日结日期使用冻结现金变化；未日结日期使用已确认且未删除的记工和有效卖卡现金。旧日结快照缺失／无效则余额为 null，返回排序后的缺失日期。在一致事务内读取，不持久化累计余额，修改设置不重写历史快照。普通员工不返回全店余额或日结快照。
+`GET /stores/:storeId/boards/:businessDate` 在店主／经理查看当前营业日或已日结日期时返回 `statistics.cashBalance`：`{ enabled, resetDate, balanceCents, missingClosingDates }`，其他情况为 null。关闭功能返回 false、空日期／金额和空缺失日期列表；开启时返回最近重置日，以及重置金额加周期净变化，包含重置日和所选日期。有效已日结日期使用冻结现金变化；未日结日期使用已确认且未删除的记工和有效卖卡现金。旧日结快照缺失／无效则余额为 null，返回排序后的缺失日期。在一致事务内读取，不持久化累计余额，修改设置不重写历史快照。普通员工不返回全店余额或日结快照。
 
 保留 `statistics.cashChangeCents` 及日结 `storeTotals.cashChangeCents` 兼容旧调用方。每日净变化＝现金大费实收＋卖卡现金实收－员工应发现金：普通员工扣现金分摊工资，每日结清员工扣全部大费工资及刷卡／礼卡小费；店长经理工资及现金小费不计，结清状态不影响。手动、强制和自动日结均原子保存每日快照。保留原因：历史余额重算需要保留每日财务依据，并区分历史不足与真实零。
 

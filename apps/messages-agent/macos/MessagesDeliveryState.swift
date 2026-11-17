@@ -22,8 +22,8 @@ enum MessageStatusError: LocalizedError {
     }
 }
 
-/// Only metadata for an exact task attachment and recipient is selected. No body,
-/// attributedBody, chat text, contact data, or database writes are used.
+/// Return only delivery metadata for the exact task and recipient. Message body
+/// columns are used as bound match predicates for text tasks and never returned.
 final class MessagesDeliveryDatabase {
     private var database: OpaquePointer?
 
@@ -49,14 +49,47 @@ final class MessagesDeliveryDatabase {
         WHERE m.is_from_me = 1 AND a.filename IN (?, ?) AND h.id IN (?, ?)
         ORDER BY m.ROWID DESC LIMIT 1
         """
+        let relativePath = attachment.path.hasPrefix(home.path + "/")
+            ? "~" + attachment.path.dropFirst(home.path.count) : attachment.path
+        return try observation(sql: sql, values: [attachment.path, relativePath, phone, localPhone(phone)])
+    }
+
+    func observation(text: String, snapshotLink: String, phone: String) throws -> MessageDeliveryObservation {
+        // Some Messages services store the body as a binary attributed string.
+        // The exact per-task HTTPS link is unique even when the body is encoded.
+        let sql = """
+        SELECT m.guid, m.is_sent, m.is_delivered, m.error, m.service
+        FROM message m
+        JOIN handle h ON h.ROWID = m.handle_id
+        WHERE m.is_from_me = 1 AND h.id IN (?, ?)
+          AND (m.text = ? COLLATE BINARY OR ((m.text IS NULL OR m.text = '')
+               AND instr(m.attributedBody, CAST(? AS BLOB)) > 0))
+        ORDER BY m.ROWID DESC LIMIT 1
+        """
+        return try observation(sql: sql, values: [phone, localPhone(phone), text, snapshotLink])
+    }
+
+    func observation(messageGuid: String, phone: String) throws -> MessageDeliveryObservation {
+        let sql = """
+        SELECT m.guid, m.is_sent, m.is_delivered, m.error, m.service
+        FROM message m
+        JOIN handle h ON h.ROWID = m.handle_id
+        WHERE m.is_from_me = 1 AND h.id IN (?, ?) AND m.guid = ? COLLATE BINARY
+        LIMIT 1
+        """
+        return try observation(sql: sql, values: [phone, localPhone(phone), messageGuid])
+    }
+
+    private func localPhone(_ phone: String) -> String {
+        phone.hasPrefix("+1") && phone.count == 12 ? String(phone.dropFirst(2)) : phone
+    }
+
+    private func observation(sql: String, values: [String]) throws -> MessageDeliveryObservation {
         var statement: OpaquePointer?
         let prepared = sqlite3_prepare_v2(database, sql, -1, &statement, nil)
         guard prepared == SQLITE_OK, let statement else { throw MessageStatusError.unavailable(prepared) }
         defer { sqlite3_finalize(statement) }
-        let localPhone = phone.hasPrefix("+1") && phone.count == 12 ? String(phone.dropFirst(2)) : phone
-        let relativePath = attachment.path.hasPrefix(home.path + "/")
-            ? "~" + attachment.path.dropFirst(home.path.count) : attachment.path
-        for (index, value) in [attachment.path, relativePath, phone, localPhone].enumerated() {
+        for (index, value) in values.enumerated() {
             let code = value.withCString { sqlite3_bind_text(statement, Int32(index + 1), $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self)) }
             guard code == SQLITE_OK else { throw MessageStatusError.unavailable(code) }
         }

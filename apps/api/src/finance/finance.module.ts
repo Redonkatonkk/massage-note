@@ -21,6 +21,8 @@ import { ClosingDeliveriesService } from "./closing-deliveries.service.js";
 import { EmployeeSettlementDeliveryAgentController, EmployeeSettlementsController } from "./employee-settlements.controller.js";
 import { EmployeeSettlementsService } from "./employee-settlements.service.js";
 import { EmployeeSettlementPaymentsService } from "./employee-settlement-payments.service.js";
+import { DailySnapshotSharesController } from "./daily-snapshot-shares.controller.js";
+import { DailySnapshotSharesService } from "./daily-snapshot-shares.service.js";
 
 @Module({
   imports: [AuthModule, StoresModule],
@@ -35,6 +37,7 @@ import { EmployeeSettlementPaymentsService } from "./employee-settlement-payment
     ClosingDeliveryAgentController,
     EmployeeSettlementsController,
     EmployeeSettlementSharesController,
+    DailySnapshotSharesController,
     EmployeeSettlementDeliveryAgentController,
   ],
   providers: [
@@ -49,6 +52,7 @@ import { EmployeeSettlementPaymentsService } from "./employee-settlement-payment
     ClosingDeliveriesService,
     EmployeeSettlementsService,
     EmployeeSettlementSharesService,
+    DailySnapshotSharesService,
     EmployeeSettlementPaymentsService,
   ],
   exports: [FinanceQueriesService, CashSettlementsService],

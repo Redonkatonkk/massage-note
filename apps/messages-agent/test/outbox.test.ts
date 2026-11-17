@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { cleanupOutbox, closingPngPath, OUTBOX_RETENTION_MS, prepareOutbox, secureClosingPng, settlementAttachmentPath } from "../src/outbox.js";
+import { cleanupOutbox, closingPngPath, OUTBOX_RETENTION_MS, prepareClosingText, prepareOutbox, secureClosingPng, settlementAttachmentPath } from "../src/outbox.js";
 
 describe("Messages attachment outbox", () => {
   it("使用受限目录与文件权限", async () => {
@@ -54,5 +54,29 @@ describe("Messages attachment outbox", () => {
     const outbox = "/agent/outbox";
     const jobId = "00000000-0000-4000-8000-000000000004";
     expect(settlementAttachmentPath(outbox, jobId)).toBe(join(outbox, `${jobId}-details.jpg`));
+  });
+
+  it("only reuses identical private task text and rejects invalid links or symbolic files", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "messages-text-outbox-"));
+    try {
+      const outbox = await prepareOutbox(directory);
+      const jobId = "00000000-0000-4000-8000-000000000001";
+      const body = "Details: https://demo.invalid/share/daily-snapshot#" + "a".repeat(43);
+      const path = join(outbox, jobId + "-closing.txt");
+      await expect(prepareClosingText(outbox, jobId, "https://demo.invalid")).rejects.toThrow("Invalid closing message text");
+      await prepareClosingText(outbox, jobId, body);
+      expect((await stat(path)).mode & 0o777).toBe(0o600);
+      expect(await readFile(path, "utf8")).toBe(body);
+      await expect(prepareClosingText(outbox, jobId, body)).resolves.toBeUndefined();
+      await expect(prepareClosingText(outbox, jobId, "Another " + body)).rejects.toThrow("different closing message");
+      await rm(path);
+      const other = join(outbox, "other.txt");
+      await writeFile(other, body, { mode: 0o600 });
+      await symlink(other, path);
+      await expect(prepareClosingText(outbox, jobId, body)).rejects.toThrow("different closing message");
+      expect(await readFile(other, "utf8")).toBe(body);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });

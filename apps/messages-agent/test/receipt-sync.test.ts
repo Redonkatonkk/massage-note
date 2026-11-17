@@ -1,8 +1,8 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { syncDeliveryReceipts } from "../src/receipt-sync.js";
-import { messagesDeliveryState } from "../src/stager.js";
+import { messagesDeliveryState, messagesTextDeliveryState } from "../src/stager.js";
 
-vi.mock("../src/stager.js", () => ({ messagesDeliveryState: vi.fn(), taskMessagesPath: (id: string, file: string) => `/tasks/${id}/${file}` }));
+vi.mock("../src/stager.js", () => ({ messagesDeliveryState: vi.fn(), messagesTextDeliveryState: vi.fn(), taskMessagesPath: (id: string, file: string) => `/tasks/${id}/${file}` }));
 afterEach(() => vi.resetAllMocks());
 const job = { id: "job", attemptCount: 2, recipientPhoneE164: "+13105551234" };
 const delivered = { messageGuid: "retry", state: "DELIVERED" as const, errorCode: 0, service: "RCS" };
@@ -31,4 +31,15 @@ it("a status read error cannot report success and does not block the other task 
   vi.mocked(messagesDeliveryState).mockRejectedValueOnce(new Error("unavailable")).mockResolvedValue(delivered);
   await syncDeliveryReceipts(request as never, { accepted: [], completed: [] });
   expect(request.mock.calls.filter(([path]) => path.endsWith("/receipt"))).toHaveLength(1);
+});
+
+it("reconciles terminal text by its recorded GUID and leaves legacy images on exact attachment lookup", async () => {
+  const request = vi.fn(async (path: string) => path === "/closing-delivery-agent/jobs/receipts"
+    ? [{ ...job, deliveryMode: "TEXT", deliveryMessageGuid: "retry" }, { ...job, id: "legacy" }]
+    : path.endsWith("/receipts") ? [] : {});
+  vi.mocked(messagesTextDeliveryState).mockResolvedValue(delivered);
+  vi.mocked(messagesDeliveryState).mockResolvedValue(delivered);
+  await syncDeliveryReceipts(request as never, { accepted: [], completed: [] });
+  expect(messagesTextDeliveryState).toHaveBeenCalledExactlyOnceWith(job.recipientPhoneE164, job.id, "retry");
+  expect(messagesDeliveryState).toHaveBeenCalledExactlyOnceWith(job.recipientPhoneE164, "/tasks/legacy/closing.png");
 });

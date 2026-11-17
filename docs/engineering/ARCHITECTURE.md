@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](ARCHITECTURE.zh-CN.md)**
 
-> Verified against version: `1.57.3`
+> Verified against version: `1.59.0`
 > This article describes the current implementation; a draft design from the beginning of the project can be found in [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.md).
 
 Massage note is a TypeScript modular monolith managed by the pnpm workspace. Web, API and shared packages are developed and tested in the same repository. Production can be run as a Web/API dual container or simultaneously in a Synology single image.
@@ -40,7 +40,7 @@ Core principles: PostgreSQL is the source of business truth; SSE only notifies t
 | --- | --- | --- | --- |
 | `apps/web` | Next.js App Router, responsive Chinese and English UI, API client and local draft | Final permission judgment, final financial calculation | Client-side presentation cannot grant permissions or determine the final amount. |
 | `apps/api` | REST, authentication, authorization, transactions, domain orchestration, auditing, outbox, SSE and AI gateway | Browser display status, any SQL AI tool | Server-side coordination of authorization and transactions for multiple clients. |
-| `apps/messages-agent` | Fixed picking individual daily statement and employee interval settlement tasks on Mac, rendering attachments, restricted staging and calling Messages AppleScript | Inbound port, chat database reading and writing, keyboard/window automation | Native permissions App and outbound picking are existing sending paths. |
+| `apps/messages-agent` | Poll daily statements and employee subtotals from a Mac. Submit text or restricted attachments through the signed Messages app and observe the specific outbound receipt. | Inbound ports, chat database writes, keyboard/window automation | The installed agent runs independently of NAS. |
 | `integrations/langbot-plugin` | Intercept specified WeChat group work record messages, limit parsing intent and call dedicated work record interface | Directly read the database, determine prices/employees, call other business interfaces | The model only generates limited intent, and financial facts are determined by the backend. |
 | `packages/domain` | Business day, permissions, commission, amount and financial pure functions without framework dependencies | Prisma, HTTP, React, environment variables | Pure functions can be reused in multiple entries and verified independently. |
 | `packages/contracts` | Zod request contracts and types shared by front-end and back-end | Database access, business side effects | Shared verification avoids the calling end from defining a set of inputs. |
@@ -272,7 +272,7 @@ Field `calculateExpenseMonth` uses a BigInt to directly locate the intersecting 
 
 The `isDispatchExcluded` of the work record is saved independently by the shared creation/update contract, WorkRecordsService and database. Web drafts and Kanban boards read the same field; `recordTrackItems` sorts it together with the highlight record from right to left in time, `record-card--right-group` only controls right alignment, and `isHighlighted` continues to control the color and amount rules independently. Reason: Separate placement and highlight semantics to avoid scheduling tags that change financial calculations.
 
-The individual daily statement is composed of domain's `employee-closing-template.ts` to unify Chinese and English display content and stable time sorting. Web's `employee-closing-statement.tsx` displays two columns of work record cards. `employee-closing-image.ts` outputs the same SVG and is converted to PNG by Web canvas and Mac `sips` respectively. All income is still taken from the backend snapshot, and the page cash handover/send operation is outside the template. Reason: Shared display content prevents pages, exports, and SMS attachments from evolving separately. The display layer must not recalculate wages or imply that they have been paid.
+The individual daily statement uses `employee-closing-template.ts` for bilingual display. The manager preview and Web PNG export continue using the shared display model. For daily text delivery, the queue freezes the selected employee's business date and month-to-date earnings. The delivery grant stores a token hash and TTL. The anonymous page requests the saved day or scoped history using that grant. The API prepares the four-line text under the active lease, and the Mac agent stores only the state needed to recover the exact submission. See the [Messages agent guide](../operations/MESSAGES_AGENT.md).
 
 ## Store data transfer boundary
 

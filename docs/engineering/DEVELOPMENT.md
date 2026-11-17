@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](DEVELOPMENT.zh-CN.md)**
 
-> Applies to version: `1.57.3`
+> Applies to version: `1.59.0`
 
 This guide describes the current repository’s development workflow. See [`PRODUCT.md`](../product/PRODUCT.md) for business rules, [`ARCHITECTURE.md`](ARCHITECTURE.md) for code boundaries, and [`API.md`](API.md) for HTTP details.
 
@@ -38,6 +38,10 @@ http://localhost:4000/api/v1/health/ready
 ```
 
 For the operating boundaries of Firebase and MiniMax, see [Security Instructions](../operations/SECURITY.md); when Firebase is not available locally, development login must be explicitly enabled on both the Web and API sides. Reason: One-sided enablement cannot establish a development session, and production authentication is protected by force-off logic.
+
+## Daily earnings snapshot
+
+The employee-facing `/share/daily-snapshot` route uses the token in the link fragment to read the saved business date or an earlier personal date. The persistent calendar and source table use confirmed employee earnings and month-to-date totals supplied by the API. The separate [local design preview](http://localhost:3000/preview/daily-snapshot) uses synthetic fixtures. Run the snapshot component and API integration tests for date changes, expired links, employee isolation and amount reconciliation. Use the [Mac Messages agent guide](../operations/MESSAGES_AGENT.md) to update the installed agent after NAS deployment.
 
 <a id="本地手工测试数据"></a>
 

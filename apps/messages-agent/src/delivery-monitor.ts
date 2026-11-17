@@ -1,4 +1,4 @@
-import { messagesDeliveryState, type MessagesDeliveryState } from "./stager.js";
+import { messagesDeliveryState, messagesTextDeliveryState, type MessagesDeliveryState } from "./stager.js";
 
 export class MessagesDeliveryFailed extends Error {
   constructor(readonly errorCode: number) {
@@ -7,11 +7,19 @@ export class MessagesDeliveryFailed extends Error {
 }
 
 /** Delivery receipt for iMessage/RCS; SMS may only provide a sent flag. */
-export async function monitorMessagesDelivery(phone: string, path: string, previousMessageGuid: string | null) {
+export function monitorMessagesDelivery(phone: string, path: string, previousMessageGuid: string | null) {
+  return monitor(() => messagesDeliveryState(phone, path), previousMessageGuid);
+}
+
+export function monitorMessagesTextDelivery(phone: string, jobId: string, previousMessageGuid: string | null) {
+  return monitor(() => messagesTextDeliveryState(phone, jobId), previousMessageGuid);
+}
+
+async function monitor(read: () => Promise<MessagesDeliveryState>, previousMessageGuid: string | null) {
   const deadline = Date.now() + 120_000;
   let latest: MessagesDeliveryState | undefined;
   while (true) {
-    latest = await messagesDeliveryState(phone, path);
+    latest = await read();
     const currentAttempt = latest.messageGuid && latest.messageGuid !== previousMessageGuid;
     if (currentAttempt && latest.state === "FAILED") throw new MessagesDeliveryFailed(latest.errorCode);
     if (currentAttempt && latest.state === "DELIVERED") return latest;

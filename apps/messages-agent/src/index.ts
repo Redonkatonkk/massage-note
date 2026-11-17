@@ -4,8 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { messagesServices } from "./messages.js";
-import { cleanupOutbox, closingPngPath, prepareOutbox, secureAttachment, secureClosingPng, settlementAttachmentPath } from "./outbox.js";
-import { renderClosingPng, type ClosingSnapshot } from "./render.js";
+import { cleanupOutbox, prepareClosingText, prepareOutbox, secureAttachment, settlementAttachmentPath } from "./outbox.js";
 import { renderEmployeeSummaryImage, type EmployeeSummarySnapshot } from "./employee-summary-render.js";
 import { messagesStagerReady, stageMessagesAttachment } from "./stager.js";
 import { agentErrorMessage } from "./errors.js";
@@ -20,13 +19,15 @@ const agentToken = process.env.MASSAGE_NOTE_AGENT_TOKEN;
 const dataDir = process.env.MASSAGE_NOTE_AGENT_DATA_DIR ?? join(homedir(), "Library", "Application Support", "Massage Note Messages Agent");
 if (!apiUrl || !agentToken) throw new Error("MASSAGE_NOTE_API_URL and MASSAGE_NOTE_AGENT_TOKEN are required");
 
-interface Job { id: string; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; snapshot: ClosingSnapshot }
+interface Job { id: string; leaseToken: string; phoneE164: string; deliveryMode?: "TEXT" | "IMAGE" }
+type PreparedText = { authorized: true; text: string } | { authorized: false };
 interface EmployeeSummaryJob { id: string; documentType: "EMPLOYEE_SUMMARY"; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; detailSent: boolean; snapshot: EmployeeSummarySnapshot }
 type SettlementJob = EmployeeSummaryJob;
 const journalPath = join(dataDir, "journal.json");
 const outboxDir = await prepareOutbox(dataDir);
 await cleanupOutbox(outboxDir);
 let messagesReady = false;
+let lastReportedReady: boolean | undefined;
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, { ...init, signal: init.signal ?? AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${agentToken}`, "Content-Type": "application/json", ...init.headers } });
@@ -49,6 +50,10 @@ async function heartbeat(lastError: string | null = null) {
   messagesReady = stagerReady && services.some(item => ["iMessage", "RCS", "SMS"].includes(item));
   try {
     await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: messagesReady, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version, lastError: diagnosticError === null ? null : agentErrorMessage(diagnosticError) }) });
+    if (messagesReady !== lastReportedReady) {
+      process.stdout.write(`Messages agent ${version}: heartbeat accepted, Messages ${messagesReady ? "ready" : "not ready"}, closing protocol text-v1\n`);
+      lastReportedReady = messagesReady;
+    }
   } catch (error) {
     process.stderr.write(`heartbeat: ${agentErrorMessage(error)}\n`);
   }
@@ -61,7 +66,7 @@ if (process.argv.includes("--diagnose")) {
     throw new Error("信息 App 没有可用的 iMessage、RCS 或 SMS 服务，请先登录信息，并检查 iPhone 短信转发");
   }
   await messagesStagerReady();
-  process.stdout.write(`Messages background automation and attachment staging ready: ${supported.join(" / ")}\n`);
+  process.stdout.write(`Messages background automation, text receipts and attachment staging ready: ${supported.join(" / ")}\n`);
   process.exit(0);
 }
 
@@ -75,31 +80,26 @@ async function processJob(job: Job, journal: Journal) {
     await request(`/closing-delivery-agent/jobs/${job.id}/fail`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, code: "MESSAGES_RESULT_AMBIGUOUS", message: "上次已开始发送，但没有明确回执；请人工核对信息 App，不自动重发。", retryable: false }) });
     return;
   }
-  const authorized = await request<{ authorized: boolean }>(`/closing-delivery-agent/jobs/${job.id}/authorize`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
-  if (!authorized.authorized) return;
   const pending = journal.submitted?.[job.id];
-  const workDir = pending ? null : await mkdtemp(join(tmpdir(), "massage-note-closing-"));
   let sendStarted = Boolean(pending);
+  const lease = { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) };
   try {
-    let stagedPath = pending?.attachmentPath;
-    if (!stagedPath && workDir) {
-      const pngPath = closingPngPath(outboxDir, job.id);
-      await renderClosingPng(job.snapshot, job.locale, join(workDir, "closing.svg"), pngPath);
-      await secureClosingPng(pngPath);
-      stagedPath = await stageMessagesAttachment(pngPath, job.id);
+    if (pending) {
+      const authorized = await request<{ authorized: boolean }>(`/closing-delivery-agent/jobs/${job.id}/authorize`, lease);
+      if (!authorized.authorized) return;
+    } else {
+      if (job.deliveryMode !== "TEXT") throw new Error("Server has not enabled the closing text-v1 protocol");
+      const prepared = await request<PreparedText>(`/closing-delivery-agent/jobs/${job.id}/prepare-text`, lease);
+      if (!prepared.authorized) return;
+      await prepareClosingText(outboxDir, job.id, prepared.text);
     }
-    if (!stagedPath) throw new Error("Messages task attachment is missing");
-    const ready = await request<{ authorized: boolean }>(`/closing-delivery-agent/jobs/${job.id}/authorize`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
-    if (!ready.authorized) return;
     sendStarted = true;
-    await submitAndConfirmMessages(job.id, job.phoneE164, stagedPath, "IMAGE", journal, () => saveJournal(journalPath, journal));
+    await submitAndConfirmMessages(job.id, job.phoneE164, pending?.attachmentPath ?? null, pending?.attachmentPath ? "IMAGE" : "TEXT", journal, () => saveJournal(journalPath, journal));
     await request(`/closing-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, receipt: journal.submitted?.[job.id]?.observation }) });
     journal.completed.push(job.id); await saveJournal(journalPath, journal);
   } catch (error) {
     await reportJobFailure("closing-delivery-agent", job, error, sendStarted, journal);
     throw error;
-  } finally {
-    if (workDir) await rm(workDir, { recursive: true, force: true });
   }
 }
 
@@ -221,7 +221,7 @@ while (!stopped) {
       await withDeliveryCooldown(() => processSettlementJob(settlementJob, journal), persistCooldown);
     }
     else {
-      const job = await request<Job | null>("/closing-delivery-agent/jobs/claim", { method: "POST" });
+      const job = await request<Job | null>("/closing-delivery-agent/jobs/claim", { method: "POST", headers: { "X-Closing-Delivery-Protocol": "text-v1" } });
       if (job) {
         handledJob = true;
         await withDeliveryCooldown(() => processJob(job, journal), persistCooldown);

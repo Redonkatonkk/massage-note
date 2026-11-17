@@ -1,7 +1,7 @@
 import { imageLocaleName, formatImageTime, type ImageLocale } from "./image-format.js";
 
 export interface ClosingRecord {
-  serviceSelected?: boolean;
+  serviceSelected?: boolean | undefined;
   id?: string;
   startAt: string | null;
   endAt: string | null;
@@ -9,8 +9,8 @@ export interface ClosingRecord {
   serviceShortName: string;
   serviceName: string;
   addons: Array<{ shortName: string; name: string }>;
-  isHighlighted?: boolean;
-  discountTotalCents?: number;
+  isHighlighted?: boolean | undefined;
+  discountTotalCents?: number | undefined;
   grossFeeBaseCents: number;
   cashServiceCents: number | null;
   cardServiceCents: number | null;
@@ -47,8 +47,12 @@ export interface ClosingPaymentPart {
   text: string;
 }
 
+type EmployeeClosingTemplateInput = Omit<ClosingSnapshot, "activeClosing" | "employee"> & {
+  employee: Omit<ClosingSnapshot["employee"], "grossFeeBaseCents" | "cashToSubmitToStoreCents">;
+};
+
 /** Presentation only: every earnings amount comes from the saved server snapshot. */
-export function createEmployeeClosingTemplate(snapshot: ClosingSnapshot, locale: ImageLocale) {
+export function createEmployeeClosingTemplate(snapshot: EmployeeClosingTemplateInput, locale: ImageLocale) {
   const en = locale === "en_US";
   const money = (cents: number) => new Intl.NumberFormat(imageLocaleName(locale), {
     style: "currency", currency: "USD", currencyDisplay: "narrowSymbol",
@@ -67,12 +71,14 @@ export function createEmployeeClosingTemplate(snapshot: ClosingSnapshot, locale:
     return Number.isNaN(difference) || difference === 0 ? a.index - b.index : difference;
   }).map(({ record, index }) => {
     const confirmed = record.status === "CONFIRMED";
+    const discountTotalCents = record.discountTotalCents ?? 0;
     return {
       key: record.id ?? String(index), title: record.serviceSelected === false ? (en ? "Select service" : "待选项目") : record.serviceShortName || record.serviceName,
       time: `${formatImageTime(record.startAt, snapshot.storeTimezone, locale)}–${formatImageTime(record.endAt, snapshot.storeTimezone, locale)}`,
       addon: record.addons.length ? `${en ? "Add-on" : "加项"}：${record.addons.map(addon => addon.shortName || addon.name).join(" ＋ ")}` : "",
       highlighted: record.isHighlighted ?? false,
-      discount: (record.discountTotalCents ?? 0) > 0 ? `off${new Intl.NumberFormat(imageLocaleName(locale), { maximumFractionDigits: 2 }).format(record.discountTotalCents! / 100)}` : "",
+      discountTotalCents,
+      discount: discountTotalCents > 0 ? `off${new Intl.NumberFormat(imageLocaleName(locale), { maximumFractionDigits: 2 }).format(discountTotalCents / 100)}` : "",
       pending: !confirmed,
       pendingText: en ? "Pending checkout · excluded from totals" : "待结账 · 未计入汇总",
       gross: record.serviceSelected === false ? (en ? "Not entered" : "未填写") : money(record.grossFeeBaseCents),

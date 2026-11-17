@@ -1,15 +1,23 @@
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { claimedDeliveryWhere, deliveryFailureState, requireDeliveryLease } from "./delivery-lease.js";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import { authenticateDeliveryAgent, hashDeliveryAgentToken } from "./delivery-agent.js";
 import { clearDeliveryReceipt, deliveryReceiptData, receiptCandidatesWhere, receiptCandidateSelect, receiptCandidateOrder, recordDeliveryReceipt } from "./delivery-receipt.js";
 import type { ClosingDeliveryReceiptInput, MessagesReceipt } from "@massage-note/contracts";
+import {
+  CLOSING_DELIVERY_TEXT_PROTOCOL,
+  DAILY_SNAPSHOT_TTL_MS,
+  dailySnapshotMonthToDateSchema,
+  type PreparedClosingText,
+} from "@massage-note/contracts";
+import { businessDateFor } from "@massage-note/domain";
 import { isE164Phone } from "./delivery-recipient.js";
 import {
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { Prisma, type User } from "@massage-note/database";
 import type {
@@ -19,8 +27,26 @@ import type {
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
 import { ClosingsService } from "./closings.service.js";
+import { readSnapshotMonthToDate, snapshotDateOnly } from "./daily-snapshot-earnings.js";
+import { hashDailySnapshotToken, publicDailySnapshot } from "./daily-snapshot-shares.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
+
+function dailySnapshotLink(token: string) {
+  try {
+    const production = process.env.NODE_ENV === "production";
+    const origin = new URL(process.env.WEB_ORIGIN ?? (production ? "" : "http://localhost:3000"));
+    const localHttp = !production && origin.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname);
+    if ((origin.protocol !== "https:" && !localHttp) || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) {
+      throw new Error("Unsupported Web origin");
+    }
+    const link = new URL("/share/daily-snapshot", origin);
+    link.hash = token;
+    return link.href;
+  } catch {
+    throw new ServiceUnavailableException({ code: "DAILY_SNAPSHOT_ORIGIN_INVALID", messageZh: "快照网页地址配置无效" });
+  }
+}
 
 @Injectable()
 export class ClosingDeliveriesService {
@@ -122,7 +148,7 @@ export class ClosingDeliveriesService {
           }
           continue;
         }
-        const snapshot = await this.closings.previewMember(actor, storeId, businessDate, item.member.id, transaction);
+        const snapshot = await this.closings.buildDeliverySnapshot(actor, storeId, businessDate, item.member.id, transaction);
         const delivery = await transaction.employeeClosingDelivery.upsert({
           where: { storeId_closingId_membershipId_kind_requestKey: { storeId, closingId: closing.id, membershipId: item.member.id, kind: "INITIAL", requestKey: "initial" } },
           update: {},
@@ -173,7 +199,7 @@ export class ClosingDeliveriesService {
         }
         return existing;
       }
-      const snapshot = await this.closings.previewMember(actor, storeId, businessDate, membershipId, transaction);
+      const snapshot = await this.closings.buildDeliverySnapshot(actor, storeId, businessDate, membershipId, transaction);
       const delivery = await transaction.employeeClosingDelivery.create({
         data: {
           storeId, businessDate: dateAtUtc(businessDate), closingId: snapshot.activeClosing?.id ?? null, membershipId, kind: "RESEND",
@@ -290,9 +316,10 @@ export class ClosingDeliveriesService {
     return { revoked: true };
   }
 
-  async claim(authorization: string | undefined) {
+  async claim(authorization: string | undefined, protocol?: string) {
     const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     await this.prisma.closingDeliveryAgent.update({ where: { id: agent.id }, data: { lastSeenAt: new Date() } });
+    if (protocol !== CLOSING_DELIVERY_TEXT_PROTOCOL) return null;
     for (let checked = 0; checked < 100; checked += 1) {
       const now = new Date();
       const candidate = await this.prisma.employeeClosingDelivery.findFirst({
@@ -342,8 +369,11 @@ export class ClosingDeliveriesService {
         data: { ...clearDeliveryReceipt, status: "CLAIMED", leaseToken, leaseExpiresAt: new Date(now.getTime() + 5 * 60_000), attemptCount: { increment: 1 } },
       });
       if (updated.count !== 1) continue;
-      const job = await this.prisma.employeeClosingDelivery.findUniqueOrThrow({ where: { id: candidate.id }, include: { closing: { select: { cycleNo: true } }, membership: { select: { displayName: true } } } });
-      return { id: job.id, leaseToken, phoneE164: job.recipientPhoneE164, locale: job.locale, kind: job.kind, cycleNo: job.closing?.cycleNo ?? 0, displayName: job.membership.displayName, snapshot: job.snapshotJson };
+      const job = await this.prisma.employeeClosingDelivery.findUniqueOrThrow({
+        where: { id: candidate.id },
+        select: { id: true, recipientPhoneE164: true, locale: true, kind: true, closing: { select: { cycleNo: true } } },
+      });
+      return { id: job.id, leaseToken, phoneE164: job.recipientPhoneE164, locale: job.locale, kind: job.kind, cycleNo: job.closing?.cycleNo ?? 0, deliveryMode: "TEXT" as const };
     }
     return null;
   }
@@ -356,6 +386,70 @@ export class ClosingDeliveriesService {
       return { authorized: false };
     }
     return { authorized: true };
+  }
+
+  async prepareText(authorization: string | undefined, deliveryId: string, leaseToken: string): Promise<PreparedClosingText> {
+    const agent = await authenticateDeliveryAgent(this.prisma, authorization);
+    const claimed = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
+    // Derive the same unguessable token on retries. The authenticated agent's
+    // secret stays out of the database, and each delivery has its own token.
+    const credential = authorization!.match(/^Bearer\s+(.+)$/i)![1]!;
+    const token = createHmac("sha256", credential).update(`daily-snapshot:v1:${deliveryId}`).digest("base64url");
+    const tokenHash = hashDailySnapshotToken(token);
+    const link = dailySnapshotLink(token);
+    return this.prisma.$transaction(async tx => {
+      const businessDate = snapshotDateOnly(claimed.businessDate);
+      await lockBusinessDay(tx, agent.storeId, businessDate);
+      const where = claimedDeliveryWhere(agent.storeId, deliveryId, leaseToken);
+      // Hold the task row for the remaining checks and grant insert.
+      requireDeliveryLease(await tx.employeeClosingDelivery.updateMany({ where, data: { leaseToken } }));
+      const job = await tx.employeeClosingDelivery.findUniqueOrThrow({
+        where: { id: deliveryId },
+        include: {
+          closing: { select: { status: true } },
+          store: { select: { status: true, deletedAt: true, timezone: true, businessCutoffLocal: true } },
+          membership: { include: { user: { select: { phoneE164: true } } } },
+          snapshotShare: { select: { tokenHash: true, expiresAt: true } },
+        },
+      });
+      const { membership, store } = job;
+      const now = new Date();
+      const phone = membership.closingDeliveryPhoneE164 ?? membership.user?.phoneE164;
+      const currentDay = businessDateFor({ startAt: now, timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
+      if ((job.closing && job.closing.status !== "CLOSED") || store.status !== "ACTIVE" || store.deletedAt
+        || membership.storeId !== job.storeId || membership.status !== "ACTIVE" || membership.deletedAt
+        || !membership.closingDeliveryEnabled || !isE164Phone(phone) || phone !== job.recipientPhoneE164 || businessDate > currentDay) {
+        await tx.employeeClosingDelivery.update({ where: { id: job.id }, data: {
+          status: "CANCELLED", leaseToken: null, leaseExpiresAt: null,
+          lastErrorCode: "SNAPSHOT_RECIPIENT_UNAVAILABLE", lastError: "接收资格、号码或营业日已变化，请核对后重新发送",
+        } });
+        return { authorized: false };
+      }
+      const snapshot = publicDailySnapshot(job.snapshotJson);
+      if (job.snapshotShare) {
+        // An earlier attempt may have submitted this link even if its response
+        // was lost. Keep the original grant and expiry intact.
+        if (job.snapshotShare.tokenHash !== tokenHash || job.snapshotShare.expiresAt <= now) {
+          throw new ConflictException({ code: "DAILY_SNAPSHOT_PREPARE_EXPIRED", messageZh: "此任务原链接无法再次发送，请重新排队补发" });
+        }
+      } else {
+        const saved = dailySnapshotMonthToDateSchema.safeParse((job.snapshotJson as { monthToDate?: unknown }).monthToDate);
+        const monthToDate = saved.success
+          ? saved.data
+          : await readSnapshotMonthToDate(tx, job.storeId, job.membershipId, businessDate, snapshot.employee);
+        await tx.employeeDailySnapshotShare.create({ data: {
+          deliveryId, tokenHash, expiresAt: new Date(now.getTime() + DAILY_SNAPSHOT_TTL_MS), monthToDateJson: monthToDate,
+        } });
+      }
+      const en = job.locale === "en_US";
+      const amount = new Intl.NumberFormat(en ? "en-US" : "zh-CN", { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol" })
+        .format(snapshot.employee.confirmedIncomeCents / 100);
+      const name = snapshot.employee.displayName.replace(/[\r\n\u000b\u000c\u0085\u2028\u2029]+/g, " ").trim();
+      const lines = en
+        ? [`Name: ${name}`, `Date: ${businessDate}`, `Today's total earnings: ${amount}`, `Details: ${link}`]
+        : [`名字：${name}`, `日期：${businessDate}`, `今日总收入：${amount}`, `详情页面：${link}`];
+      return { authorized: true, text: lines.join("\n") };
+    });
   }
 
   async complete(authorization: string | undefined, deliveryId: string, leaseToken: string, receipt?: MessagesReceipt) {
@@ -371,7 +465,12 @@ export class ClosingDeliveriesService {
 
   async receiptCandidates(authorization: string | undefined) {
     const agent = await authenticateDeliveryAgent(this.prisma, authorization);
-    return this.prisma.employeeClosingDelivery.findMany({ where: receiptCandidatesWhere(agent.storeId), select: receiptCandidateSelect, orderBy: receiptCandidateOrder, take: 20 });
+    const rows = await this.prisma.employeeClosingDelivery.findMany({
+      where: receiptCandidatesWhere(agent.storeId),
+      select: { ...receiptCandidateSelect, deliveryMessageGuid: true, snapshotShare: { select: { deliveryId: true } } },
+      orderBy: receiptCandidateOrder, take: 20,
+    });
+    return rows.map(({ snapshotShare, ...row }) => ({ ...row, deliveryMode: snapshotShare ? "TEXT" as const : "IMAGE" as const }));
   }
 
   async receipt(authorization: string | undefined, deliveryId: string, input: ClosingDeliveryReceiptInput) {

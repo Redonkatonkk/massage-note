@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import type { User } from "@massage-note/database";
+import { CLOSING_DELIVERY_TEXT_PROTOCOL } from "@massage-note/contracts";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { deviceTimeContext } from "../src/common/device-time.js";
 import { IdempotencyService } from "../src/common/idempotency.service.js";
@@ -341,7 +342,8 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     expect(duplicate.id).toBe(queued.id);
     expect((await closingDeliveries.list(actor(managerId), storeId, businessDate)).deliveries.some(item => item.id === queued.id)).toBe(true);
     const credential = await closingDeliveries.rotateAgentCredential(actor(managerId), storeId, "open-agent");
-    const claimed = await closingDeliveries.claim(`Bearer ${credential.token}`);
+    await expect(closingDeliveries.claim(`Bearer ${credential.token}`)).resolves.toBeNull();
+    const claimed = await closingDeliveries.claim(`Bearer ${credential.token}`, CLOSING_DELIVERY_TEXT_PROTOCOL);
     expect(claimed?.id).toBe(queued.id);
     await expect(closingDeliveries.authorize(`Bearer ${credential.token}`, claimed!.id, claimed!.leaseToken)).resolves.toEqual({ authorized: true });
     await closingDeliveries.complete(`Bearer ${credential.token}`, claimed!.id, claimed!.leaseToken);
@@ -497,7 +499,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       where: { id: invalidDelivery.id },
       data: { recipientPhoneE164: "" },
     });
-    await expect(closingDeliveries.claim(`Bearer ${credential.token}`)).resolves.toBeNull();
+    await expect(closingDeliveries.claim(`Bearer ${credential.token}`, CLOSING_DELIVERY_TEXT_PROTOCOL)).resolves.toBeNull();
     await expect(prisma.employeeClosingDelivery.findUnique({ where: { id: invalidDelivery.id } })).resolves.toMatchObject({
       status: "FAILED",
       lastErrorCode: "RECIPIENT_PHONE_INVALID",
@@ -511,8 +513,8 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       "valid-after-invalid",
       "valid-after-invalid-request",
     );
-    const claimed = await closingDeliveries.claim(`Bearer ${credential.token}`);
-    expect(claimed).toMatchObject({ phoneE164: expect.stringMatching(/^\+1/), locale: "zh_CN", cycleNo: 1 });
+    const claimed = await closingDeliveries.claim(`Bearer ${credential.token}`, CLOSING_DELIVERY_TEXT_PROTOCOL);
+    expect(claimed).toMatchObject({ phoneE164: expect.stringMatching(/^\+1/), locale: "zh_CN", cycleNo: 1, deliveryMode: "TEXT" });
     await expect(closingDeliveries.authorize(`Bearer ${credential.token}`, claimed!.id, claimed!.leaseToken)).resolves.toEqual({ authorized: true });
     await expect(
       workRecords.update(

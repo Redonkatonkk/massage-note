@@ -2,7 +2,7 @@
 
 **[English](ARCHITECTURE.md)** | **简体中文**
 
-> 状态：与 `1.57.3` 代码结构核对。
+> 状态：与 `1.59.0` 代码结构核对。
 > 本文描述当前实现；项目开始时的设计草案见 [`archive/INITIAL_ARCHITECTURE_PLAN.md`](../archive/INITIAL_ARCHITECTURE_PLAN.zh-CN.md)。
 
 Massage note 是一个 pnpm workspace 管理的 TypeScript 模块化单体。Web、API 和共享包在同一仓库开发与测试，生产可以按 Web/API 双容器运行，也可以在群晖单镜像中同时运行。
@@ -34,7 +34,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | `apps/web` | Next.js App Router、响应式中英文 UI、API 客户端和本地草稿 | 最终权限判断、最终财务计算 | 客户端展示不能授予权限或决定最终金额。 |
 | `apps/api` | REST、认证、授权、事务、领域编排、审计、outbox、SSE 和 AI 网关 | 浏览器展示状态、任意 SQL AI 工具 | 服务端协调多个客户端的授权与事务。 |
-| `apps/messages-agent` | 固定 Mac 上领取个人日结和员工区间结算任务、渲染附件、受限暂存并调用 Messages AppleScript | 入站端口、聊天数据库读写、键盘/窗口自动化 | 本机权限 App 和出站领取是现有发送路径。 |
+| `apps/messages-agent` | 固定 Mac 轮询个人日结和员工小计。由签名 App 提交文字或受限附件并核对具体出站回执。 | 入站端口、聊天数据库写入、键盘或窗口自动化 | 安装版代理独立于 NAS 运行。 |
 | `integrations/langbot-plugin` | 拦截指定微信群记工消息、受限解析意图并调用专用记工接口 | 直接读取数据库、决定价格/员工、调用其他业务接口 | 模型仅产生受限意图，财务事实由后端决定。 |
 | `packages/domain` | 无框架依赖的营业日、权限、提成、金额与财务纯函数 | Prisma、HTTP、React、环境变量 | 纯函数可在多个入口复用并独立验证。 |
 | `packages/contracts` | 前后端共享的 Zod 请求契约和类型 | 数据库访问、业务副作用 | 共享校验避免调用端各定义一套输入。 |
@@ -238,7 +238,7 @@ Web 表单
 
 记工的 `isDispatchExcluded` 由共享创建／更新契约、WorkRecordsService 和数据库独立保存，Web 草稿与看板读取同一字段；`recordTrackItems` 将它与高亮记录共同按时间从右向左排序，`record-card--right-group` 只控制右对齐，`isHighlighted` 继续独立控制颜色和金额规则。保留原因：把展示位置与高亮语义分开，避免排工标记改变财务计算。
 
-个人日结由 domain 的 `employee-closing-template.ts` 统一中英文展示内容和稳定时间排序，Web 的 `employee-closing-statement.tsx` 展示两列记工卡，`employee-closing-image.ts` 输出同款 SVG 并分别由 Web canvas 与 Mac `sips` 转为 PNG。所有收入仍取后端快照，页面现金交接／发送操作在模板之外。保留原因：共享展示内容防止页面、导出和短信附件分别演变，展示层不得重算工资或暗示已发放。
+个人日结使用 `employee-closing-template.ts` 统一本人与管理端的双语展示。管理端预览和 Web PNG 导出继续使用共享展示模型。日结文字任务保存员工营业日和本月至今收入，访问授权存储令牌哈希与有效期。免登录页面通过授权读取保存的营业日和限定范围的历史。API 在当前租约下生成四行短信，Mac 代理保存恢复该次提交需要的状态。详见 [Mac 信息代理手册](../operations/MESSAGES_AGENT.zh-CN.md)。
 
 ## 店铺数据迁移边界
 

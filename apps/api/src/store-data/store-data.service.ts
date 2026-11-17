@@ -89,7 +89,7 @@ export class StoreDataService {
         await tx.$executeRawUnsafe("SET LOCAL statement_timeout = '60s'");
         // Maintenance is rare: fixed table locks also cover schedulers, bots and in-flight writes.
         // Names originate exclusively from the static registry / Prisma metadata, never the file.
-        const extra = ["store_join_requests", "employee_closing_deliveries", "employee_settlement_deliveries", "closing_delivery_agents", "work_bot_group_bindings", "work_bot_member_bindings", "work_bot_operations", "ai_change_previews", "idempotency_requests", "store_data_import_previews"];
+        const extra = ["store_join_requests", "employee_closing_deliveries", "employee_daily_snapshot_shares", "employee_settlement_deliveries", "closing_delivery_agents", "work_bot_group_bindings", "work_bot_member_bindings", "work_bot_operations", "ai_change_previews", "idempotency_requests", "store_data_import_previews"];
         const names = [...new Set(["stores", ...storeBackupTables.filter(table => table !== "auditLog").map(table => backupModels.get(table)!.dbName!), ...extra])].sort();
         await tx.$executeRawUnsafe(`LOCK TABLE ${names.map(name => `"${name}"`).join(", ")} IN SHARE ROW EXCLUSIVE MODE`);
         const owner = await this.owner(actor, storeId, tx);

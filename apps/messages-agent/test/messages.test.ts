@@ -15,8 +15,8 @@ describe("Messages AppleScript", () => {
     expect(messagesAttachmentScript).toContain("set phoneE164 to item 2 of argv");
     expect(messagesAttachmentScript).toContain("set filePath to item 3 of argv");
     expect(messagesAttachmentScript).toContain("set attachmentKind to item 4 of argv");
-    expect(messagesAttachmentScript).not.toContain("messageText");
-    expect(messagesAttachmentScript).not.toContain("send messageText");
+    expect(messagesAttachmentScript).toContain('if attachmentKind is "TEXT" then');
+    expect(messagesAttachmentScript).toContain("send (content as text) to targetParticipant");
     expect(messagesAttachmentScript.match(/send POSIX file/g)).toHaveLength(2);
   });
 

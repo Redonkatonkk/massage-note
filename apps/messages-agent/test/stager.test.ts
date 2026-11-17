@@ -2,7 +2,7 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { messagesStagerReady, stageMessagesAttachment, sendStagedMessagesAttachment, messagesDeliveryState, type MessagesDeliveryState } from "../src/stager.js";
+import { messagesStagerReady, stageMessagesAttachment, sendStagedMessagesAttachment, messagesDeliveryState, messagesTextDeliveryState, sendStagedClosingText, type MessagesDeliveryState } from "../src/stager.js";
 
 const previousApp = process.env.MASSAGE_NOTE_MESSAGES_STAGER_APP;
 const previousDataDir = process.env.MASSAGE_NOTE_AGENT_DATA_DIR;
@@ -66,6 +66,25 @@ describe("Messages attachment stager", () => {
     const jobId = "ab48f3d5-8a80-4260-98ae-e8b4fd603d14";
     await prepareOpenMock({ ok: true });
     await expect(sendStagedMessagesAttachment("+13105551234", join(process.env.HOME!, "Library", "Messages", "Attachments", "MassageNote", "ab", jobId, "closing.png"), "IMAGE")).rejects.toThrow("did not confirm");
+  });
+
+  it("passes only the recipient and task UUID to the signed app for text dispatch", async () => {
+    const jobId = "ab48f3d5-8a80-4260-98ae-e8b4fd603d14";
+    const { log } = await prepareOpenMock({ ok: true, service: "SMS" });
+    await expect(sendStagedClosingText("+13105551234", jobId)).resolves.toEqual({ service: "SMS", previousMessageGuid: null });
+    expect((await readFile(log, "utf8")).trim().split("\n").slice(5)).toEqual([
+      "--send-text", "+13105551234", jobId, join(process.env.MASSAGE_NOTE_AGENT_DATA_DIR!, "stager-results", jobId + "-text-send.json"),
+    ]);
+    await expect(sendStagedClosingText("invalid", jobId)).rejects.toThrow("Invalid");
+  });
+
+  it("scopes a late text receipt query to the supplied task and validated message GUID", async () => {
+    const jobId = "ab48f3d5-8a80-4260-98ae-e8b4fd603d14";
+    const delivery: MessagesDeliveryState = { state: "SENT", messageGuid: "saved-guid", errorCode: 0, service: "SMS" };
+    const { log } = await prepareOpenMock({ ok: true, delivery });
+    await expect(messagesTextDeliveryState("+13105551234", jobId, "saved-guid")).resolves.toEqual(delivery);
+    expect((await readFile(log, "utf8")).trim().split("\n").slice(5, -1)).toEqual(["--status-guid", "+13105551234", jobId, "saved-guid"]);
+    await expect(messagesTextDeliveryState("+13105551234", jobId, "bad GUID")).rejects.toThrow("Invalid Messages GUID");
   });
 
   it("拒绝不属于发送任务的路径和无效号码", async () => {

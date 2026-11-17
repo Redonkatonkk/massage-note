@@ -7,6 +7,7 @@ enum StagerError: LocalizedError {
     case invalidResultPath
     case invalidSource
     case invalidAttachment
+    case invalidText
     case conflictingDestination
     case invalidRecipient
     case missingScript
@@ -14,11 +15,12 @@ enum StagerError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidArguments: return "usage: AttachmentStager --diagnose <result-json> | --send <phone> <job-uuid> <filename> <kind> <result-json> | --status <phone> <job-uuid> <filename> <result-json> | <source> <job-uuid> [closing.png|settlement-details.jpg] [--reuse-existing] <result-json>"
+        case .invalidArguments: return "invalid Messages request; expected diagnose, attachment, text or delivery status operation"
         case .invalidJobID: return "invalid closing delivery job id"
         case .invalidResultPath: return "result must be the exact job result file in the Massage Note agent data directory"
         case .invalidSource: return "source must be the exact job PNG in the Massage Note agent outbox"
         case .invalidAttachment: return "source is not a valid PNG or JPEG attachment"
+        case .invalidText: return "invalid or missing private closing text for this job"
         case .conflictingDestination: return "a different attachment already exists for this job"
         case .invalidRecipient: return "invalid Messages recipient"
         case .missingScript: return "bundled Messages AppleScript is missing"
@@ -62,7 +64,7 @@ func writeResult(ok: Bool, path: String? = nil, service: String? = nil, previous
     try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: result.path)
 }
 
-func runMessagesScript(_ arguments: [String]) throws -> String {
+func runMessagesScript(_ arguments: [String], hasPrivateText: Bool = false) throws -> String {
     guard let scriptURL = Bundle.main.url(forResource: "messages", withExtension: "applescript") else {
         throw StagerError.missingScript
     }
@@ -81,8 +83,9 @@ func runMessagesScript(_ arguments: [String]) throws -> String {
     var error: NSDictionary?
     let response = script.executeAppleEvent(event, error: &error)
     if let error {
-        let message = error[NSAppleScript.errorMessage] as? String ?? "Messages AppleScript failed"
         let code = error[NSAppleScript.errorNumber] as? Int ?? -1
+        let message = hasPrivateText ? "Messages text send could not be confirmed"
+            : error[NSAppleScript.errorMessage] as? String ?? "Messages AppleScript failed"
         throw StagerError.messagesScript("\(message) (\(code))")
     }
     guard let service = response.stringValue, !service.isEmpty else {
@@ -105,20 +108,51 @@ func diagnose() throws {
     _ = try runMessagesScript(["", "", probe.path, "DIAGNOSE"])
     let database = try MessagesDeliveryDatabase(url: home.appendingPathComponent("Library/Messages/chat.db"))
     _ = try database.observation(attachment: probe, phone: "+10000000000", home: home)
+    _ = try database.observation(text: "Messages probe", snapshotLink: "https://probe.invalid/no-task", phone: "+10000000000")
 }
 
-func taskAttachment(phone: String, job: String, fileName: String) throws -> URL {
+func validateTask(phone: String, job: String) throws {
     guard phone.range(of: "^\\+[1-9][0-9]{7,14}$", options: .regularExpression) != nil else {
         throw StagerError.invalidRecipient
     }
     guard let jobID = UUID(uuidString: job), jobID.uuidString.lowercased() == job else {
         throw StagerError.invalidJobID
     }
+}
+
+func taskAttachment(phone: String, job: String, fileName: String) throws -> URL {
+    try validateTask(phone: phone, job: job)
     guard ["closing.png", "settlement-details.jpg"].contains(fileName) else { throw StagerError.invalidArguments }
     let file = messagesRoot.appendingPathComponent(String(job.prefix(2)), isDirectory: true)
         .appendingPathComponent(job, isDirectory: true).appendingPathComponent(fileName)
     guard file.resolvingSymlinksInPath().path == file.path else { throw StagerError.invalidSource }
     return file
+}
+
+func closingText(job: String) throws -> (body: String, link: String) {
+    let file = outboxRoot.appendingPathComponent("\(job)-closing.txt")
+    guard file.resolvingSymlinksInPath().path == file.path,
+          let attributes = try? fileManager.attributesOfItem(atPath: file.path),
+          attributes[.type] as? FileAttributeType == .typeRegular,
+          attributes[.posixPermissions] as? Int == 0o600,
+          let size = attributes[.size] as? Int, size > 0, size <= 4096,
+          let data = try? Data(contentsOf: file), data.count <= 4096,
+          let body = String(data: data, encoding: .utf8), !body.contains("\0") else {
+        throw StagerError.invalidText
+    }
+    let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let range = trimmed.range(of: "https://[A-Za-z0-9.-]+(?::[0-9]{1,5})?/share/daily-snapshot#[A-Za-z0-9_-]{43}$", options: .regularExpression) else {
+        throw StagerError.invalidText
+    }
+    return (body, String(trimmed[range]))
+}
+
+func sendClosingText(phone: String, job: String) throws -> (String, String?) {
+    let text = try closingText(job: job)
+    let database = try MessagesDeliveryDatabase(url: home.appendingPathComponent("Library/Messages/chat.db"))
+    let previous = try database.observation(text: text.body, snapshotLink: text.link, phone: phone)
+    let phoneHandle = phone.hasPrefix("+1") && phone.count == 12 ? String(phone.dropFirst(2)) : phone
+    return (try runMessagesScript([phoneHandle, phone, text.body, "TEXT"], hasPrivateText: true), previous.messageGuid)
 }
 
 func send(phone: String, job: String, fileName: String, kind: String) throws -> (String, String?) {
@@ -183,6 +217,38 @@ do {
         do {
             try diagnose()
             try writeResult(ok: true, to: result)
+        } catch {
+            try? writeResult(ok: false, error: error.localizedDescription, to: result)
+            throw error
+        }
+    } else if arguments.count == 4, ["--send-text", "--status-text"].contains(arguments[0]) {
+        let phone = arguments[1], job = arguments[2]
+        try validateTask(phone: phone, job: job)
+        let dispatch = arguments[0] == "--send-text"
+        let result = try validatedResultURL(arguments[3], expectedStem: "\(job)-text-\(dispatch ? "send" : "status")")
+        do {
+            if dispatch {
+                let (service, previous) = try sendClosingText(phone: phone, job: job)
+                try writeResult(ok: true, service: service, previousMessageGuid: previous, to: result)
+            } else {
+                let text = try closingText(job: job)
+                let database = try MessagesDeliveryDatabase(url: home.appendingPathComponent("Library/Messages/chat.db"))
+                let observation = try database.observation(text: text.body, snapshotLink: text.link, phone: phone)
+                try writeResult(ok: true, delivery: observation.json, to: result)
+            }
+        } catch {
+            try? writeResult(ok: false, error: error.localizedDescription, to: result)
+            throw error
+        }
+    } else if arguments.count == 5, arguments[0] == "--status-guid" {
+        let phone = arguments[1], job = arguments[2], guid = arguments[3]
+        try validateTask(phone: phone, job: job)
+        guard guid.range(of: "^[A-Za-z0-9_:+.-]{1,255}$", options: .regularExpression) != nil else { throw StagerError.invalidArguments }
+        let result = try validatedResultURL(arguments[4], expectedStem: "\(job)-guid-status")
+        do {
+            let database = try MessagesDeliveryDatabase(url: home.appendingPathComponent("Library/Messages/chat.db"))
+            let observation = try database.observation(messageGuid: guid, phone: phone)
+            try writeResult(ok: true, delivery: observation.json, to: result)
         } catch {
             try? writeResult(ok: false, error: error.localizedDescription, to: result)
             throw error

@@ -1,7 +1,9 @@
-import { chmod, mkdir, readdir, stat, unlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { chmod, link, lstat, mkdir, readFile, readdir, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export const OUTBOX_RETENTION_MS = 30 * 60_000;
+const TEXT_RETENTION_MS = 30 * 24 * 60 * 60_000;
 
 export async function prepareOutbox(dataDir: string) {
   const outboxDir = join(dataDir, "outbox");
@@ -13,6 +15,33 @@ export async function prepareOutbox(dataDir: string) {
 export function closingPngPath(outboxDir: string, jobId: string) {
   if (!/^[a-f0-9-]{36}$/i.test(jobId)) throw new Error("invalid closing delivery job id");
   return join(outboxDir, `${jobId}.png`);
+}
+
+export async function prepareClosingText(outboxDir: string, jobId: string, body: string) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(jobId)) {
+    throw new Error("Invalid closing delivery job id");
+  }
+  if (typeof body !== "string" || Buffer.byteLength(body) > 4096 || body.includes("\0")
+    || !/https:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?\/share\/daily-snapshot#[A-Za-z0-9_-]{43}$/.test(body.trimEnd())) {
+    throw new Error("Invalid closing message text");
+  }
+  const path = join(outboxDir, `${jobId}-closing.txt`);
+  const temporary = join(outboxDir, `${jobId}-closing-${randomUUID()}.tmp`);
+  try {
+    await writeFile(temporary, body, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    try {
+      // Publish a complete file atomically without replacing another attempt's text.
+      await link(temporary, path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      const file = await lstat(path);
+      if (!file.isFile() || (file.mode & 0o777) !== 0o600 || file.size > 4096 || await readFile(path, "utf8") !== body) {
+        throw new Error("A different closing message already exists for this job");
+      }
+    }
+  } finally {
+    await rm(temporary, { force: true });
+  }
 }
 
 export function settlementAttachmentPath(outboxDir: string, jobId: string) {
@@ -30,10 +59,11 @@ export async function cleanupOutbox(outboxDir: string, now = Date.now()) {
   const entries = await readdir(outboxDir, { withFileTypes: true });
   let removed = 0;
   for (const entry of entries) {
-    if (!entry.isFile() || !/^[a-f0-9-]{36}(?:\.png|-details\.jpg)$/i.test(entry.name)) continue;
+    if (!entry.isFile() || !/^[a-f0-9-]{36}(?:\.png|-details\.jpg|-closing\.txt|-closing-[a-f0-9-]{36}\.tmp)$/i.test(entry.name)) continue;
     const path = join(outboxDir, entry.name);
     const details = await stat(path);
-    if (now - details.mtimeMs < OUTBOX_RETENTION_MS) continue;
+    const retention = entry.name.endsWith("-closing.txt") ? TEXT_RETENTION_MS : OUTBOX_RETENTION_MS;
+    if (now - details.mtimeMs < retention) continue;
     await unlink(path);
     removed += 1;
   }

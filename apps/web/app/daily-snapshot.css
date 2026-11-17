@@ -1,0 +1,98 @@
+/* Taste Achromatic ledger, seed 540264956; shared palette and system type retained.
+   Face: the store ledger ground and tabular figures. Signature: one employee's work-card strip.
+   Standalone report: no sidebar, because this SMS destination has no other workspace jobs.
+   1136px outer - 48px gutters = 1088px strip; 232px summary + remaining record track.
+   On phones only the record track scrolls, leaving income and date controls in view. */
+.daily-snapshot-page { max-width: 1136px; margin: 0 auto; padding: 88px 24px 32px; color: var(--ink); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+body:has(.daily-snapshot-page--shared) > .utility-toolbar { display: none; }
+.daily-snapshot-page.daily-snapshot-page--shared { padding-top: 12px; }
+.daily-snapshot-share-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; color: var(--muted); }
+.daily-snapshot-share-bar button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); cursor: pointer; }
+.daily-snapshot-state { padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); }
+.daily-snapshot-page .daily-snapshot-state h1 { margin-bottom: 8px; font-size: 24px; }
+.daily-snapshot-state button { margin-top: 12px; }
+.daily-snapshot-page p, .daily-snapshot-page h1, .daily-snapshot-page h2, .daily-snapshot-page h3, .daily-snapshot-page dl, .daily-snapshot-page dd { margin: 0; }
+.daily-snapshot-page .daily-snapshot-preview-note { color: var(--muted); font-size: 12px; margin-bottom: 24px; }
+.daily-snapshot-page-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+.daily-snapshot-page-heading > div:first-child { min-width: 0; }
+.daily-snapshot-page-heading p { color: var(--muted); margin-bottom: 4px; }
+.daily-snapshot-page-heading h1 { font-size: 24px; font-weight: 600; }
+.daily-snapshot-page-heading h1 span { font-weight: 400; }
+.daily-snapshot-date-controls { display: flex; align-items: center; gap: 4px; }
+.daily-snapshot-selected-date { min-width: 120px; text-align: center; font-size: 16px; font-variant-numeric: tabular-nums; }
+.daily-snapshot-date-controls button { display: grid; place-items: center; width: 44px; min-height: 44px; padding: 8px; border: 1px solid transparent; border-radius: var(--radius-control); color: var(--ink); background: transparent; cursor: pointer; }
+.daily-snapshot-date-controls button:hover:not(:disabled) { background: var(--surface); border-color: var(--line); }
+.daily-snapshot-date-controls button:disabled { color: var(--muted); cursor: default; }
+.daily-snapshot-page :is(button, .daily-snapshot-track, .daily-snapshot-source-scroll):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.daily-snapshot-content { display: grid; gap: 16px; }
+.daily-snapshot-strip { display: grid; grid-template-columns: 232px minmax(0, 1fr); border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); overflow: hidden; }
+.daily-snapshot-summary { display: flex; flex-direction: column; gap: 16px; padding: 20px; border-right: 1px solid var(--line); }
+.daily-snapshot-summary-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 12px; }
+.daily-snapshot-summary-heading span { color: var(--muted); }
+.daily-snapshot-income h2 { color: var(--muted); font-size: 14px; font-weight: 400; }
+.daily-snapshot-income strong { display: block; font-size: 36px; line-height: 1.25; font-weight: 600; font-variant-numeric: tabular-nums; }
+.daily-snapshot-breakdown { display: grid; gap: 8px; }
+.daily-snapshot-breakdown > div { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+.daily-snapshot-breakdown dt { color: var(--muted); }
+.daily-snapshot-breakdown dd { margin-left: auto; font-size: 16px; font-variant-numeric: tabular-nums; }
+.daily-snapshot-currency { color: var(--muted); font-size: 12px; }
+.daily-snapshot-records { min-width: 0; padding: 16px; }
+.daily-snapshot-records-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 12px; }
+.daily-snapshot-records-heading h2 { font-size: 14px; font-weight: 500; }
+.daily-snapshot-records-heading p { color: var(--muted); font-size: 12px; }
+.daily-snapshot-pending-count { color: var(--pending-ink); }
+.daily-snapshot-track { display: flex; align-items: stretch; gap: 12px; margin: 0; padding: 0 0 8px; list-style: none; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; }
+.daily-snapshot-track > li { display: flex; flex: 0 0 196px; min-width: 0; scroll-snap-align: start; }
+.daily-snapshot-record { width: 100%; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); }
+.daily-snapshot-record.is-pending { background: var(--pending); border-color: var(--pending-line); }
+.daily-snapshot-record.is-highlighted { background: var(--highlight); border-color: var(--highlight-line); }
+.daily-snapshot-record h3 { font-size: 14px; font-weight: 500; }
+.daily-snapshot-record time, .daily-snapshot-record-note { color: var(--muted); font-size: 12px; }
+.daily-snapshot-record-facts { display: grid; gap: 8px; }
+.daily-snapshot-record-facts > div { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); gap: 8px; align-items: baseline; }
+.daily-snapshot-record-facts dt { color: var(--muted); font-size: 12px; }
+.daily-snapshot-record-facts dd { text-align: right; font-variant-numeric: tabular-nums; }
+.daily-snapshot-record-facts dd { display: grid; justify-items: end; gap: 4px; }
+.daily-snapshot-payment { display: inline-block; max-width: 100%; }
+.daily-snapshot-payment--card { padding: 1px 4px; border: 1px solid currentColor; border-radius: var(--radius-control); }
+.daily-snapshot-record-income { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
+.daily-snapshot-record-income > span { color: var(--muted); font-size: 12px; }
+.daily-snapshot-record-income strong { margin-left: auto; text-align: right; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.daily-snapshot-pending-note { font-size: 12px; color: var(--pending-ink); }
+.daily-snapshot-empty { padding: 32px 0; color: var(--muted); }
+.daily-snapshot-overview { display: grid; grid-template-columns: minmax(280px, 352px) minmax(0, 1fr); align-items: start; gap: 24px; margin-top: 24px; }
+.daily-snapshot-calendar, .daily-snapshot-sources { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); }
+.daily-snapshot-page :is(.daily-snapshot-calendar, .daily-snapshot-sources) h2 { font-size: 16px; font-weight: 500; margin-bottom: 16px; }
+.daily-snapshot-calendar > p { color: var(--muted); font-size: 12px; margin-top: 12px; }
+.daily-snapshot-calendar .business-date-picker__popover header { grid-template-columns: 44px 1fr 44px; }
+.daily-snapshot-calendar .business-date-picker__popover header button { width: 44px; height: 44px; min-height: 44px; }
+.daily-snapshot-calendar .business-date-picker__days button { min-height: 44px; }
+.daily-snapshot-sources .daily-snapshot-month-period { margin-bottom: 12px; color: var(--muted); font-size: 12px; }
+.daily-snapshot-source-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.daily-snapshot-sources table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+.daily-snapshot-sources caption { text-align: left; color: var(--muted); font-size: 12px; padding-bottom: 12px; }
+.daily-snapshot-sources th, .daily-snapshot-sources td { padding: 8px 4px; border-bottom: 1px solid var(--line); font-weight: 400; overflow-wrap: anywhere; }
+.daily-snapshot-sources th:first-child { position: sticky; left: 0; background: var(--surface); text-align: left; }
+.daily-snapshot-sources th:not(:first-child), .daily-snapshot-sources td { text-align: right; font-variant-numeric: tabular-nums; }
+.daily-snapshot-sources thead { color: var(--muted); font-size: 12px; }
+.daily-snapshot-sources tfoot :is(th, td) { padding-top: 12px; border-bottom: 0; font-weight: 600; }
+.daily-snapshot-footnote { color: var(--muted); font-size: 12px; }
+.daily-snapshot-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 760px) {
+  .daily-snapshot-page { padding: 76px 16px 32px; }
+  .daily-snapshot-page .daily-snapshot-preview-note { margin-bottom: 16px; }
+  .daily-snapshot-page-heading { align-items: start; gap: 12px; margin-bottom: 16px; }
+  .daily-snapshot-page-heading h1 { font-size: 22px; }
+  .daily-snapshot-strip { grid-template-columns: minmax(0, 1fr); }
+  .daily-snapshot-summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 16px; padding: 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .daily-snapshot-summary-heading { grid-column: 1 / -1; }
+  .daily-snapshot-income strong { font-size: 30px; }
+  .daily-snapshot-breakdown { align-self: center; gap: 4px; }
+  .daily-snapshot-breakdown dt { font-size: 12px; }
+  .daily-snapshot-breakdown dd { font-size: 14px; }
+  .daily-snapshot-currency { grid-column: 1 / -1; }
+  .daily-snapshot-records { padding: 16px; }
+  .daily-snapshot-track > li { flex-basis: 212px; }
+  .daily-snapshot-overview { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+  .daily-snapshot-calendar, .daily-snapshot-sources { padding: 16px; }
+}

@@ -68,6 +68,29 @@ export async function messagesStagerReady() {
   await launchStager(["--diagnose"], "diagnose.json", 60_000);
 }
 
+function validateTextTarget(phoneE164: string, jobId: string) {
+  if (!/^\+[1-9]\d{7,14}$/.test(phoneE164)
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(jobId)) {
+    throw new Error("Invalid Messages text task");
+  }
+}
+
+export async function sendStagedClosingText(phoneE164: string, jobId: string): Promise<MessagesSubmission> {
+  validateTextTarget(phoneE164, jobId);
+  const result = await launchStager(["--send-text", phoneE164, jobId], `${jobId}-text-send.json`, 75_000);
+  if (!result.service?.trim()) throw new Error("Messages did not confirm an accepted text service");
+  return { service: result.service.trim(), previousMessageGuid: result.previousMessageGuid ?? null };
+}
+
+export async function messagesTextDeliveryState(phoneE164: string, jobId: string, messageGuid?: string) {
+  validateTextTarget(phoneE164, jobId);
+  if (messageGuid !== undefined && !/^[\w:+.-]{1,255}$/.test(messageGuid)) throw new Error("Invalid Messages GUID");
+  const result = messageGuid === undefined
+    ? await launchStager(["--status-text", phoneE164, jobId], `${jobId}-text-status.json`)
+    : await launchStager(["--status-guid", phoneE164, jobId, messageGuid], `${jobId}-guid-status.json`);
+  return checkedDeliveryState(result);
+}
+
 export async function sendStagedMessagesAttachment(
   phoneE164: string,
   attachmentPath: string,
@@ -100,7 +123,10 @@ export async function messagesDeliveryState(phoneE164: string, attachmentPath: s
     || attachmentPath !== taskMessagesPath(jobId, fileName as "closing.png" | "settlement-details.jpg")) {
     throw new Error("Invalid Messages status request");
   }
-  const { delivery } = await launchStager(["--status", phoneE164, jobId, fileName], `${jobId}-status.json`);
+  return checkedDeliveryState(await launchStager(["--status", phoneE164, jobId, fileName], `${jobId}-status.json`));
+}
+
+function checkedDeliveryState({ delivery }: StagerResult): MessagesDeliveryState {
   if (!delivery || !["MISSING", "PENDING", "SENT", "DELIVERED", "FAILED"].includes(delivery.state)
     || !Number.isInteger(delivery.errorCode)
     || !(delivery.messageGuid === null || typeof delivery.messageGuid === "string")

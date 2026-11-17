@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.57.3`
+> 适用版本：`1.59.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -313,11 +313,22 @@ START 的开始时间由 API 从 rawText 解析，使用店铺时区及 occurred
 
 ### 个人日结状态与独立短信
 
-个人预览的逐笔增加 `isHighlighted` 与 `discountTotalCents`，新排队的短信快照保存这两个字段；旧快照渲染时默认无标记。保留原因：页面与附件需要保留日常记工卡的高亮和折扣，已保存快照不能被回填或重新计算。
+个人预览的逐笔增加 `isHighlighted` 与 `discountTotalCents`，新排队的短信快照保存这两个字段；旧快照渲染时默认无标记。保留原因：快照与 Web 导出 PNG 保留日常记工卡的高亮和折扣，已保存快照不能被回填或重新计算。
 
 个人预览返回 `cashSettlement: { status, version, settledAt }`；无记录时为 `UNSETTLED`、版本 0。仅返回目标员工状态，现金写入仍由管理权限保护。
 
-短信任务独立存储 `businessDate`；未日结逐人任务的 `closingId` 和列表中的 `closing` 为 null，代理领取返回 `cycleNo: 0`，PNG 不显示周期。关联有效日结的任务仍在取消该周期时撤销；未关联周期的任务保留排队时快照。迁移 `20260910010000_independent_member_closing_delivery` 从旧周期回填营业日并放宽周期外键非空限制；旧记录保留。回退应用前须处理无周期任务，不能直接恢复非空约束。保留原因：未日结逐人任务已有可空周期设计，个人状态不能泄露其他成员。
+短信任务独立存储 `businessDate`；未日结逐人任务的 `closingId` 和列表中的 `closing` 为 null，代理领取返回 `cycleNo: 0`。关联有效日结的任务仍在取消该周期时撤销；未关联周期的任务保留排队时快照。迁移 `20260910010000_independent_member_closing_delivery` 从旧周期回填营业日并放宽周期外键非空限制；旧记录保留。回退应用前须处理无周期任务，不能直接恢复非空约束。保留原因：未日结逐人任务已有可空周期设计，个人状态不能泄露其他成员。
+
+### 每日快照链接与文字短信
+
+| 方法 | 路径 | 行为 |
+| --- | --- | --- |
+| GET | `/public/daily-snapshots?date=YYYY-MM-DD` | 通过 `Authorization: Bearer` 提交链接令牌，返回所选日个人快照及 `monthToDate`、`minDate`、`maxDate`、`expiresAt`、`locale`。省略 `date` 时打开已保存的营业日。 |
+| GET | `/public/daily-snapshots/calendar?month=YYYY-MM` | 返回链接范围内该员工当月未日结日期标记及已日结日期的已确认收入。 |
+| POST | `/closing-delivery-agent/jobs/claim` | 代理提交 `X-Closing-Delivery-Protocol: text-v1`，领取 `deliveryMode: TEXT` 的个人日结任务。 |
+| POST | `/closing-delivery-agent/jobs/:deliveryId/prepare-text` | 已授权代理提交 `{ leaseToken }`，符合发送条件时获取 `{ authorized: true, text }`。遇到已取消或不符合条件的任务时返回 `{ authorized: false }`。 |
+
+快照接口启用限流并使用 `Cache-Control: no-store`。令牌有效期为 14 天，绑定店铺、收件人和发送任务。无效、过期和失去资格的链接返回不可用。查询只接受员工本人可查看的历史日期，最晚到短信对应的营业日。已有授权、完成和回执接口支持恢复之前的提交。
 
 ### 今日看板顶部总收入
 

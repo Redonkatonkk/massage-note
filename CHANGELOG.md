@@ -4,6 +4,30 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.59.0 — 2026-11-16
+
+- Send individual daily earnings in four lines of plain text with a 14-day personal snapshot link. Open the saved business date first and browse the employee's own earlier dates and month-to-date earnings.
+- Deploy the Web/API and forward migration on NAS, then upgrade the installed Mac Messages agent. Preserve receipt recovery and the existing daily schedule.
+
+## 1.58.3 — 2026-11-16
+
+- Simplify the daily snapshot work cards. Show cash as an unframed amount, card as an outlined amount, and gift card with its label and amount. Screen readers announce the method and amount for cash and card. The earnings table names the payment sources. NAS needs a Web update to show the revised cards.
+
+## 1.58.2 — 2026-11-16
+
+- Label the daily snapshot source-table columns as Today's service wages, Today's tips and Today's total, then append Month-to-date total. Keep cash and card + gift card rows and the overall footer.
+- Show the month-to-date range from the first of the selected month through the selected business date, summing confirmed income only from synthetic fixtures. Date changes update daily and month-to-date amounts together. The preview still makes no real financial API or SMS changes; NAS needs a Web update, with no migration or independent agent update.
+
+## 1.58.1 — 2026-11-16
+
+- Keep the daily snapshot calendar visible using the same inline calendar as Today. Keep the earnings-by-source table open with Wages, Tips and Total columns, individual source totals and a grand total.
+- Match the familiar work-card payment notation: cash stays unframed, card payments are outlined, and gift cards remain explicitly labeled. Preserve the synthetic-only prototype and historical date selection; real API access and SMS delivery remain separate work. NAS needs a Web update; no API, migration or independent agent update is included.
+
+## 1.58.0 — 2026-11-16
+
+- Add a bilingual daily-income snapshot design prototype at `/preview/daily-snapshot`, using a compact employee work-card strip, confirmed income, wage/tip breakdown and individual records. Include previous/next day and date selection, pending and empty examples, and a mobile record track.
+- Use synthetic `ClosingSnapshot` fixtures only. Keep real ledger access, public share tokens and nightly SMS delivery outside this prototype; connecting those requires a later API/security and independently installed Messages agent change. NAS requires a Web update to expose the preview; no API or database migration is included.
+
 ## 1.57.3 — 2026-11-10
 
 - Restore store-funded discounts to the cash service basis before allocating mixed-payment commissions. A $130 service at 60%, with $5 off and receipts of $25 cash + $100 card, now yields $18 cash wages + $60 non-cash wages; preserve item-specific commissions, tips, rounding and actual-cash shortfalls.

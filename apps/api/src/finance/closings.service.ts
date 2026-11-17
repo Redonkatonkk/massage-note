@@ -17,12 +17,14 @@ import {
   calculateCashChange,
   calculatePersonalClosingPaymentDividends,
   calculateStoreIncome,
+  businessDateFor as storeBusinessDateFor,
   canReadEmployeeFinance,
 } from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
+import { readSnapshotMonthToDate } from "./daily-snapshot-earnings.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 
@@ -73,6 +75,17 @@ export class ClosingsService {
         messageZh: "员工只能查看自己的日结信息",
       });
     }
+    return this.buildMemberPreview(storeId, businessDate, targetMembershipId, client);
+  }
+
+  /** Internal projection for callers that have already verified the employee's read scope. */
+  async buildMemberPreview(
+    storeId: string,
+    businessDate: string,
+    targetMembershipId: string,
+    client: Prisma.TransactionClient,
+    useDeviceTime = true,
+  ) {
     const target = await client.storeMembership.findFirst({
       where: {
         id: targetMembershipId,
@@ -93,6 +106,7 @@ export class ClosingsService {
       storeId,
       businessDate,
       targetMembershipId,
+      useDeviceTime,
     );
     const employee = preview.employees[0] ?? {
       membershipId: target.id,
@@ -157,6 +171,12 @@ export class ClosingsService {
       cashSettlement: cashSettlement ? { status: cashSettlement.status, version: cashSettlement.version, settledAt: cashSettlement.settledAt, dailySettlementEnabled: cashSettlement.dailySettlementEnabled } : { status: "UNSETTLED", version: 0, settledAt: null },
       records: preview.personalRecords ?? [],
     };
+  }
+
+  async buildDeliverySnapshot(actor: User, storeId: string, businessDate: string, membershipId: string, client: Prisma.TransactionClient) {
+    const snapshot = await this.previewMember(actor, storeId, businessDate, membershipId, client);
+    const monthToDate = await readSnapshotMonthToDate(client, storeId, membershipId, businessDate, snapshot.employee);
+    return { ...snapshot, monthToDate };
   }
 
   async close(
@@ -275,7 +295,7 @@ export class ClosingsService {
                 status: { in: ["SENT", "QUEUED", "CLAIMED"] } },
             });
             if (existing) continue;
-            const snapshot = await this.previewMember(actor, storeId, businessDate, member.id, transaction);
+            const snapshot = await this.buildDeliverySnapshot(actor, storeId, businessDate, member.id, transaction);
             const delivery = await transaction.employeeClosingDelivery.create({
               data: { storeId, businessDate: closing.businessDate, closingId: closing.id,
                 membershipId: member.id, kind: "INITIAL", requestKey: "initial",
@@ -418,6 +438,7 @@ export class ClosingsService {
     storeId: string,
     businessDate: string,
     membershipId?: string,
+    useDeviceTime = true,
   ) {
     const store = await client.store.findFirst({
       where: { id: storeId, status: "ACTIVE", deletedAt: null },
@@ -429,8 +450,8 @@ export class ClosingsService {
         messageZh: "店铺不存在或已停用",
       });
     }
-    const currentDate = businessDateFor({
-      startAt: deviceNow(),
+    const currentDate = (useDeviceTime ? businessDateFor : storeBusinessDateFor)({
+      startAt: useDeviceTime ? deviceNow() : new Date(),
       timezone: store.timezone,
       cutoffLocal: store.businessCutoffLocal,
     });

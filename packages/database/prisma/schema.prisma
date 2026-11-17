@@ -785,6 +785,7 @@ model EmployeeClosingDelivery {
   store      Store              @relation(fields: [storeId], references: [id])
   closing    BusinessDayClosing? @relation(fields: [closingId], references: [id])
   membership StoreMembership    @relation(fields: [membershipId], references: [id])
+  snapshotShare EmployeeDailySnapshotShare?
 
   @@unique([storeId, closingId, membershipId, kind, requestKey])
   @@index([storeId, businessDate, createdAt])
@@ -792,6 +793,16 @@ model EmployeeClosingDelivery {
   @@index([storeId, closingId, createdAt])
   @@index([storeId, membershipId, createdAt])
   @@map("employee_closing_deliveries")
+}
+
+model EmployeeDailySnapshotShare {
+  deliveryId      String                  @id @map("delivery_id") @db.Uuid
+  tokenHash       String                  @unique @map("token_hash")
+  expiresAt       DateTime                @map("expires_at") @db.Timestamptz(3)
+  monthToDateJson Json                    @map("month_to_date_json")
+  delivery        EmployeeClosingDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@map("employee_daily_snapshot_shares")
 }
 
 model EmployeeSettlementShare {

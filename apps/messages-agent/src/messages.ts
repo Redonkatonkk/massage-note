@@ -33,7 +33,7 @@ end if
 set requestedTypes to {"SMS", "RCS", "iMessage"}
 set serviceUsed to ""
 repeat with requestedType in requestedTypes
-  if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, requestedType as text)
+if serviceUsed is "" then set serviceUsed to sendWithType(phoneNumber, filePath, requestedType as text, attachmentKind)
 end repeat
 if serviceUsed is "" then error "No enabled Messages account can address this phone number"
 delay 15
@@ -55,7 +55,7 @@ tell application "Messages"
 end tell
 end sendToExistingChat
 
-on sendWithType(phoneNumber, filePath, requestedType)
+on sendWithType(phoneNumber, content, requestedType, attachmentKind)
 tell application "Messages"
   repeat with targetAccount in accounts
     set accountType to ""
@@ -74,7 +74,11 @@ tell application "Messages"
         set targetParticipant to missing value
       end try
       if targetParticipant is not missing value then
-        send POSIX file filePath to targetParticipant
+        if attachmentKind is "TEXT" then
+          send (content as text) to targetParticipant
+        else
+          send POSIX file content to targetParticipant
+        end if
         return requestedType
       end if
     end if

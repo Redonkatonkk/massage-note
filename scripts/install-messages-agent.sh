@@ -104,7 +104,7 @@ JS
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.12.48</string>
   <key>LSUIElement</key><true/>
-  <key>NSAppleEventsUsageDescription</key><string>Send approved Massage Note attachments through Messages.</string>
+  <key>NSAppleEventsUsageDescription</key><string>Send approved Massage Note daily links and employee summary images through Messages.</string>
 </dict></plist>
 PLIST
   codesign --force --sign - --identifier com.massagenote.messages-stager "$stager_app"

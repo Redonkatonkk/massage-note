@@ -2,7 +2,7 @@
 
 **[English](DEVELOPMENT.md)** | **简体中文**
 
-> 适用版本：`1.57.3`
+> 适用版本：`1.59.0`
 
 本文只记录当前仓库的开发流程。业务含义看 [`PRODUCT.md`](../product/PRODUCT.zh-CN.md)，代码边界看 [`ARCHITECTURE.md`](ARCHITECTURE.zh-CN.md)，HTTP 细节看 [`API.md`](API.zh-CN.md)。
 
@@ -32,6 +32,10 @@ http://localhost:4000/api/v1/health/ready
 ```
 
 Firebase 和 MiniMax 的运行边界见 [安全说明](../operations/SECURITY.zh-CN.md)；本地没有 Firebase 时，Web 与 API 两侧须显式开启开发登录。保留原因：单侧启用不能建立开发会话，生产认证另由强制关闭逻辑保护。
+
+## 每日收入快照
+
+员工入口 `/share/daily-snapshot` 使用链接片段中的令牌读取保存的营业日或本人较早日期。常显日历和来源表展示 API 返回的已确认收入及本月至今金额。[本地设计预览](http://localhost:3000/preview/daily-snapshot) 使用合成样例。快照组件和 API 集成测试覆盖日期切换、链接过期、员工隔离和金额核对。部署 NAS 后按 [Mac 信息代理手册](../operations/MESSAGES_AGENT.zh-CN.md) 更新安装版代理。
 
 ## 本地手工测试数据
 

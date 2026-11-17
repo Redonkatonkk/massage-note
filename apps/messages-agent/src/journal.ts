@@ -4,7 +4,7 @@ import type { MessagesDeliveryState, MessagesSubmission } from "./stager.js";
 
 export interface Journal {
   accepted: string[]; completed: string[]; started?: string[];
-  submitted?: Record<string, MessagesSubmission & { attachmentPath: string; observation?: MessagesDeliveryState }>;
+  submitted?: Record<string, MessagesSubmission & ({ attachmentPath: string; text?: never } | { text: true; attachmentPath?: never }) & { observation?: MessagesDeliveryState }>;
   nextClaimAt?: string;
 }
 
@@ -24,7 +24,8 @@ export async function loadJournal(path: string): Promise<Journal> {
     || ("nextClaimAt" in value && (typeof value.nextClaimAt !== "string" || !Number.isFinite(Date.parse(value.nextClaimAt))))
     || ("submitted" in value && (!value.submitted || typeof value.submitted !== "object" || Array.isArray(value.submitted)
       || !Object.values(value.submitted).every(item => item && typeof item === "object" && typeof item.service === "string"
-        && typeof item.attachmentPath === "string" && (item.previousMessageGuid === null || typeof item.previousMessageGuid === "string")
+        && (item.text === true ? item.attachmentPath === undefined : item.text === undefined && typeof item.attachmentPath === "string")
+        && (item.previousMessageGuid === null || typeof item.previousMessageGuid === "string")
         && (item.observation === undefined || (item.observation && typeof item.observation.messageGuid === "string"
           && ["SENT", "DELIVERED"].includes(item.observation.state) && item.observation.errorCode === 0
           && (item.observation.service === null || typeof item.observation.service === "string"))))))) {

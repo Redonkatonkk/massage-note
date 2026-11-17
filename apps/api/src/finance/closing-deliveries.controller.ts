@@ -6,7 +6,9 @@ import {
   closingDeliveryCompleteSchema,
   closingDeliveryFailureSchema,
   closingDeliveryReceiptSchema,
+  CLOSING_DELIVERY_PROTOCOL_HEADER,
   idempotencyKeySchema,
+  prepareClosingTextSchema,
   uuidSchema,
 } from "@massage-note/contracts";
 import type { Response } from "express";
@@ -71,14 +73,23 @@ export class ClosingDeliveryAgentController {
   constructor(private readonly deliveries: ClosingDeliveriesService) {}
 
   @Post("jobs/claim")
-  claim(@Headers("authorization") authorization: string | undefined) {
-    return this.deliveries.claim(authorization);
+  claim(
+    @Headers("authorization") authorization: string | undefined,
+    @Headers(CLOSING_DELIVERY_PROTOCOL_HEADER.toLowerCase()) protocol: string | undefined,
+  ) {
+    return this.deliveries.claim(authorization, protocol);
   }
 
   @Post("jobs/:deliveryId/authorize")
   authorize(@Headers("authorization") authorization: string | undefined, @Param("deliveryId") deliveryId: string, @Body() body: unknown) {
     const input = parseRequest(closingDeliveryAuthorizeSchema, body);
     return this.deliveries.authorize(authorization, parseRequest(uuidSchema, deliveryId), input.leaseToken);
+  }
+
+  @Post("jobs/:deliveryId/prepare-text")
+  prepareText(@Headers("authorization") authorization: string | undefined, @Param("deliveryId") deliveryId: string, @Body() body: unknown) {
+    const { leaseToken } = parseRequest(prepareClosingTextSchema, body);
+    return this.deliveries.prepareText(authorization, parseRequest(uuidSchema, deliveryId), leaseToken);
   }
 
   @Post("jobs/:deliveryId/complete")

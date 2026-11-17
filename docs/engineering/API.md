@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.57.3`
+> Applies to version: `1.59.0`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -335,11 +335,22 @@ The start time of START is parsed from rawText by the API, using the store time 
 
 ### Individual daily statement status and independent text messages
 
-`isHighlighted` and `discountTotalCents` are added to the personal preview one by one. The newly queued SMS snapshot saves these two fields; the old snapshot is unmarked by default when rendering. Reason: Pages and attachments need to retain the highlights and discounts of daily work record cards, and saved snapshots cannot be backfilled or recalculated.
+`isHighlighted` and `discountTotalCents` are added to the personal preview one by one. The newly queued SMS snapshot saves these two fields; the old snapshot is unmarked by default when rendering. Reason: The snapshot and Web PNG export retain the highlights and discounts of daily work record cards, and saved snapshots cannot be backfilled or recalculated.
 
 Personal preview returns `cashSettlement: { status, version, settledAt }`; when there is no record, it is `UNSETTLED`, version 0. Only target employee status is returned, cash writes are still protected by administrative rights.
 
-The SMS task stores `businessDate` independently; not closed the `closingId` of the person-by-person task and the `closing` in the list are null, the agent returns `cycleNo: 0`, and PNG does not display the cycle. Tasks associated with a valid daily closing are still canceled when the cycle is canceled; tasks not associated with a cycle retain a snapshot when queued. Migrate `20260910010000_independent_member_closing_delivery` to backfill business day from the old period and relax the period foreign key non-null restriction; old records are retained. Aperiodic tasks must be processed before rolling back the application, and non-empty constraints cannot be restored directly. Reason: not closed The person-by-person task has been designed with a nullable period, and personal status cannot be leaked to other members.
+The SMS task stores `businessDate` independently; not closed the `closingId` of the person-by-person task and the `closing` in the list are null, and the agent returns `cycleNo: 0`. Tasks associated with a valid daily closing are still canceled when the cycle is canceled; tasks not associated with a cycle retain a snapshot when queued. Migrate `20260910010000_independent_member_closing_delivery` to backfill business day from the old period and relax the period foreign key non-null restriction; old records are retained. Aperiodic tasks must be processed before rolling back the application, and non-empty constraints cannot be restored directly. Reason: not closed The person-by-person task has been designed with a nullable period, and personal status cannot be leaked to other members.
+
+### Daily snapshot links and text delivery
+
+| Method | Path | Behavior |
+| --- | --- | --- |
+| GET | `/public/daily-snapshots?date=YYYY-MM-DD` | With the link token as `Authorization: Bearer`, return the selected personal snapshot, `monthToDate`, `minDate`, `maxDate`, `expiresAt` and `locale`. Omit `date` to open the saved business date. |
+| GET | `/public/daily-snapshots/calendar?month=YYYY-MM` | Return that employee's open-day marks and closed-day confirmed earnings within the link's date range. |
+| POST | `/closing-delivery-agent/jobs/claim` | The agent requests `X-Closing-Delivery-Protocol: text-v1` and receives a daily job with `deliveryMode: TEXT`. |
+| POST | `/closing-delivery-agent/jobs/:deliveryId/prepare-text` | An authorized agent sends `{ leaseToken }` and receives `{ authorized: true, text }` for a fresh text submission, or `{ authorized: false }` for a canceled or ineligible task. |
+
+The snapshot endpoints are rate limited and use `Cache-Control: no-store`. The 14-day token binds the request to a store, recipient and delivery. Invalid, expired and ineligible links return an unavailable response. The API accepts only the employee's eligible historical dates through the saved business date. Existing authorize, completion and receipt routes support recovering earlier submissions.
 
 <a id="今日看板顶部总收入"></a>
 

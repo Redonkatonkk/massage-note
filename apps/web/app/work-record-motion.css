@@ -39,16 +39,17 @@
   }
 }
 
-/* Open just the gap after the active card. Both neighboring stacks keep their pitch. */
+/* Open only the gap between the active card and the card above it. */
 @media (min-width: 761px) and (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   .record-track[data-record-stack] {
     --record-stack-inset: -72px;
     --record-stack-spring: cubic-bezier(.2, .8, .32, 1.18);
+    isolation: isolate;
   }
 
   .board[data-work-record-motion] .record-track[data-record-stack] > .record-card {
     isolation: isolate;
-    z-index: 0;
+    z-index: var(--record-stack-layer, 0);
   }
 
   .record-track[data-record-stack] > .record-card + .record-card:not(.record-card--right-group),
@@ -56,8 +57,17 @@
     margin-left: var(--record-stack-gap, var(--record-stack-inset));
   }
 
-  .record-track[data-record-stack] > .record-card:is(:hover, .record-track:not(:has(> .record-card:hover)) > :is(:focus-visible, :has(> .record-placeholder-delete:focus-visible))) + .record-card {
+  .record-track[data-record-stack] > .record-card:not(.record-card--right-group):is(:hover, .record-track:not(:has(> .record-card:hover)) > :is(:focus-visible, :has(> .record-placeholder-delete:focus-visible))) + .record-card:not(.record-card--right-group),
+  .record-track[data-record-stack] > .record-card--right-group + .record-card--right-group:is(:hover, .record-track:not(:has(> .record-card:hover)) > :focus-visible) {
     --record-stack-gap: 0px;
+  }
+
+  /* Keep the pointer on a right-group card as the opening gap moves its left edge. */
+  .record-track[data-record-stack] > .record-card--right-group + .record-card--right-group:hover::before {
+    content: "";
+    position: absolute;
+    inset: 0 100% 0 auto;
+    width: 24px;
   }
 
   @supports (animation-timing-function: linear(0, 1)) {

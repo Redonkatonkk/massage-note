@@ -2,7 +2,7 @@
 
 import { useScreenFeedback } from "./screen-feedback";
 
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import {
@@ -665,7 +665,7 @@ function TodayBoardContent({
               {!isCollapsed && (
                 <div className={`employee-content${showTotals ? "" : " employee-content--records-only"}`} data-motion-content>
                   <RecordTrack key={currentDay.businessDate} recordCount={row.workRecords.length} autoReturn={!board.isClosed} movementKey={row.workRecords.map(record => `${record.id}:${record.startAt}:${record.isHighlighted}:${record.isDispatchExcluded}`).join(" ")}>
-                    {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
+                    {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record, index, items) => {
                       if (record === null) return (
                         <button key="add-record" className="add-record" type="button" onClick={() => { setQuickSessionId(crypto.randomUUID()); setRestoredSave(null); setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickMode("NORMAL"); setQuickCustomerType(null); setQuickEmployeeId(row.membershipId); }}>
                           <span aria-hidden="true"><UiIcon name="plus" /></span>新增记工
@@ -676,6 +676,7 @@ function TodayBoardContent({
                           canDelete={isCurrentBusinessDay || canManage} isClosed={board.isClosed} locked={recordLocked(record.id)}
                           onChanged={onReload} onError={setError} {...recordCardHover} />
                       );
+                      const isRightGroup = record.isHighlighted || record.isDispatchExcluded;
                       const hasNote = Boolean(record.note.trim());
                       const hasPaymentMismatch = hasConfirmedPaymentMismatch(
                         record.status,
@@ -683,9 +684,10 @@ function TodayBoardContent({
                       );
                       return (
                       <button
-                        className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}${record.isHighlighted || record.isDispatchExcluded ? " record-card--right-group" : ""}${record.isHighlighted ? " record-card--highlighted" : ""}${hasNote ? " record-card--has-note" : ""}${hasPaymentMismatch ? " record-card--payment-mismatch" : ""}`}
+                        className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}${isRightGroup ? " record-card--right-group" : ""}${record.isHighlighted ? " record-card--highlighted" : ""}${hasNote ? " record-card--has-note" : ""}${hasPaymentMismatch ? " record-card--payment-mismatch" : ""}`}
                         key={record.id}
                         data-work-record-id={record.id} data-motion-item={record.id} data-motion-skip-in data-record-status={record.status}
+                        style={isRightGroup ? { "--record-stack-layer": items.length - index } as CSSProperties : undefined}
                         type="button"
                         {...recordCardHover}
                         disabled={(!isCurrentBusinessDay && !canManage) || recordLocked(record.id)}

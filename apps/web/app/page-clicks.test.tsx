@@ -101,7 +101,7 @@ it("reveals only the hovered or keyboard-focused work card in a stack", async ()
   const { window } = new JSDOM(`<div class="board" data-work-record-motion><div class="record-track" data-record-stack>
     <button class="record-card"></button><div class="record-card record-card--placeholder"><button class="record-placeholder-delete"></button></div><button class="record-card"></button>
     <button class="add-record"></button><button class="record-card record-card--right-group"></button>
-    <button class="record-card record-card--right-group"></button>
+    <button class="record-card record-card--right-group"></button><button class="record-card record-card--right-group"></button>
   </div></div>`);
   const { document, CSSMediaRule, CSSStyleRule, MouseEvent, getComputedStyle } = window;
   const track = document.querySelector(".record-track")!;
@@ -122,9 +122,17 @@ it("reveals only the hovered or keyboard-focused work card in a stack", async ()
     expect(openGaps()).toEqual([2]);
     placeholderAction.blur();
     cards[4]!.focus();
-    track.setAttribute("data-test-refresh-style", "keyboard");
-    expect(openGaps()).toEqual([5]);
+    track.setAttribute("data-test-refresh-style", "first-right");
+    expect(openGaps()).toEqual([]);
     cards[4]!.blur();
+    cards[5]!.focus();
+    track.setAttribute("data-test-refresh-style", "middle-right");
+    expect(openGaps()).toEqual([5]);
+    cards[5]!.blur();
+    cards[5]!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    track.setAttribute("data-test-refresh-style", "hover-right");
+    expect(openGaps()).toEqual([5]);
+    cards[5]!.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: track }));
     cards[1]!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
     track.setAttribute("data-test-refresh-style", ""); // Invalidate jsdom's style cache after input changes.
     expect(openGaps()).toEqual([2]);

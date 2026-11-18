@@ -4,6 +4,10 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.62.1 — 2026-11-17
+
+- In New, right-group work cards stack with the left card above its right neighbor. Hover or keyboard focus reveals one card by opening the gap to the left. The NAS Web image needs an update.
+
 ## 1.62.0 — 2026-11-17
 
 - Give enabled controls shared press and selection feedback. Add entrance and exit motion to confirmation dialogs, forms, sheets, calendars, and the AI panel. Closing releases interaction immediately.

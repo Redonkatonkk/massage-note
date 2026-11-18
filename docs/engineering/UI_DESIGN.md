@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](UI_DESIGN.zh-CN.md)**
 
-> Applies to version: `1.62.0` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
+> Applies to version: `1.62.1` · Design references verified: 2026-10-02 · Guidelines reviewed: 2026-10-05
 
 This article is the design basis for subsequent AI modifications to the front end and generation of payroll share pages and individual daily statement images. Aesthetic judgment comes from store working scenes, user feedback on adjacent panels, highlight colors, member operations, phone reading and generated pictures, and existing implementations. New requirements from users are given priority; specific business rules are subject to [Product Document](../product/PRODUCT.md). For specific style values, check the source code entry below. Reason: The design rationale needs to be sustained and needs to be able to be revised with clear feedback.
 
@@ -167,7 +167,7 @@ Highlighted work records use the shared pale blue-green accent. On pending-payme
 
 **Legacy** and **New** appear directly below the language controls in the expanded desktop sidebar and in the existing small-screen menu. Legacy is the default and the browser remembers the choice. Both choices use the same Framed Sheet interface, with a 50ms stagger for employee rows when the roster loads, a lift and pointer-driven 3D tilt on interactive work cards, a spring from 95% to full size for Quick entry, and a 200ms slide from the right edge for Record details. These animations respect the system’s reduced-motion setting. Hover motion applies to mouse input. [Work-record motion styles](../../apps/web/app/work-record-motion.css)
 
-In New, wide layouts with precise hover input and without touch support stack adjacent work cards within each group when an employee has at least five cards across both groups. Count placeholder cards and leave Add record outside the count. Show four or fewer cards in full. The card on the right sits above its left neighbor. Hovering one card or focusing it with the keyboard opens only the gap on its right. Both neighboring stacks retain their overlap. A 360ms spring opens and closes the gap with a slight squash on the active card. Reduced motion switches the spacing immediately. Add record and the boundary between groups retain their original spacing. Narrow and touch layouts show every card at its full width. Base the scroll reserve on resting spacing to keep the home position steady during a reveal.
+In New, wide layouts with precise hover input and without touch support stack adjacent work cards within each group when an employee has at least five cards across both groups. Count placeholder cards and leave Add record outside the count. Show four or fewer cards in full. In the left group, each card covers its left neighbor. In the right group, each card covers its right neighbor. Hovering one card or focusing it with the keyboard opens only the gap next to the card covering it. Both neighboring stacks retain their overlap. A 360ms spring opens and closes the gap with a slight squash on the active card. Reduced motion switches the spacing immediately. Add record and the boundary between groups retain their original spacing. Narrow and touch layouts show every card at its full width. Base the scroll reserve on resting spacing to keep the home position steady during a reveal.
 
 | Work surface | First task and supporting evidence |
 | --- | --- |

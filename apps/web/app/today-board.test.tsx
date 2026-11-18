@@ -915,6 +915,7 @@ describe("不算排工", () => {
     await render();
     const cards = () => [...container.querySelectorAll<HTMLButtonElement>(".record-track > button")];
     expect(cards().map(card => card.className)).toEqual(["record-card", "add-record", "record-card record-card--right-group record-card--highlighted", "record-card record-card--right-group"]);
+    expect(cards().map(card => card.style.getPropertyValue("--record-stack-layer"))).toEqual(["", "", "2", "1"]);
     expect(container.querySelector(".row-work-count strong")!.textContent).toBe("1");
     props.isCurrentBusinessDay = false; props.membership.role = "EMPLOYEE"; await render();
     expect(cards().at(-1)!.disabled).toBe(true);

@@ -158,7 +158,10 @@ describe("个人日结统一记工卡模板", () => {
     const css = readFileSync(new URL("../../../apps/web/app/globals.css", import.meta.url), "utf8");
     const { svg, height } = createEmployeeClosingSvg(snapshot([record({ isHighlighted: true, discountTotalCents: 501 })]), "zh_CN");
     const background = css.match(/--page:\s*(#[\da-fA-F]+)/)![1]!;
-    const highlight = css.match(/--highlight:\s*(#[\da-fA-F]+)/)![1]!;
+    const highlightToken = css.match(/--highlight:\s*(#[\da-f]+|var\((--[\w-]+)\));/i)!;
+    const highlight = highlightToken[2]
+      ? css.match(new RegExp(`${highlightToken[2]}:\\s*(#[\\da-f]+);`, "i"))![1]!
+      : highlightToken[1]!;
     expect(svg).toContain(`<rect x="0" y="0" width="1170" height="${height}" fill="${background}"/>`);
     expect(panels(svg).find(item => item.kind === "record")).toBeDefined();
     expect(svg).toContain(`fill="${highlight}"`);

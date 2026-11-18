@@ -1,12 +1,12 @@
 import { escapeImageXml as escapeXml } from "./image-format.js";
 
-// Exported images use the same semantic palette and panel radius as globals.css.
+// Exported images use the same semantic palette as globals.css.
 // Keep these values in sync: the domain renderer also runs outside the Web app.
 export const imageTheme = {
-  page: "#f4f5f3", surface: "#ffffff", ink: "#242c28",
-  muted: "#626c65", line: "#dfe4df", brand: "#315b49", radius: 10,
-  brandSoft: "#eaf0eb", highlight: "#edf2e9", highlightLine: "#b4c2a8",
-  pending: "#faf3e9", pendingLine: "#dcc6a7", pendingInk: "#805a1c", danger: "#a33d35",
+  page: "#f3f6f8", surface: "#ffffff", ink: "#131416",
+  muted: "#555d63", line: "#e2e7eb", brand: "#1b6c80", radius: 10,
+  brandSoft: "#e5f1f3", highlight: "#e5f1f3", highlightLine: "#aecbd1",
+  pending: "#fff5e8", pendingLine: "#dcc6a7", pendingInk: "#784411", danger: "#a32d35",
 };
 
 export function imageTextUnits(value: string) {

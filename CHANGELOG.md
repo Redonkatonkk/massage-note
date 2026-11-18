@@ -7,6 +7,7 @@ For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page sav
 ## 1.61.6 — 2026-11-17
 
 - Stack an employee’s work cards in New only when both groups together contain more than five cards. Placeholder cards count toward the threshold. Add record is a separate control. NAS needs a Web update.
+- Match the shared daily-closing image palette to the Web interface. An installed Mac Messages agent picks up the new colors with a separate update.
 
 ## 1.61.5 — 2026-11-17
 

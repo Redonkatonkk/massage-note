@@ -46,6 +46,7 @@ describe("日结与财务契约", () => {
     expect(
       closeBusinessDaySchema.parse({ force: true, forceReason: "待结账稍后补" }),
     ).toEqual({ force: true, forceReason: "待结账稍后补" });
+    expect(closeBusinessDaySchema.parse({ confirmUnsettledCash: true })).toEqual({ force: false, confirmUnsettledCash: true });
   });
 
   it("负数工资支付总额必须附二次确认原因", () => {

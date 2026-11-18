@@ -5,21 +5,6 @@ import { appHref } from "../lib/demo-mode";
 import { LanguageSwitcher, useLanguage } from "./language-provider";
 import { useNativeDialog } from "./use-native-dialog";
 import { BrandMark } from "./ui/primitives";
-import { useWorkRecordExperiment } from "./work-record-experiment";
-
-export function WorkspacePreferences() {
-  const { locale } = useLanguage();
-  const { experimental, setExperimental } = useWorkRecordExperiment();
-  const chinese = locale === "zh-CN";
-
-  return <div className="workspace-preferences">
-    <LanguageSwitcher />
-    <div className="work-record-edition-switch" role="group" aria-label={chinese ? "记工界面版本" : "Work-record interface edition"} translate="no">
-      <button className="secondary-action" type="button" aria-pressed={!experimental} onClick={() => setExperimental(false)}>{chinese ? "旧版" : "Legacy"}</button>
-      <button className="secondary-action" type="button" aria-pressed={experimental} onClick={() => setExperimental(true)}>{chinese ? "新版" : "New"}</button>
-    </div>
-  </div>;
-}
 
 export function WorkspaceMenu({ links, workspace = false }: { links?: ReactNode; workspace?: boolean }) {
   const [dialog, dialogRef, closeDialog] = useNativeDialog();
@@ -41,7 +26,7 @@ export function WorkspaceMenu({ links, workspace = false }: { links?: ReactNode;
         {links && <nav className="workspace-menu-links" aria-label={title} onClick={event => {
           if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.target instanceof Element && event.target.closest("a")) closeDialog();
         }}>{links}</nav>}
-        <WorkspacePreferences />
+        <LanguageSwitcher />
       </div>
     </dialog>
   </div>;

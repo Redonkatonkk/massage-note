@@ -10,11 +10,16 @@ export function hasBlockingClosingWarnings(
   return warnings.some(isBlockingClosingWarning);
 }
 
-export type HomeClosingAction = "CANCEL" | "CLOSE" | "REVIEW";
+export function hasUnsettledClosingCash(warnings: ClosingWarning[]): boolean {
+  return warnings.some(warning => warning.code === "CASH_UNSETTLED");
+}
+
+export type HomeClosingAction = "CANCEL" | "CLOSE" | "REVIEW" | "CONFIRM_CASH";
 
 export function homeClosingAction(
   preview: Pick<ClosingPreview, "isClosed" | "warnings">,
 ): HomeClosingAction {
   if (preview.isClosed) return "CANCEL";
+  if (hasUnsettledClosingCash(preview.warnings)) return "CONFIRM_CASH";
   return hasBlockingClosingWarnings(preview.warnings) ? "REVIEW" : "CLOSE";
 }

@@ -3,7 +3,10 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const pointers = new Set<number>();
   let rightReserve = 16;
-  const engagedCard = () => track.dataset.recordStack && track.querySelector(".record-card:hover, .record-card:focus-visible, .record-placeholder-delete:focus-visible");
+  const activeStackInset = (style?: CSSStyleDeclaration) => track.dataset.recordStack
+    ? parseFloat((style ?? window.getComputedStyle(track)).getPropertyValue("--record-stack-inset")) || 0
+    : 0;
+  const engagedCard = () => activeStackInset() && track.querySelector(".record-card:is(:hover, :focus-visible, :has(:focus-visible))");
   const refreshLayout = () => {
     const anchor = track.querySelector<HTMLElement>(".add-record");
     const tail = track.querySelector<HTMLElement>(".record-track-tail");
@@ -19,7 +22,7 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
     const paddingRight = parseFloat(style.paddingRight) || 0;
     const cardWidth = anchor.offsetWidth;
     // Reserve space from resting overlaps so the reveal never changes the home position.
-    const stackInset = track.dataset.recordStack ? parseFloat(style.getPropertyValue("--record-stack-inset")) || 0 : 0;
+    const stackInset = activeStackInset(style);
     const stackOffset = stackInset ? stackInset * track.querySelectorAll(
       ".record-card + .record-card:not(.record-card--right-group), .record-card--right-group + .record-card--right-group",
     ).length : 0;
@@ -47,12 +50,12 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
   };
   const getTarget = () => {
     const anchor = track.querySelector<HTMLElement>(".add-record");
-    if (!anchor) return Math.max(0, track.scrollWidth - track.clientWidth);
-    const trackRect = track.getBoundingClientRect();
-    const anchorRect = anchor.getBoundingClientRect();
+    const maxScroll = track.scrollWidth - track.clientWidth;
+    if (!anchor) return Math.max(0, maxScroll);
+    // The track is the offset parent. Measure the layout anchor without its animated translation.
     return Math.max(0, Math.min(
-      track.scrollWidth - track.clientWidth,
-      track.scrollLeft + anchorRect.right - trackRect.left - track.clientWidth + rightReserve,
+      maxScroll,
+      anchor.offsetLeft + anchor.offsetWidth - track.clientWidth + rightReserve,
     ));
   };
   const atTarget = () => Math.abs(track.scrollLeft - getTarget()) <= 2;
@@ -63,8 +66,10 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
   const jump = (smooth = false) => {
     clearTimer();
     if (engagedCard()) return;
+    const left = getTarget();
+    if (Math.abs(track.scrollLeft - left) <= 0.5) return;
     track.scrollTo({
-      left: getTarget(),
+      left,
       behavior: smooth && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "instant",
     });
   };
@@ -72,7 +77,7 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
     clearTimer();
     if (!atTarget() && pointers.size === 0) timer = setTimeout(() => jump(true), 10_000);
   };
-  const resumeAfterStackInteraction = () => { if (track.dataset.recordStack) schedule(); };
+  const resumeAfterStackInteraction = () => { if (activeStackInset()) schedule(); };
   const pointerDown = (event: PointerEvent) => {
     pointers.add(event.pointerId);
     clearTimer();
@@ -80,28 +85,25 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
   const pointerUp = (event: PointerEvent) => {
     if (pointers.delete(event.pointerId)) schedule();
   };
-  const resize = new ResizeObserver(() => {
+  const refresh = () => {
     refreshLayout();
     // Preserve the user's reading interval when records refresh or the viewport changes.
     if (timer === undefined && pointers.size === 0) jump();
-  });
+  };
+  const resize = new ResizeObserver(refresh);
   const observeChildren = () => {
     resize.disconnect();
     resize.observe(track);
     for (const child of track.children) resize.observe(child);
   };
   const contentChanged = () => {
-    refreshLayout();
     observeChildren();
-    // Reposition immediately only when already following. A pending return keeps
-    // its original deadline while the user is reading through updated content.
-    if (timer === undefined && pointers.size === 0) jump();
+    refresh();
   };
   const mutations = new MutationObserver(contentChanged);
   mutations.observe(track, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "data-record-stack"] });
   observeChildren();
-  refreshLayout();
-  jump();
+  refresh();
   track.addEventListener("scroll", schedule, { passive: true });
   track.addEventListener("wheel", schedule, { passive: true });
   track.addEventListener("keydown", schedule);
@@ -110,7 +112,7 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
   track.addEventListener("pointerdown", pointerDown);
   window.addEventListener("pointerup", pointerUp);
   window.addEventListener("pointercancel", pointerUp);
-  return () => {
+  const dispose = () => {
     clearTimer();
     resize.disconnect();
     mutations.disconnect();
@@ -124,4 +126,5 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
     window.removeEventListener("pointerup", pointerUp);
     window.removeEventListener("pointercancel", pointerUp);
   };
+  return { refresh, dispose };
 }

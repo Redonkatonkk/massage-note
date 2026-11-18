@@ -58,7 +58,6 @@ afterEach(() => {
 
 const overlay = () => document.querySelector<HTMLElement>(".work-record-save-motion");
 const sourceUniforms = () => vfx.add.mock.calls[0]![1].uniforms;
-const cardUniforms = () => vfx.add.mock.calls[1]![1].uniforms;
 async function start() { beginWorkRecordSaveMotion(dialog); await vi.advanceTimersByTimeAsync(0); }
 async function finishFlight(id = "saved") {
   const result = absorbWorkRecordDialog(dialog, id);
@@ -134,27 +133,36 @@ it("freezes visible scrolled fields and sticky header positions without moving t
   expect(dialog.scrollTop).toBe(380);
 });
 
-it("flies from the currently visible orbit, collides with the exact card and unfolds its real texture", async () => {
+it("flies from the visible orbit and expands the same head before handing off to the live card", async () => {
+  target.style.borderTopLeftRadius = "6px";
+  target.style.backgroundColor = "#ffffff";
   await start(); await vi.advanceTimersByTimeAsync(900);
   const flight = absorbWorkRecordDialog(dialog, "saved");
   await vi.advanceTimersByTimeAsync(32);
-  expect(overlay()!.dataset.phase).toBe("flying"); expect(vfx.add).toHaveBeenCalledTimes(2);
-  const [snapshot, options] = vfx.add.mock.calls[1]!;
-  expect(snapshot.textContent).toBe("Saved $60"); expect(snapshot.hasAttribute("data-work-record-id")).toBe(false);
-  expect(options.shader).toBe(WORK_RECORD_SAVE_SHADER); expect(target.style.opacity).toBe("0");
+  expect(overlay()!.dataset.phase).toBe("flying"); expect(vfx.add).toHaveBeenCalledOnce();
+  expect(target.style.opacity).toBe("0");
   expect(getComputedStyle(target).visibility).toBe("visible");
-  await vi.advanceTimersByTimeAsync(420);
+  await vi.advanceTimersByTimeAsync(432);
   expect(overlay()!.dataset.phase).toBe("unfolding");
   expect(sourceUniforms().shapeRect().slice(0, 2)).toEqual([120, 116]);
-  expect(sourceUniforms().impact()).toBeGreaterThanOrEqual(0);
-  await vi.advanceTimersByTimeAsync(90);
+  expect(sourceUniforms().shapeRect()[2]).toBeGreaterThanOrEqual(16);
+  expect(sourceUniforms().shapeRect()[2]).toBeLessThan(80);
+  expect(sourceUniforms().opacity()).toBe(1);
+  await vi.advanceTimersByTimeAsync(112);
+  expect(sourceUniforms().shapeRect()[2]).toBeLessThan(160);
+  expect(sourceUniforms().trailOpacity()).toBe(0);
+  expect(target.style.opacity).toBe("0");
+  await vi.advanceTimersByTimeAsync(48);
+  expect(sourceUniforms().shapeRect()).toEqual([120, 116, 160, 132]);
+  expect(sourceUniforms().corner()).toBe(6);
+  expect(sourceUniforms().cardColor()).toEqual([1, 1, 1]);
+  expect(target.style.opacity).toBe("");
   expect(sourceUniforms().opacity()).toBeLessThan(1);
-  expect(sourceUniforms().trailOpacity()).toBe(1);
-  expect(cardUniforms().shapeRect()[2]).toBeGreaterThan(160); expect(cardUniforms().textureMix()).toBeGreaterThan(.7);
-  await vi.advanceTimersByTimeAsync(130); await flight;
+  expect(sourceUniforms().opacity()).toBeGreaterThan(0);
+  await vi.advanceTimersByTimeAsync(100); await flight;
   expect(overlay()).toBeNull(); expect(target.style.visibility).toBe(""); expect(target.style.opacity).toBe(""); expect(document.activeElement).toBe(target);
   expect(dialog.style.visibility).toBe("hidden"); expect(dialog.getAttribute("aria-busy")).toBeNull();
-  expect(vfx.remove).toHaveBeenCalledTimes(2); expect(vfx.destroy).toHaveBeenCalledOnce(); expect(vfx.lose).toHaveBeenCalledOnce();
+  expect(vfx.remove).toHaveBeenCalledOnce(); expect(vfx.destroy).toHaveBeenCalledOnce(); expect(vfx.lose).toHaveBeenCalledOnce();
 });
 
 it("fast successful writes wait for the condensing phase before starting their flight", async () => {
@@ -162,7 +170,7 @@ it("fast successful writes wait for the condensing phase before starting their f
   const result = absorbWorkRecordDialog(dialog, "saved");
   await vi.advanceTimersByTimeAsync(259); expect(vfx.add).toHaveBeenCalledOnce();
   await vi.advanceTimersByTimeAsync(33); expect(overlay()!.dataset.phase).toBe("flying");
-  await vi.advanceTimersByTimeAsync(640); await result; expect(overlay()).toBeNull();
+  await vi.advanceTimersByTimeAsync(700); await result; expect(overlay()).toBeNull();
 });
 
 it("reveals only within the horizontal track and preserves vertical page position", async () => {
@@ -185,8 +193,8 @@ it("waits for the returned record to mount, and never unfolds into an unrelated 
   const result = absorbWorkRecordDialog(dialog, "saved");
   await vi.advanceTimersByTimeAsync(16); expect(vfx.add).toHaveBeenCalledOnce();
   root.querySelector(".record-track")!.append(target);
-  await vi.advanceTimersByTimeAsync(16); expect(vfx.add).toHaveBeenCalledTimes(2);
-  await vi.advanceTimersByTimeAsync(640); await result;
+  await vi.advanceTimersByTimeAsync(16); expect(target.style.opacity).toBe("0");
+  await vi.advanceTimersByTimeAsync(700); await result;
 });
 
 it.each(["missing", "offscreen"])("%s destinations use local completion without page scrolling", async kind => {
@@ -246,13 +254,41 @@ it("bounds a stalled form capture and ignores its late completion", async () => 
   expect(vfx.render).not.toHaveBeenCalled(); expect(overlay()).toBeNull(); expect(vi.getTimerCount()).toBe(0);
 });
 
-it("bounds a stalled destination capture and reveals the real card after impact", async () => {
-  await start(); await vi.advanceTimersByTimeAsync(260);
-  let finishCapture!: () => void;
-  vfx.add.mockImplementationOnce(() => new Promise<void>(resolve => { finishCapture = resolve; }));
-  await finishFlight();
-  expect(overlay()).toBeNull(); expect(target.style.visibility).toBe("");
-  finishCapture(); await vi.advanceTimersByTimeAsync(0); expect(vi.getTimerCount()).toBe(0);
+it("conceals only the new card in the mount microtask, before a queued completion starts", async () => {
+  const track = target.parentElement!;
+  target.remove();
+  const handle = beginDetachedWorkRecordSaveMotion(dialog)!;
+  dialog.closest(".modal-backdrop")!.remove();
+  handle.prepareTarget!("saved");
+  track.append(target);
+  await Promise.resolve();
+  expect(target.style.opacity).toBe("0");
+  expect(track.firstElementChild?.getAttribute("style")).toBeNull();
+  await vi.advanceTimersByTimeAsync(600);
+  expect(overlay()!.dataset.phase).toBe("waiting");
+  expect(target.style.opacity).toBe("0");
+
+  const done = handle.complete("saved");
+  await vi.advanceTimersByTimeAsync(32);
+  expect(overlay()!.dataset.phase).toBe("flying");
+  expect(target.style.opacity).toBe("0");
+  await vi.advanceTimersByTimeAsync(700); await done;
+  expect(vfx.add).toHaveBeenCalledOnce();
+  expect(target.style.opacity).toBe("");
+  expect(overlay()).toBeNull();
+});
+
+it("keeps a newly mounted card visible after canceling its queued motion", async () => {
+  const track = target.parentElement!;
+  target.remove();
+  const handle = beginDetachedWorkRecordSaveMotion(dialog)!;
+  handle.prepareTarget!("saved");
+  track.append(target);
+  await Promise.resolve();
+  expect(target.style.opacity).toBe("0");
+  handle.cancel();
+  expect(target.style.opacity).toBe("");
+  expect(overlay()).toBeNull();
 });
 
 it("cancels a pending flight without leaving a hidden destination or completion promise", async () => {
@@ -268,7 +304,7 @@ it("bounds completion when animation frames stop arriving", async () => {
   vi.stubGlobal("requestAnimationFrame", () => 0);
   await start(); await vi.advanceTimersByTimeAsync(260);
   const result = absorbWorkRecordDialog(dialog, "saved");
-  await vi.advanceTimersByTimeAsync(740); await result;
+  await vi.advanceTimersByTimeAsync(800); await result;
   // jsdom schedules focus bookkeeping as a next-tick immediate.
   await vi.advanceTimersByTimeAsync(1);
   expect(overlay()).toBeNull(); expect(target.style.visibility).toBe("");

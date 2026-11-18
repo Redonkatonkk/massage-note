@@ -8,9 +8,7 @@ import * as clipboard from "../lib/clipboard";
 import type { BoardStatistics, StoreDetails, StoreMember, WorkRecord } from "../lib/types";
 import { newWorkRecord } from "../lib/new-work-record";
 import { TodayBoard } from "./today-board";
-import { WorkRecordExperimentProvider } from "./work-record-experiment";
 import { WorkRecordFeedbackProvider } from "./work-record-feedback";
-import { WorkspacePreferences } from "./workspace-menu";
 import { absorbWorkRecordDialog, beginWorkRecordSaveMotion, cancelWorkRecordSaveMotion, beginDetachedWorkRecordSaveMotion } from "../lib/work-record-save-motion";
 import { beginWorkRecordDeleteMotion } from "../lib/work-record-delete-motion";
 
@@ -99,6 +97,76 @@ async function pressEnter(target: Element, options: KeyboardEventInit = {}) {
   return event;
 }
 
+it("shows availability, working and off-duty symbols beside the matching status", async () => {
+  const row = props.board.rows[0]!;
+  const symbol = () => container.querySelector(".employee-status-symbol")?.getAttribute("data-work-status");
+  await render();
+  expect(container.querySelector(".off-duty")?.textContent).toBe("空闲");
+  expect(symbol()).toBe("available");
+  row.workRecords = [{ ...ordinary, status: "PENDING_PAYMENT", endAt: "2026-10-06T17:00:00.000Z" }];
+  await render();
+  expect(container.querySelector(".on-duty")?.textContent).toContain("1:00");
+  expect(symbol()).toBe("working");
+  row.cashSettled = true;
+  await render();
+  expect(container.querySelector(".employee-settled")?.textContent).toBe("已结");
+  expect(container.querySelector(".on-duty, .off-duty")).toBeNull();
+  expect(symbol()).toBe("off");
+  row.cashSettled = false;
+  row.shifts = [{ id: "shift", membershipId: row.membershipId, clockInAt: "2026-10-06T14:00:00.000Z", clockOutAt: "2026-10-06T15:30:00.000Z", version: 2 }];
+  await render();
+  expect(container.querySelector(".employee-inactive")?.textContent).toBe("已下班");
+  expect(symbol()).toBe("off");
+});
+
+it("keeps closed rows gray except for payment differences or cash still due", async () => {
+  const row = props.board.rows[0]!;
+  row.workRecords = [{ ...ordinary, paymentDifferenceCents: -100 }];
+  await render();
+  const symbol = () => container.querySelector(".employee-status-symbol")?.getAttribute("data-work-status");
+  expect(symbol()).toBe("issue");
+  expect(container.querySelector(".employee-status-issue")?.textContent).toBe("金额异常");
+
+  props.board.isClosed = true;
+  row.cashUnsettled = true;
+  await render();
+  const warning = container.querySelector(".employee-status-issue");
+  expect(symbol()).toBe("issue");
+  expect(warning?.textContent).toBe("金额异常 · 现金未结");
+  expect(container.querySelector(".employee-toggle")?.getAttribute("aria-describedby")).toContain(warning!.id);
+
+  row.workRecords = [{ ...ordinary, paymentDifferenceCents: 0 }];
+  await render();
+  expect(symbol()).toBe("issue");
+  expect(container.querySelector(".employee-status-issue")?.textContent).toBe("现金未结");
+
+  row.cashUnsettled = false;
+  await render();
+  expect(symbol()).toBe("off");
+  expect(container.querySelector(".employee-inactive")?.textContent).toBe("已下班");
+  expect(container.querySelector(".employee-status-issue")).toBeNull();
+});
+
+it("asks before posting a cash-only forced closing and lets the manager cancel", async () => {
+  await render();
+  const preview = { isClosed: false, warnings: [{ code: "CASH_UNSETTLED", blocking: true }] };
+  request.mockResolvedValueOnce(preview);
+  await click("日结");
+  const popup = container.querySelector('[role="alertdialog"]')!;
+  expect(popup.textContent).toContain("还有员工没有结现金");
+  expect(document.activeElement).toBe(button("取消", popup));
+  await click("取消", popup);
+  expect(writes()).toHaveLength(0);
+  expect(document.activeElement).toBe(button("日结"));
+  request.mockResolvedValueOnce(preview);
+  await click("日结");
+  await click("强制日结", container.querySelector('[role="alertdialog"]')!);
+  expect(writes()).toEqual([["/stores/store/closings/2026-10-06", {
+    method: "POST", idempotent: true, body: { force: false, confirmUnsettledCash: true },
+  }]]);
+  expect(reload).toHaveBeenCalledOnce();
+});
+
 it("opens work-card shortcuts at the matching section below the sticky editor header", async () => {
   editorRendering.actual = true;
   props.board.rows[0]!.workRecords = [{
@@ -139,27 +207,24 @@ it("opens work-card shortcuts at the matching section below the sticky editor he
   expect(writes()).toHaveLength(0);
 });
 
-it.each(["旧版", "新版"])("uses the shared board motion in %s and remembers the selection", async edition => {
+it("applies board motion on first render and after remount", async () => {
   editorRendering.actual = true;
   const row = props.board.rows[0]!;
   const secondEmployee = { ...employee, id: "employee-two", displayName: "Morgan" };
   props.members = [...props.members, secondEmployee];
   props.board.rows = [{ ...row, workRecords: [ordinary] }, { ...row, id: "row-two", membershipId: secondEmployee.id, membership: secondEmployee }];
-  const mount = async () => act(async () => root.render(<WorkRecordExperimentProvider><WorkspacePreferences /><TodayBoard {...props} /></WorkRecordExperimentProvider>));
   const board = () => container.querySelector(".board")!;
   const rows = () => [...board().querySelectorAll<HTMLElement>(".employee-row")];
   const delays = () => rows().map(node => node.style.animationDelay);
   const editor = () => container.querySelector(".record-editor")!;
   const motion = "data-work-record-motion";
   try {
-    await mount();
-    await click(edition);
-    expect(button(edition).getAttribute("aria-pressed")).toBe("true");
+    await render();
     expect(board().hasAttribute(motion)).toBe(true);
     expect(delays()).toEqual(["0ms", "50ms"]);
     const firstRow = rows()[0];
     props.board = { ...props.board, rows: [...props.board.rows].reverse() };
-    await mount();
+    await render();
     expect(rows()[1]).toBe(firstRow);
     expect(delays()).toEqual(["50ms", "0ms"]);
 
@@ -199,17 +264,10 @@ it.each(["旧版", "新版"])("uses the shared board motion in %s and remembers 
     await click("关闭", editor());
 
     await act(async () => root.render(null));
-    await mount();
-    expect(button(edition).getAttribute("aria-pressed")).toBe("true");
-    expect(board().hasAttribute(motion)).toBe(true);
-    expect(delays()).toEqual(["0ms", "50ms"]);
-    const restoredRow = rows()[0];
-    await click(edition === "旧版" ? "新版" : "旧版");
-    expect(rows()[0]).toBe(restoredRow);
+    await render();
     expect(board().hasAttribute(motion)).toBe(true);
     expect(delays()).toEqual(["0ms", "50ms"]);
   } finally {
-    window.localStorage.clear();
     vi.unstubAllGlobals();
   }
 });

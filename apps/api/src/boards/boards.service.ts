@@ -20,6 +20,7 @@ import type {
 } from "@massage-note/contracts";
 import {
   calculateAverageRevenue,
+  calculatePersonalClosingPaymentDividends,
   calculateRevenue,
   calculateStoreIncome,
   calculateBoardTotalIncome,
@@ -32,6 +33,7 @@ import { lockBusinessDay } from "../common/business-day-lock.js";
 import { activeAuditWhere } from "../common/active-audit.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { personalClosingCashDue, personalClosingPaymentRecord } from "../finance/personal-closing-payment.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
@@ -391,13 +393,14 @@ export class BoardsService {
                 isServiceProvider: true,
                 employmentType: true,
                 status: true,
+                dailySettlementEnabled: true,
               },
             },
           },
         },
       },
     });
-    const [records, shifts, giftCardSales, closing] = await Promise.all([
+    const [records, shifts, giftCardSales, closing, settledCash] = await Promise.all([
       this.prisma.workRecord.findMany({
         where: {
           storeId,
@@ -449,6 +452,13 @@ export class BoardsService {
         },
         orderBy: { cycleNo: "desc" },
       }),
+      board?.rows.length ? this.prisma.dailyCashSettlement.findMany({
+        where: {
+          storeId, businessDate: dateAtUtc(businessDate), status: "SETTLED", deletedAt: null,
+          membershipId: { in: board.rows.map(row => row.membershipId) },
+        },
+        select: { membershipId: true },
+      }) : [],
     ]);
 
     const serviceRecords = records.filter((record) => record.status !== "PLACEHOLDER");
@@ -483,6 +493,7 @@ export class BoardsService {
             !row.isHidden ||
             hasStoreCapability(actorMembership.role, "MEMBERSHIP_MANAGE"),
         );
+    const settledMemberships = new Set(settledCash.map(row => row.membershipId));
     const rows = boardRows.map((row) => {
       const employeeRecords = records.filter(
         (record) => record.employeeMembershipId === row.membershipId,
@@ -490,8 +501,17 @@ export class BoardsService {
       const employeeShifts = shifts.filter(
         (shift) => shift.membershipId === row.membershipId,
       );
+      const { dailySettlementEnabled, ...membership } = row.membership;
+      const cashSettled = settledMemberships.has(row.membershipId);
+      const cashUnsettled = Boolean(closing) && membership.role === "EMPLOYEE" && !cashSettled &&
+        personalClosingCashDue(calculatePersonalClosingPaymentDividends(
+          employeeRecords.filter(record => record.status === "CONFIRMED").map(personalClosingPaymentRecord),
+        ), dailySettlementEnabled) > 0n;
       return {
         ...row,
+        membership,
+        cashSettled,
+        cashUnsettled,
         shifts: employeeShifts,
         workRecords: employeeRecords,
         statistics: this.calculateRowStatistics(employeeRecords),

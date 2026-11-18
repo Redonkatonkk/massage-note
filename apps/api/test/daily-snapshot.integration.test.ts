@@ -8,6 +8,7 @@ import { IdempotencyService } from "../src/common/idempotency.service.js";
 import { PrismaService } from "../src/database/prisma.service.js";
 import { ClosingDeliveriesService } from "../src/finance/closing-deliveries.service.js";
 import { ClosingsService } from "../src/finance/closings.service.js";
+import { CashSettlementsService } from "../src/finance/cash-settlements.service.js";
 import { DailySnapshotSharesService } from "../src/finance/daily-snapshot-shares.service.js";
 import { StoreAccessService } from "../src/stores/store-access.service.js";
 import { WorkRecordsService } from "../src/work-records/work-records.service.js";
@@ -18,6 +19,7 @@ const access = new StoreAccessService(prisma);
 const idempotency = new IdempotencyService(prisma);
 const work = new WorkRecordsService(prisma, access, idempotency);
 const closings = new ClosingsService(prisma, access, idempotency);
+const cash = new CashSettlementsService(prisma, access, idempotency);
 const deliveries = new ClosingDeliveriesService(prisma, access, closings);
 const shares = new DailySnapshotSharesService(prisma, closings);
 const storeId = randomUUID();
@@ -93,6 +95,7 @@ describe.skipIf(!enabled).sequential("Employee daily snapshot and text delivery"
   it("creates one grant for the queued text and scopes snapshot history, calendar and receipts", async () => {
     vi.stubEnv("WEB_ORIGIN", "https://snapshot.example.test");
     try {
+      await cash.settle(owner, storeId, prior, employee, { version: 0 }, randomUUID(), randomUUID());
       await closings.close(owner, storeId, prior, { force: false }, randomUUID(), randomUUID(), true);
       // Keep only the requested anchor queued, while preserving a closed historical day.
       await prisma.employeeClosingDelivery.updateMany({ where: { storeId }, data: { status: "CANCELLED" } });

@@ -100,7 +100,11 @@ it("changes months and reads exact server 30-day averages instead of daily turno
   expect(point.getAttribute("aria-label")).toContain("2026-09: $12.34");
   expect(container.querySelectorAll(".analytics-hit")[2]!.getAttribute("aria-label")).toContain("not closed");
   expect(container.querySelectorAll(".analytics-hit")[3]!.getAttribute("aria-label")).toContain("$0.00");
-  await act(async () => point.dispatchEvent(new FocusEvent("focusin", { bubbles: true })));
+  const select = container.querySelector<HTMLSelectElement>(".monthly-finance__trend .analytics-inspection select")!;
+  await act(async () => {
+    select.value = "02";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
   expect(container.querySelector(".analytics-readout")!.textContent).toContain("$34.56");
 });
 

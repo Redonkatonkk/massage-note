@@ -1,11 +1,12 @@
 import type { VFX, VFXProps } from "@vfx-js/core";
 import { translateText } from "./i18n";
-import { SAVE_TRAIL_POINTS, WORK_RECORD_SAVE_SHADER } from "./work-record-save-shader";
+import { SAVE_HEAD_RADIUS, SAVE_TRAIL_POINTS, WORK_RECORD_SAVE_SHADER } from "./work-record-save-shader";
 import { disposeWorkRecordVfx, loadWorkRecordVfx, preloadWorkRecordVfx, workRecordVfxColor } from "./work-record-vfx";
 
 const CONDENSE_MS = 260;
 const FLIGHT_MS = 420;
-const UNFOLD_MS = 220;
+const EXPAND_MS = 155;
+const HANDOFF_MS = 100;
 const PREPARE_MS = 400;
 const ORB_SIZE = 40;
 const TRAIL_DURATION_MS = 320;
@@ -13,6 +14,7 @@ const TRAIL_DURATION_MS = 320;
 export interface SaveMotion {
   complete: (recordId: string | undefined) => Promise<void>;
   cancel: () => void;
+  prepareTarget?: (recordId: string) => void;
   setWaitingVisible?: (visible: boolean) => void;
 }
 interface Pose {
@@ -21,12 +23,13 @@ interface Pose {
   textureMix: number;
   opacity: number;
   trailOpacity: number;
-  impact: number;
+  expansion: number;
 }
 type Point = [number, number];
 const motions = new WeakMap<HTMLElement, SaveMotion>();
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
 const ease = (value: number) => 1 - (1 - value) ** 3;
+const easeInOut = (value: number) => value * value * (3 - 2 * value);
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 
 export function preloadWorkRecordSaveMotion(): void { preloadWorkRecordVfx(); }
@@ -125,8 +128,9 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
   const center: Point = [window.innerWidth / 2, window.innerHeight / 2];
   const orbitRadius = Math.min(100, Math.max(60, window.innerWidth * .18), window.innerHeight * .2);
   const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-  const sourcePose: Pose = { rect: [from.left + from.width / 2, from.top + from.height / 2, from.width, from.height], corner: 12, textureMix: 1, opacity: 1, trailOpacity: 0, impact: -1 };
-  const cardPose: Pose = { rect: [...center, ORB_SIZE, ORB_SIZE], corner: 20, textureMix: 0, opacity: 0, trailOpacity: 0, impact: -1 };
+  const sourcePose: Pose = { rect: [from.left + from.width / 2, from.top + from.height / 2, from.width, from.height], corner: 12, textureMix: 1, opacity: 1, trailOpacity: 0, expansion: -1 };
+  const lightColor = workRecordVfxColor("--brand-soft", [229 / 255, 241 / 255, 243 / 255]);
+  let cardColor = lightColor;
   const sources: HTMLElement[] = [];
   const trail = new Float32Array(SAVE_TRAIL_POINTS * 2);
   const history: { at: number; point: Point }[] = [];
@@ -140,8 +144,9 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
   let waiting = false;
   let orbitStarted = 0;
   let target: HTMLElement | undefined;
-  let targetOpacity: string | undefined;
-  let targetOpacityPriority = "";
+  let heldTarget: { element: HTMLElement; opacity: string; priority: string } | undefined;
+  let preparedId: string | undefined;
+  let targetObserver: MutationObserver | undefined;
   let stopTween: ((atEnd?: boolean) => void) | undefined;
   let timeline: { start: number; duration: number; update: (progress: number) => void } | undefined;
   let resolveReady!: () => void;
@@ -155,17 +160,25 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
     disposeWorkRecordVfx(instance, sources, canvas); canvas = undefined;
   };
   const restoreTarget = () => {
-    if (target && targetOpacity !== undefined) target.style.setProperty("opacity", targetOpacity, targetOpacityPriority);
+    if (heldTarget) {
+      heldTarget.element.style.setProperty("opacity", heldTarget.opacity, heldTarget.priority);
+      heldTarget = undefined;
+    }
+  };
+  const holdTarget = (element: HTMLElement) => {
+    // Opacity leaves the real buttons in hit testing during the decoration.
+    heldTarget = { element, opacity: element.style.opacity, priority: element.style.getPropertyPriority("opacity") };
+    element.style.setProperty("opacity", "0", "important");
   };
   const cancel = () => {
     if (signal.aborted) return;
     controller.abort(); window.clearTimeout(prepareTimer); stopTween?.(false); resolveReady();
     if (frame !== undefined) cancelAnimationFrame(frame);
     releaseRenderer(); for (const animation of animations) animation.cancel();
-    observer.disconnect(); overlay.remove();
+    observer.disconnect(); targetObserver?.disconnect(); overlay.remove();
     reduced?.removeEventListener("change", cancel); window.removeEventListener("pagehide", cancel); window.removeEventListener("resize", cancel);
     document.removeEventListener("visibilitychange", onVisibility);
-    document.removeEventListener("scroll", onInteraction, true);
+    document.removeEventListener("scroll", onScroll, true);
     document.removeEventListener("pointerdown", onInteraction);
     document.removeEventListener("keydown", onInteraction);
     restoreTarget();
@@ -179,12 +192,27 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
     }
   };
   const onVisibility = () => { if (document.hidden) cancel(); };
-  const onInteraction = () => { if (detached && completing) cancel(); };
+  const onInteraction = () => { if (completing || heldTarget) cancel(); };
+  const onScroll = () => {
+    if (overlay.dataset.phase === "flying" || overlay.dataset.phase === "unfolding") cancel();
+  };
+  const prepareTarget = (recordId: string) => {
+    if (signal.aborted || degraded || preparedId) return;
+    // If another read already painted the card, leave it visible.
+    if (recordCard(recordId)) { cancel(); return; }
+    preparedId = recordId;
+    targetObserver = new MutationObserver(() => {
+      const card = recordCard(recordId);
+      if (card) { holdTarget(card); targetObserver?.disconnect(); }
+    });
+    // Observe before requesting the board. Mutation callbacks run before its first paint.
+    targetObserver.observe(document.body, { childList: true, subtree: true });
+  };
   const degrade = () => {
     if (signal.aborted || degraded) return;
     degraded = true; waiting = false; window.clearTimeout(prepareTimer); stopTween?.(false); resolveReady();
     if (frame !== undefined) cancelAnimationFrame(frame);
-    releaseRenderer(); stage.replaceChildren(); overlay.dataset.renderer = "fallback";
+    targetObserver?.disconnect(); releaseRenderer(); stage.replaceChildren(); overlay.dataset.renderer = "fallback";
     if (!detached) restoreDialog();
     restoreTarget();
   };
@@ -192,7 +220,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
     if (signal.aborted || degraded) return Promise.resolve();
     return new Promise(resolve => {
       let settled = false;
-      timeline = { start: performance.now(), duration, update }; update(0);
+      timeline = { start: performance.now(), duration, update };
       const timer = window.setTimeout(() => finish(true), duration);
       function finish(atEnd = false) {
         if (settled) return;
@@ -201,6 +229,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
         timeline = undefined; stopTween = undefined; resolve();
       }
       stopTween = finish;
+      update(0);
     });
   };
   const updateTrail = (now: number) => {
@@ -218,22 +247,24 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
       trail[index * 2] = mix(older.point[0], newer.point[0], t); trail[index * 2 + 1] = mix(older.point[1], newer.point[1], t);
     }
   };
-  const uniforms = (pose: Pose): NonNullable<VFXProps["uniforms"]> => ({
+  const uniforms: NonNullable<VFXProps["uniforms"]> = {
     screenSize: [window.innerWidth, window.innerHeight], pixelRatio, uncovered: detached ? 1 : 0,
-    shapeRect: () => pose.rect, corner: () => pose.corner, textureMix: () => pose.textureMix, opacity: () => pose.opacity,
-    trail: () => trail, trailOpacity: () => pose.trailOpacity, impact: () => pose.impact,
+    shapeRect: () => sourcePose.rect, corner: () => sourcePose.corner, textureMix: () => sourcePose.textureMix, opacity: () => sourcePose.opacity,
+    trail: () => trail, trailOpacity: () => sourcePose.trailOpacity, expansion: () => sourcePose.expansion,
     inkColor: workRecordVfxColor("--brand", [27 / 255, 108 / 255, 128 / 255]),
-    lightColor: workRecordVfxColor("--brand-soft", [229 / 255, 241 / 255, 243 / 255]),
+    lightColor, cardColor: () => cardColor,
     bounds: () => {
-      let left = pose.rect[0] - pose.rect[2] / 2 - 55, top = pose.rect[1] - pose.rect[3] / 2 - 55;
-      let right = pose.rect[0] + pose.rect[2] / 2 + 55, bottom = pose.rect[1] + pose.rect[3] / 2 + 55;
-      if (pose.trailOpacity > 0) for (let index = 0; index < SAVE_TRAIL_POINTS; index++) {
-        left = Math.min(left, trail[index * 2]! - 20); right = Math.max(right, trail[index * 2]! + 20);
-        top = Math.min(top, trail[index * 2 + 1]! - 20); bottom = Math.max(bottom, trail[index * 2 + 1]! + 20);
+      const [x, y, width, height] = sourcePose.rect;
+      let left = x - width / 2 - 1, top = y - height / 2 - 1;
+      let right = x + width / 2 + 1, bottom = y + height / 2 + 1;
+      const padding = SAVE_HEAD_RADIUS + 1;
+      if (sourcePose.trailOpacity > 0) for (let index = 0; index < SAVE_TRAIL_POINTS; index++) {
+        left = Math.min(left, trail[index * 2]! - padding); right = Math.max(right, trail[index * 2]! + padding);
+        top = Math.min(top, trail[index * 2 + 1]! - padding); bottom = Math.max(bottom, trail[index * 2 + 1]! + padding);
       }
       return [left, top, right, bottom];
     },
-  });
+  };
   const draw = () => {
     if (signal.aborted || degraded) return;
     const now = performance.now();
@@ -245,27 +276,10 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
       sourcePose.rect = [center[0] + Math.sin(angle) * orbitRadius * ramp, center[1] - Math.cos(angle) * orbitRadius * ramp, ORB_SIZE, ORB_SIZE];
     }
     updateTrail(now);
-    try { renderer?.render(); } catch { degrade(); }
+    if (!waiting || overlay.dataset.waitingVisible === "true") {
+      try { renderer?.render(); } catch { degrade(); }
+    }
     if (!signal.aborted && !degraded) frame = requestAnimationFrame(draw);
-  };
-  const captureCard = async (card: HTMLElement, rect: DOMRect): Promise<boolean> => {
-    const instance = renderer;
-    if (!instance || degraded || signal.aborted) return false;
-    const frozen = frozenSnapshot(card, rect); stage.append(frozen.slot); sources.push(frozen.snapshot);
-    return new Promise(resolve => {
-      let settled = false;
-      const finish = (ok: boolean) => {
-        if (settled) return; settled = true; window.clearTimeout(timer); signal.removeEventListener("abort", abort); resolve(ok);
-      };
-      const abort = () => finish(false);
-      const timer = window.setTimeout(() => finish(false), 200);
-      signal.addEventListener("abort", abort, { once: true });
-      void instance.add(frozen.snapshot, { shader: WORK_RECORD_SAVE_SHADER, overflow: true, uniforms: uniforms(cardPose), zIndex: 1 })
-        .then(() => {
-          if (settled || signal.aborted || degraded) { instance.remove(frozen.snapshot); return; }
-          finish(true);
-        }, () => finish(false)).catch(() => finish(false));
-    });
   };
   const complete = async (recordId: string | undefined) => {
     if (signal.aborted || completing) return;
@@ -282,21 +296,24 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
       }
       await nextPaint(signal);
       if (signal.aborted || (!detached && !dialog.isConnected)) return;
+      targetObserver?.disconnect();
       const to = target?.getBoundingClientRect();
       const trackBox = track?.getBoundingClientRect();
-      const hasTarget = !!to && to.width > 0 && to.height > 0 && to.bottom > 0 && to.top < window.innerHeight &&
+      const hasTarget = !degraded && target?.isConnected && !!to &&
+        (!preparedId || (preparedId === recordId && heldTarget?.element === target)) &&
+        to.width > 0 && to.height > 0 && to.bottom > 0 && to.top < window.innerHeight &&
         (!detached || (!document.querySelector('.modal-backdrop, dialog[open]') && to.left >= 0 && to.right <= window.innerWidth &&
           (!trackBox || (to.left >= trackBox.left && to.right <= trackBox.right))));
-      const destination: Point = hasTarget ? [to.left + to.width / 2, to.top + to.height / 2] : center;
-      let cardCaptured = false;
-      if (hasTarget && target && to) cardCaptured = await captureCard(target, to);
-      if (signal.aborted) return;
-      if (hasTarget && target && !degraded) {
-        targetOpacity = target.style.opacity; targetOpacityPriority = target.style.getPropertyPriority("opacity");
-        // Keep the real button in hit testing. Pointer interaction cancels the
-        // decoration before its click, so the first click still reaches this card.
-        target.style.setProperty("opacity", "0", "important");
-      }
+      const box = hasTarget ? to : undefined;
+      const destination: Point = box ? [box.left + box.width / 2, box.top + box.height / 2] : center;
+      let corner = SAVE_HEAD_RADIUS;
+      if (box && target) {
+        const style = getComputedStyle(target);
+        corner = parseFloat(style.borderTopLeftRadius) || 0;
+        const rgb = style.backgroundColor.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        if (rgb) cardColor = [Number(rgb[1]) / 255, Number(rgb[2]) / 255, Number(rgb[3]) / 255];
+        if (!heldTarget) holdTarget(target);
+      } else restoreTarget();
       if (!detached && backdrop?.animate) {
         const animation = backdrop.animate([{ backgroundColor: getComputedStyle(backdrop).backgroundColor }, { backgroundColor: "transparent" }], { duration: FLIGHT_MS, fill: "forwards" });
         animations.push(animation); void animation.finished.catch(() => undefined);
@@ -304,28 +321,31 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
       waiting = false; overlay.dataset.phase = "flying";
       const launch: Point = [sourcePose.rect[0], sourcePose.rect[1]];
       const bend: Point = [mix(launch[0], destination[0], .5), Math.min(launch[1], destination[1]) - Math.min(100, Math.abs(destination[0] - launch[0]) * .25)];
-      await tween(FLIGHT_MS, value => {
-        const t = value * value, rest = 1 - t;
-        sourcePose.rect = [rest * rest * launch[0] + 2 * rest * t * bend[0] + t * t * destination[0], rest * rest * launch[1] + 2 * rest * t * bend[1] + t * t * destination[1], ORB_SIZE, ORB_SIZE];
-        sourcePose.trailOpacity = 1; sourcePose.textureMix = 0;
-      });
-      if (signal.aborted) return;
-      overlay.dataset.phase = "unfolding";
-      if (hasTarget && target && !cardCaptured && !degraded) {
-        restoreTarget();
-        if (target.animate) {
-          const animation = target.animate([{ opacity: 0, transform: "scale(.6)" }, { opacity: 1, transform: "scale(1.06)" }, { opacity: 1, transform: "scale(1)" }], { duration: UNFOLD_MS, easing: "ease-out", fill: "both" });
-          animations.push(animation); void animation.finished.catch(() => undefined);
+      const duration = FLIGHT_MS + (box ? EXPAND_MS : 0) + HANDOFF_MS;
+      await tween(duration, value => {
+        const elapsed = value * duration;
+        if (box && !target?.isConnected) { cancel(); return; }
+        if (elapsed < FLIGHT_MS) {
+          const t = easeInOut(elapsed / FLIGHT_MS), rest = 1 - t;
+          sourcePose.rect = [rest * rest * launch[0] + 2 * rest * t * bend[0] + t * t * destination[0], rest * rest * launch[1] + 2 * rest * t * bend[1] + t * t * destination[1], ORB_SIZE, ORB_SIZE];
+          sourcePose.trailOpacity = 1; sourcePose.textureMix = 0;
+          return;
         }
-      }
-      await tween(UNFOLD_MS, value => {
-        const spring = value === 1 ? 1 : 1 - Math.exp(-6 * value) * (Math.cos(10 * value) + .6 * Math.sin(10 * value));
-        sourcePose.rect = [...destination, ORB_SIZE, ORB_SIZE];
-        sourcePose.impact = hasTarget ? value : -1;
-        sourcePose.opacity = 1 - ease(value);
-        if (cardCaptured && to) {
-          cardPose.rect = [...destination, mix(ORB_SIZE, to.width, spring), mix(ORB_SIZE, to.height, spring)];
-          cardPose.corner = mix(20, 6, clamp(spring)); cardPose.opacity = 1; cardPose.textureMix = ease(value);
+        if (overlay.dataset.phase !== "unfolding") overlay.dataset.phase = "unfolding";
+        const arrival = elapsed - FLIGHT_MS;
+        sourcePose.trailOpacity = 1 - ease(clamp(arrival / HANDOFF_MS));
+        if (box) {
+          const expansion = easeInOut(clamp(arrival / EXPAND_MS));
+          const diameter = SAVE_HEAD_RADIUS * 2;
+          sourcePose.rect = [...destination, mix(diameter, box.width, expansion), mix(diameter, box.height, expansion)];
+          sourcePose.corner = mix(SAVE_HEAD_RADIUS, corner, expansion);
+          sourcePose.expansion = expansion;
+          // The live card appears underneath the fully expanded surface and takes over as it fades.
+          if (arrival >= EXPAND_MS) restoreTarget();
+          sourcePose.opacity = 1 - ease(clamp((arrival - EXPAND_MS) / HANDOFF_MS));
+        } else {
+          sourcePose.rect = [...destination, ORB_SIZE, ORB_SIZE];
+          sourcePose.opacity = 1 - ease(clamp(arrival / HANDOFF_MS));
         }
       });
       if (!signal.aborted) {
@@ -347,11 +367,11 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
     reduced?.addEventListener("change", cancel); window.addEventListener("pagehide", cancel, { once: true }); window.addEventListener("resize", cancel, { once: true });
     document.addEventListener("visibilitychange", onVisibility);
     if (detached) {
-      document.addEventListener("scroll", onInteraction, true);
+      document.addEventListener("scroll", onScroll, true);
       document.addEventListener("pointerdown", onInteraction);
       document.addEventListener("keydown", onInteraction);
     }
-    const handle: SaveMotion = { complete, cancel, setWaitingVisible: visible => { overlay.dataset.waitingVisible = String(visible); } };
+    const handle: SaveMotion = { complete, cancel, prepareTarget, setWaitingVisible: visible => { overlay.dataset.waitingVisible = String(visible); } };
     if (!detached) motions.set(dialog, handle);
     prepareTimer = window.setTimeout(degrade, PREPARE_MS);
     void (async () => {
@@ -363,7 +383,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
         renderer = instance; canvas = stage.querySelector("canvas") ?? undefined;
         canvas?.addEventListener("webglcontextlost", degrade, { once: true });
         const frozen = initialSnapshot ?? frozenSnapshot(dialog, from); stage.append(frozen.slot); sources.push(frozen.snapshot);
-        await instance.add(frozen.snapshot, { shader: WORK_RECORD_SAVE_SHADER, overflow: true, uniforms: uniforms(sourcePose) });
+        await instance.add(frozen.snapshot, { shader: WORK_RECORD_SAVE_SHADER, overflow: true, uniforms });
         if (signal.aborted || degraded) { instance.remove(frozen.snapshot); return; }
         window.clearTimeout(prepareTimer); overlay.dataset.renderer = "canvas"; overlay.dataset.phase = "condensing"; if (!detached) hideDialog();
         const start = [...sourcePose.rect] as Pose["rect"];

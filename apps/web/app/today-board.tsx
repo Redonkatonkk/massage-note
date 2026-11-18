@@ -43,6 +43,7 @@ import type {
 } from "../lib/types";
 import { ClosingDeliveryQueueButton } from "./closing-delivery-queue";
 import { EmployeeClosingModal } from "./employee-closing";
+import { CashClosingConfirm } from "./cash-closing-confirm";
 import { LostCustomers } from "./lost-customers";
 import { GiftCardSales } from "./gift-card-sales";
 import { WorkTimeInput } from "./work-time-input";
@@ -95,7 +96,7 @@ function CashBalanceMetric({ balance }: { balance: NonNullable<BoardResponse["st
   const { locale, t } = useLanguage();
   return <OverviewMetric label="现金余额"
     value={balance.balanceCents === null ? "—" : formatUsdPrecise(balance.balanceCents, locale)}
-    title="重置金额＋重置日起累计现金净变化；现金净变化为现金大费实收＋卖卡现金实收－员工应发现金，现金小费不计入。"
+    title="重置金额＋重置日起的现金大费和卖卡现金实收－员工已结现金，现金小费不计入。"
     note={balance.missingClosingDates.length ? `${t("历史数据不足，请补充日结：")}${balance.missingClosingDates.join(", ")}` : `${t("重置日：")}${balance.resetDate}`} />;
 }
 
@@ -210,6 +211,7 @@ function TodayBoardContent({
   const [editingRecord, setEditingRecord] = useState<{ record: WorkRecord; section?: RecordEditorSection | undefined } | null>(null);
   const [deletingPlaceholder, setDeletingPlaceholder] = useState<WorkRecord | null>(null);
   const [closingEmployee, setClosingEmployee] = useState<{ id: string; displayName: string } | null>(null);
+  const [confirmClosingCash, setConfirmClosingCash] = useState(false);
   const [busy, setBusy] = useState(false);
   const actionInFlight = useRef(false);
   const { feedback, setNotice, setError } = useScreenFeedback();
@@ -355,27 +357,37 @@ function TodayBoardContent({
     }
   }, [saves, recovery, membership.store.id, currentDay.businessDate, quickEmployeeId, creatingRecord, editingRecord, deletingPlaceholder, closingEmployee]);
 
-  async function closeBusinessDay() {
+  async function closeBusinessDay(confirmUnsettledCash = false) {
     if (saves.getSnapshot().tasks.some(task => task.storeId === membership.store.id && task.businessDate === currentDay.businessDate && unresolvedWrite(task))) return;
     const path = `/stores/${membership.store.id}/closings/${currentDay.businessDate}`;
-    const preview = await apiRequest<ClosingPreview>(`${path}/preview`);
-    const action = homeClosingAction(preview);
-    if (action === "CANCEL") {
-      setNotice("这个营业日已经日结");
-      await onReload();
-      return;
-    }
-    if (action === "REVIEW") {
-      openFinanceClosing();
-      return;
+    if (!confirmUnsettledCash) {
+      const preview = await apiRequest<ClosingPreview>(`${path}/preview`);
+      const action = homeClosingAction(preview);
+      if (action === "CANCEL") {
+        setNotice("这个营业日已经日结");
+        await onReload();
+        return;
+      }
+      if (action === "CONFIRM_CASH") {
+        setConfirmClosingCash(true);
+        return;
+      }
+      if (action === "REVIEW") {
+        openFinanceClosing();
+        return;
+      }
     }
     try {
       await apiRequest(path, {
         method: "POST",
         idempotent: true,
-        body: { force: false },
+        body: confirmUnsettledCash ? { force: false, confirmUnsettledCash: true } : { force: false },
       });
     } catch (caught) {
+      if (caught instanceof ApiError && caught.code === "CLOSING_UNSETTLED_CASH_REQUIRE_CONFIRMATION") {
+        setConfirmClosingCash(true);
+        return;
+      }
       if (caught instanceof ApiError && caught.code === "CLOSING_WARNINGS_REQUIRE_FORCE") {
         openFinanceClosing();
         return;
@@ -536,7 +548,11 @@ function TodayBoardContent({
       })}>{busy ? "正在上班…" : "上班"}</button>}
       {canManage && (board.isClosed
         ? <a className="primary-action board-closing-action" href={financeClosingHref(membership.store.id, currentDay.businessDate)}>现金结算</a>
-        : <button className="primary-action board-closing-action" type="button" disabled={busy || pendingDayWrites} title={pendingDayWrites ? "请先等待当天记工的保存结果确认" : undefined} onClick={event => void withButtonMotion(event.currentTarget, () => run(closeBusinessDay))}>日结</button>)}
+        : <CashClosingConfirm className="primary-action board-closing-action" type="button" disabled={busy || pendingDayWrites}
+            title={pendingDayWrites ? "请先等待当天记工的保存结果确认" : undefined} open={confirmClosingCash}
+            onDismiss={() => setConfirmClosingCash(false)}
+            onConfirm={() => { setConfirmClosingCash(false); void run(() => closeBusinessDay(true)); }}
+            onClick={event => void withButtonMotion(event.currentTarget, () => run(closeBusinessDay))}>日结</CashClosingConfirm>)}
       {wideLayout ? secondaryActions : (canManage || canGenerateRanking || returnToToday) && <AutoCloseDetails className="board-more-actions">
         <summary>更多操作</summary>
         <div className="board-more-actions__body">{secondaryActions}</div>
@@ -621,12 +637,20 @@ function TodayBoardContent({
         {visibleRows.map((row) => {
           const entranceIndex = entranceOrder.get(row.id);
           const isCollapsed = collapsed.includes(row.id);
-          const activeRecord = isCurrentBusinessDay
-            ? activeWorkRecord(row.workRecords, statusNow)
-            : null;
-          const workStatus = activeRecord
-            ? (activeRecord.endAt ? displayTime(activeRecord.endAt, currentDay.timezone) : "未定")
-            : "空闲";
+          const hasClockedOut = row.shifts.length > 0 && row.shifts.every(shift => shift.clockOutAt !== null);
+          const isOffDuty = !isCurrentBusinessDay || board.isClosed || row.cashSettled || hasClockedOut;
+          const activeRecord = isOffDuty ? null : activeWorkRecord(row.workRecords, statusNow);
+          const workStatus = row.cashSettled ? t("已结") : isOffDuty
+            ? t(isFutureBusinessDay ? "未上班" : "已下班")
+            : activeRecord?.endAt ? displayTime(activeRecord.endAt, currentDay.timezone) : t(activeRecord ? "未定" : "空闲");
+          const issues = [
+            row.workRecords.some(record => hasConfirmedPaymentMismatch(record.status, record.paymentDifferenceCents)) ? t("金额异常") : "",
+            board.isClosed && row.cashUnsettled ? t("现金未结") : "",
+          ].filter(Boolean).join(" · ");
+          const status = issues ? "issue" : isOffDuty ? "off" : activeRecord ? "working" : "available";
+          const statusId = `work-status-${row.id}`;
+          const activityId = `work-activity-${row.id}`;
+          const issueId = `work-issues-${row.id}`;
           const showTotals = canViewEmployeeTotals({
             role: membership.role,
             viewerMembershipId: membership.id,
@@ -646,11 +670,14 @@ function TodayBoardContent({
                   }}
                   aria-expanded={!isCollapsed}
                   aria-label={`${row.membership.displayName} · ${t(isCollapsed ? "展开" : "收起")}`}
+                  aria-describedby={[activeRecord && activityId, statusId, issues && issueId].filter(Boolean).join(" ")}
                 >
-                  <span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span>
+                  <span className="employee-status-symbol" data-work-status={status} title={issues || (activeRecord ? t("正在上工") : workStatus)} aria-hidden="true" />
                   <span>
                     <strong>{row.membership.displayName}</strong>
-                    <small className={activeRecord ? "on-duty" : "off-duty"}>{workStatus}</small>
+                    {activeRecord && <span hidden id={activityId}>{t("正在上工")}</span>}
+                    <small id={statusId} className={row.cashSettled ? "employee-settled" : isOffDuty ? "employee-inactive" : activeRecord ? "on-duty" : "off-duty"}>{workStatus}</small>
+                    {issues && <small className="employee-status-issue" id={issueId}>{issues}</small>}
                   </span>
                   {row.isHidden && canManage && <em className="hidden-badge">已隐藏</em>}
                   <span className="chevron" aria-hidden="true">{isCollapsed ? "展开" : "收起"}</span>
@@ -673,7 +700,7 @@ function TodayBoardContent({
                   <RecordTrack key={currentDay.businessDate} recordCount={row.workRecords.length} autoReturn={!board.isClosed} movementKey={row.workRecords.map(record => `${record.id}:${record.startAt}:${record.isHighlighted}:${record.isDispatchExcluded}`).join(" ")}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record, index, items) => {
                       if (record === null) return (
-                        <button key="add-record" className="add-record" type="button" onClick={() => { setQuickSessionId(crypto.randomUUID()); setRestoredSave(null); setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickMode("NORMAL"); setQuickCustomerType(null); setQuickEmployeeId(row.membershipId); }}>
+                        <button key="add-record" className="add-record" type="button" data-motion-item="add-record" data-motion-skip-in onClick={() => { setQuickSessionId(crypto.randomUUID()); setRestoredSave(null); setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickMode("NORMAL"); setQuickCustomerType(null); setQuickEmployeeId(row.membershipId); }}>
                           <span aria-hidden="true"><UiIcon name="plus" /></span>新增记工
                         </button>
                       );
@@ -716,7 +743,7 @@ function TodayBoardContent({
                           <span className="record-card__badges">
                             {record.addonSnapshots.length > 0 && (
                               <button className="record-addon-badge" type="button" disabled={unavailable} aria-haspopup="dialog"
-                                aria-label="额外项目" title="额外项目" onClick={() => openRecord(record, "addons")}>＋</button>
+                                aria-label="额外项目" title="额外项目" onClick={() => openRecord(record, "addons")}><span>＋</span></button>
                             )}
                             {record.discountSnapshots.length > 0 && (
                               <button
@@ -726,7 +753,7 @@ function TodayBoardContent({
                                 title={`折扣 ${money(record.discountTotalCents)}`}
                                 onClick={() => openRecord(record, "discounts")}
                               >
-                                {discountBadgeText(record.discountTotalCents)}
+                                <span>{discountBadgeText(record.discountTotalCents)}</span>
                               </button>
                             )}
                           </span>
@@ -877,6 +904,7 @@ function TodayBoardContent({
           membershipId={closingEmployee.id}
           displayName={closingEmployee.displayName}
           canSend={canManage}
+          onSettlementChanged={onSaveReload ?? onReload}
           onClose={() => setClosingEmployee(null)}
         />
       )}

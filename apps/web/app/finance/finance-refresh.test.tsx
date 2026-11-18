@@ -85,6 +85,26 @@ it("keeps daily closing live and unsubscribes when returning to a report", async
   expect(request).not.toHaveBeenCalled();
 });
 
+it("requires an explicit cash exception before closing from Finance", async () => {
+  window.history.replaceState(null, "", "/finance?tab=closing");
+  request.mockImplementation(async (path, options) => {
+    if (options?.method === "POST") return {};
+    const result = demoRequest(String(path));
+    if (!String(path).endsWith("/closings/2026-10-22/preview")) return result;
+    return {
+      ...(result as object), hasWarnings: true, warningCount: 1,
+      warnings: [{ code: "CASH_UNSETTLED", labelZh: "员工现金尚未结清", blocking: true, count: 1, recordIds: [] }],
+    };
+  });
+  await act(async () => root.render(<FinancePageClient />));
+  await click("确认日结");
+  expect(container.querySelector('[role="alertdialog"]')?.textContent).toContain("还有员工没有结现金");
+  expect(request.mock.calls.some(([, options]) => options?.method === "POST")).toBe(false);
+  await click("强制日结");
+  expect(request.mock.calls.find(([, options]) => options?.method === "POST")?.[1]?.body)
+    .toEqual({ force: false, confirmUnsettledCash: true });
+});
+
 it("queries the selected highlights across the complete monthly report, details and export", async () => {
   window.history.replaceState(null, "", "/finance?tab=summary");
   await act(async () => root.render(<FinancePageClient />));

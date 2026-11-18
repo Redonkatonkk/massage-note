@@ -15,7 +15,7 @@ const deferred = <T,>() => {
   return { promise, resolve, reject };
 };
 const settle = async () => { for (let i = 0; i < 24; i++) await Promise.resolve(); };
-const motion = () => ({ complete: vi.fn(async (_id?: string) => {}), cancel: vi.fn(), setWaitingVisible: vi.fn() });
+const motion = () => ({ complete: vi.fn(async (_id?: string) => {}), cancel: vi.fn(), prepareTarget: vi.fn(), setWaitingVisible: vi.fn() });
 function input(id: string): WorkRecordSaveInput {
   return { id, ...scope, storeName: "Shop", employeeName: "Alex", request: { path: "/stores/store/work-records", method: "POST", body: { employeeMembershipId: "employee", startAt: record.startAt } }, draft: { kind: "quick", employeeId: "employee", serviceId: "service", mode: "HIGHLIGHTED", startTime: "10:00" }, motion: motion() };
 }
@@ -103,9 +103,10 @@ it("keeps the record locked through refresh but releases it before the completio
   const { manager, write, refresh } = setup();
   const read = deferred<void>(), animation = deferred<void>(), nextWrite = deferred<WorkRecord>();
   refresh.mockImplementationOnce(() => read.promise);
-  const task = { ...input("first"), recordId: record.id };
+  const task = { ...input("first"), recordId: record.id, draft: { kind: "editor", record, isNew: false, fields: {} } } satisfies WorkRecordSaveInput;
   task.motion!.complete = vi.fn(() => animation.promise);
   manager.submit(task); await settle();
+  expect(task.motion?.prepareTarget).not.toHaveBeenCalled();
   expect(recordSaveLocked(manager.getSnapshot().tasks[0]!)).toBe(true);
   expect(manager.submit({ ...input("too-early"), recordId: record.id })).toBe(false);
   read.resolve(); await settle();
@@ -116,6 +117,23 @@ it("keeps the record locked through refresh but releases it before the completio
   expect(manager.submit({ ...input("next-edit"), recordId: record.id })).toBe(true);
   expect(write).toHaveBeenCalledTimes(2);
   expect(recordSaveLocked(manager.getSnapshot().tasks[1]!)).toBe(true);
+  animation.resolve(); await settle();
+});
+
+it("reserves the new card before readback and keeps the orb visible through its completion", async () => {
+  const { manager, refresh } = setup();
+  const read = deferred<void>(), animation = deferred<void>();
+  const task = input("new");
+  refresh.mockImplementationOnce(() => {
+    expect(task.motion?.prepareTarget).toHaveBeenCalledWith(record.id);
+    return read.promise;
+  });
+  task.motion!.complete = vi.fn(() => animation.promise);
+  manager.submit(task); await settle();
+  read.resolve(); await settle();
+  expect(task.motion!.complete).toHaveBeenCalledWith(record.id);
+  expect(vi.mocked(task.motion!.setWaitingVisible!).mock.calls).toEqual(expect.arrayContaining([[true]]));
+  expect(task.motion!.setWaitingVisible).not.toHaveBeenCalledWith(false);
   animation.resolve(); await settle();
 });
 

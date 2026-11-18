@@ -65,14 +65,18 @@ export function createWorkRecordSaveManager(write: (path: string, options: {
     const motion = entry.motion; entry.motion = undefined;
     try { motion?.cancel(); } catch { /* Presentation cleanup cannot affect write state. */ }
   };
-  const publish = () => {
-    if (disposed) return;
+  const updateMotionVisibility = () => {
+    const finishing = [...entries.values()].find(entry => entry.finishing && entry.motion);
     let waitingShown = false;
     for (const entry of entries.values()) {
-      const waiting = !entry.finishing && ["saving", "syncing"].includes(entry.task.status);
+      const waiting = finishing ? entry === finishing : ["saving", "syncing", "saved"].includes(entry.task.status);
       try { entry.motion?.setWaitingVisible?.(waiting && !waitingShown); } catch { cancelMotion(entry); }
       if (waiting && entry.motion) waitingShown = true;
     }
+  };
+  const publish = () => {
+    if (disposed) return;
+    updateMotionVisibility();
     snapshot = { ...snapshot, tasks: [...entries.values()].map(({ task }) => ({ ...task })) };
     listeners.forEach(listener => listener());
   };
@@ -85,7 +89,12 @@ export function createWorkRecordSaveManager(write: (path: string, options: {
     const task = entry.task;
     const selectedView = view;
     try {
-      if (selectedView && sameScope(task, selectedView)) await selectedView.refresh();
+      if (selectedView && sameScope(task, selectedView)) {
+        if (task.savedRecord && (task.draft.kind === "quick" || task.draft.isNew)) {
+          try { entry.motion?.prepareTarget?.(task.savedRecord.id); } catch { cancelMotion(entry); }
+        }
+        await selectedView.refresh();
+      }
     } catch (error) {
       if (disposed) return;
       task.status = "syncFailed"; task.error = errorMessage(error); cancelMotion(entry); publish();
@@ -106,6 +115,7 @@ export function createWorkRecordSaveManager(write: (path: string, options: {
       } catch { /* A graphics failure cannot turn a committed write into a retry. */ }
       if (disposed) return;
       cancelMotion(entry);
+      updateMotionVisibility();
       const timer = setTimeout(() => { timers.delete(timer); forget(task.id); }, 2200);
       timers.add(timer);
     };

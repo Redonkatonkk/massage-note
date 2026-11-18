@@ -1,7 +1,10 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";
-import { escapeImageXml as escapeXml, imageLocaleName as localeName, formatImageMoney as money, type ImageLocale as Locale } from "@massage-note/domain";
+import {
+  escapeImageXml as escapeXml, formatImageMoney as money, imageLineHeight,
+  imageLocaleName as localeName, imageTextLines, imageTheme as theme, type ImageLocale as Locale,
+} from "@massage-note/domain";
 
 export interface EmployeeSummarySnapshot {
   documentType: "EMPLOYEE_SUMMARY";
@@ -58,7 +61,16 @@ function layout(employeeCount: number) {
   return { width: 1920, columns: 5 };
 }
 
-function employeeCard(employee: EmployeeSummarySnapshot["employees"][number], index: number, x: number, y: number, width: number, locale: Locale) {
+function summaryText(value: string, x: number, y: number, width: number, font: number, pitch: number, style: string, align = "start") {
+  // Leave room for the font fallback used by the Messages renderer.
+  const wrapSize = font * 1.12;
+  return {
+    svg: imageTextLines(value, width, wrapSize, x, y, style, pitch, align).replace("<text ", `<text font-size="${font}" `),
+    height: imageLineHeight(value, width, wrapSize, pitch),
+  };
+}
+
+function employeeCard(employee: EmployeeSummarySnapshot["employees"][number], width: number, locale: Locale) {
   const en = locale === "en_US";
   const rate = percentage(employee.defaultCommissionBps, locale);
   const variation = employee.hasDifferentItemCommission
@@ -69,22 +81,34 @@ function employeeCard(employee: EmployeeSummarySnapshot["employees"][number], in
   const role = en
     ? ({ OWNER: "Owner", MANAGER: "Manager", EMPLOYEE: "Employee" } as const)[employee.role]
     : ({ OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工" } as const)[employee.role];
-  return [
-    `<rect x="${x}" y="${y}" width="${width}" height="252" rx="22" fill="#fff" stroke="#eadbd0" stroke-width="2" filter="url(#shadow)"/>`,
-    `<text x="${x + 22}" y="${y + 35}" class="name">${escapeXml(employee.displayName)}</text>`,
-    `<text x="${x + width - 22}" y="${y + 34}" text-anchor="end" class="badge">${escapeXml(`${role} · ${employee.recordCount} ${en ? "records" : "单"}`)}</text>`,
-    `<text x="${x + 22}" y="${y + 70}" class="label">${escapeXml(en ? "Main service" : "主要项目")}</text>`,
-    `<text x="${x + width / 2}" y="${y + 70}" text-anchor="middle" class="operator">＋</text>`,
-    `<text x="${x + width - 22}" y="${y + 70}" text-anchor="end" class="label">${escapeXml(en ? "Add-ons" : "加项")}</text>`,
-    `<text x="${x + 22}" y="${y + 95}" style="font-size:${valueFont}px" class="amount">${escapeXml(money(employee.mainServiceAmountCents, locale))}</text>`,
-    `<text x="${x + width - 22}" y="${y + 95}" text-anchor="end" style="font-size:${valueFont}px" class="amount">${escapeXml(money(employee.addonTotalCents, locale))}</text>`,
-    `<rect x="${x + 18}" y="${y + 111}" width="${width - 36}" height="42" rx="12" fill="#fbf1eb"/>`,
-    `<text x="${x + width / 2}" y="${y + 138}" text-anchor="middle" style="font-size:${formulaFont}px" class="formula">${escapeXml(`= ${en ? "Fee base" : "大费基数"} ${money(employee.grossFeeBaseCents, locale)}`)}</text>`,
-    `<text x="${x + width / 2}" y="${y + 181}" text-anchor="middle" style="font-size:${formulaFont}px" class="formula">${escapeXml(`${en ? "Commission" : "提成比例"} ${rate}${variation} · ${en ? "Service wage" : "大费工资"} ${money(employee.totalLargeFeeWageCents, locale)}`)}</text>`,
-    `<line x1="${x + 20}" y1="${y + 198}" x2="${x + width - 20}" y2="${y + 198}" stroke="#eadbd0"/>`,
-    `<text x="${x + width / 2}" y="${y + 229}" text-anchor="middle" style="font-size:${formulaFont}px" class="total">${escapeXml(`${money(employee.totalLargeFeeWageCents, locale)} ＋ ${en ? "Tips" : "小费工资"} ${money(employee.totalTipCents, locale)} = ${en ? "Period income" : "阶段总收入"} ${money(employee.employeeIncomeCents, locale)}`)}</text>`,
-    `<text x="${x + 22}" y="${y + 246}" class="index">${String(index + 1).padStart(2, "0")}</text>`,
-  ].join("");
+  const inset = 22;
+  const contentWidth = width - inset * 2;
+  const name = summaryText(employee.displayName, inset, 36, contentWidth, 25, 32, "name");
+  const roleY = 27 + name.height;
+  const labelY = roleY + 29;
+  const amountY = labelY + 23;
+  const amountWidth = contentWidth / 2 - 12;
+  const serviceAmount = summaryText(money(employee.mainServiceAmountCents, locale), inset, amountY, amountWidth, valueFont, 23, "amount");
+  const addonAmount = summaryText(money(employee.addonTotalCents, locale), width - inset, amountY, amountWidth, valueFont, 23, "amount", "end");
+  const baseY = amountY + Math.max(serviceAmount.height, addonAmount.height) + 10;
+  const feeBase = summaryText(`= ${en ? "Fee base" : "大费基数"} ${money(employee.grossFeeBaseCents, locale)}`, inset, baseY, contentWidth, formulaFont, 20, "formula");
+  const commissionY = baseY + feeBase.height + 13;
+  const commission = summaryText(`${en ? "Commission" : "提成比例"} ${rate}${variation} · ${en ? "Service wage" : "大费工资"} ${money(employee.totalLargeFeeWageCents, locale)}`, inset, commissionY, contentWidth, formulaFont, 20, "formula");
+  const totalY = commissionY + commission.height + 11;
+  const total = summaryText(`${money(employee.totalLargeFeeWageCents, locale)} ＋ ${en ? "Tips" : "小费工资"} ${money(employee.totalTipCents, locale)} = ${en ? "Period income" : "阶段总收入"} ${money(employee.employeeIncomeCents, locale)}`, inset, totalY, contentWidth, formulaFont, 20, "total");
+  return {
+    height: totalY + total.height,
+    content: [
+      name.svg,
+      `<text x="${inset}" y="${roleY}" font-size="14" class="meta">${escapeXml(`${role} · ${employee.recordCount} ${en ? "records" : "单"}`)}</text>`,
+      `<text x="${inset}" y="${labelY}" font-size="14" class="meta">${en ? "Main service" : "主要项目"}</text>`,
+      `<text x="${width / 2}" y="${labelY}" font-size="14" text-anchor="middle" class="meta">＋</text>`,
+      `<text x="${width - inset}" y="${labelY}" font-size="14" text-anchor="end" class="meta">${en ? "Add-ons" : "加项"}</text>`,
+      serviceAmount.svg, addonAmount.svg,
+      `<line x1="${inset}" x2="${width - inset}" y1="${baseY - 19}" y2="${baseY - 19}" stroke="${theme.line}"/>`,
+      feeBase.svg, commission.svg, total.svg,
+    ].join(""),
+  };
 }
 
 function buildSvg(snapshot: EmployeeSummarySnapshot, locale: Locale) {
@@ -92,25 +116,41 @@ function buildSvg(snapshot: EmployeeSummarySnapshot, locale: Locale) {
   const { width, columns } = layout(snapshot.employees.length);
   const margin = 32;
   const gap = 16;
-  const headerHeight = 210;
   const cardWidth = (width - margin * 2 - gap * (columns - 1)) / columns;
-  const rows = Math.ceil(snapshot.employees.length / columns);
-  const height = headerHeight + rows * (252 + gap) + 26;
-  if (height > MAX_HEIGHT) throw new Error("Employee summary has too many cards for one readable Messages image; narrow the employee selection");
+  const contentWidth = width - margin * 2;
+  const store = summaryText(snapshot.storeName, margin, 47, contentWidth, 22, 28, "meta");
+  const titleY = 65 + store.height;
+  const scopeY = titleY + 35;
+  const scope = summaryText(`${snapshot.dateFrom} — ${snapshot.dateTo} · ${scopeText(snapshot, locale)}`, margin, scopeY, contentWidth, 20, 25, "meta");
+  const noteY = scopeY + scope.height + 5;
   const parts = [
-    `<text x="${margin}" y="48" class="eyebrow">${escapeXml(snapshot.storeName)}</text>`,
-    `<text x="${margin}" y="101" class="title">${escapeXml(en ? "Employee subtotals" : "员工小计")}</text>`,
-    `<text x="${margin}" y="139" class="meta">${escapeXml(`${snapshot.dateFrom} — ${snapshot.dateTo} · ${scopeText(snapshot, locale)}`)}</text>`,
-    `<rect x="${margin}" y="158" width="${width - margin * 2}" height="36" rx="18" fill="#8e3e2f"/>`,
-    `<text x="${margin + 18}" y="182" class="scope">${escapeXml(en ? `${snapshot.employees.length} employees · amounts retain cents · current commission settings shown` : `${snapshot.employees.length} 位员工 · 金额保留美分 · 显示当前提成设置`)}</text>`,
+    store.svg,
+    `<text x="${margin}" y="${titleY}" font-size="42" class="title">${en ? "Employee subtotals" : "员工小计"}</text>`,
+    scope.svg,
+    `<text x="${margin}" y="${noteY}" font-size="17" class="meta">${en ? `${snapshot.employees.length} employees · amounts retain cents · current commission settings shown` : `${snapshot.employees.length} 位员工 · 金额保留美分 · 显示当前提成设置`}</text>`,
   ];
-  snapshot.employees.forEach((employee, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    parts.push(employeeCard(employee, index, margin + column * (cardWidth + gap), headerHeight + row * (252 + gap), cardWidth, locale));
-  });
-  parts.push(`<text x="${width - margin}" y="${height - 9}" text-anchor="end" class="footer">${escapeXml(en ? "Commission shows the employee setting; service wage + tips = period income" : "提成比例显示员工设置；大费工资 ＋ 小费工资 = 阶段总收入")}</text>`);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fffaf3"/><stop offset="1" stop-color="#f2d7cb"/></linearGradient><filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#7a4432" flood-opacity=".10"/></filter><style>text{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;fill:#211d18}.eyebrow{font-size:23px;font-weight:750;fill:#8e3e2f}.title{font-size:48px;font-weight:900}.meta{font-size:21px;font-weight:650;fill:#6b635a}.scope{font-size:17px;font-weight:750;fill:#fff}.name{font-size:25px;font-weight:900}.badge{font-size:14px;font-weight:800;fill:#8e3e2f}.label{font-size:14px;font-weight:750;fill:#756b62}.operator{font-size:19px;font-weight:900;fill:#a28f82}.amount{font-weight:900}.formula{font-weight:850}.total{font-weight:900;fill:#8e3e2f}.index{font-size:10px;font-weight:800;fill:#b9aaa0}.footer{font-size:13px;font-weight:650;fill:#756b62}</style></defs><rect width="${width}" height="${height}" fill="url(#bg)"/>${parts.join("")}</svg>`;
+  let rowY = noteY + 24;
+  const cards = snapshot.employees.map(employee => employeeCard(employee, cardWidth, locale));
+  for (let index = 0; index < cards.length; index += columns) {
+    const row = cards.slice(index, index + columns);
+    const rowHeight = Math.max(...row.map(card => card.height));
+    row.forEach((card, column) => {
+      const x = margin + column * (cardWidth + gap);
+      parts.push(`<g transform="translate(${x} ${rowY})"><rect width="${cardWidth}" height="${rowHeight}" rx="${theme.radius}" fill="${theme.surface}" stroke="${theme.line}"/>${card.content}</g>`);
+    });
+    rowY += rowHeight + gap;
+  }
+  const height = rowY + margin - gap;
+  if (height > MAX_HEIGHT) throw new Error("Employee summary has too many cards for one readable Messages image; narrow the employee selection");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <style>
+      text { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; fill: ${theme.ink}; }
+      .title, .name, .amount, .total { font-weight: 650; }
+      .meta { fill: ${theme.muted}; }
+      .total { fill: ${theme.brand}; }
+    </style>
+    <rect width="${width}" height="${height}" fill="${theme.page}"/>${parts.join("")}
+  </svg>`;
   return { svg, width, height };
 }
 

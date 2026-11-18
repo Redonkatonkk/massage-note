@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](ARCHITECTURE.zh-CN.md)**
 
-> Verified against version: `1.62.2`
+> Verified against version: `1.62.14`
 
 Massage note is a TypeScript modular monolith managed by the pnpm workspace. Web, API and shared packages are developed and tested in the same repository. Production can be run as a Web/API dual container or simultaneously in a Synology single image.
 
@@ -153,7 +153,7 @@ Kanban reads placeholders and protects its employee rows, statistics and calenda
 
 ## Financial and historical data
 
-The domain function `calculateCashChange` computes expected drawer movement from confirmed work records and cash gift-card sales using integer cents. `ClosingsService` captures employee roles and daily-settlement settings in the calculation and writes `store.cashChangeCents` into the existing totals JSON in the closing transaction. `BoardsService` reads the immutable value rather than recomputing it from current settings; missing legacy values stay null. Ordinary employee board responses also omit the raw closing object so its store snapshot cannot expose the new amount. Reason: financial display, historical stability and access control must share the server snapshot.
+The domain function `calculateCashChange` computes expected drawer movement for the legacy daily-closing snapshot `store.cashChangeCents`. The business overview balance reads confirmed cash receipts and active settlement payouts together in a repeatable-read transaction. Cash settlement, work record writes and closing share the business-day advisory lock. Closing rechecks the cash exception inside that lock before creating the immutable snapshot. Board rows publish only the settlement status, with store totals still scoped to managers. Reason: posted cash affects the balance immediately and closing must respect concurrent changes.
 
 - The persistent amount uses integer cents; the final calculation of the domain layer uses `bigint`, and the commission uses basis points. Reason: Integer cents avoid floating point errors, and cents are used to accurately express commissions.
 - The formula fact source is `packages/domain/src/finance.ts`, the amount formatting is not the ledger calculation. Reason: Formatting only changes the display and should not produce a second set of accounting algorithms.

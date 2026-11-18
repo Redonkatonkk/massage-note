@@ -17,7 +17,8 @@ export function Chart({ title, description, points, bars = false, horizontalBars
   const { locale } = useLanguage();
   const en = locale === "en-US";
   const [selected, setSelected] = useState<string | null>(null);
-  const selectedPoint = points.find(point => point.label === selected);
+  const selectedIndex = points.findIndex(point => point.label === selected);
+  const selectedPoint = points[selectedIndex];
   const [revenueSelection, setRevenueSelection] = useState<string | null>(null);
   const revenuePoint = points.find(point => point.label === revenueSelection);
   const revenueTable = useRef<HTMLDetailsElement>(null);
@@ -83,8 +84,8 @@ export function Chart({ title, description, points, bars = false, horizontalBars
     {legend && <p className="analytics-legend">{legend}</p>}
     {controls}
     {points.length === 0 && <p className="empty-state">{en ? "No service records in this range." : "当前范围没有记工。"}</p>}
-    <div className={horizontalBars ? "analytics-plot analytics-horizontal-bars" : bars ? "analytics-scroll" : "analytics-plot"} ref={plot} tabIndex={0} aria-label={title}>
-      {horizontalBars ? <AnalyticsHorizontalBars points={points} series={curves} width={plotWidth} valueWidth={valueWidth} label={label} selected={revenueSelection} inspect={point => setSelected(point.label)} activate={activate} /> : <svg width={bars ? width : "100%"} height={height} viewBox={`0 0 ${width} ${height}`} aria-label={title}>
+    <div className={horizontalBars ? "analytics-plot analytics-horizontal-bars" : bars ? "analytics-scroll" : "analytics-plot"} ref={plot} tabIndex={bars ? 0 : undefined} aria-label={bars ? title : undefined}>
+      {horizontalBars ? <AnalyticsHorizontalBars points={points} series={curves} width={plotWidth} valueWidth={valueWidth} label={label} selected={revenueSelection} inspect={point => setSelected(point.label)} activate={activate} /> : <svg width={bars ? width : "100%"} height={height} viewBox={`0 0 ${width} ${height}`} role={bars ? undefined : "img"} aria-label={title}>
         {Array.from({ length: tickCount }, (_, i) => { const value = floor + (ceiling - floor) * i / (tickCount - 1); return <g key={i}>
           <line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="var(--line)" />
           <text className="analytics-y-label" x={left - 8} y={y(value) + 4} textAnchor="end">{peak ? label(value) : currency ? `$${Math.round(value)}` : value}</text>
@@ -113,14 +114,26 @@ export function Chart({ title, description, points, bars = false, horizontalBars
           {bars && !groupedBars && point.value === null && <text x={x(i)} y={bottom - 8} textAnchor="middle">—</text>}
           {!bars && curves.map(curve => curve.values[i] != null && <circle key={curve.id} data-motion-mark cx={x(i)} cy={y(curve.values[i]!)} r={points.length > 90 ? 1.5 : 2.5} fill={curve.color} />)}
           {(bars || labelIndices.has(i)) && <text className="analytics-axis-label" x={x(i)} y={bottom + (bars ? 44 : 23)} textAnchor="middle">{point.label.length === 10 ? point.label.slice(5) : point.label}</text>}
-          <rect className="analytics-hit" x={x(i) - (right - left) / points.length / 2} y={top} width={(right - left) / points.length} height={bottom - top + (point.dailyRevenueDetails !== undefined ? (bars ? 55 : 35) : 0)} fill="transparent" tabIndex={0} role="button" aria-label={point.detail} aria-pressed={point.dailyRevenueDetails !== undefined ? revenueSelection === point.label : undefined}
-            onMouseEnter={() => setSelected(point.label)} onFocus={() => setSelected(point.label)} onClick={() => activate(point)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(point); } }}><title>{point.detail}</title></rect>
+          <rect className="analytics-hit" x={x(i) - (right - left) / points.length / 2} y={top} width={(right - left) / points.length} height={bottom - top + (point.dailyRevenueDetails !== undefined ? (bars ? 55 : 35) : 0)} fill="transparent" tabIndex={bars ? 0 : undefined} role={bars ? "button" : undefined} aria-label={point.detail} aria-pressed={bars && point.dailyRevenueDetails !== undefined ? revenueSelection === point.label : undefined}
+            onMouseEnter={() => setSelected(point.label)} onFocus={bars ? () => setSelected(point.label) : undefined} onClick={() => activate(point)} onKeyDown={bars ? event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(point); } } : undefined}><title>{point.detail}</title></rect>
         </g>)}
+        {!bars && selectedPoint && <line className="analytics-selected-period" x1={x(selectedIndex)} x2={x(selectedIndex)} y1={top} y2={bottom} stroke="var(--brand)" vectorEffect="non-scaling-stroke" pointerEvents="none" aria-hidden="true" />}
         {peak && <circle className="analytics-peak-point" data-series={peak.curve.id} cx={x(peak.index)} cy={y(peak.value)} r="5" fill="var(--surface)" stroke={peak.curve.color} strokeWidth="2.5" pointerEvents="none" aria-hidden="true" />}
       </svg>}
     </div>
     {peak && <p className="analytics-description analytics-peak" role="status">{en ? "Highest average revenue" : "最高平均营业额"} <strong>{label(peak.value)}</strong> · {points[peak.index]?.label} · {peak.curve.label}</p>}
-    <p className="analytics-readout" aria-live="polite">{selectedPoint ? selectedPoint.detail : en ? "Tap or focus a point to see its value." : "点击或聚焦图中位置查看具体数值。"}</p>
+    {points.length > 0 && <div className="analytics-inspection">
+      {!bars && <label>
+        <span>{en ? "Inspect period" : "查看时段"}</span>
+        <select value={selectedPoint?.label ?? ""} onChange={event => setSelected(event.currentTarget.value)}>
+          <option value="" disabled>{en ? "Choose a period" : "选择时段"}</option>
+          {points.map(point => <option key={point.label} value={point.label}>{point.label}</option>)}
+        </select>
+      </label>}
+      <p className="analytics-readout" aria-live="polite">{selectedPoint?.detail ?? (bars
+        ? en ? "Tap or focus a point to see its value." : "点击或聚焦图中位置查看具体数值。"
+        : en ? "Choose a period or tap the chart to see its value." : "选择时段或点击图表查看数值。")}</p>
+    </div>}
     {points.some(point => point.dailyDetails !== undefined) ? <details className="hourly-details" ref={hourlyTable}>
       <summary>{en ? "Selected hour record details" : "我选择的时段记工明细"}<span>{en ? "Dates with service starts only" : "仅显示有上工的日期"}</span></summary>
       <div className="hourly-details__list">

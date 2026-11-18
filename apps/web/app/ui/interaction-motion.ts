@@ -163,6 +163,12 @@ export function usePanelHeight(panel: RefObject<HTMLElement | null>, open: boole
   }, [open, panel, sizeKey]);
 }
 
+export function animateListItemMove(item: HTMLElement, x: number, y = 0) {
+  if (typeof item.animate !== "function" || Math.abs(x) + Math.abs(y) < 1) return;
+  return item.animate([{ translate: `${x}px ${y}px` }, { translate: "0px 0px" }],
+    { duration: 190, easing: "cubic-bezier(.22, 1, .36, 1)" });
+}
+
 /** Animate surviving keyed items from their last measured positions. */
 export function useListMotion<T extends HTMLElement>(keys: string, enabled = true) {
   const root = useRef<T | null>(null);
@@ -198,11 +204,8 @@ export function useListMotion<T extends HTMLElement>(keys: string, enabled = tru
         }
         continue;
       }
-      const dx = prior.x - x;
-      const dy = prior.y - y;
-      if (Math.abs(dx) + Math.abs(dy) < 1) continue;
-      const motion = item.animate([{ translate: `${dx}px ${dy}px` }, { translate: "0px 0px" }],
-        { duration: 190, easing: "cubic-bezier(.22, 1, .36, 1)" });
+      const motion = animateListItemMove(item, prior.x - x, prior.y - y);
+      if (!motion) continue;
       animations.current.set(item, motion);
       void motion.finished.then(() => {
         if (animations.current.get(item) === motion) animations.current.delete(item);

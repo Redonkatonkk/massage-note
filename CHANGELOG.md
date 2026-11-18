@@ -4,6 +4,56 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.62.14 — 2026-11-18
+
+- Make Framed Sheet the single work interface and remove the Legacy/New switch. Existing browser choices no longer affect the layout. On wide, mouse-capable screens, work cards stack from five per employee. Narrow and touch layouts keep cards at full width. NAS needs a Web update.
+
+## 1.62.13 — 2026-11-18
+
+- Wrap long employee names and amounts in employee subtotal attachments and use the shared ledger palette. Update the installed Mac Messages agent for new attachments.
+- Give finance line charts one period selector for keyboard and precise touch inspection, enlarge the Today work-card Add-ons and Discount touch targets, and keep a retryable error visible when the standalone AI assistant fails to open. NAS needs a Web update.
+
+## 1.62.12 — 2026-11-18
+
+- Replace roster initials with gray, green, yellow and red status symbols. Payment mismatches and cash due after closing take priority and include a reason. NAS needs a Web and API update.
+
+## 1.62.11 — 2026-11-18
+
+- Match Available and Settled to the end-time font size in expanded employee rows on desktop. NAS needs a Web update.
+
+## 1.62.10 — 2026-11-18
+
+- Apply the raised card treatment to each full employee row, including its record track and totals. NAS needs a Web update.
+
+## 1.62.9 — 2026-11-18
+
+- Raise the cool-gray employee cards with rounded corners and a soft two-layer shadow. NAS needs a Web update.
+
+## 1.62.8 — 2026-11-18
+
+- Give each Today overview metric a raised card on desktop and in the mobile summary. NAS needs a Web update.
+
+## 1.62.7 — 2026-11-18
+
+- Deepen the employee identity surface, lift work cards with soft shadows, and let the Today calendar sit on the white page. NAS needs a Web update.
+
+## 1.62.6 — 2026-11-18
+
+- Use subtle cool-gray fills and spacing for the Today calendar, overview, roster, and work cards. Stacked cards remain distinct, and payment and focus outlines remain visible. NAS needs a Web update.
+
+## 1.62.5 — 2026-11-18
+
+- Match Available to the end-time text size, with a green dot and label. Show active end times in orange and mark settled employee cards as Settled.
+- Deduct employee cash from the business overview only after settlement. Cash due for a regular employee blocks automatic closing and requires confirmation to force a manual close. NAS needs Web and API updates.
+
+## 1.62.4 — 2026-11-18
+
+- When a new work record changes the row or its scroll position, existing cards and Add record slide from their visible positions. The new card keeps its orb reveal. NAS needs a Web update.
+
+## 1.62.3 — 2026-11-18
+
+- The loading orb flies to the new work card and expands into its surface before handing off to the live card. The card stays concealed during refresh and the reveal uses a single rendering pass. NAS needs a Web update.
+
 ## 1.62.2 — 2026-11-18
 
 - Open Customer payment from the amounts, tips, or Pending payment on a work card. The + and `off` badges open Add-ons and Discounts in the same record details. NAS needs a Web update.

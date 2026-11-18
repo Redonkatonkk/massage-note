@@ -17,7 +17,7 @@ import { browserStorage } from "../../lib/browser-storage";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { LatestRequest } from "../../lib/latest-request";
 import { ApiError, apiRequest, errorMessage } from "../../lib/api";
-import { hasBlockingClosingWarnings } from "../../lib/closing";
+import { hasBlockingClosingWarnings, hasUnsettledClosingCash } from "../../lib/closing";
 import { formatUsd } from "../../lib/money";
 import type {
   CashSettlementResponse,
@@ -43,6 +43,7 @@ import { isWorkRecordChange } from "../../lib/realtime-scope";
 import { Workspace } from "../app-nav";
 import { ClosingDeliveryQueue } from "../closing-delivery-queue";
 import { EmployeeClosingSummary } from "../employee-closing";
+import { CashClosingConfirm } from "../cash-closing-confirm";
 import { FloatingAiAssistant } from "../floating-ai-assistant";
 import { RecordEditor } from "../record-editor";
 import { GiftCardLedger } from "./gift-card-ledger";
@@ -78,6 +79,7 @@ export function FinancePageClient() {
   const [loadedCash, setCashData] = useState<CashSettlementResponse | null>(null);
   const [cashLoadFailed, setCashLoadFailed] = useState(false);
   const [closing, setClosing] = useState<ClosingPreview | null>(null);
+  const [cashConfirmScope, setCashConfirmScope] = useState<string | null>(null);
   const [closingDeliveries, setClosingDeliveries] = useState<ClosingDeliveryList | null>(null);
   const [myClosing, setMyClosing] = useState<EmployeeClosingPreview | null>(null);
   const [payroll, setPayroll] = useState<PayrollSettlement[]>([]);
@@ -367,6 +369,31 @@ export function FinancePageClient() {
     await Promise.all([loadCash(), loadClosing(), loadSummary(true), loadPayroll()]);
   }
 
+  async function closeBusinessDay(mode: "normal" | "cash" | "force") {
+    if (!membership) return;
+    const path = `/stores/${membership.store.id}/closings/${cashDate}`;
+    let body: { force: boolean; forceReason?: string; confirmUnsettledCash?: true } = { force: false };
+    if (mode === "force") {
+      const reason = (await decision.prompt("强制日结会保留全部异常快照，请填写原因", { action: "强制日结", required: true, danger: true }))?.trim();
+      if (!reason || dayScope.current !== currentDayScope) return;
+      body = { force: true, forceReason: reason };
+    } else if (mode === "cash") {
+      body = { force: false, confirmUnsettledCash: true };
+    }
+    try {
+      await apiRequest(path, { method: "POST", idempotent: true, body });
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.code === "CLOSING_UNSETTLED_CASH_REQUIRE_CONFIRMATION") {
+        await loadClosing();
+        if (dayScope.current === currentDayScope) setCashConfirmScope(currentDayScope);
+        return;
+      }
+      if (caught instanceof ApiError && caught.code === "CLOSING_WARNINGS_REQUIRE_FORCE") await loadClosing();
+      throw caught;
+    }
+    await loadClosing();
+  }
+
   async function toggleCash(row: CashSettlementRow) {
     const reason = row.status === "SETTLED" ? (await decision.prompt("请填写取消结清原因", { action: "取消结清", required: true }))?.trim() : undefined;
     if (row.status === "SETTLED" && !reason) return;
@@ -402,8 +429,9 @@ export function FinancePageClient() {
     payroll: canManage ? "选择员工与日期范围，核对工资后记录支付。" : "查看自己的工资结算与支付明细。",
   };
   const closingHasBlockingWarnings = closing
-    ? hasBlockingClosingWarnings(closing.warnings)
+    ? hasBlockingClosingWarnings(closing.warnings.filter(warning => warning.code !== "CASH_UNSETTLED"))
     : false;
+  const closingHasUnsettledCash = closing ? hasUnsettledClosingCash(closing.warnings) : false;
   const ownerMember = members.find((member) => member.id === storeDetails?.ownerMembershipId);
   const ownerPhone = ownerMember?.user?.phoneE164 ?? ownerMember?.closingDeliveryPhoneE164 ?? "";
 
@@ -459,8 +487,29 @@ export function FinancePageClient() {
       {tab === "closing" && canManage && closing?.storeId === membership.store.id && closing.businessDate === cashDate && (
         <section className="finance-section" data-motion-content>
           <div className="date-toolbar"><div className="business-date-field"><span>营业日</span><BusinessDatePicker storeId={membership.store.id} value={cashDate} max={day.businessDate} ariaLabel="选择日结营业日" onChange={setCashDate} /></div><button className="secondary-action" type="button" disabled={busy} onClick={event => void withButtonMotion(event.currentTarget, () => run(async () => { await Promise.all([loadClosing(), loadCash()]); }))}>重新检查</button></div>
-          <div className={`closing-status ${closing.hasWarnings ? "warning" : "ready"}`}><div key={`${closing.isClosed}:${closing.warningCount}:${closing.activeClosing?.cycleNo}`} data-motion-change><span>{closing.isClosed ? "已日结" : closingHasBlockingWarnings ? "发现日结异常" : "可以正常日结"}</span><strong>{closing.isClosed ? `第 ${closing.activeClosing?.cycleNo ?? 0} 次日结` : closing.hasWarnings ? `${closing.warningCount} 项提醒` : "检查通过"}</strong></div>{closing.isClosed ? <button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { if (!closing.activeClosing) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}/cancel`, { method: "POST", idempotent: true, body: { version: closing.activeClosing.version } }); await loadClosing(); await loadCash(); })}>取消日结</button> : <div className="closing-actions"><button className="primary-action" type="button" disabled={busy || closingHasBlockingWarnings} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: false } }); await loadClosing(); })}>确认日结</button>{closingHasBlockingWarnings && <button className="danger-button" type="button" disabled={busy} onClick={() => run(async () => { const reason = await decision.prompt("强制日结会保留全部异常快照，请填写原因", { action: "强制日结", required: true, danger: true }); if (!reason?.trim()) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: true, forceReason: reason.trim() } }); await loadClosing(); })}>强制日结</button>}</div>}</div>
-          {closing.warnings.length > 0 && <div className="warning-list" data-motion-content>{closing.warnings.map((warning) => <article key={warning.code}><div className="warning-list__heading"><strong>{warning.labelZh}</strong><span>{warning.count} 条记录</span></div>{warning.blocking === false && <p className="warning-list__notice">仅提醒，不影响正常日结</p>}<div className="warning-record-links">{warning.recordIds.map((recordId, index) => <button className="secondary-action compact" key={recordId} type="button" disabled={busy} onClick={() => openWarningRecord(recordId)} aria-label={`查看${warning.labelZh}第 ${index + 1} 单`}>查看第 {index + 1} 单</button>)}</div></article>)}</div>}
+          <div className={`closing-status ${closing.hasWarnings ? "warning" : "ready"}`}>
+            <div key={`${closing.isClosed}:${closing.warningCount}:${closing.activeClosing?.cycleNo}`} data-motion-change>
+              <span>{closing.isClosed ? "已日结" : closingHasBlockingWarnings ? "发现日结异常" : closingHasUnsettledCash ? "员工现金尚未结清" : "可以正常日结"}</span>
+              <strong>{closing.isClosed ? `第 ${closing.activeClosing?.cycleNo ?? 0} 次日结` : closing.hasWarnings ? `${closing.warningCount} 项提醒` : "检查通过"}</strong>
+            </div>
+            {closing.isClosed ? <button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => {
+              if (!closing.activeClosing) return;
+              await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}/cancel`, { method: "POST", idempotent: true, body: { version: closing.activeClosing.version } });
+              await loadClosing();
+              await loadCash();
+            })}>取消日结</button> : <div className="closing-actions">
+              {closingHasBlockingWarnings && <button className="primary-action" type="button" disabled>确认日结</button>}
+              <CashClosingConfirm className={closingHasBlockingWarnings ? "danger-button" : "primary-action"} type="button" disabled={busy}
+                open={closingHasUnsettledCash && cashConfirmScope === currentDayScope}
+                onDismiss={() => setCashConfirmScope(null)}
+                onConfirm={() => { setCashConfirmScope(null); void run(() => closeBusinessDay(closingHasBlockingWarnings ? "force" : "cash")); }}
+                onClick={() => {
+                  if (closingHasUnsettledCash) setCashConfirmScope(currentDayScope);
+                  else void run(() => closeBusinessDay(closingHasBlockingWarnings ? "force" : "normal"));
+                }}>{closingHasBlockingWarnings ? "强制日结" : "确认日结"}</CashClosingConfirm>
+            </div>}
+          </div>
+          {closing.warnings.length > 0 && <div className="warning-list" data-motion-content>{closing.warnings.map((warning) => <article key={warning.code}><div className="warning-list__heading"><strong>{warning.labelZh}</strong><span>{warning.count} <span>{warning.code === "CASH_UNSETTLED" ? "位员工" : "条记录"}</span></span></div>{warning.blocking === false && <p className="warning-list__notice">仅提醒，不影响正常日结</p>}{warning.recordIds.length > 0 && <div className="warning-record-links">{warning.recordIds.map((recordId, index) => <button className="secondary-action compact" key={recordId} type="button" disabled={busy} onClick={() => openWarningRecord(recordId)} aria-label={`查看${warning.labelZh}第 ${index + 1} 单`}>查看第 {index + 1} 单</button>)}</div>}</article>)}</div>}
           <ClosingWorkspace delivery={<section className="closing-delivery-panel">
               <div><strong>员工个人日结短信</strong><p>{!closing.isClosed ? "未日结也可从个人日结逐人发送，发送状态显示在下方。" : closingDeliveries?.batchBlockedReason ?? "直接排队所有已开启接收、号码有效且当天有记工的员工。"}</p></div>
               {closing.isClosed && <button className="primary-action" type="button" disabled={busy || closingDeliveries?.batchAllowed === false} onClick={() => run(queueClosingDeliveries)}>{closingDeliveries?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>}
@@ -489,7 +538,7 @@ export function FinancePageClient() {
           <div className="date-toolbar"><div className="business-date-field"><span>营业日</span><BusinessDatePicker storeId={membership.store.id} value={cashDate} max={day.businessDate} ariaLabel="选择日结营业日" onChange={setCashDate} /></div><button className="secondary-action" type="button" disabled={busy} onClick={event => void withButtonMotion(event.currentTarget, () => run(async () => { await Promise.all([loadClosing(), loadCash()]); }))}>重新加载</button></div>
           <section className="personal-cash-settlement">
             <h2 className="table-title">现金结算</h2>
-            <p className="field-help">现金未结清不影响正常日结，日结后仍可结清现金。</p>
+            <p className="field-help">普通员工仍有现金待结时，须结清或确认强制日结。强制日结后仍可结清现金。</p>
             {cashData ? cashData.rows.filter(row => row.membershipId === membership.id).map(row => <div key={row.membershipId}>
               <p>{row.status === "SETTLED" ? "已全部结清" : "未结清"}</p>
               <dl className="personal-cash-amounts"><div><dt>应提交店铺</dt><dd>{money(row.cashToSubmitToStoreCents)}</dd></div><div><dt>员工应保留</dt><dd>{money(row.cashRetainedCents)}</dd></div></dl>

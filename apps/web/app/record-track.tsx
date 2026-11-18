@@ -1,18 +1,87 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { Component, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { followRecordTrackEnd } from "../lib/record-track-scroll";
-import { useWorkRecordExperiment } from "./work-record-experiment";
-import { useListMotion } from "./ui/interaction-motion";
+import { allowsMotion, animateListItemMove } from "./ui/interaction-motion";
+
+interface RecordTrackCardsProps {
+  trackRef: RefObject<HTMLDivElement | null>;
+  follow: RefObject<ReturnType<typeof followRecordTrackEnd> | null>;
+  stacked: boolean;
+  movementKey: string | undefined;
+  children: ReactNode;
+}
+
+function measureCards(track: HTMLDivElement) {
+  const viewport = track.getBoundingClientRect();
+  return Array.from(track.querySelectorAll<HTMLElement>(":scope > [data-motion-item]"), card => {
+    const box = card.getBoundingClientRect();
+    return { card, left: box.left - viewport.left, right: box.right - viewport.left };
+  });
+}
+
+// Capture the visible positions before React changes card order, overlap, or scroll bounds.
+class RecordTrackCards extends Component<RecordTrackCardsProps> {
+  private moves = new Set<Animation>();
+
+  getSnapshotBeforeUpdate(previous: RecordTrackCardsProps) {
+    const { trackRef, movementKey } = this.props;
+    const track = trackRef.current;
+    if (!track || movementKey === undefined || movementKey === previous.movementKey || !allowsMotion()) return null;
+    return new Map(measureCards(track).map(box => [box.card.dataset.motionItem, box]));
+  }
+
+  componentDidUpdate(previous: RecordTrackCardsProps, _state: unknown, before: ReturnType<RecordTrackCards["getSnapshotBeforeUpdate"]>) {
+    const { trackRef, follow, movementKey } = this.props;
+    const track = trackRef.current;
+    if (!track || movementKey === previous.movementKey) return;
+    this.stopMoves();
+    if (!before) { follow.current?.refresh(); return; }
+
+    // Apply the resting stack layout and scroll position in the same commit.
+    track.setAttribute("data-record-reflow", "");
+    let after;
+    try {
+      follow.current?.refresh();
+      after = measureCards(track);
+    } finally { track.removeAttribute("data-record-reflow"); }
+    const width = track.clientWidth;
+
+    for (const { card, left, right } of after) {
+      const from = before.get(card.dataset.motionItem);
+      if (!from || Math.max(from.right, right) <= 0 || Math.min(from.left, left) >= width) continue;
+      const move = animateListItemMove(card, from.left - left);
+      if (!move) continue;
+      this.moves.add(move);
+      const forget = () => { this.moves.delete(move); };
+      void move.finished.then(forget, forget);
+    }
+  }
+
+  private stopMoves() {
+    for (const move of this.moves) move.cancel();
+    this.moves.clear();
+  }
+
+  componentWillUnmount() { this.stopMoves(); }
+
+  render() {
+    const { trackRef, stacked, children } = this.props;
+    return <div className="record-track" ref={trackRef} data-motion-list data-record-stack={stacked || undefined}>{children}<span className="record-track-tail" aria-hidden="true" /></div>;
+  }
+}
 
 export function RecordTrack({ children, recordCount, movementKey, autoReturn = false }: { children: ReactNode; recordCount: number; movementKey?: string; autoReturn?: boolean }) {
-  const trackRef = useListMotion<HTMLDivElement>(movementKey ?? "", movementKey !== undefined);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const follow = useRef<ReturnType<typeof followRecordTrackEnd> | null>(null);
   const [canJump, setCanJump] = useState(false);
-  const { experimental } = useWorkRecordExperiment();
-  const stacked = experimental && recordCount >= 5;
+  const stacked = recordCount >= 5;
 
-  useEffect(() => {
-    if (autoReturn && trackRef.current) return followRecordTrackEnd(trackRef.current);
+  useLayoutEffect(() => {
+    if (!autoReturn || !trackRef.current) return;
+    const controller = followRecordTrackEnd(trackRef.current);
+    follow.current = controller;
+    return () => { follow.current = null; controller.dispose(); };
   }, [autoReturn]);
 
   useEffect(() => {
@@ -53,7 +122,7 @@ export function RecordTrack({ children, recordCount, movementKey, autoReturn = f
   }, [children, stacked]);
 
   return <div className="record-track-container">
-    <div className="record-track" ref={trackRef} data-motion-list data-record-stack={stacked || undefined}>{children}<span className="record-track-tail" aria-hidden="true" /></div>
+    <RecordTrackCards trackRef={trackRef} follow={follow} stacked={stacked} movementKey={movementKey}>{children}</RecordTrackCards>
     {canJump && <button
       className="record-track-jump"
       type="button"

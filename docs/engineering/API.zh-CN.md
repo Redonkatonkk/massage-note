@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.62.2`
+> 适用版本：`1.62.14`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -76,7 +76,7 @@
 | POST | `/stores/:storeId/gift-card-sales/:saleId/restore` | 恢复已删除卖卡记录 |
 | GET | `/stores/:storeId/closings/:businessDate/preview` | 全店日结预览 |
 | GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | 个人日结预览；员工仅可读取本人；返回目标员工按开始时间排序的逐笔记工、项目/加项名称、逐笔 `grossFeeBaseCents` 折前大费、`discountTotalCents` 折扣及 `isHighlighted` 高亮标记、现金/刷卡/礼物卡实收拆分、单笔工资收入，以及现金/刷卡大费分红、现金/刷卡小费分红和对应合计；仅计已确认付款；每日小结“现金大费”使用 `cashLargeFeeDividendCents` 表示店里应付员工的现金大费工资（现金大费实收为正时，按总大费工资 ×（现金大费实收＋折扣）/（全部大费实收＋折扣）舍入至美分；否则为零，不含现金小费）；`cashToSubmitToStoreCents` 仅保留旧口径兼容；不含全店或他人数据 |
-| POST | `/stores/:storeId/closings/:businessDate`、`.../cancel` | 正常/强制日结与取消日结；现金结清状态不阻止正常日结，日结不自动结清现金；取消仅需 `version`，`reason` 可省略 |
+| POST | `/stores/:storeId/closings/:businessDate`、`.../cancel` | 正常日结、强制日结和取消日结。普通员工有应结现金时，手动日结须确认。结现金是独立操作。取消需要 `version`，可选填 `reason` |
 | GET | `/stores/:storeId/closings/:businessDate/deliveries` | 店主或经理查看个人日结短信发送历史、错误和 Mac 代理状态 |
 | POST | `/stores/:storeId/closings/:businessDate/deliveries/batch` | 日结后把所有已开启、号码有效且当天有记工的成员幂等加入发送队列 |
 | DELETE | `/stores/:storeId/closings/:businessDate/deliveries/:deliveryId` | 店主或经理取消仍处于排队状态的单条员工日结短信任务 |
@@ -224,7 +224,7 @@ Web 快速记工下拉框默认选择目录顺序中的首个启用项目，提�
 
 项目排序提交完整的未删除项目列表及当前版本，例如 `{ "type": "SERVICE", "items": [{ "id": "...", "version": 2 }] }`。服务端在同一事务中校验列表、项目归属和全部版本，再统一写入顺序；列表不完整或任一版本过期时返回 `CATALOG_ORDER_CONFLICT`，不会留下半套排序。
 
-今日记工页面只调用 `POST /stores/:storeId/shifts/clock-in` 支持普通员工把本人加入当前营业日表格，不调用下班接口。新营业日上班若发现本人仍有旧营业日未结束班次，会先原子结束旧班次并记录 `shift.stale_auto_closed` 审计，再创建当前班次和本人表格行；同一营业日重复上班返回 `SHIFT_ALREADY_OPEN`。`clock-out` 继续保留给旧客户端和历史审计兼容，员工页面不提供对应按钮；员工工作状态仍完全由记工时间段计算。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
+今日记工页面只调用 `POST /stores/:storeId/shifts/clock-in` 支持普通员工把本人加入当前营业日表格，不调用下班接口。新营业日上班若发现本人仍有旧营业日未结束班次，会先原子结束旧班次并记录 `shift.stale_auto_closed` 审计，再创建当前班次和本人表格行；同一营业日重复上班返回 `SHIFT_ALREADY_OPEN`。`clock-out` 继续保留给旧客户端和历史审计兼容，员工页面读取保存的下班记录来标记已下班。当前营业日开放时，仍在岗员工的空闲状态和预计下工时间由记工时间段决定。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
 ### 记工占位
 
@@ -360,7 +360,9 @@ Web 请求发送 `X-Device-Time`（设备当前 ISO 时间）和 `X-Device-Timez
 
 `POST /stores/:storeId/closings/:date` 首次成功日结时同步持久化符合条件的员工小结任务，无需额外调用批量发送接口；响应结构保持不变。只触发当天第一个日结周期，按店铺、营业日、成员跳过已有 SENT/QUEUED/CLAIMED 任务，含日结前手动发送。仅在职、开启接收、号码有效且当天有记工的成员参与；可通过既有发送列表接口查看结果。保留原因：`ClosingsService` 按预览工数筛选接收人，日结与首次队列原子保存，取消重结不能重复发送。
 
-每天店铺时区 23:30 的自动日结由 API 内部调度执行，不开放新的 HTTP 接口。自动模式要求所有检查项无异常，不允许强制日结，也不会重新日结已取消的日期。保留原因：日结与首次队列原子保存，取消重结不能重复发送。
+普通员工待发现金大于 0 且未结时，日结预览返回阻塞警告 `CASH_UNSETTLED`。没有其他记工阻塞项时，普通日结请求返回 `CLOSING_UNSETTLED_CASH_REQUIRE_CONFIRMATION`。管理者可提交 `{ force: false, confirmUnsettledCash: true }` 确认现金例外。服务端在营业日锁内复核，仍有现金未结时记录强制日结并保存原因。记工异常仍须提交 `force: true` 和 `forceReason`。
+
+店铺当地 23:30 由 API 内部调度自动日结，所有检查通过才执行。员工现金未结阻止自动日结，取消过的日结仍须手动关闭。保留原因：异常须由管理者确认。
 
 已绑定的 `POST /integrations/langbot/work-context` 响应新增 `storeId`，供插件持久学习按店铺隔离；未绑定响应不包含该字段。协议版本仍为 2。
 
@@ -490,9 +492,9 @@ v3 生成只采用前一非空营业日的 v3 标记及最终可见第一名，�
 
 `GET/PATCH /stores/:storeId` 包含 `cashSettlementEnabled`（默认 false）、`cashSettlementCycle`（默认 `WEEKLY`，可选 `MONTHLY`）、`cashResetWeekday`（周一=1 至周日=7，默认 1）、`cashResetMonthDay`（1–31，默认 1）和 `cashResetAmountCents`（非负安全整数美分，默认 0）。PATCH 五项一起提交，沿用版本、设置权限、幂等和审计保护。重置发生在营业开始时，短月取最后一天。完整／演示备份保留设置；校验通过的旧备份五项全部缺失时默认关闭，部分缺失则拒绝。
 
-`GET /stores/:storeId/boards/:businessDate` 在店主／经理查看当前营业日或已日结日期时返回 `statistics.cashBalance`：`{ enabled, resetDate, balanceCents, missingClosingDates }`，其他情况为 null。关闭功能返回 false、空日期／金额和空缺失日期列表；开启时返回最近重置日，以及重置金额加周期净变化，包含重置日和所选日期。有效已日结日期使用冻结现金变化；未日结日期使用已确认且未删除的记工和有效卖卡现金。旧日结快照缺失／无效则余额为 null，返回排序后的缺失日期。在一致事务内读取，不持久化累计余额，修改设置不重写历史快照。普通员工不返回全店余额或日结快照。
+`GET /stores/:storeId/boards/:businessDate` 为所选日期和可查看的员工行返回 `rows[].cashSettled` 和 `rows[].cashUnsettled`。日结后，普通员工按日结预览口径有应结金额且缺少有效结清记录时，`cashUnsettled` 为真。店长和经理查看当前或已日结日期时得到 `statistics.cashBalance`，结构为 `{ enabled, resetDate, balanceCents, missingClosingDates }`。开启时，在同一个可重复读事务中查询重置日到所选日期的有效已确认现金大费、卖卡现金及普通员工有效的 `SETTLED` 支付，含首尾两天。旧日结同样读取这些来源，`missingClosingDates` 保留为空列表以兼容旧客户端。累计余额按查询实时计算。
 
-保留 `statistics.cashChangeCents` 及日结 `storeTotals.cashChangeCents` 兼容旧调用方。每日净变化＝现金大费实收＋卖卡现金实收－员工应发现金：普通员工扣现金分摊工资，每日结清员工扣全部大费工资及刷卡／礼卡小费；店长经理工资及现金小费不计，结清状态不影响。手动、强制和自动日结均原子保存每日快照。保留原因：历史余额重算需要保留每日财务依据，并区分历史不足与真实零。
+`statistics.cashChangeCents` 和日结 `storeTotals.cashChangeCents` 保留预计变动的旧口径及冻结快照，供既有客户端读取。现金余额按实际结清扣减，普通结清使用实际取得的现金工资，每日全额结清使用保存的大费工资和刷卡／礼卡小费。店长经理工资和现金小费不扣除。保留原因：日结后补结仍要更新余额，同时保留日结时的快照。
 
 AI 金额文本在两种语言下统一使用 `$`，兼容并移除模型输出的 `US$` 前缀，沿用现有整美元舍入规则。币种代码、以美分表示的 API 字段及用户自填内容保持原样。保留原因：展示格式化不能改写财务数据或用户内容。
 

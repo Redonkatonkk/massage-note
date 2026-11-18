@@ -71,4 +71,33 @@ describe.skipIf(process.platform !== "darwin")("employee summary image", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it("wraps long names above their role and grows the whole image row", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "employee-summary-long-name-"));
+    try {
+      const employee = snapshot.employees[0]!;
+      const displayName = "Alexandria Catherine Montgomery-Wellington";
+      await renderEmployeeSummaryImage({
+        ...snapshot,
+        employees: [{ ...employee, displayName }, employee, { ...employee, displayName: "歐陽長姓名".repeat(12) }],
+      }, "en_US", directory, join(directory, "summary.jpg"));
+      const svg = await readFile(join(directory, "employee-summary.svg"), "utf8");
+      const cards = [...svg.matchAll(/<g transform="translate\([\d.]+ (\d+)\)"><rect[^>]+height="(\d+)"[^>]*\/>(.*?)<\/g>/gs)];
+      expect(cards).toHaveLength(3);
+      const [first, second, third] = cards;
+      expect(first![1]).toBe(second![1]);
+      expect(first![2]).toBe(second![2]);
+      expect(Number(third![1])).toBeGreaterThan(Number(first![1]) + Number(first![2]));
+      const name = first![3]!.match(/<text[^>]+y="(\d+)" class="name"[^>]*>(.*?)<\/text>/s)!;
+      expect(first![3]).toContain(`aria-label="${displayName}"`);
+      const offsets = [...name[2]!.matchAll(/dy="(\d+)"/g)].map(match => Number(match[1]));
+      expect(offsets.length).toBeGreaterThan(1);
+      const role = first![3]!.match(/y="(\d+)"[^>]*class="meta">Employee · 2 records/)!;
+      expect(Number(role[1]) - Number(name[1]) - offsets.reduce((sum, offset) => sum + offset, 0)).toBeGreaterThanOrEqual(20);
+      expect(svg).toContain('fill="#f3f6f8"');
+      expect(svg).not.toMatch(/linearGradient|feDropShadow/);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });

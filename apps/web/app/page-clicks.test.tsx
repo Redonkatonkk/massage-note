@@ -8,9 +8,7 @@ import { DecisionProvider } from "./decision-dialog";
 import { LanguageProvider } from "./language-provider";
 import { ScrollBoundaryGuard } from "./scroll-boundary-guard";
 import { NetworkStatus } from "./network-status";
-import { WorkRecordExperimentProvider } from "./work-record-experiment";
 import { RecordTrack } from "./record-track";
-import { WorkspacePreferences } from "./workspace-menu";
 import type { AppLocale } from "../lib/i18n";
 import type { RealtimeChange } from "../lib/realtime-client";
 
@@ -80,16 +78,14 @@ async function singleClick(button: HTMLButtonElement, duringPress?: () => Promis
 }
 
 it("stacks at five work cards and returns to full spacing at four", async () => {
-  const mount = async (recordCount: number) => act(async () => root.render(<WorkRecordExperimentProvider>
-    <WorkspacePreferences />
+  const mount = async (recordCount: number) => act(async () => root.render(
     <RecordTrack recordCount={recordCount}>
       {Array.from({ length: recordCount }, (_, index) => <button key={index} className="record-card" />)}
       <button className="add-record">新增记工</button>
     </RecordTrack>
-  </WorkRecordExperimentProvider>));
+  ));
   const track = () => host.querySelector<HTMLElement>(".record-track")!;
   await mount(4);
-  await singleClick(host.querySelector<HTMLButtonElement>(".work-record-edition-switch button:last-child")!);
   expect(track().dataset.recordStack).toBeUndefined();
   await mount(5);
   expect(track().dataset.recordStack).toBe("true");
@@ -148,17 +144,15 @@ it.each(["zh-CN", "en-US"] as AppLocale[])("keeps single-click navigation and di
   await import("../demo/client");
   const { MassageNoteApp } = await import("./massage-note-app");
   const network = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Live requests are forbidden"));
-  await act(async () => root.render(<StrictMode><LanguageProvider initialLocale={locale}><WorkRecordExperimentProvider><DecisionProvider><NetworkStatus /><ScrollBoundaryGuard /><MassageNoteApp /></DecisionProvider></WorkRecordExperimentProvider></LanguageProvider></StrictMode>));
+  window.localStorage.setItem("massage_note_work_record_experiment", locale === "en-US" ? "true" : "false");
+  await act(async () => root.render(<StrictMode><LanguageProvider initialLocale={locale}><DecisionProvider><NetworkStatus /><ScrollBoundaryGuard /><MassageNoteApp /></DecisionProvider></LanguageProvider></StrictMode>));
   for (let index = 0; index < 20 && !host.querySelector(".board-overview"); index++) await act(async () => { await vi.advanceTimersByTimeAsync(10); });
   expect(host.querySelector(".board-overview"), host.textContent ?? "").not.toBeNull();
   const tick = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(15_000); }); };
   const backgroundRefresh = async () => { await act(async () => { await Promise.all([...streams].map(refresh => refresh({ full: true, changes: [] }))); }); };
   const toggle = () => host.querySelector<HTMLButtonElement>("button.app-nav-toggle")!;
-  const queue = () => host.querySelector<HTMLButtonElement>('button.board-closing-action[aria-haspopup="dialog"]')!;
+  const queue = () => host.querySelector<HTMLButtonElement>('button.board-closing-action.secondary-action[aria-haspopup="dialog"]')!;
   const tracks = [...host.querySelectorAll<HTMLElement>(".record-track")];
-  const [legacyEdition, newEdition] = host.querySelectorAll<HTMLButtonElement>(".app-nav-footer .work-record-edition-switch button");
-  expect(tracks.every(track => track.dataset.recordStack === undefined)).toBe(true);
-  await singleClick(newEdition!);
   expect(tracks.map(track => [track.querySelectorAll(".record-card").length, track.dataset.recordStack])).toEqual([
     [3, undefined], [4, undefined], [6, "true"], [4, undefined], [6, "true"],
   ]);
@@ -187,8 +181,7 @@ it.each(["zh-CN", "en-US"] as AppLocale[])("keeps single-click navigation and di
     await singleClick(refresh);
     expect(refresh.disabled).toBe(false);
   }
-  await singleClick(legacyEdition!);
-  expect(host.querySelectorAll(".record-track[data-record-stack]")).toHaveLength(0);
+  expect(host.querySelectorAll(".record-track[data-record-stack]")).toHaveLength(2);
   expect(network).not.toHaveBeenCalled();
   expect(host.querySelector(".decision-dialog")).toBeNull();
   expect(document.querySelector(".screen-feedback--error, .record-error-toast")).toBeNull();

@@ -32,7 +32,7 @@ export function CashSettlementSettings({ value, onChange, disabled }: {
   const weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
   const update = (patch: Partial<CashSettlementDraft>) => onChange({ ...value, ...patch });
   return <section className={`auto-discount-settings${value.enabled ? " enabled" : ""}`} role="group" aria-label="店内现金结算">
-    <div className="auto-discount-heading"><div><strong>店内现金结算</strong><p>按重置日和起始金额，计算日结后钱匣应有的现金。</p></div>
+    <div className="auto-discount-heading"><div><strong>店内现金结算</strong><p>按重置日、起始金额、现金实收和员工已结现金计算余额。</p></div>
       <label className="inline-check"><input type="checkbox" disabled={disabled} checked={value.enabled} onChange={event => update({ enabled: event.target.checked })} />开启</label></div>
     <div className="manage-form-grid auto-discount-fields">
       <label>结算周期<select disabled={disabled || !value.enabled} value={value.cycle} onChange={event => update({ cycle: event.target.value as CashSettlementDraft["cycle"] })}><option value="WEEKLY">按周结</option><option value="MONTHLY">按月结</option></select></label>

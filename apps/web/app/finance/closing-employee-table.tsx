@@ -46,7 +46,7 @@ export function ClosingEmployeeTable({ employees, cashRows, busy, cashLoadFailed
       <h2 className="table-title">每位员工日结检查</h2>
       <button className="primary-action" type="button" disabled={busy || !cashRows?.length || cashRows.every(row => row.status === "SETTLED")} onClick={onSettleAll}>一键全部结清</button>
     </div>
-    <p className="field-help">现金未结清不影响正常日结，日结后仍可结清现金。</p>
+    <p className="field-help">普通员工仍有现金待结时，须结清或确认强制日结。强制日结后仍可结清现金。</p>
     {!cashRows && <p className="field-help">{cashLoadFailed ? "现金结算暂不可用" : "正在加载现金结算…"}{cashLoadFailed && <button className="secondary-action compact" type="button" disabled={busy} onClick={onReloadCash}>重新加载现金</button>}</p>}
     <ResponsiveDataView desktop={<div className="table-scroll"><table className="data-table closing-employee-table">
       <thead><tr><th>员工</th><th>单数</th><th>大费基数</th><th>折扣</th><th>折后大费</th><th>小费</th><th>应得工资</th><th>待结账</th><th>应提交店铺</th><th>员工应保留</th><th>现金结清状态</th><th>操作</th></tr></thead>

@@ -31,6 +31,8 @@ The API prepares the daily text under the current lease using the queued amount 
 
 Payroll interval statements use a separate 14-day share workflow. The agent handles personal daily texts and employee subtotal images.
 
+New employee subtotal attachments use the shared cool-gray ledger palette. Employee names wrap on a separate line above the role and record count, and each row grows to fit its tallest card. Reason: long names and amounts need to remain readable in the attachment.
+
 Update NAS before upgrading the installed Mac agent. The new API accepts daily claims from agents declaring `text-v1`. Verify that the installed `app/package.json` and the store's latest agent heartbeat show the release version. Preserve `journal.json` when upgrading so pending attachment and text submissions can resume receipt monitoring.
 
 <a id="安装前准备"></a>

@@ -471,6 +471,8 @@ export interface BoardRow {
   membershipId: string;
   position: string | number;
   isHidden: boolean;
+  cashSettled?: boolean;
+  cashUnsettled?: boolean;
   version: number;
   membership: Pick<
     StoreMember,

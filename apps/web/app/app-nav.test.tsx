@@ -100,18 +100,18 @@ describe("侧栏目录展开与导航", () => {
           const desktop = width >= 1200;
           const toolbar = dom.window.document.querySelector(".workspace-toolbar .workspace-utilities")!;
           const sidebar = dom.window.document.querySelector(".app-nav-footer")!;
-          const preferences = sidebar.querySelector(".workspace-preferences")!;
+          const languages = sidebar.querySelector(":scope > .language-switcher")!;
           expect(style(toolbar).display, `${width}px toolbar menu`).toBe(desktop ? "none" : "flex");
-          if (desktop) expect(style(preferences).display).toBe("none");
+          if (desktop) expect(style(languages).display).toBe("none");
           else expect(style(sidebar).display).toBe("none");
           button.focus();
           if (desktop) {
             // jsdom caches computed styles across focus changes until the DOM mutates.
             button.setAttribute("data-test-focused", "");
-            expect(style(preferences).display).toBe("grid");
+            expect(style(languages).display).toBe("flex");
           }
           const preferenceContainer = desktop ? sidebar : dom.window.document.querySelector(".workspace-menu")!;
-          expect(preferenceContainer.querySelector(".language-switcher")?.nextElementSibling?.className).toBe("work-record-edition-switch");
+          expect([...preferenceContainer.querySelectorAll('[role="group"]')].map(group => group.className)).toEqual(["language-switcher"]);
           expect(style(button).display, `${width}px toggle`).toBe(width < 1200 ? "none" : "flex");
           expect(style(link).display, `${width}px link`).toBe(width < 1200 ? "grid" : "none");
           expect(style(menu).display, `${width}px submenu, expanded=${expanded}`).toBe(width >= 1200 && expanded ? "grid" : "none");

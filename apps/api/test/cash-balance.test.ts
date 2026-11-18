@@ -5,38 +5,35 @@ import { readCashBalance } from "../src/boards/cash-balance.js";
 const settings = { cashSettlementEnabled: true, cashSettlementCycle: "WEEKLY", cashResetWeekday: 1, cashResetMonthDay: 1, cashResetAmountCents: 20000n };
 function fixture() {
   const client = {
-    businessDayClosing: { findMany: vi.fn().mockResolvedValue([
-      { businessDate: new Date("2026-11-09"), totalsSnapshotJson: { store: { cashChangeCents: 3501 } } },
-      { businessDate: new Date("2026-11-11"), totalsSnapshotJson: { store: { cashChangeCents: -200 } } },
-    ]) },
-    workRecord: { findMany: vi.fn().mockResolvedValue([{ cashServiceCents: 5000n, cashAllocatedServiceWageCents: 3000n,
-      totalLargeFeeWageCents: 6000n, cardTipCents: 501n, giftCardTipCents: 200n, employee: { role: "EMPLOYEE", dailySettlementEnabled: false } }]) },
+    workRecord: { aggregate: vi.fn().mockResolvedValue({ _sum: { cashServiceCents: 10000n } }) },
     giftCardSale: { aggregate: vi.fn().mockResolvedValue({ _sum: { cashCents: 1501n } }) },
+    dailyCashSettlement: { findMany: vi.fn().mockResolvedValue([]) },
   };
   return { client, read: (options = settings) => readCashBalance(client as unknown as Prisma.TransactionClient, "store", "2026-11-11", options) };
 }
-describe("cash balance combines frozen closings and skipped days", () => {
-  it("includes reset day and skipped-day confirmed receipts exactly once", async () => {
+
+describe("cash balance", () => {
+  it("includes confirmed receipts and only posted employee payouts within the inclusive reset period", async () => {
     const test = fixture();
-    expect(await test.read()).toEqual({ enabled: true, resetDate: "2026-11-09", balanceCents: 26802, missingClosingDates: [] });
-    expect(test.client.workRecord.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {
-      storeId: "store", deletedAt: null, status: "CONFIRMED", businessDate: {
-        gte: new Date("2026-11-09"), lte: new Date("2026-11-11"), notIn: [new Date("2026-11-09"), new Date("2026-11-11")],
-      },
-    } }));
-    expect(test.client.businessDayClosing.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId: "store", status: "CLOSED" }), distinct: ["businessDate"], orderBy: { cycleNo: "desc" } }));
-    expect((await test.read({ ...settings, cashResetAmountCents: 10000n })).balanceCents).toBe(16802);
+    expect(await test.read()).toEqual({ enabled: true, resetDate: "2026-11-09", balanceCents: 31501, missingClosingDates: [] });
+    const scope = { storeId: "store", deletedAt: null, businessDate: {
+      gte: new Date("2026-11-09"), lte: new Date("2026-11-11"),
+    } };
+    expect(test.client.workRecord.aggregate).toHaveBeenCalledWith({ where: { ...scope, status: "CONFIRMED" }, _sum: { cashServiceCents: true } });
+    expect(test.client.giftCardSale.aggregate).toHaveBeenCalledWith({ where: scope, _sum: { cashCents: true } });
+    expect(test.client.dailyCashSettlement.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { ...scope, status: "SETTLED", membership: { role: "EMPLOYEE" } },
+    }));
+    test.client.dailyCashSettlement.findMany.mockResolvedValue([
+      { dailySettlementEnabled: false, cashAcquiredServiceWageCents: 1000n },
+      { dailySettlementEnabled: true, cashAcquiredServiceWageCents: 3000n, additionalServiceWagePaidCents: 3000n, nonCashTipPaidCents: 701n },
+    ]);
+    expect((await test.read()).balanceCents).toBe(23800);
   });
-  it("does not guess when a closed day's snapshot is missing or invalid", async () => {
-    const test = fixture();
-    test.client.businessDayClosing.findMany.mockResolvedValue([{ businessDate: new Date("2026-11-09"), totalsSnapshotJson: { store: {} } }]);
-    expect(await test.read()).toMatchObject({ balanceCents: null, missingClosingDates: ["2026-11-09"] });
-    expect(test.client.workRecord.findMany).not.toHaveBeenCalled();
-  });
+
   it("counts empty days as zero and guards safe-number conversion", async () => {
     const test = fixture();
-    test.client.businessDayClosing.findMany.mockResolvedValue([]);
-    test.client.workRecord.findMany.mockResolvedValue([]);
+    test.client.workRecord.aggregate.mockResolvedValue({ _sum: { cashServiceCents: null } });
     test.client.giftCardSale.aggregate.mockResolvedValue({ _sum: { cashCents: null } });
     expect((await test.read()).balanceCents).toBe(20000);
     test.client.giftCardSale.aggregate.mockResolvedValue({ _sum: { cashCents: 1n } });

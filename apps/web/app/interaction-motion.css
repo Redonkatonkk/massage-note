@@ -16,7 +16,7 @@
   :is(.business-date-picker__days, .settlement-calendar, .analytics-revenue-calendar, .section-tabs, .language-switcher, .member-detail-tabs)
   :is(button, a) { transition: background-color var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast), scale var(--motion-press), filter var(--motion-press); }
   @media (forced-colors: none) {
-    html:root :is(.section-tabs, .member-detail-tabs, .quick-ranges, .workspace-preferences .language-switcher) {
+    html:root :is(.section-tabs, .member-detail-tabs, .quick-ranges, :is(.workspace-menu-body, .app-nav-footer) > .language-switcher) {
       position: relative;
       isolation: isolate;
     }

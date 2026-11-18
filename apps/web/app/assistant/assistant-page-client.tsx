@@ -21,6 +21,8 @@ type ChatMessage = { id: string; role: "user" | "assistant"; text: string; previ
 export function AssistantPageClient() {
   const { locale, t } = useLanguage();
   const [membership, setMembership] = useState<MembershipSummary | null>(null);
+  const [startupError, setStartupError] = useState<string | null>(null);
+  const [startupAttempt, setStartupAttempt] = useState(0);
   const [type, setType] = useState<AssistantType>("work");
   const [messages, setMessages] = useState<Record<AssistantType, ChatMessage[]>>({ work: [{ id: "welcome-work", role: "assistant", text: "告诉我想新增、修改或删除哪条记工。我会先展示完整预览，只有你确认后才写入。" }], finance: [{ id: "welcome-finance", role: "assistant", text: "可以问我今天、本月或最近几天的大费、小费、员工收入、现金结算和老板尚欠。所有数字都由后端财务引擎计算。" }] });
   const [conversationIds, setConversationIds] = useState<Partial<Record<AssistantType, string>>>({});
@@ -40,12 +42,19 @@ export function AssistantPageClient() {
   const inputBusy = busy || voice.transcribing;
 
   useEffect(() => {
-    void apiRequest<MeResponse>("/me").then((profile) => {
+    const controller = new AbortController();
+    void apiRequest<MeResponse>("/me", { signal: controller.signal }).then((profile) => {
+      if (controller.signal.aborted) return;
       const requestedStore = new URL(window.location.href).searchParams.get("store");
       const selected = profile.memberships.find((item) => item.store.id === requestedStore) ?? profile.memberships.find((item) => item.store.id === browserStorage.getItem("massage_note_store_id")) ?? profile.memberships[0];
       if (!selected) window.location.replace(appHref("/")); else setMembership(selected);
-    }).catch((caught) => { if ((caught as { status?: number }).status === 401) window.location.replace(appHref("/login")); else setError(errorMessage(caught)); });
-  }, []);
+    }).catch((caught) => {
+      if (controller.signal.aborted) return;
+      if ((caught as { status?: number }).status === 401) window.location.replace(appHref("/login"));
+      else setStartupError(errorMessage(caught));
+    });
+    return () => controller.abort();
+  }, [startupAttempt]);
   useEffect(() => { scrollConversationToEnd(messagesRef.current); }, [busy, messages, type]);
 
   async function send() {
@@ -79,7 +88,15 @@ export function AssistantPageClient() {
     } catch (caught) { setError(errorMessage(caught)); } finally { setBusy(false); }
   }
 
-  if (!membership) return <main className="center-page"><div className="loading-card"><span className="spinner" /><strong>{error || "正在打开 AI 助手…"}</strong></div></main>;
+  if (!membership) return <main className="center-page">
+    {startupError !== null ? <section className="error-card">
+      <h1>{t("暂时无法打开 AI 助手")}</h1>
+      <p role="alert">{startupError}</p>
+      <button className="primary-action" type="button" onClick={() => { setStartupError(null); setStartupAttempt(attempt => attempt + 1); }}>
+        {locale === "en-US" ? "Retry" : "重试"}
+      </button>
+    </section> : <div className="loading-card" role="status"><span className="spinner" aria-hidden="true" /><strong>{t("正在打开 AI 助手…")}</strong></div>}
+  </main>;
   const examples = (type === "work" ? ["给我记 60分，现金大费100，刷卡小费20", "把 Amy 今天 3 点那单备注改成老客", "删除 Amy 今天的 60分，原因是重复录入"] : ["今天全店大费和小费是多少？", "最近 7 天 Amy 的刷卡小费", "今天还有谁的现金没有结清？", "本月老板尚欠员工多少钱？"]).map(t);
   return <main className="app-shell assistant-shell"><header className="topbar"><div><p className="eyebrow">{membership.store.name}</p><h1>AI 助手</h1><p className="business-date">先预览再执行 · 财务只读 <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div><a className="store-switcher header-link" href={appHref("/")}>返回今日记工</a></header><nav ref={tabIndicator} className="section-tabs" aria-label="AI 助手类型"><button className={type === "work" ? "active" : ""} type="button" aria-pressed={type === "work"} onClick={() => setType("work")}>记工助手</button><button className={type === "finance" ? "active" : ""} type="button" aria-pressed={type === "finance"} onClick={() => setType("finance")}>财务助手</button></nav><section className="assistant-layout"><aside className="assistant-examples"><h2>可以这样说</h2>{examples.map((example) => <button key={example} type="button" onClick={() => setInput(example)}>{example}</button>)}<p>{type === "work" ? "AI 无权跳过预览；删除必须明确原因并二次确认。" : "AI 不自行计算，也不能修改日结、现金或工资结算。"}</p></aside><section className="chat-panel" aria-label={type === "work" ? "记工助手对话" : "财务助手对话"}><div className="chat-messages" ref={messagesRef}>{messages[type].map((message) => <article key={message.id} className={`chat-message ${message.role}`}><span>{message.role === "user" ? "你" : "助"}</span><div><p>{message.text}</p>{message.role === "assistant" && message.providerConfigured === false && <small>当前使用安全降级模式；配置 MiniMax 后可理解更复杂的表达。</small>}{message.preview && <AiPreviewCard timezone={membership.store.timezone} preview={message.preview} busy={busy} confirm={confirm} cancel={cancel} />}</div></article>)}{busy && <article className="chat-message assistant"><span>助</span><div><p>正在核对权限和数据…</p></div></article>}</div>{error && <p className="form-error" role="alert">{error}</p>}<form className="chat-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><textarea aria-label="给 AI 助手的消息" maxLength={4000} rows={3} placeholder={type === "work" ? "说出员工、项目、时间和金额…" : "询问日期、员工和金额口径…"} value={input} onChange={(event) => setInput(event.target.value)} /><div><span>{input.length}/4000</span><div className="composer-actions">{type === "work" && <button className={`voice-button ${voice.recording ? "recording" : ""}`} type="button" disabled={busy || voice.transcribing || voice.finishingRecording} onClick={voice.recording ? voice.stopRecording : () => void voice.startRecording()}>{voice.transcribing ? "正在转写…" : voice.finishingRecording ? "正在完成录音…" : voice.recording ? "停止并转写" : "语音输入"}</button>}<button className="primary-action" type="submit" data-motion-busy={inputBusy} disabled={inputBusy || voice.recording || !input.trim()}>{inputBusy ? "处理中…" : "发送"}</button></div></div></form></section></section></main>;
 }

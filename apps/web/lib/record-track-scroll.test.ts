@@ -7,7 +7,7 @@ class Track extends EventTarget {
   scrollLeft = 0;
   children: Array<{ offsetWidth?: number; highlighted?: boolean; excluded?: boolean; getBoundingClientRect?: () => { right: number; width: number } }> = [];
   dataset: Record<string, string | undefined> = {};
-  anchor: { offsetWidth?: number; getBoundingClientRect: () => { right: number; width?: number } } | null = null;
+  anchor: { offsetLeft: number; offsetWidth: number; getBoundingClientRect: () => { right: number; width: number } } | null = null;
   tail: { style: { width: number; setProperty: (name: string, value: string) => void }; getBoundingClientRect: () => { right: number; width: number } } | null = null;
   get scrollWidth() {
     if (!this.anchor || !this.tail) return this.fixedScrollWidth;
@@ -17,8 +17,7 @@ class Track extends EventTarget {
     return Math.max(this.clientWidth, width);
   }
   set scrollWidth(value: number) { this.fixedScrollWidth = value; }
-  getBoundingClientRect() { return { left: 0, right: this.clientWidth }; }
-  querySelector(selector: string) {
+  querySelector(selector: string): object | null {
     if (selector === ".add-record") return this.anchor;
     if (selector === ".record-track-tail") return this.tail;
     return null;
@@ -31,6 +30,13 @@ class Track extends EventTarget {
     this.scrollLeft = Math.min(left ?? 0, this.scrollWidth - this.clientWidth);
   });
 
+  setAnchor(right: number, translation = 0) {
+    this.anchor = {
+      offsetLeft: right - 177, offsetWidth: 177,
+      getBoundingClientRect: () => ({ right: right - this.scrollLeft + translation, width: 177 }),
+    };
+  }
+
   useLayout(highlightedCount: number, ordinaryCount = 5, excludedCount = 0) {
     const card = (highlighted: boolean, excluded = false) => ({
       offsetWidth: 177,
@@ -41,16 +47,12 @@ class Track extends EventTarget {
     const ordinary = Array.from({ length: ordinaryCount }, () => card(false));
     const highlights = Array.from({ length: highlightedCount }, () => card(true));
     const excluded = Array.from({ length: excludedCount }, () => card(false, true));
-    const add = {
-      offsetWidth: 177,
-      getBoundingClientRect: () => ({ right: 16 + (ordinary.length) * 189 + 177 - this.scrollLeft, width: 177 }),
-    };
+    this.setAnchor(16 + ordinary.length * 189 + 177);
     this.tail = {
       style: { width: 0, setProperty: (_name: string, value: string) => { this.tail!.style.width = Number.parseFloat(value); } },
       getBoundingClientRect: () => ({ right: 0, width: this.tail!.style.width }),
     };
-    this.children = [...ordinary, add, ...highlights, ...excluded, this.tail];
-    this.anchor = add;
+    this.children = [...ordinary, this.anchor!, ...highlights, ...excluded, this.tail];
   }
 }
 
@@ -72,7 +74,7 @@ describe("open-day record track", () => {
     surface = new EventTarget();
     vi.stubGlobal("window", Object.assign(surface, {
       matchMedia: () => ({ matches: false }),
-      getComputedStyle: () => ({ columnGap: "12px", paddingLeft: "16px", paddingRight: "16px" }),
+      getComputedStyle: () => ({ columnGap: "12px", paddingLeft: "16px", paddingRight: "16px", getPropertyValue: () => "" }),
     }));
     vi.stubGlobal("ResizeObserver", class {
       constructor(callback: () => void) { resize = callback; }
@@ -85,7 +87,7 @@ describe("open-day record track", () => {
       disconnect() {}
     });
     track = new Track();
-    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement).dispose;
   });
   afterEach(() => {
     cleanup();
@@ -146,9 +148,9 @@ describe("open-day record track", () => {
   });
   it("aligns the add-record card 16px from the right edge and permits browsing both directions", () => {
     // Its right edge is at content coordinate 700, so scrollLeft 316 leaves 16px.
-    track.anchor = { getBoundingClientRect: () => ({ right: 700 - track.scrollLeft }) };
+    track.setAnchor(700);
     cleanup();
-    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement).dispose;
     expect(track.scrollLeft).toBe(316);
 
     track.scrollLeft = 100;
@@ -162,10 +164,10 @@ describe("open-day record track", () => {
     expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 316, behavior: "smooth" });
   });
   it("updates the followed anchor after reorder or highlight changes when dimensions stay the same", () => {
-    track.anchor = { getBoundingClientRect: () => ({ right: 700 - track.scrollLeft }) };
+    track.setAnchor(700);
     cleanup();
-    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
-    track.anchor = { getBoundingClientRect: () => ({ right: 1000 - track.scrollLeft }) };
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement).dispose;
+    track.setAnchor(1000);
     mutate();
     expect(track.scrollLeft).toBe(616);
 
@@ -174,13 +176,26 @@ describe("open-day record track", () => {
     track.scrollLeft = 100;
     track.dispatchEvent(new Event("scroll"));
     vi.advanceTimersByTime(5000);
-    track.anchor = { getBoundingClientRect: () => ({ right: 900 - track.scrollLeft }) };
+    track.setAnchor(900);
     mutate();
     expect(track.scrollLeft).toBe(100);
     vi.advanceTimersByTime(4999);
     expect(track.scrollLeft).toBe(100);
     vi.advanceTimersByTime(1);
     expect(track.scrollLeft).toBe(516);
+  });
+
+  it("follows the add card's layout position while its visible position animates", () => {
+    track.setAnchor(700);
+    mutate();
+    expect(track.scrollLeft).toBe(316);
+
+    track.setAnchor(889, -189);
+    mutate();
+    expect(track.scrollLeft).toBe(505);
+    const jumps = track.scrollTo.mock.calls.length;
+    resize();
+    expect(track.scrollTo).toHaveBeenCalledTimes(jumps);
   });
   it("keeps the reading interval through resize and falls back to the end without an add-record card", () => {
     scrollBack();
@@ -210,7 +225,7 @@ describe("open-day record track", () => {
     track.useLayout(highlightedCount);
     track.clientWidth = 700;
     cleanup();
-    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement).dispose;
 
     expect(track.dataset.returnTail).toBe(highlightedCount < 2 ? "true" : "false");
     expect(track.tail?.style.width).toBe(88.5);
@@ -225,7 +240,7 @@ describe("open-day record track", () => {
     track.useLayout(highlightedCount, 5, excludedCount);
     track.clientWidth = 700;
     cleanup();
-    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement).dispose;
     expect(track.dataset.returnTail).toBe(highlightedCount + excludedCount < 2 ? "true" : "false");
     expect(track.anchor!.getBoundingClientRect().right).toBeCloseTo(track.clientWidth - reserve, 1);
   });
@@ -238,7 +253,7 @@ describe("open-day record track", () => {
     for (const rightGroupCount of [0, 1, 2, 4]) {
       cleanup();
       track.useLayout(rightGroupCount);
-      cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+      cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement).dispose;
 
       const addRight = track.anchor!.getBoundingClientRect().right;
       expect(addRight - 177 - 12).toBeCloseTo(previewWidth);
@@ -259,7 +274,7 @@ describe("open-day record track", () => {
     }));
     track.useLayout(1);
     cleanup();
-    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement).dispose;
     expect(track.anchor!.getBoundingClientRect().right).toBeCloseTo(277.5);
 
     scrollBack();
@@ -288,7 +303,7 @@ describe("open-day record track", () => {
     track.useLayout(0);
     track.clientWidth = 1200;
     cleanup();
-    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement).dispose;
     expect(track.dataset.returnTail).toBe("false");
     expect(track.scrollWidth).toBe(1200);
     expect(track.scrollLeft).toBe(0);
@@ -320,6 +335,9 @@ describe("open-day record track", () => {
 
   it("waits for the pointer to leave a revealed card before resuming the idle return", () => {
     track.dataset.recordStack = "true";
+    vi.stubGlobal("window", Object.assign(surface, {
+      getComputedStyle: () => ({ getPropertyValue: () => "-72px" }),
+    }));
     let hovering = true;
     vi.spyOn(track, "querySelector").mockImplementation(selector => selector.includes(":hover") && hovering ? track : null);
     scrollBack();
@@ -334,11 +352,19 @@ describe("open-day record track", () => {
     expect(track.scrollLeft).toBe(800);
   });
 
+  it("keeps the idle return on flat touch layouts even when a card retains hover", () => {
+    track.dataset.recordStack = "true";
+    vi.spyOn(track, "querySelector").mockImplementation(selector => selector.includes(":hover") ? track : null);
+    scrollBack();
+    vi.advanceTimersByTime(10_000);
+    expect(track.scrollLeft).toBe(800);
+  });
+
   it("refreshes the tail on content changes without moving the user or restarting the idle deadline", () => {
     track.useLayout(0);
     track.clientWidth = 700;
     cleanup();
-    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement);
+    cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement).dispose;
     scrollBack();
     vi.advanceTimersByTime(5000);
 

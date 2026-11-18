@@ -780,10 +780,11 @@ export function RecordEditor({
         ...(willConfirmPayment ? { payment } : {}),
       };
       if (submitInBackground(`/stores/${storeId}/work-records/detailed`, "POST", body)) return;
-      beginWorkRecordSaveMotion(editorElement.current);
+      const motion = beginWorkRecordSaveMotion(editorElement.current);
       saved = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/detailed`, {
         method: "POST", idempotent: true, body,
       });
+      if (saved?.id) motion?.prepareTarget?.(saved.id);
     } else {
       if (submitInBackground(`/stores/${storeId}/work-records/${record.id}/save`, "POST", { details, payment })) return;
       beginWorkRecordSaveMotion(editorElement.current);

@@ -45,7 +45,7 @@ describe("合并员工日结与现金", () => {
     expect(markup).toContain("重新加载现金");
     expect(markup).toMatch(/disabled=""[^>]*>一键全部结清/);
     expect(markup).toMatch(/disabled=""[^>]*>标记全部结清/);
-    expect(markup).toContain("现金未结清不影响正常日结");
+    expect(markup).toContain("须结清或确认强制日结");
   });
 
   it("全部结清或没有员工时禁用批量结清", () => {

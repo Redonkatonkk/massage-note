@@ -4,7 +4,8 @@ import { appHref } from "../lib/demo-mode";
 
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { BrandMark, UiIcon, type IconName } from "./ui/primitives";
-import { WorkspaceMenu, WorkspacePreferences } from "./workspace-menu";
+import { LanguageSwitcher } from "./language-provider";
+import { WorkspaceMenu } from "./workspace-menu";
 import { financeNavigationTabs, manageNavigationTabs, navigationTabHref, type AppNavPage, type NavigationRole } from "../lib/app-navigation";
 
 interface NavigationProps {
@@ -75,7 +76,7 @@ export function AppNav({ active, storeId, role = "EMPLOYEE", activeTab, onTabCha
           </div>}
         </div>;
       })}{assistant && <div className="app-nav-group">{assistant}</div>}</div>
-      <div className="app-nav-footer"><WorkspacePreferences /><a href={appHref("/help")} aria-label="使用帮助"><UiIcon name="help" /><span className="app-nav-label">使用帮助</span><UiIcon name="arrow" className="app-nav-footer__arrow" /></a><span className="app-nav-version">Massage note</span></div>
+      <div className="app-nav-footer"><LanguageSwitcher /><a href={appHref("/help")} aria-label="使用帮助"><UiIcon name="help" /><span className="app-nav-label">使用帮助</span><UiIcon name="arrow" className="app-nav-footer__arrow" /></a><span className="app-nav-version">Massage note</span></div>
     </nav>
   </div>;
 }

@@ -27,14 +27,13 @@
 }
 
 @media (any-hover: hover) and (any-pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .board[data-work-record-motion] .record-track { position: relative; }
-
   .board[data-work-record-motion] .record-card:not([data-record-unavailable]) {
-    transition: border-color var(--motion-fast), background-color var(--motion-fast), transform 180ms var(--ease-out);
+    transition: background-color var(--motion-fast), box-shadow var(--motion-fast), transform 180ms var(--ease-out);
   }
 
   .board[data-work-record-motion] .record-card:hover:not([data-record-unavailable]) {
     z-index: 1;
+    box-shadow: var(--shadow-work-card-hover);
     transform: var(--record-card-hover, none);
   }
 }
@@ -50,6 +49,18 @@
   .board[data-work-record-motion] .record-track[data-record-stack] > .record-card {
     isolation: isolate;
     z-index: var(--record-stack-layer, 0);
+  }
+
+  .record-track[data-record-stack] > .record-card:nth-child(even) {
+    --record-stack-surface: var(--board-inset);
+    --record-stack-highlight: var(--highlight-stack);
+  }
+
+  @media (forced-colors: active) {
+    .record-track[data-record-stack] > .record-card {
+      outline: 1px solid CanvasText;
+      outline-offset: -1px;
+    }
   }
 
   .record-track[data-record-stack] > .record-card + .record-card:not(.record-card--right-group),
@@ -77,9 +88,11 @@
   }
 
   @media (prefers-reduced-motion: no-preference) {
+    .record-track[data-record-reflow] { --record-stack-spacing-duration: 0ms; }
+
     .board[data-work-record-motion] .record-track[data-record-stack] > .record-card {
-      transition: border-color var(--motion-fast), background-color var(--motion-fast), transform 180ms var(--ease-out),
-        margin-left 360ms var(--record-stack-spring), scale 360ms var(--record-stack-spring);
+      transition: background-color var(--motion-fast), box-shadow var(--motion-fast), transform 180ms var(--ease-out),
+        margin-left var(--record-stack-spacing-duration, 360ms) var(--record-stack-spring), scale 360ms var(--record-stack-spring);
     }
 
     .record-track[data-record-stack] > .record-card:is(:hover, .record-track:not(:has(> .record-card:hover)) > :has(:focus-visible)) {

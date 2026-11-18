@@ -19,12 +19,14 @@ import {
   calculateStoreIncome,
   businessDateFor as storeBusinessDateFor,
   canReadEmployeeFinance,
+  type PersonalClosingPaymentRecord,
 } from "@massage-note/domain";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
 import { readSnapshotMonthToDate } from "./daily-snapshot-earnings.js";
+import { personalClosingCashDue, personalClosingPaymentRecord } from "./personal-closing-payment.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 
@@ -224,8 +226,9 @@ export class ClosingsService {
           businessDate,
         );
         const hasBlockingWarnings = preview.warnings.some(
-          (warning) => warning.blocking,
+          (warning) => warning.blocking && warning.code !== "CASH_UNSETTLED",
         );
+        const hasUnsettledCash = preview.warnings.some((warning) => warning.code === "CASH_UNSETTLED");
         if ((automatic && preview.hasWarnings) || (hasBlockingWarnings && !input.force)) {
           throw new ConflictException({
             code: "CLOSING_WARNINGS_REQUIRE_FORCE",
@@ -233,6 +236,15 @@ export class ClosingsService {
             latestResource: preview,
           });
         }
+        if (hasUnsettledCash && !input.force && !input.confirmUnsettledCash) {
+          throw new ConflictException({
+            code: "CLOSING_UNSETTLED_CASH_REQUIRE_CONFIRMATION",
+            messageZh: "还有员工没有结现金，是否强制日结？",
+            latestResource: preview,
+          });
+        }
+        const isForced = input.force || hasUnsettledCash;
+        const forceReason = input.forceReason ?? (hasUnsettledCash ? "确认有员工未结现金后强制日结" : null);
         const cycle = await transaction.businessDayClosing.aggregate({
           where: { storeId, businessDate: dateAtUtc(businessDate) },
           _max: { cycleNo: true },
@@ -246,8 +258,8 @@ export class ClosingsService {
             businessDate: dateAtUtc(businessDate),
             cycleNo: (cycle._max.cycleNo ?? 0) + 1,
             status: "CLOSED",
-            isForced: input.force,
-            forceReason: input.forceReason ?? null,
+            isForced,
+            forceReason,
             warningSnapshotJson: preview.warnings as unknown as Prisma.InputJsonValue,
             totalsSnapshotJson: {
               store: preview.storeTotals,
@@ -262,7 +274,7 @@ export class ClosingsService {
             actorUserId: actor.id,
             actorMembershipId: membership.id,
             source: automatic ? "scheduler" : "api",
-            action: input.force
+            action: isForced
               ? "business_day.force_closed"
               : "business_day.closed",
             entityType: "business_day_closing",
@@ -276,7 +288,7 @@ export class ClosingsService {
               storeTotals: preview.storeTotals,
               version: closing.version,
             },
-            reason: input.forceReason ?? null,
+            reason: forceReason,
             requestId,
           },
         });
@@ -461,7 +473,7 @@ export class ClosingsService {
         messageZh: "不能对未来营业日进行日结",
       });
     }
-    const [records, giftCardSales, activeClosing] = await Promise.all([
+    const [records, giftCardSales, activeClosing, settlements] = await Promise.all([
       client.workRecord.findMany({
         where: {
           storeId,
@@ -498,6 +510,13 @@ export class ClosingsService {
           businessDate: dateAtUtc(businessDate),
           status: "CLOSED",
         },
+      }),
+      client.dailyCashSettlement.findMany({
+        where: {
+          storeId, businessDate: dateAtUtc(businessDate), status: "SETTLED", deletedAt: null,
+          ...(membershipId ? { membershipId } : {}),
+        },
+        select: { membershipId: true },
       }),
     ]);
 
@@ -558,6 +577,7 @@ export class ClosingsService {
         membershipId: string;
         displayName: string;
         role: string;
+        dailySettlementEnabled: boolean;
         recordCount: number;
         grossFeeBaseCents: bigint;
         discountTotalCents: bigint;
@@ -570,15 +590,7 @@ export class ClosingsService {
           grossFeeBaseCents: bigint;
           cashServiceCents: bigint;
         }>;
-        personalClosingPaymentRecords: Array<{
-          totalLargeFeeWageCents: bigint;
-          cashAllocatedServiceWageCents: bigint;
-          cashServiceCents: bigint;
-          cardServiceCents: bigint;
-          cashTipCents: bigint;
-          cardTipCents: bigint;
-          giftCardTipCents: bigint;
-        }>;
+        personalClosingPaymentRecords: PersonalClosingPaymentRecord[];
         incompleteRecordCount: number;
       }
     >();
@@ -587,6 +599,7 @@ export class ClosingsService {
         membershipId: record.employeeMembershipId,
         displayName: record.employee.displayName,
         role: record.employee.role,
+        dailySettlementEnabled: record.employee.dailySettlementEnabled,
         recordCount: 0,
         grossFeeBaseCents: 0n,
         discountTotalCents: 0n,
@@ -614,25 +627,22 @@ export class ClosingsService {
           grossFeeBaseCents: record.grossFeeBaseCents,
           cashServiceCents: record.cashServiceCents ?? 0n,
         });
-        current.personalClosingPaymentRecords.push({
-          totalLargeFeeWageCents: record.totalLargeFeeWageCents,
-          cashAllocatedServiceWageCents:
-            record.cashAllocatedServiceWageCents ?? 0n,
-          cashServiceCents: record.cashServiceCents ?? 0n,
-          cardServiceCents: record.cardServiceCents ?? 0n,
-          cashTipCents: record.cashTipCents ?? 0n,
-          cardTipCents: record.cardTipCents ?? 0n,
-          giftCardTipCents: record.giftCardTipCents ?? 0n,
-        });
+        current.personalClosingPaymentRecords.push(personalClosingPaymentRecord(record));
       }
       if (record.status === "PENDING_PAYMENT") current.incompleteRecordCount += 1;
       employeeMap.set(record.employeeMembershipId, current);
     }
+    const settledMemberships = new Set(settlements.map(settlement => settlement.membershipId));
+    let unsettledCashCount = 0;
     const employees = [...employeeMap.values()].map(
-      ({ personalClosingCashRecords, personalClosingPaymentRecords, ...item }) => {
+      ({ personalClosingCashRecords, personalClosingPaymentRecords, dailySettlementEnabled, ...item }) => {
         const paymentDividends = calculatePersonalClosingPaymentDividends(
           personalClosingPaymentRecords,
         );
+        const cashDue = personalClosingCashDue(paymentDividends, dailySettlementEnabled);
+        if (item.role === "EMPLOYEE" && cashDue > 0n && !settledMemberships.has(item.membershipId)) {
+          unsettledCashCount += 1;
+        }
         return this.safeTotals({
           ...item,
           cashToSubmitToStoreCents:
@@ -643,6 +653,9 @@ export class ClosingsService {
         });
       },
     );
+    if (unsettledCashCount > 0) {
+      warnings.push({ code: "CASH_UNSETTLED", labelZh: "员工现金尚未结清", blocking: true, count: unsettledCashCount, recordIds: [] });
+    }
     const workRecordTotals = this.safeTotals([...employeeMap.values()].reduce(
       (total, item) => ({
         recordCount: total.recordCount + item.recordCount,

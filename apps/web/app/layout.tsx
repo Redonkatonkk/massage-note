@@ -8,7 +8,6 @@ import "./workspace.css";
 import "./work-record-motion.css";
 import "./interaction-motion.css";
 import { WorkspaceMenu } from "./workspace-menu";
-import { WorkRecordExperimentProvider } from "./work-record-experiment";
 import { WorkRecordFeedbackProvider } from "./work-record-feedback";
 import { DecisionProvider } from "./decision-dialog";
 import { isAppLocale } from "../lib/i18n";
@@ -42,15 +41,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang={initialLocale} suppressHydrationWarning={isPortfolioDemo}>
       <body>
         <LanguageProvider initialLocale={initialLocale}>
-          <WorkRecordExperimentProvider>
-            <DecisionProvider>
-              {isPortfolioDemo && <DemoBanner />}
-              <WorkspaceMenu />
-              <NetworkStatus />
-              <ScrollBoundaryGuard />
-              <WorkRecordFeedbackProvider>{children}</WorkRecordFeedbackProvider>
-            </DecisionProvider>
-          </WorkRecordExperimentProvider>
+          <DecisionProvider>
+            {isPortfolioDemo && <DemoBanner />}
+            <WorkspaceMenu />
+            <NetworkStatus />
+            <ScrollBoundaryGuard />
+            <WorkRecordFeedbackProvider>{children}</WorkRecordFeedbackProvider>
+          </DecisionProvider>
         </LanguageProvider>
       </body>
     </html>

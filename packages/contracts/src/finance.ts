@@ -13,6 +13,7 @@ export const closeBusinessDaySchema = z
   .object({
     force: z.boolean().default(false),
     forceReason: z.string().trim().min(1).max(500).optional(),
+    confirmUnsettledCash: z.literal(true).optional(),
   })
   .superRefine((value, context) => {
     if (value.force && !value.forceReason) {

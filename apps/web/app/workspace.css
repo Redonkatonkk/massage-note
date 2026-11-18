@@ -57,12 +57,9 @@ body:has(.workspace-menu[open], .decision-dialog[open]) { overflow: hidden; }
   text-decoration: none;
 }
 .workspace-menu-links a:is(:hover, [aria-current="page"]) { background: var(--surface-soft); }
-.workspace-preferences { display: grid; gap: 8px; align-self: end; }
-.workspace-preferences .language-switcher { display: flex; width: 100%; }
-.workspace-preferences .language-switcher button { flex: 1; }
-.work-record-edition-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-.work-record-edition-switch button { min-height: var(--control-height); white-space: normal; }
-.work-record-edition-switch button[aria-pressed="true"] { border-color: var(--line-strong); background: var(--surface-soft); color: var(--ink); }
+:is(.workspace-menu-body, .app-nav-footer) > .language-switcher { width: 100%; }
+.workspace-menu-body > .language-switcher { grid-row: 3; }
+.workspace-menu-body > .language-switcher button { flex: 1; }
 
 /* Workspace chrome. Desktop content width = viewport - 64px rail - 8px inset. */
 html:root .app-utility-bar {
@@ -137,8 +134,8 @@ html:root .app-nav-submenu a[aria-current="page"] { color: var(--ink); backgroun
   html:root .bottom-nav { background: var(--page); border: 0; padding-top: 6px; }
   html:root .app-nav-caption { margin-top: 16px; letter-spacing: normal; }
   html:root .app-nav-footer { gap: 8px; }
-  .app-nav-footer .workspace-preferences { display: none; }
-  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-footer .workspace-preferences { display: grid; }
+  .app-nav-footer > .language-switcher { display: none; }
+  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-footer > .language-switcher { display: flex; }
 }
 @media (max-width: 1199px) {
   html:root .bottom-nav {
@@ -167,18 +164,37 @@ html:root :is(.form-error, .closed-banner, .success-banner, .member-conflict) { 
 html:root :is(.empty-state, .loading-card, .error-card) { color: var(--ink); overflow-wrap: anywhere; }
 html:root .empty-state > p { color: var(--muted); }
 
-/* Daily board: one roster edge, one timeline per employee, and one totals lane. */
+/* Daily board: tone steps separate employee identity, the record track, and totals. */
+html:root .app-shell > .topbar:has(> .today-heading) { padding-bottom: 0; border-bottom: 0; }
 html:root .today-heading { min-width: 0; }
 html:root .board-section-heading { margin-block: var(--sheet-gap) 8px; align-items: baseline; }
-html:root .board-overview { background: var(--surface-soft); box-shadow: none; }
 html:root .overview-metric strong { font-size: clamp(1rem, 2vw, 1.5rem); font-weight: 550; }
-html:root .employee-row { background: var(--surface); }
-html:root .employee-header { background: var(--surface-soft); }
-html:root .employee-toggle .employee-avatar { color: var(--brand-dark); background: var(--brand-soft); }
+html:root .board.board-panel { gap: 12px; overflow: visible; background: transparent; }
+html:root .employee-row { background: var(--surface-soft); }
+html:root .employee-header { background: var(--employee-header-surface); }
+html:root .employee-toggle:focus-visible,
+html:root .record-card__open:focus-visible { outline-offset: -3px; }
 html:root .employee-totals dd { text-align: right; font-weight: 550; }
 html:root .employee-totals > div:last-child dd { font-weight: 700; }
-html:root .add-record { border-style: solid; background: var(--surface-soft); color: var(--brand-dark); }
-html:root .record-card { box-shadow: none; }
+
+:is(.today-header-actions, .business-day-toolbar--compact) { --board-action-surface: var(--surface-soft); }
+:is(.board-primary-actions, .board-more-actions__body, .add-employee-actions, .ranking-action-group, .gift-card-sales__compact-header, .hidden-rows-panel > header) > .secondary-action {
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--board-action-surface, var(--surface));
+}
+.row-actions > button { border-radius: var(--radius-control); }
+.business-day-toolbar--compact .business-date-picker__trigger { border: 0; background: transparent; }
+.business-day-toolbar--compact .business-date-picker__trigger[aria-expanded="true"] { background: var(--brand-soft); }
+@media (hover: hover) {
+  .employee-toggle:hover { background: var(--employee-header-hover); }
+  :is(.board-primary-actions, .board-more-actions__body, .add-employee-actions, .ranking-action-group, .gift-card-sales__compact-header, .hidden-rows-panel > header) > .secondary-action:hover:not(:disabled),
+  .business-day-toolbar--compact .business-date-picker__trigger:hover:not([aria-expanded="true"]),
+  .board-more-actions > summary:hover,
+  .row-tools button:hover:not(:disabled),
+  .gift-card-sale-card:hover:not(:disabled),
+  .lost-customers__list button:hover:not(:disabled) { background: var(--board-inset); }
+}
 @property --record-pending-angle {
   syntax: "<angle>";
   inherits: false;
@@ -200,7 +216,7 @@ html:root .record-card { box-shadow: none; }
       --record-pending-inner-light: color-mix(in srgb, var(--surface) 23%, transparent);
       content: "";
       position: absolute;
-      inset: -1px;
+      inset: 0;
       z-index: -1;
       padding: 3px;
       border-radius: inherit;
@@ -253,7 +269,7 @@ html:root .record-card { box-shadow: none; }
 html:root .board-store-projects { gap: var(--sheet-gap); margin-block: var(--sheet-gap); }
 @media (min-width: 1200px) {
   html:root .employee-row:not(.employee-row--collapsed) { display: grid; grid-template-columns: 196px minmax(0, 1fr); }
-  html:root .employee-row:not(.employee-row--collapsed) .employee-header { align-content: start; align-items: start; flex-direction: column; border: 0; border-right: 1px solid var(--line); }
+  html:root .employee-row:not(.employee-row--collapsed) .employee-header { align-content: start; align-items: start; flex-direction: column; }
   html:root .employee-row:not(.employee-row--collapsed) .employee-toggle { min-height: 56px; }
   html:root .employee-row:not(.employee-row--collapsed) .row-tools { padding: 0 12px 12px; gap: 4px 8px; }
   html:root .employee-content:not(.employee-content--records-only) { grid-template-columns: minmax(0, 1fr) minmax(142px, 16%); }

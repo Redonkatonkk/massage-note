@@ -46,6 +46,27 @@ test("mobile checks reject layout and control regressions even when colors use t
   }
 });
 
+test("employee statuses keep the end-time font size in expanded and collapsed rows", async () => {
+  const { JSDOM } = createRequire(resolve(import.meta.dirname, "../../apps/web/package.json"))("jsdom");
+  const sources = await Promise.all(uiStyleFiles.map(async name => ({ name, css: await readFile(resolve(import.meta.dirname, "../../apps/web/app", name), "utf8") })));
+  const statuses = ["on-duty", "off-duty", "employee-settled"];
+  const rows = ["", " employee-row--collapsed"].map(state => statuses.map(status =>
+    `<article class="employee-row${state}"><button class="employee-toggle"><small class="${status}"></small></button></article>`
+  ).join("")).join("");
+
+  for (const width of [390, 761, 1200]) {
+    const dom = new JSDOM(`<style>${stylesAtWidth(sources, width)}</style>${rows}`);
+    try {
+      const { document, getComputedStyle } = dom.window;
+      const endTimeSize = getComputedStyle(document.querySelector(".on-duty")).fontSize;
+      assert.ok(endTimeSize);
+      for (const status of document.querySelectorAll(".employee-toggle small")) {
+        assert.equal(getComputedStyle(status).fontSize, endTimeSize, `${width}px: ${status.className}`);
+      }
+    } finally { dom.window.close(); }
+  }
+});
+
 test("monthly finance preserves desktop proportions and labeled mobile comparison records", async () => {
   const { JSDOM } = createRequire(resolve(import.meta.dirname, "../../apps/web/package.json"))("jsdom");
   const sources = await Promise.all(uiStyleFiles.map(async name => ({ name, css: await readFile(resolve(import.meta.dirname, "../../apps/web/app", name), "utf8") })));

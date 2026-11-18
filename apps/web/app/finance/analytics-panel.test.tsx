@@ -354,8 +354,14 @@ it.each(["zh-CN", "en-US"])("平均曲线悬停、聚焦与点击同时显示当
   expect(readout()).toContain(en ? "Daily revenue $987.65" : "当天营业额 $987.65");
   expect(readout()).toContain(en ? "Trailing 30-day average $123.45" : "最近30天平均 $123.45");
   expect(chart.querySelector(".analytics-peak")!.textContent).toContain("$234.56");
-  await act(async () => hits[1]!.dispatchEvent(new FocusEvent("focusin", { bubbles: true })));
+  const select = chart.querySelector<HTMLSelectElement>(".analytics-inspection select")!;
+  expect(select.value).toBe("2026-10-05");
+  await act(async () => {
+    select.value = "2026-10-06";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
   expect(readout()).toContain(en ? "Daily revenue $0.00" : "当天营业额 $0.00");
+  expect(chart.querySelector(".analytics-selected-period")).not.toBeNull();
   await clickPoint(hits[2]!);
   expect(readout()).toContain(en ? "Daily revenue — (not closed)" : "当天营业额 —（未日结）");
   expect(readout()).toContain(en ? "Trailing 30-day average —" : "最近30天平均 —");
@@ -413,6 +419,15 @@ it("全年日期仍使用固定宽度和平滑曲线，并保留日期两端和�
   expect(chart.querySelector(".analytics-plot > svg")!.textContent).toContain("10-08");
   expect(chart.querySelector(".analytics-plot > svg")!.textContent).toContain("10-07");
   expect(chart.querySelectorAll(".analytics-hit")).toHaveLength(365);
+  expect(chart.querySelector(".analytics-plot [tabindex], .analytics-plot[tabindex]")).toBeNull();
+  const select = chart.querySelector<HTMLSelectElement>(".analytics-inspection select")!;
+  expect(select.tabIndex).toBe(0);
+  expect(select.options).toHaveLength(366);
+  await act(async () => {
+    select.value = "2026-10-07";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(chart.querySelector(".analytics-readout")!.textContent).toContain("2026-10-07");
 });
 
 it("英文平均曲线选项及累计口径完整可读", async () => {
@@ -420,7 +435,7 @@ it("英文平均曲线选项及累计口径完整可读", async () => {
   await render();
   const chart = container.querySelector(".analytics-average-revenue")!;
   expect(chart.textContent).toContain("Average revenue curves");
-  expect([...chart.querySelectorAll("label")].map(label => label.textContent)).toEqual(["Trailing 30-day average", "Cumulative average", "Trailing 7-day average"]);
+  expect([...chart.querySelectorAll("fieldset label")].map(label => label.textContent)).toEqual(["Trailing 30-day average", "Cumulative average", "Trailing 7-day average"]);
   expect(chart.textContent).toContain("from the selected start through each date");
 });
 

@@ -16,6 +16,7 @@ import { useLanguage } from "./language-provider";
 interface EmployeeClosingSummaryProps {
   preview: EmployeeClosingPreview;
   canSend?: boolean;
+  onSettlementChanged?: (() => Promise<void>) | undefined;
 }
 
 interface EmployeeClosingModalProps {
@@ -24,6 +25,7 @@ interface EmployeeClosingModalProps {
   membershipId: string;
   displayName: string;
   canSend?: boolean;
+  onSettlementChanged?: (() => Promise<void>) | undefined;
   onClose: () => void;
 }
 
@@ -40,7 +42,7 @@ function downloadImage(image: GeneratedClosingImage) {
   link.remove();
 }
 
-export function EmployeeClosingSummary({ preview: initialPreview, canSend = false }: EmployeeClosingSummaryProps) {
+export function EmployeeClosingSummary({ preview: initialPreview, canSend = false, onSettlementChanged }: EmployeeClosingSummaryProps) {
   const [preview, setPreview] = useState(initialPreview);
   useEffect(() => { setPreview(initialPreview); }, [initialPreview]);
   const { locale, t } = useLanguage();
@@ -65,7 +67,10 @@ export function EmployeeClosingSummary({ preview: initialPreview, canSend = fals
         { method: "POST", idempotent: true, body: { version: cashSettlement.version, dailySettlementEnabled: preview.dailySettlementEnabled ?? false } },
       );
       setCashSettlement(result);
-      const latest = await apiRequest<EmployeeClosingPreview>(`/stores/${preview.storeId}/closings/${preview.businessDate}/members/${preview.employee.membershipId}/preview`);
+      const [latest] = await Promise.all([
+        apiRequest<EmployeeClosingPreview>(`/stores/${preview.storeId}/closings/${preview.businessDate}/members/${preview.employee.membershipId}/preview`),
+        onSettlementChanged?.(),
+      ]);
       setPreview(latest);
     } catch (caught) {
       setImageError(errorMessage(caught));
@@ -179,6 +184,7 @@ export function EmployeeClosingModal({
   membershipId,
   displayName,
   canSend = false,
+  onSettlementChanged,
   onClose,
 }: EmployeeClosingModalProps) {
   const panelRef = useOverlayExitRef<HTMLElement>();
@@ -220,7 +226,7 @@ export function EmployeeClosingModal({
         </div>
         {error && <p className="form-error" role="alert">{error}</p>}
         {!preview && loading && <div className="loading-card"><span className="spinner" /><strong>正在核对个人日结…</strong></div>}
-        {preview && <EmployeeClosingSummary preview={preview} canSend={canSend} />}
+        {preview && <EmployeeClosingSummary preview={preview} canSend={canSend} onSettlementChanged={onSettlementChanged} />}
       </section>
     </div>
   );

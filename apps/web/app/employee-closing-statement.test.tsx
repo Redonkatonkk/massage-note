@@ -49,7 +49,7 @@ describe("个人日结页面统一记工卡", () => {
     expect(empty.window.document.querySelector(".closing-template-empty")!.textContent).toContain("没有记工"); empty.window.close();
     const checkerPath = pathToFileURL(resolve(process.cwd(), "../../scripts/check-mobile-ui.mjs")).href;
     const { stylesAtWidth } = await import(/* @vite-ignore */ checkerPath);
-    const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
+    const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css", "workspace.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
     const long = { ...snapshot, employee: { ...snapshot.employee, displayName: "Alexandria 很长的员工姓名".repeat(5) }, records: [{ ...record, serviceShortName: "VeryLongUnbrokenServiceName".repeat(8), cashServiceCents: 123456789012345 }] };
     const markup = renderToStaticMarkup(<EmployeeClosingStatement snapshot={long} locale="en-US" />);
     for (const width of [320, 360, 390, 760, 1200]) {
@@ -59,7 +59,7 @@ describe("个人日结页面统一记工卡", () => {
       expect(style(".closing-template-record").gridTemplateColumns).not.toBe("minmax(0, 1fr) 116px");
       for (const selector of [".closing-template-heading h2", ".closing-template-record-title > strong", ".closing-template-payment", ".closing-template-sources td"]) expect(style(selector).overflowWrap).toBe("anywhere");
       expect(style(".closing-template-record").borderRadius).toBe("6px");
-      expect(style(".closing-template-record").backgroundColor).toBe("rgb(237, 242, 233)");
+      expect(style(".closing-template-record").backgroundColor).toBe("rgb(229, 241, 243)");
       dom.window.close();
     }
   }, 30000);

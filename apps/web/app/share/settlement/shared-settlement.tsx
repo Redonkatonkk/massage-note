@@ -12,7 +12,7 @@ import { SettlementSummary } from "../../finance/settlement-summary";
 
 export function SharedSettlement() {
   const token = useSearchParams().get("token") ?? "";
-  const { locale, setLocale } = useLanguage();
+  const { locale } = useLanguage();
   const en = locale === "en-US";
   const [value, setValue] = useState<SharedEmployeeSettlement | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "unavailable" | "error">("loading");
@@ -41,7 +41,6 @@ export function SharedSettlement() {
   const statement = state === "ready" ? value?.snapshot : null;
   const stamp = (date: string) => new Intl.DateTimeFormat(locale, { timeZone: statement?.storeTimezone ?? "UTC", dateStyle: "medium", timeStyle: "short" }).format(new Date(date));
   return <div className="settlement-share-shell">
-    <header className="settlement-share-bar"><span>Massage note</span><button type="button" onClick={() => setLocale(en ? "zh-CN" : "en-US")} aria-label={en ? "Switch to Chinese" : "切换至英文"}>{en ? "中文" : "English"}</button></header>
     <main className="settlement-share">
       {statement && value ? <>
         <header className="settlement-share-heading">

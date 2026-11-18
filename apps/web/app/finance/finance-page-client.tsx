@@ -1,6 +1,5 @@
 "use client";
 
-import { useUiEdition } from "../ui-edition-provider";
 import { useDecision } from "../decision-dialog";
 
 import { appHref } from "../../lib/demo-mode";
@@ -533,11 +532,9 @@ export function FinancePageClient() {
 }
 
 function ClosingWorkspace({ delivery, children }: { delivery: ReactNode; children: ReactNode }) {
-  const { edition } = useUiEdition();
-  const deliveryColumn = <div className="closing-delivery" key="delivery">{delivery}</div>;
-  const reviewColumn = <div className="closing-review" key="review">{children}</div>;
   return <div className="closing-workspace">
-    {edition === "new" ? [reviewColumn, deliveryColumn] : [deliveryColumn, reviewColumn]}
+    <div className="closing-review">{children}</div>
+    <div className="closing-delivery">{delivery}</div>
   </div>;
 }
 

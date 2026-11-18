@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { JSDOM } from "jsdom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AppNav } from "./app-nav";
+import { AppNav, Workspace } from "./app-nav";
 
 let root: Root;
 let container: HTMLDivElement;
@@ -86,8 +86,8 @@ describe("侧栏目录展开与导航", () => {
   it("真实导航在小屏仅显示链接，桌面仅显示按钮，侧栏展开也不显示已收起的子目录", async () => {
     const checkerPath = pathToFileURL(resolve(process.cwd(), "../../scripts/check-mobile-ui.mjs")).href;
     const { stylesAtWidth } = await import(/* @vite-ignore */ checkerPath);
-    const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
-    await mount(<AppNav active="finance" role="OWNER" />);
+    const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css", "workspace.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
+    await mount(<Workspace className="app-shell" navigation={{ active: "finance", role: "OWNER" }}>{null}</Workspace>);
     for (const expanded of [false, true, false]) {
       if (expanded || toggle("财务").getAttribute("aria-expanded") === "true") await act(async () => toggle("财务").click());
       for (const width of [390, 1199, 1200]) {
@@ -96,8 +96,22 @@ describe("侧栏目录展开与导航", () => {
           const button = dom.window.document.querySelector<HTMLButtonElement>(".app-nav-toggle")!;
           const link = dom.window.document.querySelector(".app-nav-parent-link")!;
           const menu = dom.window.document.getElementById(button.getAttribute("aria-controls")!)!;
-          button.focus();
           const style = (node: Element) => dom.window.getComputedStyle(node);
+          const desktop = width >= 1200;
+          const toolbar = dom.window.document.querySelector(".workspace-toolbar .workspace-utilities")!;
+          const sidebar = dom.window.document.querySelector(".app-nav-footer")!;
+          const preferences = sidebar.querySelector(".workspace-preferences")!;
+          expect(style(toolbar).display, `${width}px toolbar menu`).toBe(desktop ? "none" : "flex");
+          if (desktop) expect(style(preferences).display).toBe("none");
+          else expect(style(sidebar).display).toBe("none");
+          button.focus();
+          if (desktop) {
+            // jsdom caches computed styles across focus changes until the DOM mutates.
+            button.setAttribute("data-test-focused", "");
+            expect(style(preferences).display).toBe("grid");
+          }
+          const preferenceContainer = desktop ? sidebar : dom.window.document.querySelector(".workspace-menu")!;
+          expect(preferenceContainer.querySelector(".language-switcher")?.nextElementSibling?.className).toBe("work-record-edition-switch");
           expect(style(button).display, `${width}px toggle`).toBe(width < 1200 ? "none" : "flex");
           expect(style(link).display, `${width}px link`).toBe(width < 1200 ? "grid" : "none");
           expect(style(menu).display, `${width}px submenu, expanded=${expanded}`).toBe(width >= 1200 && expanded ? "grid" : "none");

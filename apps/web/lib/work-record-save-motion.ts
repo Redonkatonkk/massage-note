@@ -1,6 +1,6 @@
 import type { VFX, VFXProps } from "@vfx-js/core";
 import { translateText } from "./i18n";
-import { WORK_RECORD_SAVE_SHADER } from "./work-record-save-shader";
+import { SAVE_TRAIL_POINTS, WORK_RECORD_SAVE_SHADER } from "./work-record-save-shader";
 import { disposeWorkRecordVfx, loadWorkRecordVfx, preloadWorkRecordVfx, workRecordVfxColor } from "./work-record-vfx";
 
 const CONDENSE_MS = 260;
@@ -8,6 +8,7 @@ const FLIGHT_MS = 420;
 const UNFOLD_MS = 220;
 const PREPARE_MS = 400;
 const ORB_SIZE = 40;
+const TRAIL_DURATION_MS = 320;
 
 export interface SaveMotion {
   complete: (recordId: string | undefined) => Promise<void>;
@@ -127,7 +128,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
   const sourcePose: Pose = { rect: [from.left + from.width / 2, from.top + from.height / 2, from.width, from.height], corner: 12, textureMix: 1, opacity: 1, trailOpacity: 0, impact: -1 };
   const cardPose: Pose = { rect: [...center, ORB_SIZE, ORB_SIZE], corner: 20, textureMix: 0, opacity: 0, trailOpacity: 0, impact: -1 };
   const sources: HTMLElement[] = [];
-  const trail = new Float32Array(32);
+  const trail = new Float32Array(SAVE_TRAIL_POINTS * 2);
   const history: { at: number; point: Point }[] = [];
   let renderer: VFX | undefined;
   let canvas: HTMLCanvasElement | undefined;
@@ -205,9 +206,9 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
   const updateTrail = (now: number) => {
     const point: Point = [sourcePose.rect[0], sourcePose.rect[1]];
     history.unshift({ at: now, point });
-    while (history.length > 64 || (history.length > 2 && history[history.length - 2]!.at < now - 450)) history.pop();
-    for (let index = 0; index < 16; index++) {
-      const at = now - index * 26;
+    while (history.length > 64 || (history.length > 2 && history[history.length - 2]!.at < now - TRAIL_DURATION_MS)) history.pop();
+    for (let index = 0; index < SAVE_TRAIL_POINTS; index++) {
+      const at = now - index * TRAIL_DURATION_MS / (SAVE_TRAIL_POINTS - 1);
       let older = history[history.length - 1]!;
       let newer = older;
       for (let cursor = 0; cursor < history.length - 1; cursor++) {
@@ -221,12 +222,12 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
     screenSize: [window.innerWidth, window.innerHeight], pixelRatio, uncovered: detached ? 1 : 0,
     shapeRect: () => pose.rect, corner: () => pose.corner, textureMix: () => pose.textureMix, opacity: () => pose.opacity,
     trail: () => trail, trailOpacity: () => pose.trailOpacity, impact: () => pose.impact,
-    inkColor: workRecordVfxColor("--brand", [49 / 255, 91 / 255, 73 / 255]),
-    lightColor: workRecordVfxColor("--brand-soft", [234 / 255, 240 / 255, 235 / 255]),
+    inkColor: workRecordVfxColor("--brand", [27 / 255, 108 / 255, 128 / 255]),
+    lightColor: workRecordVfxColor("--brand-soft", [229 / 255, 241 / 255, 243 / 255]),
     bounds: () => {
       let left = pose.rect[0] - pose.rect[2] / 2 - 55, top = pose.rect[1] - pose.rect[3] / 2 - 55;
       let right = pose.rect[0] + pose.rect[2] / 2 + 55, bottom = pose.rect[1] + pose.rect[3] / 2 + 55;
-      if (pose.trailOpacity > 0) for (let index = 0; index < 16; index++) {
+      if (pose.trailOpacity > 0) for (let index = 0; index < SAVE_TRAIL_POINTS; index++) {
         left = Math.min(left, trail[index * 2]! - 20); right = Math.max(right, trail[index * 2]! + 20);
         top = Math.min(top, trail[index * 2 + 1]! - 20); bottom = Math.max(bottom, trail[index * 2 + 1]! + 20);
       }
@@ -321,7 +322,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
         const spring = value === 1 ? 1 : 1 - Math.exp(-6 * value) * (Math.cos(10 * value) + .6 * Math.sin(10 * value));
         sourcePose.rect = [...destination, ORB_SIZE, ORB_SIZE];
         sourcePose.impact = hasTarget ? value : -1;
-        sourcePose.opacity = 1 - ease(clamp(value * 2)); sourcePose.trailOpacity = 1 - ease(value);
+        sourcePose.opacity = 1 - ease(value);
         if (cardCaptured && to) {
           cardPose.rect = [...destination, mix(ORB_SIZE, to.width, spring), mix(ORB_SIZE, to.height, spring)];
           cardPose.corner = mix(20, 6, clamp(spring)); cardPose.opacity = 1; cardPose.textureMix = ease(value);
@@ -375,7 +376,7 @@ export function beginWorkRecordSaveMotion(dialog: HTMLElement | null, detached =
         draw(); await entrance;
         if (!signal.aborted && !degraded) {
           // The side editor can travel hundreds of pixels horizontally while condensing.
-          // Start a fresh tail at the ring so that straight approach never enters its orbit.
+          // Seed the trail at the center so the straight approach never enters the orbit.
           history.length = 0; orbitStarted = performance.now(); updateTrail(orbitStarted);
           sourcePose.trailOpacity = 1; waiting = true; overlay.dataset.phase = "waiting";
         }

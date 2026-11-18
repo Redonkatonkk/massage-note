@@ -65,7 +65,7 @@ async function finishFlight(id = "saved") {
   await vi.advanceTimersByTimeAsync(1000); await result;
 }
 
-it("captures the form into VFX-JS, condenses to a ring and keeps a large autonomous orbit with a visible trail", async () => {
+it("captures the form into VFX-JS and keeps the stroke anchored to its moving head", async () => {
   await start();
   expect(overlay()!.dataset.renderer).toBe("canvas"); expect(overlay()!.dataset.phase).toBe("condensing");
   expect(vfx.create.mock.calls[0]![0]).toMatchObject({ autoplay: false, scrollPadding: false, pixelRatio: 2 });
@@ -81,6 +81,7 @@ it("captures the form into VFX-JS, condenses to a ring and keeps a large autonom
   expect(first[0]).toBeGreaterThan(590); expect(first.slice(2)).toEqual([40, 40]);
   const trail = sourceUniforms().trail();
   expect(trail).toHaveLength(32); expect(new Set([...trail]).size).toBeGreaterThan(8); expect(sourceUniforms().trailOpacity()).toBe(1);
+  expect(trail[0]).toBeCloseTo(first[0]); expect(trail[1]).toBeCloseTo(first[1]);
   document.dispatchEvent(new MouseEvent("mousemove", { clientX: 10, clientY: 20, bubbles: true }));
   window.dispatchEvent(new MouseEvent("pointermove", { clientX: 980, clientY: 780 }));
   expect(sourceUniforms().shapeRect()).toEqual(first);
@@ -147,6 +148,8 @@ it("flies from the currently visible orbit, collides with the exact card and unf
   expect(sourceUniforms().shapeRect().slice(0, 2)).toEqual([120, 116]);
   expect(sourceUniforms().impact()).toBeGreaterThanOrEqual(0);
   await vi.advanceTimersByTimeAsync(90);
+  expect(sourceUniforms().opacity()).toBeLessThan(1);
+  expect(sourceUniforms().trailOpacity()).toBe(1);
   expect(cardUniforms().shapeRect()[2]).toBeGreaterThan(160); expect(cardUniforms().textureMix()).toBeGreaterThan(.7);
   await vi.advanceTimersByTimeAsync(130); await flight;
   expect(overlay()).toBeNull(); expect(target.style.visibility).toBe(""); expect(target.style.opacity).toBe(""); expect(document.activeElement).toBe(target);
@@ -358,7 +361,7 @@ it.each([false, true])("right-side detail editor starts orbiting without a strai
   } finally { handle.cancel(); }
 });
 
-it("does not draw a trail while the form is still condensing into the center ring", async () => {
+it("does not draw a trail while the form is still condensing at the center", async () => {
   await start(); await vi.advanceTimersByTimeAsync(240);
   expect(overlay()!.dataset.phase).toBe("condensing");
   expect(sourceUniforms().trailOpacity()).toBe(0);

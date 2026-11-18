@@ -3,9 +3,23 @@
 import { useId, type ReactNode } from "react";
 import { appHref } from "../lib/demo-mode";
 import { LanguageSwitcher, useLanguage } from "./language-provider";
-import { UiEditionSwitcher } from "./ui-edition-provider";
 import { useNativeDialog } from "./use-native-dialog";
 import { BrandMark } from "./ui/primitives";
+import { useWorkRecordExperiment } from "./work-record-experiment";
+
+export function WorkspacePreferences() {
+  const { locale } = useLanguage();
+  const { experimental, setExperimental } = useWorkRecordExperiment();
+  const chinese = locale === "zh-CN";
+
+  return <div className="workspace-preferences">
+    <LanguageSwitcher />
+    <div className="work-record-edition-switch" role="group" aria-label={chinese ? "记工界面版本" : "Work-record interface edition"} translate="no">
+      <button className="secondary-action" type="button" aria-pressed={!experimental} onClick={() => setExperimental(false)}>{chinese ? "旧版" : "Legacy"}</button>
+      <button className="secondary-action" type="button" aria-pressed={experimental} onClick={() => setExperimental(true)}>{chinese ? "新版" : "New"}</button>
+    </div>
+  </div>;
+}
 
 export function WorkspaceMenu({ links, workspace = false }: { links?: ReactNode; workspace?: boolean }) {
   const [dialog, dialogRef] = useNativeDialog();
@@ -17,7 +31,6 @@ export function WorkspaceMenu({ links, workspace = false }: { links?: ReactNode;
   return <div className={workspace ? "app-utility-bar workspace-toolbar" : "app-utility-bar utility-toolbar"}>
     <a className="workspace-brand" href={appHref("/")}><BrandMark />Massage note</a>
     <div className="workspace-utilities">
-      <LanguageSwitcher />
       <button type="button" className="workspace-menu-trigger" aria-haspopup="dialog" aria-label={title} translate="no" onClick={() => dialog.current?.showModal()}>
         <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 5h14M3 10h14M3 15h14" /></svg>
       </button>
@@ -28,7 +41,7 @@ export function WorkspaceMenu({ links, workspace = false }: { links?: ReactNode;
         {links && <nav className="workspace-menu-links" aria-label={title} onClick={event => {
           if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.target instanceof Element && event.target.closest("a")) dialog.current?.close();
         }}>{links}</nav>}
-        <div className="workspace-preferences"><LanguageSwitcher /><UiEditionSwitcher /></div>
+        <WorkspacePreferences />
       </div>
     </dialog>
   </div>;

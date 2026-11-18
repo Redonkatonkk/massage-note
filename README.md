@@ -6,7 +6,7 @@
 
 **[Latest release](https://github.com/Redonkatonkk/massage-note/releases/latest)** · **[Changelog](CHANGELOG.md)**
 
-Current version: `1.59.1`
+Current version: `1.61.6`
 
 A full-stack TypeScript application for massage shop operations in the United States, with an English/Chinese interface for phones, tablets, and desktops. It connects service records, split payments, employee commissions, daily closing, payroll tracking, and business analytics in one auditable workflow.
 
@@ -14,13 +14,9 @@ A full-stack TypeScript application for massage shop operations in the United St
 
 ## Live demo and page gallery
 
-**[Open the sign-in-free demo](https://redonkatonkk.github.io/massage-note/)** · **[All 17 page previews](docs/portfolio/README.md)**
+**[Open the sign-in-free demo](https://redonkatonkk.github.io/massage-note/)** · **[Demo walkthrough and page links](docs/portfolio/README.md)**
 
 Explore the original UI with synthetic data, in English or Chinese. Browse work records, financial analytics and management workflows. The public demo is read-only; real sign-in, saves, AI and message delivery are disabled. [One-minute walkthrough and limitations](docs/portfolio/README.md#a-one-minute-walkthrough).
-
-| Work board | Business analytics |
-| --- | --- |
-| ![Employee records and split payments](docs/portfolio/images/work-board.jpg) | ![Analytics and revenue trends](docs/portfolio/images/analytics.jpg) |
 
 <a id="解决的问题"></a>
 

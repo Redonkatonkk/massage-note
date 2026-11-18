@@ -69,7 +69,7 @@ describe("工资结算复选框", () => {
     await click("生成结算单");
     const checkerPath = pathToFileURL(resolve(process.cwd(), "../../scripts/check-mobile-ui.mjs")).href;
     const { stylesAtWidth } = await import(/* @vite-ignore */ checkerPath);
-    const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
+    const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css", "workspace.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
     for (const width of [390, 760, 1024, 1274, 1440]) {
       const dom = new JSDOM(`<style>${stylesAtWidth(sources, width)}</style>${container.innerHTML}`);
       const style = (selector: string) => dom.window.getComputedStyle(dom.window.document.querySelector(selector)!);

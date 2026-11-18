@@ -1,0 +1,413 @@
+/* Framed Sheet workspace layout and surface rules · seed 521104. */
+
+/* Shared workspace and standalone menus. */
+.workspace-utilities { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+body:has(.workspace-toolbar) > .utility-toolbar { display: none; }
+/* A preferences dialog opened during loading stays reachable when the workspace arrives. */
+body:has(.workspace-toolbar) > .utility-toolbar:has(.workspace-menu[open]) { display: contents; }
+body:has(.workspace-toolbar) > .utility-toolbar > .workspace-brand,
+body:has(.workspace-toolbar) > .utility-toolbar > .workspace-utilities { display: none; }
+.workspace-menu-trigger {
+  display: grid;
+  place-items: center;
+  width: var(--control-height);
+  min-height: var(--control-height);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.workspace-menu {
+  position: fixed;
+  inset: 0 auto 0 0;
+  margin: 0;
+  width: min(340px, calc(100% - 28px));
+  height: 100dvh;
+  max-height: none;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-float);
+  overscroll-behavior: contain;
+}
+body:has(.workspace-menu[open], .decision-dialog[open]) { overflow: hidden; }
+.workspace-menu::backdrop, .decision-dialog::backdrop { background: var(--member-backdrop); }
+.workspace-menu-body {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  align-content: start;
+  gap: 16px;
+  min-height: 100%;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+}
+.workspace-menu-body .modal-heading { margin: 0; align-items: center; }
+.workspace-menu-body .modal-heading h2 { margin: 0; font-size: 1.125rem; }
+.workspace-menu-links { display: grid; align-content: start; gap: 4px; }
+.workspace-menu-links a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--control-height);
+  padding: 8px 12px;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  text-decoration: none;
+}
+.workspace-menu-links a:is(:hover, [aria-current="page"]) { background: var(--surface-soft); }
+.workspace-preferences { display: grid; gap: 8px; align-self: end; }
+.workspace-preferences .language-switcher { display: flex; width: 100%; }
+.workspace-preferences .language-switcher button { flex: 1; }
+.work-record-edition-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.work-record-edition-switch button { min-height: var(--control-height); white-space: normal; }
+.work-record-edition-switch button[aria-pressed="true"] { border-color: var(--line-strong); background: var(--surface-soft); color: var(--ink); }
+
+/* Workspace chrome. Desktop content width = viewport - 64px rail - 8px inset. */
+html:root .app-utility-bar {
+  align-items: center;
+  justify-content: space-between;
+  min-height: max(48px, calc(env(safe-area-inset-top) + 44px));
+  width: 100%;
+  padding: env(safe-area-inset-top) var(--sheet-gutter) 0;
+}
+html:root .workspace-brand {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+html:root .workspace-brand .brand-mark { width: 24px; height: 24px; }
+html:root .workspace-menu-trigger:hover { background: var(--nav-selected); }
+html:root .app-shell {
+  width: 100%;
+  padding: var(--sheet-gutter);
+  min-height: calc(100dvh - 48px);
+  background: var(--surface);
+  font-size: .9375rem;
+}
+html:root .app-shell > .topbar,
+html:root .app-shell > .today-topbar {
+  margin-bottom: var(--sheet-gap);
+  padding-bottom: 16px;
+  border-bottom-color: var(--line);
+}
+html:root :is(.topbar, .help-hero) h1 { font-size: clamp(1.375rem, 2.3vw, 1.625rem); font-weight: 650; letter-spacing: -.025em; }
+html:root :is(.topbar, .manage-heading, .modal-heading, .member-sheet__heading) .eyebrow { margin-bottom: 4px; letter-spacing: normal; font-weight: 500; }
+html:root .section-tabs {
+  display: flex;
+  gap: 16px;
+  padding: 0;
+  margin: 0 0 var(--sheet-gap);
+  background: var(--surface);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+}
+html:root .section-tabs button {
+  padding-inline: 2px;
+  color: var(--muted);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+}
+html:root .section-tabs button.active { color: var(--ink); border-bottom-color: var(--brand); font-weight: 650; }
+html:root .section-tabs button:hover { color: var(--brand-dark); }
+html:root .bottom-nav__item:hover,
+html:root .bottom-nav__item--active,
+html:root .app-nav-submenu a[aria-current="page"] { color: var(--ink); background: var(--nav-selected); }
+
+@media (min-width: 1200px) {
+  html:root .workspace-toolbar { display: flex; padding-left: calc(var(--app-nav-rail-width) + var(--sheet-gutter)); }
+  html:root .workspace-toolbar .workspace-brand .brand-mark,
+  html:root .workspace-toolbar .workspace-utilities { display: none; }
+  html:root .app-shell:has(> .app-nav-space) {
+    width: calc(100% - var(--app-nav-rail-width) - var(--sheet-inset));
+    margin: 0 var(--sheet-inset) var(--sheet-inset) var(--app-nav-rail-width);
+    min-height: calc(100dvh - 48px - var(--sheet-inset));
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sheet);
+    padding: var(--sheet-gutter);
+  }
+  html:root .bottom-nav { background: var(--page); border: 0; padding-top: 6px; }
+  html:root .app-nav-caption { margin-top: 16px; letter-spacing: normal; }
+  html:root .app-nav-footer { gap: 8px; }
+  .app-nav-footer .workspace-preferences { display: none; }
+  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-footer .workspace-preferences { display: grid; }
+}
+@media (max-width: 1199px) {
+  html:root .bottom-nav {
+    bottom: 0;
+    width: 100%;
+    padding: 3px var(--sheet-gutter) max(3px, env(safe-area-inset-bottom));
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    box-shadow: none;
+  }
+  html:root .bottom-nav__item { min-height: 48px; }
+  html:root .app-nav-space { height: calc(var(--app-nav-height, 64px) + 8px); }
+}
+
+/* Shared ledger typography and control hierarchy. */
+html:root :is(.primary-action, .save-record) { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+html:root :is(.primary-action, .save-record):hover:not(:disabled) { background: var(--brand-dark); border-color: var(--brand-dark); }
+html:root :is(.secondary-action, .close-button, .header-link) { border-radius: var(--radius-control); box-shadow: none; }
+html:root :is(.board-panel, .analytics-card, .manage-card, .finance-metric-group, .payroll-ledger-panel, .monthly-finance__panel, .help-card, .login-card, .setup-card) { box-shadow: none; }
+html:root :is(.finance-section, .manage-section) { margin-top: var(--sheet-gap); }
+html:root :is(.data-table, .employee-totals, .summary-strip) { font-variant-numeric: tabular-nums; }
+html:root .data-table th { color: var(--muted); background: var(--surface); letter-spacing: normal; text-transform: none; font-weight: 600; }
+html:root :is(.data-table .amount, .payroll-ledger-money, .record-facts dd) { font-variant-numeric: tabular-nums; }
+html:root :is(.form-error, .closed-banner, .success-banner, .member-conflict) { border-radius: var(--radius-control); }
+html:root :is(.empty-state, .loading-card, .error-card) { color: var(--ink); overflow-wrap: anywhere; }
+html:root .empty-state > p { color: var(--muted); }
+
+/* Daily board: one roster edge, one timeline per employee, and one totals lane. */
+html:root .today-heading { min-width: 0; }
+html:root .board-section-heading { margin-block: var(--sheet-gap) 8px; align-items: baseline; }
+html:root .board-overview { background: var(--surface-soft); box-shadow: none; }
+html:root .overview-metric strong { font-size: clamp(1rem, 2vw, 1.5rem); font-weight: 550; }
+html:root .employee-row { background: var(--surface); }
+html:root .employee-header { background: var(--surface-soft); }
+html:root .employee-toggle .employee-avatar { color: var(--brand-dark); background: var(--brand-soft); }
+html:root .employee-totals dd { text-align: right; font-weight: 550; }
+html:root .employee-totals > div:last-child dd { font-weight: 700; }
+html:root .add-record { border-style: solid; background: var(--surface-soft); color: var(--brand-dark); }
+html:root .record-card { box-shadow: none; }
+@property --record-pending-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@supports (mask-composite: exclude) {
+  @media (forced-colors: none) {
+    html:root .record-card--pending::after {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      padding: 2px;
+      border-radius: inherit;
+      pointer-events: none;
+      background: conic-gradient(
+        from var(--record-pending-angle, 0deg),
+        transparent 74%,
+        var(--line-strong) 83%,
+        var(--record-pending-glint) 90%,
+        transparent 100%
+      );
+      mask: linear-gradient(var(--surface) 0 0) content-box, linear-gradient(var(--surface) 0 0);
+      mask-composite: exclude;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+    html:root .record-card--pending::after {
+      animation: record-pending-edge 5s linear infinite;
+    }
+  }
+}
+
+@keyframes record-pending-edge {
+  to { --record-pending-angle: 1turn; }
+}
+
+html:root .board-store-projects { gap: var(--sheet-gap); margin-block: var(--sheet-gap); }
+@media (min-width: 1200px) {
+  html:root .employee-row:not(.employee-row--collapsed) { display: grid; grid-template-columns: 196px minmax(0, 1fr); }
+  html:root .employee-row:not(.employee-row--collapsed) .employee-header { align-content: start; align-items: start; flex-direction: column; border: 0; border-right: 1px solid var(--line); }
+  html:root .employee-row:not(.employee-row--collapsed) .employee-toggle { min-height: 56px; }
+  html:root .employee-row:not(.employee-row--collapsed) .row-tools { padding: 0 12px 12px; gap: 4px 8px; }
+  html:root .employee-content:not(.employee-content--records-only) { grid-template-columns: minmax(0, 1fr) minmax(142px, 16%); }
+}
+
+/* Finance: filters, a divided result strip, then the evidence. */
+html:root :is(.monthly-finance__toolbar, .expenses-toolbar, .filter-panel) { gap: 12px; }
+html:root :is(.monthly-finance__metrics, .analytics-overview__metrics, .expenses-summary, .closing-totals, .gift-card-ledger__summary) {
+  gap: 1px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--line);
+  overflow: hidden;
+}
+html:root :is(.monthly-finance__metrics, .analytics-overview__metrics, .expenses-summary, .closing-totals, .gift-card-ledger__summary) > * {
+  padding: 16px;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+}
+html:root :is(.analytics-overview__value, .expenses-summary strong, .closing-totals strong) {
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+  font-weight: 500;
+  letter-spacing: -.025em;
+}
+html:root .analytics-overview__metric dt .ui-icon { display: none; }
+html:root .analytics-overview__metric dt { min-height: auto; }
+html:root .analytics-overview__metric .analytics-overview__caption { margin-top: 8px; padding-top: 0; }
+html:root :is(.monthly-finance__hero, .analytics-grid, .analytics-hero) { gap: var(--sheet-gap); }
+html:root :is(.expenses-region, .closing-delivery-panel, .payroll-ledger-panel) { border-top: 1px solid var(--line); }
+html:root .closing-status { border-radius: var(--radius-panel); }
+html:root .closing-actions { flex-wrap: wrap; }
+html:root .gift-card-ledger__summary article.balance-card { background: var(--surface-soft); }
+html:root .gift-card-ledger__table :is(th, td) { vertical-align: top; }
+html:root .gift-card-ledger__table .gift-card-ledger__section-heading { background: var(--surface-soft); }
+html:root .payroll-workspace { box-shadow: none; }
+html:root .payroll-setup { background: var(--surface-soft); }
+html:root .payroll-statement { background: var(--surface); }
+html:root .payroll-statement-actions { padding-block: 12px; border-top: 1px solid var(--line); }
+html:root .payroll-ledger-heading { padding-bottom: 12px; }
+
+/* Settings, directory and queues share the same reading edges. */
+html:root :is(.manage-heading, .catalog-group-heading, .work-bot-intro, .members-page-heading) { align-items: baseline; gap: 12px; }
+html:root :is(.manage-heading, .catalog-group-heading) h2 { font-size: 1.125rem; }
+html:root .store-settings-layout > form { padding: var(--sheet-gutter); }
+html:root .store-settings-layout > .danger-zone { background: var(--surface); border-top: 3px solid var(--danger-line); }
+html:root .auto-discount-settings { margin-top: 16px; background: var(--surface-soft); border-color: transparent; }
+html:root .members-master-detail { gap: var(--sheet-gap); }
+html:root .members-directory { background: var(--surface-soft); }
+html:root .member-detail__heading { border-bottom: 1px solid var(--line); }
+html:root .member-settings-group { background: var(--surface-soft); }
+html:root .catalog-group { padding-block: 16px; border-top: 1px solid var(--line); }
+html:root :is(.catalog-list, .work-bot-groups, .work-bot-operations) { gap: 8px; }
+html:root :is(.work-bot-group-body, .data-operations-grid) { background: var(--surface-soft); }
+html:root :is(.work-bot-operation, .audit-details) { border-radius: var(--radius-control); }
+html:root .profile-summary { background: var(--surface-soft); border-color: var(--line); box-shadow: none; }
+@media (min-width: 980px) {
+  html:root .profile-layout { grid-template-columns: minmax(220px, 1fr) minmax(0, 2.5fr); align-items: start; }
+}
+
+/* Standalone surfaces use the same sheet with their own content measure. */
+html:root :is(.assistant-shell, .help-shell, .login-page, .settlement-share) {
+  width: min(1120px, calc(100% - 2 * var(--sheet-inset)));
+  max-width: none;
+  margin: 0 auto var(--sheet-inset);
+  padding: var(--sheet-gutter);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sheet);
+  background: var(--surface);
+}
+html:root .assistant-layout { gap: var(--sheet-gap); }
+html:root :is(.assistant-examples, .chat-composer) { background: var(--surface-soft); box-shadow: none; }
+html:root .assistant-examples button { overflow-wrap: anywhere; }
+html:root .help-topics { gap: 4px 16px; padding-bottom: 12px; }
+html:root .help-topics a { padding-inline: 2px; border-color: transparent; }
+html:root .help-shell .help-grid { gap: 12px; }
+html:root .login-page { min-height: auto; align-items: start; gap: var(--sheet-gap); }
+html:root .login-brand { margin-bottom: 16px; }
+html:root .login-intro h1 { max-width: 22ch; margin-block: 8px; font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.025em; }
+html:root .login-workflow { margin-top: 16px; padding-top: 16px; }
+html:root .login-workflow > div > .ui-icon { display: none; }
+html:root .login-card { background: var(--surface-soft); }
+html:root .center-page { padding-top: 24px; }
+html:root .setup-card .setup-section-title { padding-top: 16px; border-top: 1px solid var(--line); }
+html:root .setup-card .setup-line { border-color: var(--line); background: var(--surface-soft); }
+html:root .settlement-share-shell { min-height: calc(100dvh - 48px); }
+html:root .settlement-share-heading { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+html:root .settlement-share-total { background: var(--surface-soft); }
+html:root .settlement-share-lead strong { font-size: 1.875rem; font-weight: 500; color: var(--brand-dark); }
+
+/* Modal surfaces. Keep each modal's existing focus, scroll and write ownership. */
+html:root :is(.board-delivery-dialog, .decision-dialog, .workspace-menu, .member-sheet, .employee-closing-modal, .record-editor, .quick-modal, .finance-details, .settlement-delivery-modal, .expenses-editor, .payroll-edit-modal, .floating-ai-dialog) {
+  color: var(--ink);
+  border-color: var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+html:root :is(.board-delivery-dialog, .quick-modal, .finance-details, .employee-closing-modal, .expenses-editor, .payroll-edit-modal, .settlement-delivery-modal, .floating-ai-dialog, .decision-dialog) {
+  border-radius: var(--radius-sheet);
+}
+html:root :is(.modal-heading, .member-sheet__heading, .expenses-editor > .expenses-toolbar, .floating-ai-dialog > header) {
+  border-bottom: 1px solid var(--line);
+}
+html:root :is(.modal-heading, .member-sheet__heading, .expenses-editor > .expenses-toolbar) h2 {
+  font-size: clamp(1.125rem, 2vw, 1.375rem);
+  font-weight: 650;
+  letter-spacing: -.02em;
+  overflow-wrap: anywhere;
+}
+html:root .modal-heading__actions { gap: 8px; }
+html:root :is(.member-sheet__footer, .modal-actions) { border-top: 1px solid var(--line); }
+html:root .record-editor .sticky-heading { background: var(--surface); }
+html:root .quick-work-modal[data-quick-mode] { background-color: var(--quick-mode-color); }
+html:root .quick-work-modal .quick-modal-content { gap: 12px; }
+html:root .gift-card-sale-modal .gift-card-sale-form { gap: 12px; }
+html:root .placeholder-delete-dialog .modal-heading { padding-bottom: 12px; }
+html:root .weekly-dispatch-dialog .weekly-dispatch-table-wrap { border-radius: var(--radius-panel); }
+html:root .ranking-explanation-dialog .modal-heading { align-items: start; }
+html:root .business-date-picker__popover { border-color: var(--line); border-radius: var(--radius-panel); }
+html:root .board-more-actions__body { border-radius: var(--radius-panel); }
+html:root .decision-dialog {
+  width: min(450px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid var(--line);
+  overscroll-behavior: contain;
+}
+html:root .decision-dialog-body { display: grid; gap: 16px; padding: var(--sheet-gutter); }
+html:root .decision-dialog-body :is(h2, p) { margin: 0; overflow-wrap: anywhere; }
+html:root .decision-dialog-body h2 { font-size: 1.25rem; }
+html:root .decision-dialog-body p { color: var(--muted); }
+html:root .decision-field { display: grid; gap: 6px; }
+html:root .decision-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+@media (max-width: 760px) {
+  html:root :is(.assistant-shell, .help-shell, .login-page, .settlement-share) { width: 100%; border-inline: 0; border-radius: 0; }
+  html:root .login-workflow { display: none; }
+  html:root .login-device-note { margin-block: 12px 0; }
+  html:root .section-tabs { gap: 12px; }
+  html:root .workspace-menu { width: min(340px, calc(100% - 20px)); }
+  html:root .decision-dialog-body { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+}
+
+/* Results and related actions keep a stable position as their contents change. */
+html:root .monthly-finance__metric button .ui-icon { display: none; }
+html:root .monthly-finance__metric button > strong { font-size: clamp(1.25rem, 2.5vw, 1.75rem); font-weight: 550; }
+html:root .monthly-finance__filters { padding: 8px 12px; background: var(--surface-soft); border-radius: var(--radius-control); }
+html:root .expenses-region { padding-top: 12px; }
+html:root .expenses-table td:nth-child(3) { text-align: right; }
+html:root .expenses-table th:nth-child(3) { text-align: right; }
+html:root .personal-cash-settlement { background: var(--surface-soft); }
+html:root .closing-delivery-panel > div:first-child { flex: 1; min-width: 0; }
+html:root .work-bot-member { border-top: 1px solid var(--line); }
+html:root .data-operations-grid { padding: 16px; border-radius: var(--radius-panel); }
+html:root .member-detail-tabs button[aria-pressed="true"] { border-bottom: 2px solid var(--brand); }
+html:root .assistant-layout .chat-panel { border-radius: var(--radius-panel); }
+html:root .chat-message { max-width: min(68ch, 100%); }
+html:root .floating-ai-heading > div > span[aria-hidden] { display: none; }
+html:root .finance-details__heading { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+html:root .employee-closing-handoff { padding: 12px; background: var(--surface-soft); border-radius: var(--radius-panel); }
+html:root .gift-card-sale-total { background: var(--surface-soft); }
+html:root .gift-card-sale-actions { border-top: 1px solid var(--line); padding-top: 12px; }
+html:root .member-sheet__body { padding-block: 16px; }
+
+@media (min-width: 761px) {
+  html:root .login-page { grid-template-columns: minmax(0, 1fr) minmax(300px, 460px); }
+}
+@media (min-width: 1200px) {
+  html:root .store-settings-layout { grid-template-columns: minmax(0, 2.4fr) minmax(270px, 1fr); }
+  html:root .data-operations-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  html:root .finance-details__heading { flex-wrap: wrap; }
+  html:root .profile-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Review precedes delivery during daily closing. */
+html:root .closing-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sheet-gap);
+}
+html:root :is(.closing-review, .closing-delivery) { display: block; min-width: 0; }
+html:root .closing-review > .table-title { margin-top: 0; }
+html:root .closing-delivery > .closing-delivery-panel { margin: 0; }
+@media (min-width: 1500px) {
+  html:root .closing-workspace { grid-template-columns: minmax(0, 1fr) minmax(290px, 24%); }
+}
+
+html:root .owner-controls { justify-content: space-between; gap: 16px; }
+html:root .owner-transfer-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }

@@ -31,7 +31,7 @@ test("mobile checks reject layout and control regressions even when colors use t
   const issues = checkMobileUi([...sources, { name: "regression.css", css: `
     @media (max-width: 600px) {
       .board-store-projects { grid-template-columns: 1fr 1fr !important; }
-      .section-tabs button { border-radius: var(--radius-control); }
+      html:root .section-tabs button { border-radius: var(--radius-control); }
       .payroll-statement .settlement-payment-amounts { grid-template-columns: repeat(3, 1fr); }
       .payroll-statement-actions .employee-settlement-send-actions > button { min-height: 38px; }
       .gift-card-ledger__summary strong { overflow-wrap: normal; }
@@ -113,20 +113,18 @@ test("trend cards keep semantic directions and complete amounts and periods on p
   }
 });
 
-test("Framed Sheet rules stay isolated and fold the workspace at the rail breakpoint", async () => {
+test("Workspace folds at the rail breakpoint and keeps a pending menu open", async () => {
   const { JSDOM } = createRequire(resolve(import.meta.dirname, "../../apps/web/package.json"))("jsdom");
   const sources = await Promise.all(uiStyleFiles.map(async name => ({ name, css: await readFile(resolve(import.meta.dirname, "../../apps/web/app", name), "utf8") })));
   for (const width of [390, 768, 1024, 1200, 1440]) {
-    for (const edition of ["legacy", "new"]) {
-      const dom = new JSDOM(`<html data-ui-edition="${edition}"><style>${stylesAtWidth(sources, width, edition)}</style><div class="app-utility-bar utility-toolbar"><dialog class="workspace-menu" open></dialog></div><div class="app-utility-bar workspace-toolbar"><div class="workspace-utilities"><button class="workspace-menu-trigger">Menu</button></div></div><main class="app-shell"><div class="app-nav-space"><nav class="bottom-nav"></nav></div></main>`);
-      try {
-        const style = selector => dom.window.getComputedStyle(dom.window.document.querySelector(selector));
-        assert.equal(style(".workspace-toolbar").display, edition === "legacy" && width >= 1200 ? "none" : "flex");
-        assert.equal(style(".utility-toolbar").display, "contents");
-        assert.equal(style(".workspace-utilities").display, edition === "new" && width >= 1200 ? "none" : "flex");
-        assert.equal(style(".app-shell").borderRadius, edition === "new" && width >= 1200 ? "16px" : "");
-        assert.equal(style(".bottom-nav").borderRadius, edition === "new" || width >= 1200 ? "0px" : "12px");
-      } finally { dom.window.close(); }
-    }
+    const dom = new JSDOM(`<html><style>${stylesAtWidth(sources, width)}</style><div class="app-utility-bar utility-toolbar"><dialog class="workspace-menu" open></dialog></div><div class="app-utility-bar workspace-toolbar"><div class="workspace-utilities"><button class="workspace-menu-trigger">Menu</button></div></div><main class="app-shell"><div class="app-nav-space"><nav class="bottom-nav"></nav></div></main>`);
+    try {
+      const style = selector => dom.window.getComputedStyle(dom.window.document.querySelector(selector));
+      assert.equal(style(".workspace-toolbar").display, "flex");
+      assert.equal(style(".utility-toolbar").display, "contents");
+      assert.equal(style(".workspace-utilities").display, width >= 1200 ? "none" : "flex");
+      assert.equal(style(".app-shell").borderRadius, width >= 1200 ? "16px" : "");
+      assert.equal(style(".bottom-nav").borderRadius, "0px");
+    } finally { dom.window.close(); }
   }
 });

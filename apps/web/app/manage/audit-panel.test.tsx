@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { DecisionProvider } from "../decision-dialog";
+import { mockNativeDialogs, respondToDecision } from "../test-helpers/dialogs";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { apiRequest } from "../../lib/api";
 import { translateText } from "../../lib/i18n";
@@ -19,12 +21,12 @@ const buttons = (text: string) => [...container.querySelectorAll("button")].filt
 async function click(text: string) { await act(async () => buttons(text)[0]!.click()); }
 async function render(items = [operation]) {
   request.mockResolvedValue({ items, nextCursor: null });
-  await act(async () => root.render(<AuditPanel storeId="store" members={[]} onUndone={onUndone} />));
+  await act(async () => root.render(<DecisionProvider><AuditPanel storeId="store" members={[]} onUndone={onUndone} /></DecisionProvider>));
 }
 beforeEach(() => {
   vi.clearAllMocks();
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-  vi.spyOn(window, "confirm").mockReturnValue(true);
+  mockNativeDialogs();
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
@@ -32,13 +34,12 @@ afterEach(async () => { await act(async () => root.unmount()); container.remove(
 it("places Undo immediately before Details and cancellation leaves history unchanged", async () => {
   await render();
   expect([...container.querySelector(".audit-record-actions")!.children].map(node => node.textContent)).toEqual(["撤销", "详情"]);
-  vi.mocked(window.confirm).mockReturnValue(false);
   await click("撤销");
+  await respondToDecision(container, false);
   expect(request).toHaveBeenCalledTimes(1);
   expect(onUndone).not.toHaveBeenCalled();
   await click("详情");
   expect(buttons("收起")[0]!.getAttribute("aria-expanded")).toBe("true");
-  expect(window.confirm).toHaveBeenCalledOnce();
 });
 
 it("locks repeated clicks, retains Details, then reloads history and related data", async () => {
@@ -46,6 +47,7 @@ it("locks repeated clicks, retains Details, then reloads history and related dat
   let finish!: (value: unknown) => void;
   request.mockImplementation(async (_path, options) => options?.method === "POST" ? new Promise(resolve => { finish = resolve; }) : { items: [{ ...operation, undo: { available: false, undone: true, reason: null } }], nextCursor: null });
   await click("撤销");
+  await respondToDecision(container, true);
   expect(buttons("撤销中…")[0]!.disabled).toBe(true);
   await click("详情");
   expect(container.querySelector("#audit-details-operation .audit-snapshots")).not.toBeNull();
@@ -69,7 +71,8 @@ it("shows unavailable reasons in Details and retries failures with the same key"
   await act(async () => buttons("详情")[1]!.click());
   expect(container.querySelector(".audit-undo-reason")?.textContent).toContain("缺少完整撤销快照");
   request.mockRejectedValue(new Error("相关数据已发生后续修改"));
-  await click("撤销"); await click("撤销");
+  await click("撤销"); await respondToDecision(container, true);
+  await click("撤销"); await respondToDecision(container, true);
   const writes = request.mock.calls.filter(([, options]) => options?.method === "POST");
   expect(writes).toHaveLength(2);
   expect(writes[0]![1]?.headers).toEqual(writes[1]![1]?.headers);

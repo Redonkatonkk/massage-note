@@ -4,6 +4,43 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.61.6 — 2026-11-17
+
+- Stack an employee’s work cards in New only when both groups together contain more than five cards. Placeholder cards count toward the threshold. Add record is a separate control. NAS needs a Web update.
+
+## 1.61.5 — 2026-11-17
+
+- Reveal a single hovered or keyboard-focused work card in the New edition. Its neighbors remain stacked while the gap springs open and settles closed. Reduced motion switches spacing immediately. NAS needs a Web update.
+
+## 1.61.4 — 2026-11-17
+
+- Try stacked work cards in the New edition on wide mouse-and-trackpad layouts. Adjacent cards overlap right over left within each group. Hovering or using keyboard focus opens the track. Touch screens show full cards. NAS needs a Web update.
+
+## 1.61.3 — 2026-11-17
+
+- Share the New work-record interface and motion across both edition choices. The sidebar buttons still remember the selected edition. NAS needs a Web update.
+
+## 1.61.2 — 2026-11-17
+
+- Move Legacy and New below the language controls in the desktop sidebar and restore the desktop header without the menu trigger. On small screens, the existing menu keeps both preferences together. NAS needs a Web update.
+
+## 1.61.1 — 2026-11-17
+
+- Redraw the work-record save indicator as one orbiting blue-green stroke with a rounded head and a tapered, fading tail. The CSS fallback uses the same silhouette. NAS needs a Web update.
+
+## 1.61.0 — 2026-11-17
+
+- Add an opt-in experimental work-record edition to the workspace menu. Employee rows fade in 50ms apart, work cards lift and tilt under the mouse, Quick entry springs from 95% to full size, and Record details slides in from the right in 200ms. The preference is saved in the browser and the new animations respect reduced motion. NAS needs a Web update.
+
+## 1.60.0 — 2026-11-17
+
+- Use Framed Sheet for every Web session. Remove edition switching, the preference cookie and its hydration script, the superseded styles, and native browser prompts. Keep the localized confirmation and reason dialogs, responsive navigation, and work-card states.
+- Retire the obsolete portfolio screenshots, initial design drafts and dated mobile review. The live demo links and current mobile regressions cover the maintained interface. NAS requires a Web update.
+
+## 1.59.2 — 2026-11-17
+
+- Match highlighted work records to the new edition’s blue-green palette. Show pending-payment cards with their usual surface, a cool gray edge shimmer, and a neutral status label. Reduced motion keeps the edge glint static. NAS requires a Web update.
+
 ## 1.59.1 — 2026-11-17
 
 - Show Cash balance in Business overview before the current business day is closed when store cash settlement is enabled. Use confirmed cash activity for open days and frozen movements for closed days. A NAS Web/API update is required.

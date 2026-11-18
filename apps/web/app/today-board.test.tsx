@@ -8,6 +8,8 @@ import * as clipboard from "../lib/clipboard";
 import type { BoardStatistics, StoreDetails, StoreMember, WorkRecord } from "../lib/types";
 import { newWorkRecord } from "../lib/new-work-record";
 import { TodayBoard } from "./today-board";
+import { WorkRecordExperimentProvider } from "./work-record-experiment";
+import { WorkspacePreferences } from "./workspace-menu";
 import { absorbWorkRecordDialog, beginWorkRecordSaveMotion, cancelWorkRecordSaveMotion, beginDetachedWorkRecordSaveMotion } from "../lib/work-record-save-motion";
 import { beginWorkRecordDeleteMotion } from "../lib/work-record-delete-motion";
 
@@ -46,7 +48,7 @@ const cancelMotion = vi.mocked(cancelWorkRecordSaveMotion);
 const deleteMotion = vi.mocked(beginWorkRecordDeleteMotion);
 const releaseDeleteMotion = vi.fn();
 const language = vi.hoisted(() => ({ locale: "zh-CN" as "zh-CN" | "en-US" }));
-vi.mock("./language-provider", () => ({ useLanguage: () => ({ ...language, t: (text: string) => text }) }));
+vi.mock("./language-provider", () => ({ LanguageSwitcher: () => null, useLanguage: () => ({ ...language, t: (text: string) => text }) }));
 const stats: BoardStatistics = { recordCount: 0, grossFeeBaseCents: 0, discountTotalCents: 0, discountedFeePerformanceCents: 0, totalTipCents: 0, totalLargeFeeWageCents: 0, employeeIncomeCents: 0, giftCardSaleCount: 0, giftCardCashCents: 0, giftCardCardCents: 0, giftCardSalesAmountCents: 0, giftCardRedemptionCents: 0, storeIncomeCents: 0 };
 const employee: StoreMember = { id: "employee", displayName: "Alexandria · 姓名很长的员工", role: "EMPLOYEE", isServiceProvider: true, employmentType: "PART_TIME", status: "ACTIVE", version: 1, defaultCommissionBps: 6000, closingDeliveryEnabled: false, closingDeliveryPhoneE164: null, closingImageLocale: null, deletedAt: null };
 const store: StoreDetails = { id: "store", storeCode: "123456", name: "门店", timezone: "America/New_York", businessCutoffLocal: "04:00", status: "ACTIVE", globalCommissionBps: 6000, mondayThursdayAutoDiscountEnabled: false, mondayThursdayAutoDiscountThresholdCents: 6000, mondayThursdayAutoDiscountAmountCents: 1000, giftCardAutoDiscountEnabled: false, giftCardAutoDiscountThresholdCents: 10000, giftCardAutoDiscountBps: 1000, closingDefaultLocale: "zh_CN", version: 1, ownerMembershipId: "owner", ownerMembership: null, automaticDispatchEnabled: false, cashSettlementEnabled: false, cashSettlementCycle: "WEEKLY", cashResetWeekday: 1, cashResetMonthDay: 1, cashResetAmountCents: 0 };
@@ -95,6 +97,81 @@ async function pressEnter(target: Element, options: KeyboardEventInit = {}) {
   await act(async () => { target.dispatchEvent(event); });
   return event;
 }
+
+it.each(["旧版", "新版"])("uses the shared board motion in %s and remembers the selection", async edition => {
+  editorRendering.actual = true;
+  const row = props.board.rows[0]!;
+  const secondEmployee = { ...employee, id: "employee-two", displayName: "Morgan" };
+  props.members = [...props.members, secondEmployee];
+  props.board.rows = [{ ...row, workRecords: [ordinary] }, { ...row, id: "row-two", membershipId: secondEmployee.id, membership: secondEmployee }];
+  const mount = async () => act(async () => root.render(<WorkRecordExperimentProvider><WorkspacePreferences /><TodayBoard {...props} /></WorkRecordExperimentProvider>));
+  const board = () => container.querySelector(".board")!;
+  const rows = () => [...board().querySelectorAll<HTMLElement>(".employee-row")];
+  const delays = () => rows().map(node => node.style.animationDelay);
+  const editor = () => container.querySelector(".record-editor")!;
+  const motion = "data-work-record-motion";
+  try {
+    await mount();
+    await click(edition);
+    expect(button(edition).getAttribute("aria-pressed")).toBe("true");
+    expect(board().hasAttribute(motion)).toBe(true);
+    expect(delays()).toEqual(["0ms", "50ms"]);
+    const firstRow = rows()[0];
+    props.board = { ...props.board, rows: [...props.board.rows].reverse() };
+    await mount();
+    expect(rows()[1]).toBe(firstRow);
+    expect(delays()).toEqual(["50ms", "0ms"]);
+
+    await click("新增记工");
+    expect(document.querySelector(".quick-work-modal")?.hasAttribute(motion)).toBe(true);
+    await click("详细记工");
+    expect(editor().hasAttribute(motion)).toBe(false);
+    await click("关闭", editor());
+
+    const card = container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!;
+    const track = card.closest(".record-track")!;
+    Object.defineProperties(card, {
+      offsetParent: { value: track }, offsetLeft: { value: 16 }, offsetTop: { value: 16 },
+      offsetWidth: { value: 177 }, offsetHeight: { value: 132 },
+    });
+    const motionQuery = Object.assign(new EventTarget(), { matches: true });
+    vi.stubGlobal("matchMedia", (query: string) => query.includes("any-hover") ? motionQuery : undefined);
+    const hover = (type: string, pointerType: string, y: number) => {
+      const event = new MouseEvent(type, { bubbles: true, clientX: 72, clientY: y });
+      card.dispatchEvent(Object.defineProperty(event, "pointerType", { value: pointerType }));
+    };
+    const tilt = () => card.style.getPropertyValue("--record-card-hover");
+    hover("pointermove", "touch", 60);
+    expect(tilt()).toBe("");
+    hover("pointermove", "mouse", 60);
+    expect(tilt()).toContain("translateY(-4.00px) rotateX(1.67deg) rotateY(-1.84deg)");
+    hover("pointermove", "mouse", 148);
+    expect(tilt()).toContain("translateY(0.00px) rotateX(0.00deg) rotateY(0.00deg)");
+    hover("pointercancel", "mouse", 60);
+    expect(tilt()).toBe("");
+    motionQuery.matches = false;
+    hover("pointermove", "mouse", 60);
+    expect(tilt()).toBe("");
+
+    await act(async () => card.click());
+    expect(editor().hasAttribute(motion)).toBe(true);
+    await click("关闭", editor());
+
+    await act(async () => root.render(null));
+    await mount();
+    expect(button(edition).getAttribute("aria-pressed")).toBe("true");
+    expect(board().hasAttribute(motion)).toBe(true);
+    expect(delays()).toEqual(["0ms", "50ms"]);
+    const restoredRow = rows()[0];
+    await click(edition === "旧版" ? "新版" : "旧版");
+    expect(rows()[0]).toBe(restoredRow);
+    expect(board().hasAttribute(motion)).toBe(true);
+    expect(delays()).toEqual(["0ms", "50ms"]);
+  } finally {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  }
+});
 
 describe("历史排序依据入口", () => {
   beforeEach(() => {
@@ -306,8 +383,8 @@ describe("员工小卡直接操作", () => {
   });
 
   it.each(
-    ["legacy", "new"].flatMap(edition => [320, 390, 760, 761, 1200, 1440].map(width => ({ edition, width }))),
-  )("$edition 版 $width px 隐藏展开提示但保留其布局与身份按钮触控区域", async ({ edition, width }) => {
+    [320, 390, 760, 761, 1200, 1440],
+  )("%i px 隐藏展开提示但保留其布局与身份按钮触控区域", async (width) => {
     await render();
     const { readFile } = await import("node:fs/promises");
     const { resolve } = await import("node:path");
@@ -315,8 +392,8 @@ describe("员工小卡直接操作", () => {
     const { JSDOM } = await import("jsdom");
     const checker = pathToFileURL(resolve(process.cwd(), "../../scripts/check-mobile-ui.mjs")).href;
     const { stylesAtWidth } = await import(/* @vite-ignore */ checker);
-    const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css", "new-edition.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
-    const dom = new JSDOM(`<html data-ui-edition="${edition}"><head><style>${stylesAtWidth(sources, width, edition)}</style></head><body>${container.innerHTML}</body></html>`);
+    const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css", "workspace.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
+    const dom = new JSDOM(`<html><head><style>${stylesAtWidth(sources, width)}</style></head><body>${container.innerHTML}</body></html>`);
     try {
       const style = (selector: string) => dom.window.getComputedStyle(dom.window.document.querySelector(selector)!);
       expect(style(".employee-toggle .chevron").visibility).toBe("hidden");

@@ -1,0 +1,87 @@
+/* Work-record interactions. */
+@media (prefers-reduced-motion: no-preference) {
+  .board[data-work-record-motion] > [data-employee-entrance] {
+    animation: work-record-employee-in 180ms ease-out backwards;
+  }
+
+  .board[data-work-record-motion] > [data-employee-entrance]:has(:focus-visible) {
+    opacity: 1 !important;
+  }
+
+  .modal-backdrop > .quick-work-modal[data-work-record-motion] {
+    animation: work-record-quick-in 320ms var(--ease-out) backwards;
+  }
+
+  .record-editor[data-work-record-motion] {
+    animation: work-record-detail-in 200ms var(--ease-out) backwards;
+  }
+}
+
+@media (any-hover: hover) and (any-pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .board[data-work-record-motion] .record-track { position: relative; }
+
+  .board[data-work-record-motion] .record-card:not(:disabled) {
+    transition: border-color var(--motion-fast), background-color var(--motion-fast), transform 180ms var(--ease-out);
+  }
+
+  .board[data-work-record-motion] .record-card:hover:not(:disabled) {
+    z-index: 1;
+    transform: var(--record-card-hover, none);
+  }
+}
+
+/* Open just the gap after the active card. Both neighboring stacks keep their pitch. */
+@media (min-width: 761px) and (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  .record-track[data-record-stack] {
+    --record-stack-inset: -72px;
+    --record-stack-spring: cubic-bezier(.2, .8, .32, 1.18);
+  }
+
+  .board[data-work-record-motion] .record-track[data-record-stack] > .record-card {
+    isolation: isolate;
+    z-index: 0;
+  }
+
+  .record-track[data-record-stack] > .record-card + .record-card:not(.record-card--right-group),
+  .record-track[data-record-stack] > .record-card--right-group + .record-card--right-group {
+    margin-left: var(--record-stack-gap, var(--record-stack-inset));
+  }
+
+  .record-track[data-record-stack] > .record-card:is(:hover, .record-track:not(:has(> .record-card:hover)) > :focus-visible) + .record-card {
+    --record-stack-gap: 0px;
+  }
+
+  @supports (animation-timing-function: linear(0, 1)) {
+    .record-track[data-record-stack] {
+      --record-stack-spring: linear(0, .42 16%, .87 34%, 1.08 52%, .988 75%, 1.008 88%, 1);
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .board[data-work-record-motion] .record-track[data-record-stack] > .record-card {
+      transition: border-color var(--motion-fast), background-color var(--motion-fast), transform 180ms var(--ease-out),
+        margin-left 360ms var(--record-stack-spring), scale 360ms var(--record-stack-spring);
+    }
+
+    .record-track[data-record-stack] > .record-card:is(:hover, .record-track:not(:has(> .record-card:hover)) > :focus-visible) {
+      scale: 1.018 .988;
+    }
+  }
+}
+
+@keyframes work-record-employee-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes work-record-quick-in {
+  0% { transform: scale(.95); }
+  65% { transform: scale(1.01); }
+  85% { transform: scale(.998); }
+  100% { transform: scale(1); }
+}
+
+@keyframes work-record-detail-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}

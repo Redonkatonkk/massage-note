@@ -4,10 +4,10 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import "./design-system.css";
 import "./responsive.css";
-import "./new-edition.css";
-import { UI_EDITION_COOKIE, parseUiEdition } from "../lib/ui-edition";
-import { UiEditionProvider } from "./ui-edition-provider";
+import "./workspace.css";
+import "./work-record-motion.css";
 import { WorkspaceMenu } from "./workspace-menu";
+import { WorkRecordExperimentProvider } from "./work-record-experiment";
 import { DecisionProvider } from "./decision-dialog";
 import { isAppLocale } from "../lib/i18n";
 import { LanguageProvider } from "./language-provider";
@@ -29,20 +29,18 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f4f5f3",
+  themeColor: "#f3f6f8",
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const preferences = isPortfolioDemo ? undefined : await cookies();
   const savedLocale = isPortfolioDemo ? "en-US" : preferences?.get("massage_note_locale")?.value;
-  const edition = parseUiEdition(preferences?.get(UI_EDITION_COOKIE)?.value);
   const initialLocale = isAppLocale(savedLocale) ? savedLocale : "zh-CN";
   return (
-    <html lang={initialLocale} data-ui-edition={edition} suppressHydrationWarning={isPortfolioDemo}>
-      <head>{isPortfolioDemo && <script dangerouslySetInnerHTML={{ __html: `if (/(^|; *)${UI_EDITION_COOKIE}=new(;|$)/.test(document.cookie)) document.documentElement.dataset.uiEdition = "new";` }} />}</head>
+    <html lang={initialLocale} suppressHydrationWarning={isPortfolioDemo}>
       <body>
         <LanguageProvider initialLocale={initialLocale}>
-          <UiEditionProvider initialEdition={edition}>
+          <WorkRecordExperimentProvider>
             <DecisionProvider>
               {isPortfolioDemo && <DemoBanner />}
               <WorkspaceMenu />
@@ -50,7 +48,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <ScrollBoundaryGuard />
               {children}
             </DecisionProvider>
-          </UiEditionProvider>
+          </WorkRecordExperimentProvider>
         </LanguageProvider>
       </body>
     </html>

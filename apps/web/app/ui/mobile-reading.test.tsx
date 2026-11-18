@@ -6,6 +6,8 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { JSDOM } from "jsdom";
+import { DecisionProvider } from "../decision-dialog";
+import { mockNativeDialogs, openDecision, respondToDecision } from "../test-helpers/dialogs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest } from "../../lib/api";
 import type { ExpenseMonthResponse } from "@massage-note/contracts";
@@ -53,9 +55,9 @@ const recovery = (busy = false) => <RecoveryPanel storeId="store" records={[reco
 const pay = (canManage = true, busy = false, settlements = [payroll]) => <PayrollLedger settlements={settlements} canManage={canManage} busy={busy} onEdit={noop} onDelete={noop} onRestore={noop} />;
 let root: Root;
 let container: HTMLDivElement;
-beforeEach(() => { Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true }); container = document.createElement("div"); document.body.append(container); root = createRoot(container); request.mockReset(); request.mockResolvedValue({}); reload.mockClear(); vi.spyOn(window, "confirm").mockReturnValue(false); });
+beforeEach(() => { Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true }); container = document.createElement("div"); document.body.append(container); root = createRoot(container); request.mockReset(); request.mockResolvedValue({}); reload.mockClear(); mockNativeDialogs(); });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
-async function mount(element: ReactElement) { await act(async () => root.render(element)); }
+async function mount(element: ReactElement) { await act(async () => root.render(<DecisionProvider>{element}</DecisionProvider>)); }
 function mobileCards() { return [...container.querySelectorAll<HTMLElement>(".mobile-data-view .mobile-data-card")]; }
 function button(text: string, scope: ParentNode) { const found = [...scope.querySelectorAll<HTMLButtonElement>("button")].find(node => node.textContent === text); if (!found) throw new Error(`Missing button ${text}`); return found; }
 function fact(scope: ParentNode, label: string) { return [...scope.querySelectorAll("dl > div")].find(node => node.querySelector("dt")?.textContent === label)?.querySelector("dd")?.textContent; }
@@ -67,8 +69,9 @@ describe("mobile reading order and protected actions in actual components", () =
     const card = mobileCards()[0]!;
     expect(card.querySelector("header p")?.textContent).toContain("占位");
     expect(fact(card, "大费基数")).toBeUndefined(); expect(card.textContent).not.toContain("$0");
-    vi.mocked(window.confirm).mockReturnValue(true); await act(async () => button("恢复占位", card).click());
-    expect(window.confirm).toHaveBeenCalledWith(`确认恢复 ${name} 的这张占位小卡吗？恢复后只在主表占位，不计入财务。`);
+    await act(async () => button("恢复占位", card).click());
+    expect(openDecision(container).querySelector("p")?.textContent).toBe(`确认恢复 ${name} 的这张占位小卡吗？恢复后只在主表占位，不计入财务。`);
+    await respondToDecision(container, true);
     expect(request).toHaveBeenCalledWith("/stores/store/work-records/record/restore", { method: "POST", idempotent: true, body: { version: 9 } });
     expect(auditFacts({ status: "PLACEHOLDER", grossFeeBaseCents: 0, cashServiceCents: null, commissionBps: 0, isHighlighted: false, isDispatchExcluded: false, durationMinutes: null, serviceName: null, note: "" })).toEqual([{ label: "状态", value: "占位" }]);
   });
@@ -90,10 +93,12 @@ describe("mobile reading order and protected actions in actual components", () =
     expect(fact(work!, "删除原因")).toBe(reason);
     expect(work!.textContent!.indexOf(reason)).toBeLessThan(work!.textContent!.indexOf("恢复记工"));
     await act(async () => button("恢复记工", work!).click()); expect(request).not.toHaveBeenCalled();
-    vi.mocked(window.confirm).mockReturnValue(true);
+    await respondToDecision(container, false);
     await act(async () => button("恢复记工", work!).click());
+    await respondToDecision(container, true);
     expect(request).toHaveBeenCalledWith("/stores/store/work-records/record/restore", { method: "POST", idempotent: true, body: { version: 9 } });
     await act(async () => button("恢复卖卡记录", gift!).click());
+    await respondToDecision(container, true);
     expect(request).toHaveBeenLastCalledWith("/stores/store/gift-card-sales/sale/restore", { method: "POST", idempotent: true, body: { version: 7 } });
     expect(reload).toHaveBeenCalledTimes(2);
     await mount(recovery(true)); expect(mobileCards().every(card => card.querySelector<HTMLButtonElement>("button")!.disabled)).toBe(true);
@@ -114,7 +119,8 @@ describe("mobile reading order and protected actions in actual components", () =
     expect(cards[1]!.querySelector("button")).toBeNull(); expect(cards[2]!.querySelector("button")).toBeNull(); expect(cards[3]!.querySelector(".form-error")).toBeNull();
     expect(cards[0]!.querySelector(".mobile-data-card__details")!.hasAttribute("open")).toBe(false);
     await act(async () => button("取消发送", cards[0]!).click()); expect(cancel).not.toHaveBeenCalled();
-    vi.mocked(window.confirm).mockReturnValue(true); await act(async () => button("取消发送", cards[0]!).click()); expect(cancel).toHaveBeenCalledExactlyOnceWith(queue.deliveries[0]);
+    await respondToDecision(container, false);
+    await act(async () => button("取消发送", cards[0]!).click()); await respondToDecision(container, true); expect(cancel).toHaveBeenCalledExactlyOnceWith(queue.deliveries[0]);
   });
   it("keeps human-readable audit amounts, false and zero values, without translating employee names as enums", () => {
     expect(auditFacts({ displayName: "ALL", totalPaidCents: 0, commissionBps: 6250, isEnabled: false, note: null })).toEqual([{ label: "店内显示名", value: "ALL" }, { label: "实付工资", value: formatUsdPrecise(0) }, { label: "提成比例", value: "62.5%" }, { label: "启用", value: "否" }, { label: "备注", value: "未设置" }]);
@@ -164,7 +170,8 @@ describe("mobile reading order and protected actions in actual components", () =
     await act(async () => button("填写 / 修改金额", card).click()); expect(container.querySelector("[role=dialog] h2")?.textContent).toBe("填写 / 修改当期金额"); expect(request).toHaveBeenCalledTimes(1);
     await act(async () => button("关闭", container.querySelector("[role=dialog]")!).click());
     await act(async () => button("撤销当期修改", card).click()); expect(request).toHaveBeenCalledTimes(1);
-    vi.mocked(window.confirm).mockReturnValue(true); await act(async () => button("撤销当期修改", card).click());
+    await respondToDecision(container, false);
+    await act(async () => button("撤销当期修改", card).click()); await respondToDecision(container, true);
     expect(request).toHaveBeenCalledWith("/stores/store/expenses/electric/periods", { method: "DELETE", idempotent: true, body: { version: 4, ruleId: "rule", periodStart: "2026-10-01" } });
   });
   it("starts help with everyday work and provides anchors for every listed topic", () => {
@@ -182,7 +189,7 @@ describe("responsive CSS applied to actual rare-page markup", () => {
   it("selects one presentation, keeps named facts readable, and wraps long content across phone widths", async () => {
     const checkerPath = pathToFileURL(resolve(process.cwd(), "../../scripts/check-mobile-ui.mjs")).href;
     const { stylesAtWidth } = await import(/* @vite-ignore */ checkerPath);
-    const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
+    const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css", "workspace.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
     const markup = renderToStaticMarkup(<main className="app-shell"><div className="manage-shell">{recovery()}<AuditDetails item={audit} entityLabel="成员" /></div><div className="finance-shell">{pay()}<ClosingDeliveryQueue value={queue} busy={false} onCancel={noop} expanded /><GiftCardLedger ledger={ledger} /><FinanceGiftSaleCards sales={finance.giftCardSales} /><section><SettlementSummary preview={preview} /></section></div></main>);
     for (const width of [320, 360, 390, 414, 480, 600, 760, 900, 1200]) {
       const dom = new JSDOM(`<style>${stylesAtWidth(sources, width)}</style>${markup}`); const doc = dom.window.document; const style = (node: Element) => dom.window.getComputedStyle(node);
@@ -191,7 +198,7 @@ describe("responsive CSS applied to actual rare-page markup", () => {
         expect(style(view.querySelector(".mobile-data-view")!).display, `${width}px mobile view`).toBe(width <= 900 ? "block" : "none");
       }
       for (const value of doc.querySelectorAll(".record-facts dd")) { expect(["16px", "1rem"], `${width}px fact value`).toContain(style(value).fontSize); expect(style(value).whiteSpace).toBe("normal"); }
-      for (const card of doc.querySelectorAll(".mobile-data-card")) { expect(style(card).overflowWrap).toBe("anywhere"); expect(style(card).borderRadius).toBe("10px"); }
+      for (const card of doc.querySelectorAll(".mobile-data-card")) { expect(style(card).overflowWrap).toBe("anywhere"); expect(style(card).borderRadius).toBe("8px"); }
       for (const button of doc.querySelectorAll(".mobile-data-card button")) expect(parseFloat(style(button).minHeight), `${width}px touch target`).toBeGreaterThanOrEqual(44);
       if (width === 320) for (const facts of doc.querySelectorAll(".record-facts")) expect(style(facts).gridTemplateColumns).toBe("minmax(0, 1fr)");
       dom.window.close();

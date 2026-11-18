@@ -126,7 +126,7 @@ it("台账把重复购买归为用户名一组，使用金额只合计一次且�
 it("统一标识输入在手机样式中可换行，保持文本输入与触控高度", async () => {
   const checkerPath = pathToFileURL(resolve(process.cwd(), "../../scripts/check-mobile-ui.mjs")).href;
   const { stylesAtWidth } = await import(/* @vite-ignore */ checkerPath);
-  const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
+  const sources = await Promise.all(["globals.css", "design-system.css", "responsive.css", "workspace.css"].map(async name => ({ name, css: await readFile(resolve(process.cwd(), "app", name), "utf8") })));
   const field = <GiftCardIdentityField value={"001001".repeat(20)} onChange={() => {}} />;
   const markup = renderToStaticMarkup(<section className="quick-modal gift-card-sale-modal"><div className="gift-card-sale-form">{field}</div></section>);
   for (const width of [320, 390, 600, 760, 1200]) {

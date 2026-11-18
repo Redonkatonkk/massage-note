@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
 import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { readFile } from "node:fs/promises";
+import { JSDOM } from "jsdom";
 import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
+import { DecisionProvider } from "./decision-dialog";
 import { LanguageProvider } from "./language-provider";
 import { ScrollBoundaryGuard } from "./scroll-boundary-guard";
 import { NetworkStatus } from "./network-status";
+import { WorkRecordExperimentProvider } from "./work-record-experiment";
+import { RecordTrack } from "./record-track";
+import { WorkspacePreferences } from "./workspace-menu";
 import type { AppLocale } from "../lib/i18n";
 import type { RealtimeChange } from "../lib/realtime-client";
 
@@ -73,18 +79,77 @@ async function singleClick(button: HTMLButtonElement, duringPress?: () => Promis
   });
 }
 
+it("stacks after five cards and returns to full spacing when the count drops", async () => {
+  const mount = async (recordCount: number) => act(async () => root.render(<WorkRecordExperimentProvider>
+    <WorkspacePreferences />
+    <RecordTrack recordCount={recordCount}>
+      {Array.from({ length: recordCount }, (_, index) => <button key={index} className="record-card" />)}
+      <button className="add-record">新增记工</button>
+    </RecordTrack>
+  </WorkRecordExperimentProvider>));
+  const track = () => host.querySelector<HTMLElement>(".record-track")!;
+  await mount(5);
+  await singleClick(host.querySelector<HTMLButtonElement>(".work-record-edition-switch button:last-child")!);
+  expect(track().dataset.recordStack).toBeUndefined();
+  await mount(6);
+  expect(track().dataset.recordStack).toBe("true");
+  await mount(5);
+  expect(track().dataset.recordStack).toBeUndefined();
+});
+
+it("reveals only the hovered or keyboard-focused work card in a stack", async () => {
+  const { window } = new JSDOM(`<div class="board" data-work-record-motion><div class="record-track" data-record-stack>
+    <button class="record-card"></button><button class="record-card"></button><button class="record-card"></button>
+    <button class="add-record"></button><button class="record-card record-card--right-group"></button>
+    <button class="record-card record-card--right-group"></button>
+  </div></div>`);
+  const { document, CSSMediaRule, CSSStyleRule, MouseEvent, getComputedStyle } = window;
+  const track = document.querySelector(".record-track")!;
+  const cards = [...track.querySelectorAll("button")];
+  const style = document.createElement("style");
+  style.textContent = await readFile("app/work-record-motion.css", "utf8");
+  document.head.append(style);
+  try {
+    // jsdom does not evaluate hover input media queries. Apply the authored rules for that mode.
+    const stackMedia = [...style.sheet!.cssRules].find((rule): rule is CSSMediaRule =>
+      rule instanceof CSSMediaRule && rule.conditionText.includes("min-width: 761px"))!;
+    style.textContent = [...stackMedia.cssRules].filter(rule => rule instanceof CSSStyleRule).map(rule => rule.cssText).join("\n");
+    const openGaps = () => cards.flatMap((card, index) => {
+      return getComputedStyle(card).getPropertyValue("--record-stack-gap") === "0px" ? [index] : [];
+    });
+    cards[4]!.focus();
+    expect(openGaps()).toEqual([5]);
+    cards[4]!.blur();
+    cards[1]!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    track.setAttribute("data-test-refresh-style", ""); // Invalidate jsdom's style cache after input changes.
+    expect(openGaps()).toEqual([2]);
+    cards[1]!.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: track }));
+    track.removeAttribute("data-test-refresh-style");
+    expect(openGaps()).toEqual([]);
+  } finally {
+    window.close();
+  }
+});
+
 it.each(["zh-CN", "en-US"] as AppLocale[])("keeps single-click navigation and dialogs working through refreshes in %s", async locale => {
   await import("../demo/client");
   const { MassageNoteApp } = await import("./massage-note-app");
   const network = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Live requests are forbidden"));
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-  await act(async () => root.render(<StrictMode><LanguageProvider initialLocale={locale}><NetworkStatus /><ScrollBoundaryGuard /><MassageNoteApp /></LanguageProvider></StrictMode>));
+  await act(async () => root.render(<StrictMode><LanguageProvider initialLocale={locale}><WorkRecordExperimentProvider><DecisionProvider><NetworkStatus /><ScrollBoundaryGuard /><MassageNoteApp /></DecisionProvider></WorkRecordExperimentProvider></LanguageProvider></StrictMode>));
   for (let index = 0; index < 20 && !host.querySelector(".board-overview"); index++) await act(async () => { await vi.advanceTimersByTimeAsync(10); });
   expect(host.querySelector(".board-overview"), host.textContent ?? "").not.toBeNull();
   const tick = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(15_000); }); };
   const backgroundRefresh = async () => { await act(async () => { await Promise.all([...streams].map(refresh => refresh({ full: true, changes: [] }))); }); };
   const toggle = () => host.querySelector<HTMLButtonElement>("button.app-nav-toggle")!;
   const queue = () => host.querySelector<HTMLButtonElement>('button.board-closing-action[aria-haspopup="dialog"]')!;
+  const tracks = [...host.querySelectorAll<HTMLElement>(".record-track")];
+  const [legacyEdition, newEdition] = host.querySelectorAll<HTMLButtonElement>(".app-nav-footer .work-record-edition-switch button");
+  expect(tracks.every(track => track.dataset.recordStack === undefined)).toBe(true);
+  await singleClick(newEdition!);
+  expect(tracks.map(track => [track.querySelectorAll(".record-card").length, track.dataset.recordStack])).toEqual([
+    [3, undefined], [4, undefined], [6, "true"], [4, undefined], [6, "true"],
+  ]);
+  expect(tracks[2]!.querySelectorAll(".record-card--right-group")).toHaveLength(1);
   for (let index = 0; index < 4; index++) {
     await singleClick(toggle(), tick);
     expect(toggle().getAttribute("aria-expanded")).toBe("true");
@@ -109,6 +174,9 @@ it.each(["zh-CN", "en-US"] as AppLocale[])("keeps single-click navigation and di
     await singleClick(refresh);
     expect(refresh.disabled).toBe(false);
   }
-  expect(network).not.toHaveBeenCalled(); expect(confirm).not.toHaveBeenCalled();
+  await singleClick(legacyEdition!);
+  expect(host.querySelectorAll(".record-track[data-record-stack]")).toHaveLength(0);
+  expect(network).not.toHaveBeenCalled();
+  expect(host.querySelector(".decision-dialog")).toBeNull();
   expect(document.querySelector(".screen-feedback--error, .record-error-toast")).toBeNull();
 }, 15_000);

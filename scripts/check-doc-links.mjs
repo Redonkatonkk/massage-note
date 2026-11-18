@@ -4,8 +4,9 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export function repositoryMarkdownFiles(root) {
-  const output = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "*.md"], { cwd: root, encoding: "utf8" });
-  return [...new Set(output.split("\0").filter(Boolean))];
+  const list = (...flags) => execFileSync("git", ["ls-files", ...flags, "-z", "--", "*.md"], { cwd: root, encoding: "utf8" }).split("\0");
+  const deleted = new Set(list("--deleted"));
+  return [...new Set(list("--cached", "--others", "--exclude-standard").filter(file => file && !deleted.has(file)))];
 }
 
 function withoutCode(markdown) {

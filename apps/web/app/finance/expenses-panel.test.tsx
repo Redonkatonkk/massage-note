@@ -2,13 +2,15 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { ExpenseItemResponse, ExpenseMonthResponse } from "@massage-note/contracts";
+import { DecisionProvider } from "../decision-dialog";
+import { mockNativeDialogs, respondToDecision } from "../test-helpers/dialogs";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ApiError, apiRequest } from "../../lib/api";
 import { ExpensesPanel } from "./expenses-panel";
 
 vi.mock("../../lib/api", async original => ({ ...await original<typeof import("../../lib/api")>(), apiRequest: vi.fn() }));
 vi.mock("../../lib/realtime", () => ({ useStoreRealtime: () => {} }));
-const language = vi.hoisted(() => ({ locale: "zh-CN" }));
+const language = vi.hoisted(() => ({ locale: "zh-CN", t: (text: string) => text }));
 vi.mock("../language-provider", () => ({ useLanguage: () => language }));
 const request = vi.mocked(apiRequest);
 const recurring = (id: string, changes: Partial<ExpenseItemResponse> = {}): ExpenseItemResponse => ({ id, version: 4, name: id, note: "查看备注", kind: "RECURRING", occurredOn: null, amountCents: null, deletedAt: null, rules: [{ id: `rule-${id}`, startDate: "2026-01-01", endExclusive: null, defaultAmountFrom: "2026-01-01", unit: "MONTH", interval: 1, amountCents: "10000" }], ...changes });
@@ -32,10 +34,10 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   language.locale = "zh-CN"; request.mockReset(); request.mockResolvedValue(fixture());
-  vi.spyOn(window, "confirm").mockReturnValue(false);
+  mockNativeDialogs();
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
-async function render(storeId = "store") { await act(async () => root.render(<ExpensesPanel storeId={storeId} today="2026-10-17" />)); }
+async function render(storeId = "store") { await act(async () => root.render(<DecisionProvider><ExpensesPanel storeId={storeId} today="2026-10-17" /></DecisionProvider>)); }
 function button(label: string, scope: ParentNode = container) {
   const node = [...scope.querySelectorAll<HTMLButtonElement>("button")].find(value => value.textContent === label);
   if (!node) throw new Error(`Missing button ${label}`);
@@ -78,9 +80,11 @@ it("展开整期记录，保留缺失提示、未录入空输入与真实零金�
   const amount = dialog().querySelector<HTMLInputElement>("input[inputmode=decimal]")!;
   expect(amount.value).toBe(""); await input(amount, "0"); await submit();
   expect(request).toHaveBeenCalledWith("/stores/store/expenses/水电/periods", { method: "POST", idempotent: true, body: { version: 4, ruleId: "rule-水电", periodStart: "2026-10-01", amountCents: 0 } });
-  await click("撤销当期修改", card("水电")); expect(window.confirm).toHaveBeenCalledOnce();
+  await click("撤销当期修改", card("水电"));
+  await respondToDecision(container, false);
   expect(request).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: "DELETE" }));
-  vi.mocked(window.confirm).mockReturnValue(true); await click("撤销当期修改", card("水电"));
+  await click("撤销当期修改", card("水电"));
+  await respondToDecision(container, true);
   expect(request).toHaveBeenCalledWith("/stores/store/expenses/水电/periods", { method: "DELETE", idempotent: true, body: { version: 4, ruleId: "rule-水电", periodStart: "2026-10-11" } });
 });
 
@@ -106,12 +110,13 @@ it("详情包含备注、历史和停止，折叠项目可重新开始，删除�
   await click("重新开始", dialog()); await submit();
   expect(request).toHaveBeenCalledWith("/stores/store/expenses/停止/rules", expect.objectContaining({ method: "POST", body: expect.objectContaining({ version: 4 }) }));
   await click("项目详情", card("用品")); await click("删除", dialog());
+  await respondToDecision(container, false);
   expect(dialog()).not.toBeNull();
-  vi.mocked(window.confirm).mockReturnValue(true); await click("删除", dialog());
+  await click("删除", dialog()); await respondToDecision(container, true);
   expect(request).toHaveBeenCalledWith("/stores/store/expenses/用品", { method: "DELETE", idempotent: true, body: { version: 4 } });
   // A deletion readback removes its detail dialog and retains the recovery entry.
   const deleted = fixture(); deleted.items.find(item => item.id === "用品")!.deletedAt = "2026-10-17T00:00:00Z";
-  request.mockResolvedValue(deleted); await click("删除", dialog());
+  request.mockResolvedValue(deleted); await click("删除", dialog()); await respondToDecision(container, true);
   expect(dialog()).toBeNull();
   await click("恢复", container.querySelector('.expenses-deleted [data-expense-id="用品"]')!);
   expect(request).toHaveBeenCalledWith("/stores/store/expenses/用品/restore", { method: "POST", idempotent: true, body: { version: 4 } });
@@ -128,10 +133,9 @@ it("保存失败保留草稿可重试，409 关闭旧编辑并刷新核对", asy
 
 it("详情删除失败可在弹层内读取错误并重试，冲突后关闭详情", async () => {
   await render(); await click("项目详情", card("用品"));
-  vi.mocked(window.confirm).mockReturnValue(true);
-  request.mockRejectedValueOnce(new Error("删除失败")); await click("删除", dialog());
+  request.mockRejectedValueOnce(new Error("删除失败")); await click("删除", dialog()); await respondToDecision(container, true);
   expect(dialog().querySelector("[role=alert]")!.textContent).toBe("删除失败");
-  request.mockRejectedValueOnce(new ApiError(409, { messageZh: "支出已被修改" })); await click("删除", dialog());
+  request.mockRejectedValueOnce(new ApiError(409, { messageZh: "支出已被修改" })); await click("删除", dialog()); await respondToDecision(container, true);
   expect(dialog()).toBeNull(); expect(container.querySelector("[role=alert]")!.textContent).toContain("支出已被修改");
 });
 

@@ -3,6 +3,7 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const pointers = new Set<number>();
   let rightReserve = 16;
+  const engagedCard = () => track.dataset.recordStack && track.querySelector(".record-card:is(:hover, :focus-visible)");
   const refreshLayout = () => {
     const anchor = track.querySelector<HTMLElement>(".add-record");
     const tail = track.querySelector<HTMLElement>(".record-track-tail");
@@ -11,14 +12,18 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
       track.removeAttribute("data-return-tail");
       return;
     }
-    const cards = [...track.children].filter((child) => child !== tail);
+    const cards = [...track.children].filter((child) => child !== tail) as HTMLElement[];
     const style = window.getComputedStyle(track);
     const gap = parseFloat(style.columnGap) || 0;
     const paddingLeft = parseFloat(style.paddingLeft) || 0;
     const paddingRight = parseFloat(style.paddingRight) || 0;
-    const cardWidth = anchor.getBoundingClientRect().width;
-    // Ignore auto margins and the tail itself: they must not create overflow.
-    const contentWidth = cards.reduce((sum, child) => sum + child.getBoundingClientRect().width, 0)
+    const cardWidth = anchor.offsetWidth;
+    // Reserve space from resting overlaps so the reveal never changes the home position.
+    const stackInset = track.dataset.recordStack ? parseFloat(style.getPropertyValue("--record-stack-inset")) || 0 : 0;
+    const stackOffset = stackInset ? stackInset * track.querySelectorAll(
+      ".record-card + .record-card:not(.record-card--right-group), .record-card--right-group + .record-card--right-group",
+    ).length : 0;
+    const contentWidth = cards.reduce((sum, child) => sum + child.offsetWidth, stackOffset)
       + Math.max(0, cards.length - 1) * gap + paddingLeft + paddingRight;
     const overflowing = contentWidth > track.clientWidth + 1;
     const rightGroupCount = track.querySelectorAll(".record-card--right-group").length;
@@ -57,6 +62,7 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
   };
   const jump = (smooth = false) => {
     clearTimer();
+    if (engagedCard()) return;
     track.scrollTo({
       left: getTarget(),
       behavior: smooth && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "instant",
@@ -66,6 +72,7 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
     clearTimer();
     if (!atTarget() && pointers.size === 0) timer = setTimeout(() => jump(true), 10_000);
   };
+  const resumeAfterStackInteraction = () => { if (track.dataset.recordStack) schedule(); };
   const pointerDown = (event: PointerEvent) => {
     pointers.add(event.pointerId);
     clearTimer();
@@ -91,13 +98,15 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
     if (timer === undefined && pointers.size === 0) jump();
   };
   const mutations = new MutationObserver(contentChanged);
-  mutations.observe(track, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+  mutations.observe(track, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "data-record-stack"] });
   observeChildren();
   refreshLayout();
   jump();
   track.addEventListener("scroll", schedule, { passive: true });
   track.addEventListener("wheel", schedule, { passive: true });
   track.addEventListener("keydown", schedule);
+  track.addEventListener("pointerleave", resumeAfterStackInteraction);
+  track.addEventListener("focusout", resumeAfterStackInteraction);
   track.addEventListener("pointerdown", pointerDown);
   window.addEventListener("pointerup", pointerUp);
   window.addEventListener("pointercancel", pointerUp);
@@ -109,6 +118,8 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
     track.removeEventListener("scroll", schedule);
     track.removeEventListener("wheel", schedule);
     track.removeEventListener("keydown", schedule);
+    track.removeEventListener("pointerleave", resumeAfterStackInteraction);
+    track.removeEventListener("focusout", resumeAfterStackInteraction);
     track.removeEventListener("pointerdown", pointerDown);
     window.removeEventListener("pointerup", pointerUp);
     window.removeEventListener("pointercancel", pointerUp);

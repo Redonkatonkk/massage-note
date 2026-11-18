@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { DecisionProvider } from "../decision-dialog";
+import { mockNativeDialogs, respondToDecision } from "../test-helpers/dialogs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest } from "../../lib/api";
 import type { CatalogResponse, StoreMember } from "../../lib/types";
@@ -19,7 +21,7 @@ let reload: ReturnType<typeof vi.fn<() => Promise<void>>>;
 const onDirtyChange = vi.fn();
 
 function element() {
-  return createElement(MembersPanel, { storeId: "store", dailyRankingEnabled: true, members, requests: [], catalog, busy: false, run: async action => action(), reload, onDirtyChange });
+  return <DecisionProvider><MembersPanel storeId="store" dailyRankingEnabled members={members} requests={[]} catalog={catalog} busy={false} run={async action => action()} reload={reload} onDirtyChange={onDirtyChange} /></DecisionProvider>;
 }
 async function render() { await act(async () => root.render(element())); }
 function button(text: string, scope: ParentNode = container): HTMLButtonElement {
@@ -44,9 +46,7 @@ async function submit() { await act(async () => container.querySelector(".member
 
 beforeEach(async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
-  HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
-  vi.spyOn(window, "confirm").mockReturnValue(false);
+  mockNativeDialogs();
   request.mockReset(); onDirtyChange.mockReset();
   members = [amy, zoe]; reload = vi.fn(async () => { root.render(element()); });
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
@@ -72,11 +72,12 @@ describe("employee-first member management", () => {
     await change("店内显示名", "Annie");
     expect(onDirtyChange).toHaveBeenLastCalledWith(true);
     await click("Zoe", container.querySelector(".members-roster")!);
+    await respondToDecision(container, false);
     await click("账号与状态");
+    await respondToDecision(container, false);
     expect(field("店内显示名").value).toBe("Annie");
-    expect(window.confirm).toHaveBeenCalledTimes(2);
-    vi.mocked(window.confirm).mockReturnValue(true);
     await click("Zoe", container.querySelector(".members-roster")!);
+    await respondToDecision(container, true);
     expect(field("店内显示名").value).toBe("Zoe");
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
     expect(request).not.toHaveBeenCalled();

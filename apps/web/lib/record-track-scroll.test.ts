@@ -5,9 +5,9 @@ class Track extends EventTarget {
   private fixedScrollWidth = 1200;
   clientWidth = 400;
   scrollLeft = 0;
-  children: Array<{ width?: number; highlighted?: boolean; excluded?: boolean; getBoundingClientRect?: () => { right: number; width: number } }> = [];
+  children: Array<{ offsetWidth?: number; highlighted?: boolean; excluded?: boolean; getBoundingClientRect?: () => { right: number; width: number } }> = [];
   dataset: Record<string, string | undefined> = {};
-  anchor: { getBoundingClientRect: () => { right: number; width?: number } } | null = null;
+  anchor: { offsetWidth?: number; getBoundingClientRect: () => { right: number; width?: number } } | null = null;
   tail: { style: { width: number; setProperty: (name: string, value: string) => void }; getBoundingClientRect: () => { right: number; width: number } } | null = null;
   get scrollWidth() {
     if (!this.anchor || !this.tail) return this.fixedScrollWidth;
@@ -33,7 +33,7 @@ class Track extends EventTarget {
 
   useLayout(highlightedCount: number, ordinaryCount = 5, excludedCount = 0) {
     const card = (highlighted: boolean, excluded = false) => ({
-      width: 177,
+      offsetWidth: 177,
       highlighted,
       excluded,
       getBoundingClientRect: () => ({ right: 0, width: 177 }),
@@ -42,7 +42,7 @@ class Track extends EventTarget {
     const highlights = Array.from({ length: highlightedCount }, () => card(true));
     const excluded = Array.from({ length: excludedCount }, () => card(false, true));
     const add = {
-      width: 177,
+      offsetWidth: 177,
       getBoundingClientRect: () => ({ right: 16 + (ordinary.length) * 189 + 177 - this.scrollLeft, width: 177 }),
     };
     this.tail = {
@@ -300,6 +300,38 @@ describe("open-day record track", () => {
     const addRight = track.anchor!.getBoundingClientRect().right;
     expect(addRight).toBeLessThanOrEqual(track.clientWidth - 16 + 2);
     expect(addRight - 177).toBeGreaterThanOrEqual(16 - 2);
+  });
+
+  it("only reserves trailing scroll space when the resting stack overflows", () => {
+    track.useLayout(0, 2);
+    track.clientWidth = 550;
+    track.dataset.recordStack = "true";
+    vi.spyOn(track, "querySelectorAll").mockImplementation(selector => selector.includes(".record-card +") ? track.children.slice(1, 2) : []);
+    vi.stubGlobal("window", Object.assign(surface, {
+      getComputedStyle: () => ({ columnGap: "12px", paddingLeft: "16px", paddingRight: "16px", getPropertyValue: () => "-72px" }),
+    }));
+    mutate();
+    expect(track.dataset.returnTail).toBe("false");
+
+    delete track.dataset.recordStack;
+    mutate();
+    expect(track.dataset.returnTail).toBe("true");
+  });
+
+  it("waits for the pointer to leave a revealed card before resuming the idle return", () => {
+    track.dataset.recordStack = "true";
+    let hovering = true;
+    vi.spyOn(track, "querySelector").mockImplementation(selector => selector.includes(":hover") && hovering ? track : null);
+    scrollBack();
+    vi.advanceTimersByTime(10_000);
+    expect(track.scrollLeft).toBe(100);
+
+    hovering = false;
+    track.dispatchEvent(new Event("pointerleave"));
+    vi.advanceTimersByTime(9_999);
+    expect(track.scrollLeft).toBe(100);
+    vi.advanceTimersByTime(1);
+    expect(track.scrollLeft).toBe(800);
   });
 
   it("refreshes the tail on content changes without moving the user or restarting the idle deadline", () => {

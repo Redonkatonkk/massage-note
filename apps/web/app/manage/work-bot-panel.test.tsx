@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { DecisionProvider } from "../decision-dialog";
+import { mockNativeDialogs, openDecision, respondToDecision } from "../test-helpers/dialogs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiRequest } from "../../lib/api";
 import { LOCALE_STORAGE_KEY, type AppLocale } from "../../lib/i18n";
@@ -10,9 +12,6 @@ import { WorkBotPanel } from "./work-bot-panel";
 
 vi.mock("../../lib/api", () => ({ apiRequest: vi.fn() }));
 const request = vi.mocked(apiRequest);
-const originalConfirm = window.confirm;
-const originalPrompt = window.prompt;
-let confirm: ReturnType<typeof vi.spyOn>;
 const timestamp = "2026-10-22T14:30:00.000Z";
 const catalog: CatalogResponse = {
   serviceItems: [{ id: "service", position: 0, fullName: "Deep Tissue", shortName: "Deep", priceOptions: [
@@ -28,10 +27,10 @@ let busy: boolean;
 let reload: ReturnType<typeof vi.fn<() => Promise<void>>>;
 
 function element(locale: AppLocale) {
-  return createElement(LanguageProvider, { initialLocale: locale, children: [createElement(LanguageSwitcher, { key: "language" }), createElement(WorkBotPanel, {
-    key: "panel",
-    storeId: "store", catalog, settings, busy, run: async action => action(), reload,
-  })] });
+  return <LanguageProvider initialLocale={locale}><DecisionProvider>
+    <LanguageSwitcher />
+    <WorkBotPanel storeId="store" catalog={catalog} settings={settings} busy={busy} run={async action => action()} reload={reload} />
+  </DecisionProvider></LanguageProvider>;
 }
 async function render(locale: AppLocale = "en-US") { await act(async () => root.render(element(locale))); }
 function button(text: string) {
@@ -52,7 +51,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   window.localStorage.removeItem(LOCALE_STORAGE_KEY);
   request.mockReset();
-  confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  mockNativeDialogs();
   busy = false;
   reload = vi.fn(async () => {});
   settings = {
@@ -70,7 +69,6 @@ beforeEach(() => {
 });
 afterEach(async () => {
   await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks();
-  window.confirm = originalConfirm; window.prompt = originalPrompt;
   window.localStorage.removeItem(LOCALE_STORAGE_KEY);
 });
 
@@ -131,9 +129,11 @@ describe("work bot language switching", () => {
   it("translates confirmation prompts without changing the employee name or binding requests", async () => {
     await render();
     await click("Unlink");
-    expect(confirm).toHaveBeenLastCalledWith("Unlink 今日's WeChat identity?");
+    expect(openDecision(container).querySelector("p")?.textContent).toBe("Unlink 今日's WeChat identity?");
+    await respondToDecision(container, false);
     await click("Unlink group");
-    expect(confirm).toHaveBeenLastCalledWith("Unlink this group from the store? Group members will need to link the store again.");
+    expect(openDecision(container).querySelector("p")?.textContent).toBe("Unlink this group from the store? Group members will need to link the store again.");
+    await respondToDecision(container, false);
     expect(request).not.toHaveBeenCalled();
     await click("Verify identity and enable data access");
     expect(request).toHaveBeenCalledWith("/stores/store/work-bot/members/binding/verification", { method: "PATCH", body: { version: 4, verified: true } });

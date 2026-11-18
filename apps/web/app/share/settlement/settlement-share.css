@@ -1,9 +1,6 @@
 /* taste-skill: achromatic-ledger, seed 95898480; existing palette/type retained.
    1088px sheet = 2 × 532px record columns + 24px gutter; mobile is one column. */
 .settlement-share-shell { min-height: 100dvh; background: var(--page); color: var(--ink); }
-.settlement-share-bar { max-width: 1136px; min-height: 48px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--line); }
-.settlement-share-bar span { font-size: 14px; font-weight: 600; }
-.settlement-share-bar button { min-height: 44px; padding: 8px 0 8px 16px; color: var(--muted); background: transparent; border: 0; font-size: 14px; }
 .settlement-share { max-width: 1136px; margin: 0 auto; padding: 32px 24px 48px; display: grid; gap: 24px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 .settlement-share-heading { display: grid; gap: 6px; }
 .settlement-share-heading h1, .settlement-share-state h1 { margin: 0; font-size: 24px; font-weight: 600; }
@@ -27,7 +24,6 @@
 .settlement-share-footer { display: grid; gap: 4px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 12px; }
 .settlement-share-state { padding: 24px 0; display: grid; justify-items: start; gap: 16px; }
 @media (max-width: 760px) {
-  .settlement-share-bar { padding: 0 16px; }
   .settlement-share { padding: 24px 16px 32px; }
   .settlement-share-heading h1, .settlement-share-state h1 { font-size: 22px; }
   .settlement-share-total { padding: 16px; }

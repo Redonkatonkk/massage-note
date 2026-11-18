@@ -2,7 +2,7 @@
 
 import { useScreenFeedback } from "./screen-feedback";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import {
@@ -24,7 +24,6 @@ import {
 import { copyText } from "../lib/clipboard";
 import { financeClosingHref } from "../lib/navigation";
 import { formatUsd, formatUsdPrecise } from "../lib/money";
-import { useUiEdition } from "./ui-edition-provider";
 import { useLanguage } from "./language-provider";
 import { newWorkRecord } from "../lib/new-work-record";
 import { hasConfirmedPaymentMismatch } from "../lib/record-payment";
@@ -92,7 +91,7 @@ function money(cents: number | null): string {
 
 function CashBalanceMetric({ balance }: { balance: NonNullable<BoardResponse["statistics"]["cashBalance"]> }) {
   const { locale, t } = useLanguage();
-  return <OverviewMetric icon="wallet" label="现金余额"
+  return <OverviewMetric label="现金余额"
     value={balance.balanceCents === null ? "—" : formatUsdPrecise(balance.balanceCents, locale)}
     title="重置金额＋重置日起累计现金净变化；现金净变化为现金大费实收＋卖卡现金实收－员工应发现金，现金小费不计入。"
     note={balance.missingClosingDates.length ? `${t("历史数据不足，请补充日结：")}${balance.missingClosingDates.join(", ")}` : `${t("重置日：")}${balance.resetDate}`} />;
@@ -133,6 +132,27 @@ function PaymentBreakdown({
     })}
   </span>;
 }
+
+function tiltRecordCard({ pointerType, currentTarget: card, clientX, clientY }: PointerEvent<HTMLButtonElement>) {
+  if (pointerType !== "mouse" || !window.matchMedia?.("(any-hover: hover) and (any-pointer: fine) and (prefers-reduced-motion: no-preference)").matches) return;
+  const track = card.offsetParent;
+  if (!(track instanceof HTMLElement) || !track.classList.contains("record-track")) return;
+  const { left, top } = track.getBoundingClientRect();
+  const { offsetWidth: width, offsetHeight: height } = card;
+  const x = clientX - left + track.scrollLeft - card.offsetLeft;
+  const y = clientY - top + track.scrollTop - card.offsetTop;
+  // Ease the travel near the original hit area edges so the hover cannot outrun a click.
+  const strength = Math.max(0, Math.min(x, y, width - x, height - y, 10)) / 10;
+  const pitch = (1 - 2 * y / height) * 5 * strength;
+  const yaw = (2 * x / width - 1) * 5 * strength;
+  card.style.setProperty("--record-card-hover", `perspective(650px) translateY(${(-4 * strength).toFixed(2)}px) rotateX(${pitch.toFixed(2)}deg) rotateY(${yaw.toFixed(2)}deg)`);
+}
+
+function resetRecordCardTilt({ currentTarget }: PointerEvent<HTMLButtonElement>) {
+  currentTarget.style.removeProperty("--record-card-hover");
+}
+
+const recordCardHover = { onPointerMove: tiltRecordCard, onPointerLeave: resetRecordCardTilt, onPointerCancel: resetRecordCardTilt };
 
 export function TodayBoard(props: TodayBoardProps) {
   const manager = useWorkRecordSaveManager();
@@ -257,6 +277,7 @@ function TodayBoardContent({
     () => board.rows.filter((row) => !row.isHidden || !canManage || showHidden),
     [board.rows, canManage, showHidden],
   );
+  const [entranceOrder] = useState(() => new Map(visibleRows.map((row, index) => [row.id, index])));
   const hiddenRows = useMemo(
     () => canManage ? board.rows.filter((row) => row.isHidden) : [],
     [board.rows, canManage],
@@ -487,7 +508,6 @@ function TodayBoardContent({
     await onReload();
   }
 
-  const { edition } = useUiEdition();
   const secondaryActions = <>
     {canManage && board.isClosed && <button className="secondary-action" type="button" disabled={busy || deliveryList?.batchAllowed === false} title={deliveryList?.batchBlockedReason ?? undefined} onClick={() => run(queueEmployeeClosings)}>{deliveryList?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>}
     {canManage && deliveryList && <ClosingDeliveryQueueButton compact={wideLayout} key={currentDay.businessDate} value={deliveryList} busy={busy} onCancel={(delivery) => void run(() => cancelEmployeeClosingDelivery(delivery))} />}
@@ -535,45 +555,42 @@ function TodayBoardContent({
         onReload={onReload}
       />}
   </>;
-  const pageHeading = <div className="today-heading" key="heading">{heading}</div>;
-  const headerCalendar = <div className="today-header-calendar" key="calendar">{calendar}</div>;
-  const headerActions = <div className="today-header-actions" key="actions">{dailyActions}</div>;
-  const headerUtilities = accountActions && <div className="today-header-utilities" key="store"><div className="topbar-actions">{accountActions}</div></div>;
-
   return (
     <>
       <header className={`topbar${wideLayout ? " today-topbar" : ""}`}>
-        {wideLayout ? (edition === "new"
-          ? [pageHeading, headerUtilities, headerActions, headerCalendar]
-          : [headerCalendar, headerActions, pageHeading, headerUtilities])
-          : <>{pageHeading}{accountActions && <div className="topbar-actions">{accountActions}</div>}</>}
+        <div className="today-heading">{heading}</div>
+        {accountActions && (wideLayout
+          ? <div className="today-header-utilities"><div className="topbar-actions">{accountActions}</div></div>
+          : <div className="topbar-actions">{accountActions}</div>)}
+        {wideLayout && <div className="today-header-actions">{dailyActions}</div>}
+        {wideLayout && <div className="today-header-calendar">{calendar}</div>}
       </header>
       {!wideLayout && <div className="business-day-toolbar business-day-toolbar--compact">{dateControls}{dailyActions}</div>}
 
       {canManage && <section className="board-overview" aria-label="今日全店汇总">
         <header className="overview-heading"><h2>经营概览</h2><span>当前查看的营业日</span></header>
         <div className="summary-strip board-desktop-metrics">
-          <OverviewMetric icon="chart" title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
-          {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric icon="clock" label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
-          <OverviewMetric icon="discount" label="折扣总额" value={money(board.statistics.discountTotalCents)} />
+          <OverviewMetric title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
+          {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
+          <OverviewMetric label="折扣总额" value={money(board.statistics.discountTotalCents)} />
           <CustomerTypeMetric counts={board.statistics.customerTypeCounts ?? { newCount: 0, returningCount: 0, unmarkedCount: board.statistics.recordCount }} />
           {cashBalance?.enabled && <CashBalanceMetric balance={cashBalance} />}
-          <OverviewMetric icon="wallet" title="营业额＋现金小费＋刷卡小费－员工应得" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
-          <OverviewMetric icon="trend" title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
+          <OverviewMetric title="营业额＋现金小费＋刷卡小费－员工应得" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
+          <OverviewMetric title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
         </div>
         <div className="board-mobile-metrics">
         <div className="summary-strip board-key-metrics">
-          <OverviewMetric icon="chart" title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
-          <OverviewMetric icon="trend" title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
+          <OverviewMetric title="折后服务金额＋礼物卡销售实际收款" label="营业额（折扣后）" value={money(board.statistics.revenueCents)} />
+          <OverviewMetric title="店铺收入＋店长收入＋经理收入；已加卖卡实收、减礼物卡使用的大费和小费" label="总收入" value={money(board.statistics.totalIncomeCents)} />
         </div>
         <details className="board-summary-details">
           <summary>更多汇总</summary>
           <div className="summary-strip board-extra-metrics">
             <CustomerTypeMetric counts={board.statistics.customerTypeCounts ?? { newCount: 0, returningCount: 0, unmarkedCount: board.statistics.recordCount }} />
-            {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric icon="clock" label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
-            <OverviewMetric icon="discount" label="折扣总额" value={money(board.statistics.discountTotalCents)} />
+            {board.isClosed && board.statistics.recentClosedRevenue && <OverviewMetric label={`过去${board.statistics.recentClosedRevenue.dayCount}天平均营业额`} value={money(board.statistics.recentClosedRevenue.averageCents)} />}
+            <OverviewMetric label="折扣总额" value={money(board.statistics.discountTotalCents)} />
             {cashBalance?.enabled && <CashBalanceMetric balance={cashBalance} />}
-            <OverviewMetric icon="wallet" title="营业额＋现金小费＋刷卡小费－员工应得" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
+            <OverviewMetric title="营业额＋现金小费＋刷卡小费－员工应得" label="店铺收入" value={money(board.statistics.storeIncomeCents)} />
           </div>
         </details>
         </div>
@@ -583,13 +600,14 @@ function TodayBoardContent({
       {board.isClosed && <p className="closed-banner" role="status">{canChangeRowVisibility ? "这个营业日已经日结。可隐藏或恢复员工出勤，影响后续生成顺序；修改记工或员工顺序仍须先取消日结。" : "这个营业日已经日结。记工、员工顺序和显示状态均为只读；如需修改请先取消日结。"}</p>}
       {feedback}
 
-      <div className="board-section-heading"><UiIcon name="log" /><h2>员工记工</h2><span>{visibleRows.length} <span>位员工</span></span></div>
+      <div className="board-section-heading"><h2>员工记工</h2><span>{visibleRows.length} <span>位员工</span></span></div>
       {employeeRosterActions}
-      <section className={visibleRows.length > 0 ? "board board-panel" : "board"} id="today" aria-label={isCurrentBusinessDay ? "今日员工记工表" : canManage ? "历史员工记工表" : "我的历史记工表"}>
+      <section className={visibleRows.length > 0 ? "board board-panel" : "board"} id="today" data-work-record-motion="true" aria-label={isCurrentBusinessDay ? "今日员工记工表" : canManage ? "历史员工记工表" : "我的历史记工表"}>
         {visibleRows.length === 0 && (
           <div className="board-panel board-empty-state empty-state"><strong>{isCurrentBusinessDay ? "今日表格还是空的" : canManage ? "这个营业日没有记工" : "这个营业日没有你的记工"}</strong><p>{showEmployeeClockIn ? "点击上方“上班”，把自己加入今日表格。" : isCurrentBusinessDay ? "店长或经理可以把参与记工的员工加入今日表格。" : canManage ? "可以选择其他营业日继续查看。" : "这里只会显示你自己的历史记录，可以选择其他营业日继续查看。"}</p></div>
         )}
         {visibleRows.map((row) => {
+          const entranceIndex = entranceOrder.get(row.id);
           const isCollapsed = collapsed.includes(row.id);
           const activeRecord = isCurrentBusinessDay
             ? activeWorkRecord(row.workRecords, statusNow)
@@ -604,7 +622,8 @@ function TodayBoardContent({
           });
           const workCount = leftTrackRecordCount(row.workRecords);
           return (
-            <article className={`employee-row${isCollapsed ? " employee-row--collapsed" : ""}${row.isHidden && canManage ? " employee-row--hidden" : ""}`} key={row.id}>
+            <article className={`employee-row${isCollapsed ? " employee-row--collapsed" : ""}${row.isHidden && canManage ? " employee-row--hidden" : ""}`} key={row.id}
+              data-employee-entrance={entranceIndex !== undefined || undefined} style={entranceIndex === undefined ? undefined : { animationDelay: `${entranceIndex * 50}ms` }}>
               <header className="employee-header">
                 <button
                   className="employee-toggle"
@@ -636,7 +655,7 @@ function TodayBoardContent({
 
               {!isCollapsed && (
                 <div className={`employee-content${showTotals ? "" : " employee-content--records-only"}`}>
-                  <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed}>
+                  <RecordTrack key={currentDay.businessDate} recordCount={row.workRecords.length} autoReturn={!board.isClosed}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
                       if (record === null) return (
                         <button key="add-record" className="add-record" type="button" onClick={() => { setQuickSessionId(crypto.randomUUID()); setRestoredSave(null); setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickMode("NORMAL"); setQuickCustomerType(null); setQuickEmployeeId(row.membershipId); }}>
@@ -645,6 +664,7 @@ function TodayBoardContent({
                       );
                       if (record.status === "PLACEHOLDER") return (
                         <button className="record-card record-card--placeholder" data-work-record-id={record.id} key={record.id} type="button" aria-label="占位" aria-describedby={`placeholder-time-${record.id}`}
+                          {...recordCardHover}
                           disabled={(!isCurrentBusinessDay && !canManage) || recordLocked(record.id)} title={recordLocked(record.id) ? "这条记工正在保存或同步，请稍候再试" : !isCurrentBusinessDay && !canManage ? "历史记录只读" : undefined}
                           onClick={() => setDeletingPlaceholder(record)}>
                           <svg className="record-placeholder-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
@@ -665,6 +685,7 @@ function TodayBoardContent({
                         key={record.id}
                         data-work-record-id={record.id}
                         type="button"
+                        {...recordCardHover}
                         disabled={(!isCurrentBusinessDay && !canManage) || recordLocked(record.id)}
                         title={recordLocked(record.id) ? "这条记工正在保存或同步，请稍候再试" : !isCurrentBusinessDay && !canManage ? "历史记录只读" : undefined}
                         onClick={() => { setEditorSessionId(crypto.randomUUID()); setRestoredSave(null); setEditingRecord(record); }}
@@ -757,7 +778,7 @@ function TodayBoardContent({
 
       {quickEmployeeId && createPortal(
         <div className="modal-backdrop" role="presentation">
-          <section ref={quickDialog} className="quick-modal quick-work-modal" data-quick-mode={quickMode} role="dialog" aria-modal="true" aria-labelledby="quick-modal-title">
+          <section ref={quickDialog} className="quick-modal quick-work-modal" data-work-record-motion="true" data-quick-mode={quickMode} role="dialog" aria-modal="true" aria-labelledby="quick-modal-title">
             <div className="modal-heading">
               <div><p className="eyebrow">快速记工</p><h2 id="quick-modal-title">{members.find((item) => item.id === quickEmployeeId)?.displayName}</h2></div>
               <button className="secondary-action quick-detailed-entry" type="button" disabled={busy || board.isClosed || quickMode === "PLACEHOLDER"} onClick={() => run(async () => openDetailedRecord())}>详细记工</button>
@@ -814,6 +835,7 @@ function TodayBoardContent({
           autoDiscountSettings={store}
           record={(creatingRecord ?? editingRecord)!}
           isNew={creatingRecord !== null}
+          fullDrawerEntrance={editingRecord !== null}
           initialServiceItemId={restoredSave?.draft.kind === "editor" ? restoredSave.draft.initialServiceItemId : creatingRecord ? quickService?.id : undefined}
           catalog={catalog}
           members={members}

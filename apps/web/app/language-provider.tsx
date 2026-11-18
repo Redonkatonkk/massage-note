@@ -122,22 +122,6 @@ export function LanguageProvider({
     }
   }, []);
 
-  useEffect(() => {
-    const originalPrompt = window.prompt.bind(window);
-    const originalConfirm = window.confirm.bind(window);
-    window.prompt = (message?: string, defaultValue?: string) => originalPrompt(
-      message === undefined ? undefined : translateText(message, locale),
-      defaultValue,
-    );
-    window.confirm = (message?: string) => originalConfirm(
-      message === undefined ? undefined : translateText(message, locale),
-    );
-    return () => {
-      window.prompt = originalPrompt;
-      window.confirm = originalConfirm;
-    };
-  }, [locale]);
-
   function setLocale(next: AppLocale) {
     setLocaleState(next);
     browserStorage.setItem(LOCALE_STORAGE_KEY, next);

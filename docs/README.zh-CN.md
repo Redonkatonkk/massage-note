@@ -2,7 +2,7 @@
 
 **[English](README.md)** | **简体中文**
 
-[作品图集与免登录 Demo](portfolio/README.zh-CN.md) — 简历展示入口、17 个页面图片、演示路线与边界。
+[作品展示与免登录 Demo](portfolio/README.zh-CN.md) — 简历展示入口、页面入口、演示路线与边界。
 
 项目概览：**[English README](../README.md)** · **[中文 README](../README.zh-CN.md)**。仓库首页和手册默认使用英文，每份手册顶部均提供对应中文版本链接；两种语言同步维护。
 
@@ -25,7 +25,7 @@ docs/
 | 定位模块、路由或写入链路 | [`ARCHITECTURE.md`](engineering/ARCHITECTURE.zh-CN.md) | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.zh-CN.md) |
 | 修改代码或数据库 | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.zh-CN.md) | [`ARCHITECTURE.md`](engineering/ARCHITECTURE.zh-CN.md)、对应测试 |
 | 学习审美、维护 UI 与导航 | [UI 设计与审美准则](engineering/UI_DESIGN.zh-CN.md) | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.zh-CN.md) |
-| 查看手机阅读复核范围 | [手机复核记录](engineering/MOBILE_REVIEW_2026-10-04.zh-CN.md) | [真实组件回归](../apps/web/app/ui/mobile-reading.test.tsx) |
+| 核对手机阅读与操作 | [界面规范](engineering/UI_DESIGN.zh-CN.md) | [真实组件回归](../apps/web/app/ui/mobile-reading.test.tsx) |
 | 调用或修改 HTTP 接口 | [`API.md`](engineering/API.zh-CN.md) | 共享契约、Controller 和集成测试 |
 | 普通 Linux 生产部署 | [`DEPLOYMENT.md`](operations/DEPLOYMENT.zh-CN.md) | [`SECURITY.md`](operations/SECURITY.zh-CN.md) |
 | 群晖发布或升级 | [默认更新部署流程](operations/NAS_DEPLOYMENT.zh-CN.md#默认更新部署流程) | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.zh-CN.md) |
@@ -55,8 +55,6 @@ docs/
 
 [`archive/`](archive/) 保存历史设计、早期实施和一次性检查记录：
 
-- [`INITIAL_ARCHITECTURE_PLAN.md`](archive/INITIAL_ARCHITECTURE_PLAN.zh-CN.md)：编码前的架构、ER 图、路由设想和阶段计划。
-- [`INITIAL_AI_DEVELOPMENT_PROMPT.md`](archive/INITIAL_AI_DEVELOPMENT_PROMPT.zh-CN.md)：最初用于启动项目的一次性 AI 提示。
 - [`CODE_REVIEW_2026-09-08.md`](archive/CODE_REVIEW_2026-09-08.zh-CN.md)：1.0.7 审查与修复记录。
 - [`CODE_CLEANUP_2026-09-29.md`](archive/CODE_CLEANUP_2026-09-29.zh-CN.md)：1.13.7 全仓整理清单、实施范围与保留项。
 - [`CODE_CLEANUP_2026-10-04.md`](archive/CODE_CLEANUP_2026-10-04.zh-CN.md)：1.18.4 全仓清理证据、过时规则及保留原因。

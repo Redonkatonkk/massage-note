@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { checkDocumentLinks, localDocumentLinks } from "../check-doc-links.mjs";
+import { checkDocumentLinks, localDocumentLinks, repositoryMarkdownFiles } from "../check-doc-links.mjs";
 
 test("checks inline links, images, reference destinations and encoded paths", () => {
   const markdown = [
@@ -42,4 +43,18 @@ test("resolves targets relative to each document and reports missing files", asy
   assert.deepEqual(await checkDocumentLinks(root, ["docs/guide.md"]), {
     linkCount: 4, errors: ["docs/guide.md: missing.md"],
   });
+});
+
+test("checks active Markdown files after a local deletion and flags surviving links to it", async t => {
+  const root = await mkdtemp(join(tmpdir(), "massage-note-doc-links-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const git = (...args) => execFileSync("git", args, { cwd: root });
+  git("init", "--quiet");
+  await writeFile(join(root, "old.md"), "# Old");
+  git("add", "old.md");
+  await rm(join(root, "old.md"));
+  await writeFile(join(root, "new.md"), "[old](old.md)");
+  const files = repositoryMarkdownFiles(root);
+  assert.deepEqual(files, ["new.md"]);
+  assert.deepEqual(await checkDocumentLinks(root, files), { errors: ["new.md: old.md"], linkCount: 1 });
 });

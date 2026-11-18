@@ -54,6 +54,7 @@ interface RecordEditorProps {
   >;
   record: WorkRecord;
   isNew?: boolean;
+  fullDrawerEntrance?: boolean;
   initialServiceItemId?: string | undefined;
   catalog: CatalogResponse;
   members: StoreMember[];
@@ -156,6 +157,7 @@ export function RecordEditor({
   autoDiscountSettings,
   record,
   isNew = false,
+  fullDrawerEntrance = false,
   initialServiceItemId,
   catalog,
   members,
@@ -859,7 +861,7 @@ export function RecordEditor({
 
   return (
     <div className="modal-backdrop modal-backdrop--editor" role="presentation">
-      <section ref={editorElement} tabIndex={-1} className="record-editor" role="dialog" aria-modal="true" aria-labelledby="record-title" onFocusCapture={selectEditorInput} onClick={selectEditorInput} onChangeCapture={() => setDraftDirty(true)} onKeyDown={saveOnEnter}>
+      <section ref={editorElement} tabIndex={-1} className="record-editor" data-work-record-motion={fullDrawerEntrance || undefined} role="dialog" aria-modal="true" aria-labelledby="record-title" onFocusCapture={selectEditorInput} onClick={selectEditorInput} onChangeCapture={() => setDraftDirty(true)} onKeyDown={saveOnEnter}>
         <header className="modal-heading sticky-heading">
           <div>
             <p className="eyebrow">{isNew ? "详细记工" : "记工详情"}</p>

@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](README.zh-CN.md)**
 
-[Portfolio gallery and sign-in-free demo](portfolio/README.md) — resume entrance, 17 page images, walkthrough and demo boundaries.
+[Sign-in-free portfolio demo](portfolio/README.md) — resume entrance, page links, walkthrough and demo boundaries.
 
 Project overview: **[English README](../README.md)** · **[中文 README](../README.zh-CN.md)**. Every manual has an English default edition and a matching Chinese edition, linked at the top.
 
@@ -29,7 +29,7 @@ docs/
 | Locate a module, route, or write link | [`ARCHITECTURE.md`](engineering/ARCHITECTURE.md) | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.md) |
 | Modify code or database | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.md) | [`ARCHITECTURE.md`](engineering/ARCHITECTURE.md), corresponding tests |
 | Learn aesthetics, maintain UI and navigation | [UI design and aesthetic guidelines](engineering/UI_DESIGN.md) | [`DEVELOPMENT.md`](engineering/DEVELOPMENT.md) |
-| View the mobile reading review scope | [Mobile review record](engineering/MOBILE_REVIEW_2026-10-04.md) | [Real component regression](../apps/web/app/ui/mobile-reading.test.tsx) |
+| Check mobile reading and operations | [UI design guide](engineering/UI_DESIGN.md) | [Real component regression](../apps/web/app/ui/mobile-reading.test.tsx) |
 | Call or modify the HTTP interface | [`API.md`](engineering/API.md) | Shared contracts, Controllers and integration tests |
 | Normal Linux production deployment | [`DEPLOYMENT.md`](operations/DEPLOYMENT.md) | [`SECURITY.md`](operations/SECURITY.md) |
 | Synology releases or upgrades | [Default update deployment process](operations/NAS_DEPLOYMENT.md#default-update-deployment-process) | [`RELEASE_CHECKLIST.md`](operations/RELEASE_CHECKLIST.md) |
@@ -63,8 +63,6 @@ When the document description is inconsistent with the current implementation, c
 
 [`archive/`](archive/) Saves records of historical designs, early implementations, and one-time inspections:
 
-- [`INITIAL_ARCHITECTURE_PLAN.md`](archive/INITIAL_ARCHITECTURE_PLAN.md): Pre-coding architecture, ER diagrams, routing assumptions and stage plans.
-- [`INITIAL_AI_DEVELOPMENT_PROMPT.md`](archive/INITIAL_AI_DEVELOPMENT_PROMPT.md): A one-time AI prompt initially used to start the project.
 - [`CODE_REVIEW_2026-09-08.md`](archive/CODE_REVIEW_2026-09-08.md): 1.0.7 review and fix log.
 - [`CODE_CLEANUP_2026-09-29.md`](archive/CODE_CLEANUP_2026-09-29.md): 1.13.7 repository cleanup inventory, implemented changes, and retained items.
 - [`CODE_CLEANUP_2026-10-04.md`](archive/CODE_CLEANUP_2026-10-04.md): 1.18.4 repository-wide cleanup evidence, outdated rules and retention reasons.

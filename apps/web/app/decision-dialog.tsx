@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useLanguage } from "./language-provider";
-import { useUiEdition } from "./ui-edition-provider";
 import { useNativeDialog } from "./use-native-dialog";
 
 interface DecisionOptions {
@@ -15,9 +14,7 @@ interface DecisionOptions {
 type DecisionKind = "confirm" | "prompt";
 type Decide = (kind: DecisionKind, message: string, options: DecisionOptions, signal: AbortSignal) => Promise<string | null>;
 
-const nativeDecision: Decide = async (kind, message) =>
-  kind === "prompt" ? window.prompt(message) : window.confirm(message) ? "" : null;
-const DecisionContext = createContext<Decide>(nativeDecision);
+const DecisionContext = createContext<Decide | null>(null);
 
 interface PendingDecision {
   id: number;
@@ -30,7 +27,6 @@ interface PendingDecision {
 }
 
 export function DecisionProvider({ children }: { children: ReactNode }) {
-  const { edition } = useUiEdition();
   const sequence = useRef(0);
   const active = useRef<PendingDecision | null>(null);
   const [pending, setPending] = useState<PendingDecision | null>(null);
@@ -57,7 +53,6 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
 
   const decide: Decide = (kind, message, options, signal) => {
     if (signal.aborted || active.current) return Promise.resolve(null);
-    if (edition === "legacy") return nativeDecision(kind, message, options, signal);
     return new Promise(resolve => {
       const decision = { id: ++sequence.current, kind, message, options, signal, resolve, cancel: () => finish(null) };
       active.current = decision;
@@ -116,6 +111,7 @@ export function useDecision() {
   }, []);
 
   function request(kind: DecisionKind, message: string, options: DecisionOptions = {}) {
+    if (!decide) throw new Error("DecisionProvider is required for confirmation dialogs");
     controller.current ??= new AbortController();
     return decide(kind, message, options, controller.current.signal);
   }

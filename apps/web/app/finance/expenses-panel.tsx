@@ -5,6 +5,7 @@ import { NumericInput } from "../numeric-input";
 import { useDecision } from "../decision-dialog";
 
 import { useEffect, useRef, useState } from "react";
+import { useOverlayExitRef } from "../ui/interaction-motion";
 import type { ExpenseItemResponse, ExpenseMonthLine, ExpenseMonthResponse } from "@massage-note/contracts";
 import { ApiError, apiRequest, errorMessage } from "../../lib/api";
 import { LatestRequest } from "../../lib/latest-request";
@@ -113,7 +114,7 @@ export function ExpensesPanel({ storeId, today }: { storeId: string; today: stri
   const active = recurring.filter(item => summary(item));
   const inactive = recurring.filter(item => !summary(item));
   const detailItem = data?.items.find(item => item.id === detailsId && !item.deletedAt);
-  return <section className="finance-section expenses-panel">
+  return <section className="finance-section expenses-panel" data-motion-content>
     <div className="expenses-filter">
       <div className="expenses-toolbar">
         <label>{t("支出月份", "Expense month")}<input type="month" required value={month} disabled={busy} onChange={e => { if (/^\d{4}-(0[1-9]|1[0-2])$/.test(e.target.value)) setMonth(e.target.value); }} /></label>
@@ -132,7 +133,7 @@ export function ExpensesPanel({ storeId, today }: { storeId: string; today: stri
         <article><span>{t("本月一次性支出", "Monthly one-time expenses")}</span><strong>{money(data.oneTimeCents)}</strong><small>{data.month}</small></article>
       </div>
       {data.missingPeriodCount > 0 && <p className="expenses-missing-note" role="status">{missing(data.missingPeriodCount)}</p>}
-      <section className="expenses-region" aria-labelledby="expenses-once-title"><h2 id="expenses-once-title">{t("一次性支出", "One-time expenses")}</h2>
+      <section className="expenses-region" key={month} data-motion-change aria-labelledby="expenses-once-title"><h2 id="expenses-once-title">{t("一次性支出", "One-time expenses")}</h2>
         {once.length ? itemsView(once, false) : <p className="empty-state">{t("本月暂无一次性支出。", "No one-time expenses this month.")}</p>}
       </section>
       <section className="expenses-region" aria-labelledby="expenses-recurring-title"><h2 id="expenses-recurring-title">{t("每月固定支出", "Monthly recurring expenses")}</h2>
@@ -210,6 +211,7 @@ function ExpenseEditor({ editor, today, month, busy, save, close }: { editor: Ed
 function ExpenseDialog({ title, busy, close, onSubmit, children }: { title: string; busy: boolean; close: () => void; onSubmit?: () => void; children: import("react").ReactNode }) {
   const { locale } = useLanguage();
   const form = useRef<HTMLFormElement>(null);
+  const panelRef = useOverlayExitRef(form);
   const closeRef = useRef(close); closeRef.current = close;
   const busyRef = useRef(busy); busyRef.current = busy;
   useEffect(() => {
@@ -227,7 +229,7 @@ function ExpenseDialog({ title, busy, close, onSubmit, children }: { title: stri
     document.addEventListener("keydown", key);
     return () => { document.removeEventListener("keydown", key); previous?.focus(); };
   }, []);
-  return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !busy) close(); }}><form ref={form} className="expenses-editor" role="dialog" aria-modal="true" aria-labelledby="expense-editor-title" onSubmit={event => { event.preventDefault(); if (!busy) onSubmit?.(); }}>
+  return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !busy) close(); }}><form ref={panelRef} className="expenses-editor" role="dialog" aria-modal="true" aria-labelledby="expense-editor-title" onSubmit={event => { event.preventDefault(); if (!busy) onSubmit?.(); }}>
     <div className="expenses-toolbar"><h2 id="expense-editor-title">{title}</h2><button type="button" className="close-button" disabled={busy} onClick={close}>{locale === "en-US" ? "Close" : "关闭"}</button></div>
     {children}
   </form></div>;

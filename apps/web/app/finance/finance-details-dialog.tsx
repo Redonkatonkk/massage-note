@@ -2,6 +2,7 @@
 
 import { FinanceGiftSaleCards, FinanceRecordCards } from "./finance-detail-records";
 import { ResponsiveDataView } from "../ui/responsive-data-view";
+import { useOverlayExitRef } from "../ui/interaction-motion";
 import { formatUsd } from "../../lib/money";
 import type { FinanceDetailsResponse } from "../../lib/types";
 import { dateOnly } from "./date-utils";
@@ -19,10 +20,11 @@ export function FinanceDetailsDialog({
   title: string;
   onClose: () => void;
 }) {
+  const panelRef = useOverlayExitRef<HTMLElement>();
   const selectedScope = details.filters.paymentMethod === "CASH" ? "现金" : details.filters.paymentMethod === "NON_CASH" ? "刷卡＋礼物卡" : "全部付款";
   return (
     <div className="finance-details-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="finance-details" role="dialog" aria-modal="true" aria-labelledby="finance-details-title">
+      <section ref={panelRef} className="finance-details" role="dialog" aria-modal="true" aria-labelledby="finance-details-title">
         <div className="finance-details__heading">
           <div>
             <p className="eyebrow">{details.filters.dateFrom} 至 {details.filters.dateTo}</p>

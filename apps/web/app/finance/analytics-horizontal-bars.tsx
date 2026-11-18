@@ -19,7 +19,7 @@ export function AnalyticsHorizontalBars({ points, series, width, valueWidth, lab
       const value = item.values[index];
       const center = 42 + seriesIndex * 28;
       return <g key={item.id}>
-        {value != null && <rect data-series={item.id} x={Math.min(x(value), x(0))} y={center - 8} width={Math.abs(x(value) - x(0))} height="16" fill={item.color} rx="1" />}
+        {value != null && <rect data-motion-mark data-series={item.id} x={Math.min(x(value), x(0))} y={center - 8} width={Math.abs(x(value) - x(0))} height="16" fill={item.color} rx="1" />}
         <text className="analytics-bar-value" data-series={item.id} x={width - 4} y={center + 5} textAnchor="end">{label(value)}</text>
       </g>;
     })}

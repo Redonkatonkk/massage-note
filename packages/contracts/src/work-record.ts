@@ -132,6 +132,7 @@ export const deleteWorkRecordSchema = z.object({
 
 export const restoreWorkRecordSchema = z.object({
   version: versionSchema,
+  undoDelete: z.literal(true).optional(),
 });
 
 export const confirmPaymentSchema = z

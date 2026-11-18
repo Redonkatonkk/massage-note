@@ -49,14 +49,14 @@ export function SharedSettlement() {
           <p className="settlement-share-period">{en ? "Settlement period" : "结算日期"} <time dateTime={statement.dateFrom}>{statement.dateFrom}</time> — <time dateTime={statement.dateTo}>{statement.dateTo}</time></p>
           <p>{en ? ({ CASH: "Cash", NON_CASH: "Card + gift card", ALL: "All payment sources" })[statement.paymentScope] : ({ CASH: "现金", NON_CASH: "刷卡＋礼物卡", ALL: "全部付款来源" })[statement.paymentScope]} · {en ? ({ SERVICE: "Service wages only", TIP: "Tips only", ALL: "Service wages + tips" })[statement.amountType ?? "ALL"] : ({ SERVICE: "仅大费", TIP: "仅小费", ALL: "大费＋小费" })[statement.amountType ?? "ALL"]}</p>
         </header>
-        <section className="settlement-share-total" aria-label={en ? "Statement totals" : "结算合计"}>
+        <section className="settlement-share-total" data-motion-change aria-label={en ? "Statement totals" : "结算合计"}>
           <div className="settlement-share-lead"><h2>{en ? "Total earnings" : "收入合计"}</h2><strong>{formatUsdPrecise(statement.summary.totalIncomeCents)}</strong></div>
           <SettlementSummary preview={statement} />
           <p>{en ? "Earnings from confirmed work records. This statement does not confirm payment." : "收入来自已确认记工；结算单不代表工资已支付。"}</p>
         </section>
         <SettlementRecords preview={statement} />
         <footer className="settlement-share-footer"><p>{en ? "Statement generated" : "结算单生成于"} {stamp(statement.generatedAt)}</p><p>{en ? "Link expires" : "链接有效期至"} {stamp(value.expiresAt)}</p><p>{en ? "This is a saved statement. Later ledger changes are not reflected here." : "这是生成时保存的结算单，后续账目修改不会同步。"}</p></footer>
-      </> : <section className="settlement-share-state">
+      </> : <section className="settlement-share-state" data-motion-content>
         <h1>{en ? "Payroll statement" : "工资结算单"}</h1>
         {state === "loading" ? <p role="status">{en ? "Loading statement…" : "正在读取结算单…"}</p> : state === "unavailable" ? <p>{en ? "This link has expired or does not exist. Ask the sender for a new link." : "分享链接已过期或不存在，请联系发送人重新生成。"}</p> : <><p role="alert">{en ? "Unable to load the statement. Please try again." : "暂时无法读取结算单，请重试。"}</p><button className="secondary-action" type="button" onClick={() => setAttempt(value => value + 1)}>{en ? "Retry" : "重试"}</button></>}
       </section>}

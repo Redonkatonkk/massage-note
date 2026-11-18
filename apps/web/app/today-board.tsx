@@ -50,8 +50,10 @@ import { RankingExplanationButton } from "./ranking-explanation";
 import { BoardWeeklyDispatch } from "./board-weekly-dispatch";
 import { BoardEmployeePicker } from "./board-employee-picker";
 import { RecordTrack } from "./record-track";
+import { animateOverlayExit, useListMotion, useOverlayExitRef, usePanelHeight, withButtonMotion } from "./ui/interaction-motion";
 import { RecordEditor } from "./record-editor";
 import { PlaceholderDeleteDialog } from "./placeholder-delete-dialog";
+import { PlaceholderCard } from "./placeholder-card";
 import { AutoCloseDetails } from "./auto-close-details";
 import { OverviewMetric, UiIcon } from "./ui/primitives";
 import { CustomerTypeSwitch } from "./customer-type-switch";
@@ -133,7 +135,7 @@ function PaymentBreakdown({
   </span>;
 }
 
-function tiltRecordCard({ pointerType, currentTarget: card, clientX, clientY }: PointerEvent<HTMLButtonElement>) {
+function tiltRecordCard({ pointerType, currentTarget: card, clientX, clientY }: PointerEvent<HTMLElement>) {
   if (pointerType !== "mouse" || !window.matchMedia?.("(any-hover: hover) and (any-pointer: fine) and (prefers-reduced-motion: no-preference)").matches) return;
   const track = card.offsetParent;
   if (!(track instanceof HTMLElement) || !track.classList.contains("record-track")) return;
@@ -148,7 +150,7 @@ function tiltRecordCard({ pointerType, currentTarget: card, clientX, clientY }: 
   card.style.setProperty("--record-card-hover", `perspective(650px) translateY(${(-4 * strength).toFixed(2)}px) rotateX(${pitch.toFixed(2)}deg) rotateY(${yaw.toFixed(2)}deg)`);
 }
 
-function resetRecordCardTilt({ currentTarget }: PointerEvent<HTMLButtonElement>) {
+function resetRecordCardTilt({ currentTarget }: PointerEvent<HTMLElement>) {
   currentTarget.style.removeProperty("--record-card-hover");
 }
 
@@ -197,6 +199,8 @@ function TodayBoardContent({
   const [quickMode, setQuickMode] = useState<QuickWorkMode>("NORMAL");
   const [quickCustomerType, setQuickCustomerType] = useState<NonNullable<WorkRecord["customerType"]> | null>(null);
   const quickDialog = useRef<HTMLElement>(null);
+  const quickDialogRef = useOverlayExitRef(quickDialog);
+  usePanelHeight(quickDialog, Boolean(quickEmployeeId), quickMode === "PLACEHOLDER");
   const [quickSessionId, setQuickSessionId] = useState(() => crypto.randomUUID());
   const [editorSessionId, setEditorSessionId] = useState(() => crypto.randomUUID());
   const [restoredSave, setRestoredSave] = useState<WorkRecordSaveTask | null>(null);
@@ -277,6 +281,7 @@ function TodayBoardContent({
     () => board.rows.filter((row) => !row.isHidden || !canManage || showHidden),
     [board.rows, canManage, showHidden],
   );
+  const boardMotion = useListMotion<HTMLElement>(visibleRows.map(row => `${row.id}:${collapsed.includes(row.id)}`).join(" "));
   const [entranceOrder] = useState(() => new Map(visibleRows.map((row, index) => [row.id, index])));
   const hiddenRows = useMemo(
     () => canManage ? board.rows.filter((row) => row.isHidden) : [],
@@ -404,9 +409,10 @@ function TodayBoardContent({
     setDeliveryList(await apiRequest<ClosingDeliveryList>(`/stores/${membership.store.id}/closings/${currentDay.businessDate}/deliveries`));
   }
 
-  async function setRowHidden(row: BoardResponse["rows"][number], isHidden: boolean) {
+  async function setRowHidden(row: BoardResponse["rows"][number], isHidden: boolean, target?: HTMLElement | null) {
     const path = `/stores/${membership.store.id}/boards/${currentDay.businessDate}/rows/${row.id}`;
     const result = await apiRequest<{ removed: boolean }>(path, { method: "PATCH", idempotent: true, body: { version: row.version, isHidden } });
+    if (isHidden || target?.closest(".hidden-rows-panel")) animateOverlayExit(target, { backdrop: false, y: -4 });
     setNotice(result.removed ? `已移除 ${row.membership.displayName} 的当天上班记录` : isHidden ? `已隐藏 ${row.membership.displayName}` : `已恢复 ${row.membership.displayName}`);
     await onReload();
   }
@@ -447,7 +453,7 @@ function TodayBoardContent({
             isHighlighted: quickMode === "HIGHLIGHTED", isDispatchExcluded: quickMode === "DISPATCH_EXCLUDED" } : { isPlaceholder: true }),
         } },
       });
-      if (accepted) { setQuickEmployeeId(null); setQuickMode("NORMAL"); setRestoredSave(null); }
+      if (accepted) { quickDialog.current?.setAttribute("data-motion-skip-exit", ""); setQuickEmployeeId(null); setQuickMode("NORMAL"); setRestoredSave(null); }
     } catch (caught) { setError(errorMessage(caught)); }
   }
 
@@ -516,7 +522,7 @@ function TodayBoardContent({
   </>;
   const dailyActions = <section className="board-toolbar" aria-label="今日操作">
     <div className="board-primary-actions">
-      <button className="secondary-action" type="button" disabled={busy} onClick={() => run(onReload)}>刷新</button>
+      <button className="secondary-action" type="button" disabled={busy} onClick={event => void withButtonMotion(event.currentTarget, () => run(onReload))}>刷新</button>
       {showEmployeeClockIn && <button className="primary-action" type="button" disabled={busy} onClick={() => run(async () => {
         await apiRequest(`/stores/${membership.store.id}/shifts/clock-in`, { method: "POST", idempotent: true, body: {} });
         setNotice("已上班，并加入今日表格");
@@ -524,7 +530,7 @@ function TodayBoardContent({
       })}>{busy ? "正在上班…" : "上班"}</button>}
       {canManage && (board.isClosed
         ? <a className="primary-action board-closing-action" href={financeClosingHref(membership.store.id, currentDay.businessDate)}>现金结算</a>
-        : <button className="primary-action board-closing-action" type="button" disabled={busy || pendingDayWrites} title={pendingDayWrites ? "请先等待当天记工的保存结果确认" : undefined} onClick={() => run(closeBusinessDay)}>日结</button>)}
+        : <button className="primary-action board-closing-action" type="button" disabled={busy || pendingDayWrites} title={pendingDayWrites ? "请先等待当天记工的保存结果确认" : undefined} onClick={event => void withButtonMotion(event.currentTarget, () => run(closeBusinessDay))}>日结</button>)}
       {wideLayout ? secondaryActions : (canManage || canGenerateRanking || returnToToday) && <AutoCloseDetails className="board-more-actions">
         <summary>更多操作</summary>
         <div className="board-more-actions__body">{secondaryActions}</div>
@@ -602,7 +608,7 @@ function TodayBoardContent({
 
       <div className="board-section-heading"><h2>员工记工</h2><span>{visibleRows.length} <span>位员工</span></span></div>
       {employeeRosterActions}
-      <section className={visibleRows.length > 0 ? "board board-panel" : "board"} id="today" data-work-record-motion="true" aria-label={isCurrentBusinessDay ? "今日员工记工表" : canManage ? "历史员工记工表" : "我的历史记工表"}>
+      <section className={visibleRows.length > 0 ? "board board-panel" : "board"} id="today" ref={boardMotion} data-motion-list data-work-record-motion="true" aria-label={isCurrentBusinessDay ? "今日员工记工表" : canManage ? "历史员工记工表" : "我的历史记工表"}>
         {visibleRows.length === 0 && (
           <div className="board-panel board-empty-state empty-state"><strong>{isCurrentBusinessDay ? "今日表格还是空的" : canManage ? "这个营业日没有记工" : "这个营业日没有你的记工"}</strong><p>{showEmployeeClockIn ? "点击上方“上班”，把自己加入今日表格。" : isCurrentBusinessDay ? "店长或经理可以把参与记工的员工加入今日表格。" : canManage ? "可以选择其他营业日继续查看。" : "这里只会显示你自己的历史记录，可以选择其他营业日继续查看。"}</p></div>
         )}
@@ -623,12 +629,15 @@ function TodayBoardContent({
           const workCount = leftTrackRecordCount(row.workRecords);
           return (
             <article className={`employee-row${isCollapsed ? " employee-row--collapsed" : ""}${row.isHidden && canManage ? " employee-row--hidden" : ""}`} key={row.id}
-              data-employee-entrance={entranceIndex !== undefined || undefined} style={entranceIndex === undefined ? undefined : { animationDelay: `${entranceIndex * 50}ms` }}>
+              data-motion-item={row.id} data-motion-skip-in={entranceIndex !== undefined || undefined} data-employee-entrance={entranceIndex !== undefined || undefined} style={entranceIndex === undefined ? undefined : { animationDelay: `${entranceIndex * 50}ms` }}>
               <header className="employee-header">
                 <button
                   className="employee-toggle"
                   type="button"
-                  onClick={() => setCollapsed((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id])}
+                  onClick={event => {
+                    if (!isCollapsed) animateOverlayExit(event.currentTarget.closest(".employee-row")?.querySelector<HTMLElement>(".employee-content"), { backdrop: false, collapse: true });
+                    setCollapsed(current => isCollapsed ? current.filter(id => id !== row.id) : [...current, row.id]);
+                  }}
                   aria-expanded={!isCollapsed}
                   aria-label={`${row.membership.displayName} · ${t(isCollapsed ? "展开" : "收起")}`}
                 >
@@ -643,7 +652,7 @@ function TodayBoardContent({
                 <div className="row-tools">
                   {canChangeRowVisibility && <div className="row-actions" role="group" aria-label={`${row.membership.displayName} · ${t("员工操作")}`}>
                     {!board.isClosed && <><button className="row-move-action" type="button" aria-label={t("上移")} title={t("上移")} disabled={busy || board.rows[0]?.id === row.id} onClick={() => run(() => reorder(row.id, -1))}><UiIcon name="arrow-up" /></button><button className="row-move-action" type="button" aria-label={t("下移")} title={t("下移")} disabled={busy || board.rows.at(-1)?.id === row.id} onClick={() => run(() => reorder(row.id, 1))}><UiIcon name="arrow-down" /></button></>}
-                    <button type="button" disabled={busy} onClick={() => run(() => setRowHidden(row, !row.isHidden))}>{row.isHidden ? "恢复显示" : "隐藏"}</button>
+                    <button type="button" disabled={busy} onClick={event => { const target = event.currentTarget.closest<HTMLElement>(".employee-row"); void run(() => setRowHidden(row, !row.isHidden, target)); }}>{row.isHidden ? "恢复显示" : "隐藏"}</button>
                   </div>}
                   <span className="row-work-count" title="左侧记工数（含占位）" aria-label={`${workCount} 条记工`}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="16" rx="2" /><path d="M9 5V3h6v2M9 11h6M9 16h6" /></svg>
@@ -654,8 +663,8 @@ function TodayBoardContent({
               </header>
 
               {!isCollapsed && (
-                <div className={`employee-content${showTotals ? "" : " employee-content--records-only"}`}>
-                  <RecordTrack key={currentDay.businessDate} recordCount={row.workRecords.length} autoReturn={!board.isClosed}>
+                <div className={`employee-content${showTotals ? "" : " employee-content--records-only"}`} data-motion-content>
+                  <RecordTrack key={currentDay.businessDate} recordCount={row.workRecords.length} autoReturn={!board.isClosed} movementKey={row.workRecords.map(record => `${record.id}:${record.startAt}:${record.isHighlighted}:${record.isDispatchExcluded}`).join(" ")}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record) => {
                       if (record === null) return (
                         <button key="add-record" className="add-record" type="button" onClick={() => { setQuickSessionId(crypto.randomUUID()); setRestoredSave(null); setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickMode("NORMAL"); setQuickCustomerType(null); setQuickEmployeeId(row.membershipId); }}>
@@ -663,16 +672,9 @@ function TodayBoardContent({
                         </button>
                       );
                       if (record.status === "PLACEHOLDER") return (
-                        <button className="record-card record-card--placeholder" data-work-record-id={record.id} key={record.id} type="button" aria-label="占位" aria-describedby={`placeholder-time-${record.id}`}
-                          {...recordCardHover}
-                          disabled={(!isCurrentBusinessDay && !canManage) || recordLocked(record.id)} title={recordLocked(record.id) ? "这条记工正在保存或同步，请稍候再试" : !isCurrentBusinessDay && !canManage ? "历史记录只读" : undefined}
-                          onClick={() => setDeletingPlaceholder(record)}>
-                          <svg className="record-placeholder-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-                            <line x1="0" y1="0" x2="100" y2="100" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                            <line x1="100" y1="0" x2="0" y2="100" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                          </svg>
-                          <time id={`placeholder-time-${record.id}`} className="record-time record-placeholder-time" dateTime={record.startAt}>{displayTime(record.startAt, currentDay.timezone)}</time>
-                        </button>
+                        <PlaceholderCard key={record.id} storeId={membership.store.id} record={record} timezone={currentDay.timezone}
+                          canDelete={isCurrentBusinessDay || canManage} isClosed={board.isClosed} locked={recordLocked(record.id)}
+                          onChanged={onReload} onError={setError} {...recordCardHover} />
                       );
                       const hasNote = Boolean(record.note.trim());
                       const hasPaymentMismatch = hasConfirmedPaymentMismatch(
@@ -683,7 +685,7 @@ function TodayBoardContent({
                       <button
                         className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}${record.isHighlighted || record.isDispatchExcluded ? " record-card--right-group" : ""}${record.isHighlighted ? " record-card--highlighted" : ""}${hasNote ? " record-card--has-note" : ""}${hasPaymentMismatch ? " record-card--payment-mismatch" : ""}`}
                         key={record.id}
-                        data-work-record-id={record.id}
+                        data-work-record-id={record.id} data-motion-item={record.id} data-motion-skip-in data-record-status={record.status}
                         type="button"
                         {...recordCardHover}
                         disabled={(!isCurrentBusinessDay && !canManage) || recordLocked(record.id)}
@@ -773,12 +775,12 @@ function TodayBoardContent({
 
       {hiddenRows.length > 0 && <section className="hidden-rows-panel" aria-label="已隐藏员工管理">
         <header><div><strong>已隐藏员工 · {hiddenRows.length}</strong><p>隐藏后排工视为该日未上班，后续生成顺序会跳过该日；记工和财务保留。恢复后重新计入出勤，今日已有顺序需重新生成。</p></div><button className="secondary-action compact" type="button" onClick={() => setShowHidden((value) => !value)}>{showHidden ? "收起隐藏内容" : "查看隐藏内容"}</button></header>
-        <div>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{serviceRecordCount(row.workRecords)} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy || !canChangeRowVisibility} onClick={() => run(() => setRowHidden(row, false))}>恢复显示</button></article>)}</div>
+        <div data-motion-content>{hiddenRows.map((row) => <article key={row.id}><span className="employee-avatar" aria-hidden="true">{row.membership.displayName.slice(0, 1)}</span><div><strong>{row.membership.displayName}</strong><small>{serviceRecordCount(row.workRecords)} 条记工</small></div><button className="primary-action compact" type="button" disabled={busy || !canChangeRowVisibility} onClick={event => { const target = event.currentTarget.closest<HTMLElement>("article"); void run(() => setRowHidden(row, false, target)); }}>恢复显示</button></article>)}</div>
       </section>}
 
       {quickEmployeeId && createPortal(
-        <div className="modal-backdrop" role="presentation">
-          <section ref={quickDialog} className="quick-modal quick-work-modal" data-work-record-motion="true" data-quick-mode={quickMode} role="dialog" aria-modal="true" aria-labelledby="quick-modal-title">
+        <div className="modal-backdrop modal-backdrop--quick-work" role="presentation">
+          <section ref={quickDialogRef} className="quick-modal quick-work-modal" data-work-record-motion="true" data-quick-mode={quickMode} role="dialog" aria-modal="true" aria-labelledby="quick-modal-title">
             <div className="modal-heading">
               <div><p className="eyebrow">快速记工</p><h2 id="quick-modal-title">{members.find((item) => item.id === quickEmployeeId)?.displayName}</h2></div>
               <button className="secondary-action quick-detailed-entry" type="button" disabled={busy || board.isClosed || quickMode === "PLACEHOLDER"} onClick={() => run(async () => openDetailedRecord())}>详细记工</button>
@@ -821,7 +823,7 @@ function TodayBoardContent({
       {deletingPlaceholder && <PlaceholderDeleteDialog storeId={membership.store.id} record={deletingPlaceholder}
         employeeName={members.find((member) => member.id === deletingPlaceholder.employeeMembershipId)?.displayName ?? "员工"}
         timezone={currentDay.timezone} canDelete={isCurrentBusinessDay || canManage} isClosed={board.isClosed}
-        onClose={() => setDeletingPlaceholder(null)} onDeleted={() => setNotice("占位已删除")} onChanged={onReload} />}
+        onClose={() => setDeletingPlaceholder(null)} onChanged={onReload} />}
 
       {(creatingRecord || editingRecord) && (
         <RecordEditor
@@ -842,8 +844,7 @@ function TodayBoardContent({
           canManage={canManage}
           isClosed={board.isClosed}
           onClose={() => { setEditingRecord(null); setCreatingRecord(null); }}
-          onSaved={() => setNotice(creatingRecord ? "记工已保存" : "记工修改已保存")}
-          onDeleted={() => setNotice("记工已删除")}
+          onSaved={() => undefined}
           onChanged={onReload}
         />
       )}

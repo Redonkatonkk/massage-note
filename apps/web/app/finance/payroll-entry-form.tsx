@@ -9,6 +9,7 @@ import { formatMoneyInput } from "../../lib/money";
 import { payrollAmountCents } from "../../lib/payroll-settlement";
 import type { PayrollSettlement, StoreMember } from "../../lib/types";
 import { SettlementOptions } from "./settlement-options";
+import { useOverlayExitRef } from "../ui/interaction-motion";
 import { dateOnly } from "./date-utils";
 
 export function PayrollEntryForm({ storeId, businessDate, members, settlement, busy, run, onSaved, close }: {
@@ -24,6 +25,7 @@ export function PayrollEntryForm({ storeId, businessDate, members, settlement, b
   const [amountType, setAmountType] = useState<EmployeeSettlementAmountType>(settlement?.amountType ?? "ALL");
   const request = useRef<{ payload: string; key: string } | null>(null);
   const submitting = useRef(false);
+  const panelRef = useOverlayExitRef<HTMLFormElement>();
 
   function submit() {
     if (busy || submitting.current) return;
@@ -47,7 +49,7 @@ export function PayrollEntryForm({ storeId, businessDate, members, settlement, b
     });
   }
 
-  return <form className={`payroll-form${settlement ? " payroll-edit-modal" : ""}`} role={settlement ? "dialog" : undefined} aria-modal={settlement ? true : undefined} aria-labelledby={settlement ? "payroll-edit-title" : undefined} onSubmit={(event) => { event.preventDefault(); submit(); }}>
+  return <form ref={settlement ? panelRef : undefined} className={`payroll-form${settlement ? " payroll-edit-modal" : ""}`} role={settlement ? "dialog" : undefined} aria-modal={settlement ? true : undefined} aria-labelledby={settlement ? "payroll-edit-title" : undefined} onSubmit={(event) => { event.preventDefault(); submit(); }}>
     {settlement ? <div className="modal-heading"><h2 id="payroll-edit-title">修改工资结算</h2><button className="close-button" type="button" disabled={busy} onClick={close}>关闭</button></div> : <h2>登记已付工资</h2>}
     <div className="payroll-fields">
       <label>员工<select required disabled={busy} value={membershipId} onChange={(event) => setMembershipId(event.target.value)}>{payable.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
@@ -56,6 +58,6 @@ export function PayrollEntryForm({ storeId, businessDate, members, settlement, b
       <label>金额（美元）<NumericInput required disabled={busy} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
       <SettlementOptions paymentScope={paymentScope} amountType={amountType} disabled={busy} onPaymentScope={setPaymentScope} onAmountType={setAmountType} />
     </div>
-    <button className="primary-action" type="submit" disabled={busy || !membershipId || !paymentScope}>{settlement ? "保存修改" : "保存工资结算"}</button>
+    <button className="primary-action" type="submit" data-motion-busy={busy && submitting.current} disabled={busy || !membershipId || !paymentScope}>{settlement ? "保存修改" : "保存工资结算"}</button>
   </form>;
 }

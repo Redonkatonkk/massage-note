@@ -73,7 +73,7 @@ export function ProfilePageClient() {
           <div className="manage-form-grid profile-name-grid"><label>名<input autoComplete="given-name" required maxLength={50} value={firstName} onChange={(event) => { setFirstName(event.target.value); setProfileSaved(false); }} /></label><label>姓<input autoComplete="family-name" required maxLength={50} value={lastName} onChange={(event) => { setLastName(event.target.value); setProfileSaved(false); }} /></label></div>
           {profileSaved && <p className="success-notice" role="status">个人资料已保存</p>}
           {profileError && <p className="form-error" role="alert">{profileError}</p>}
-          <button className="primary-action" type="submit" disabled={profileBusy}>{profileBusy ? "正在保存…" : "保存个人资料"}</button>
+          <button className="primary-action" type="submit" disabled={profileBusy} data-motion-busy={profileBusy}>{profileBusy ? "正在保存…" : "保存个人资料"}</button>
         </form>
         <section className="manage-card">
           <div className="manage-heading"><div><p className="eyebrow">当前工作区</p><h2>切换店铺</h2></div></div>
@@ -111,9 +111,9 @@ export function ProfilePageClient() {
           </div>
           {passwordSaved && <p className="success-notice" role="status">密码已更新</p>}
           {passwordError && <p className="form-error" role="alert">{passwordError}</p>}
-          <button className="primary-action" type="submit" disabled={passwordBusy}>{passwordBusy ? "正在更新…" : (me.hasPassword ? "确认修改密码" : "设置密码")}</button>
+          <button className="primary-action" type="submit" disabled={passwordBusy} data-motion-busy={passwordBusy}>{passwordBusy ? "正在更新…" : (me.hasPassword ? "确认修改密码" : "设置密码")}</button>
         </form>
-        <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">登录状态</p><h2>退出账号</h2></div></div><p className="field-help">退出后，这台设备会保留经过验证的登录状态。下次输入同一手机号码时可以直接登录，减少验证码短信。</p><button className="secondary-action" type="button" disabled={signOutBusy} onClick={() => { setSignOutBusy(true); void apiRequest("/auth/session", { method: "DELETE" }).finally(() => window.location.replace(appHref("/login"))); }}>{signOutBusy ? "正在退出…" : "退出"}</button></section>
+        <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">登录状态</p><h2>退出账号</h2></div></div><p className="field-help">退出后，这台设备会保留经过验证的登录状态。下次输入同一手机号码时可以直接登录，减少验证码短信。</p><button className="secondary-action" type="button" disabled={signOutBusy} data-motion-busy={signOutBusy} onClick={() => { setSignOutBusy(true); void apiRequest("/auth/session", { method: "DELETE" }).finally(() => window.location.replace(appHref("/login"))); }}>{signOutBusy ? "正在退出…" : "退出"}</button></section>
       </section>
     </Workspace>
   );

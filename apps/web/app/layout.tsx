@@ -6,8 +6,10 @@ import "./design-system.css";
 import "./responsive.css";
 import "./workspace.css";
 import "./work-record-motion.css";
+import "./interaction-motion.css";
 import { WorkspaceMenu } from "./workspace-menu";
 import { WorkRecordExperimentProvider } from "./work-record-experiment";
+import { WorkRecordFeedbackProvider } from "./work-record-feedback";
 import { DecisionProvider } from "./decision-dialog";
 import { isAppLocale } from "../lib/i18n";
 import { LanguageProvider } from "./language-provider";
@@ -46,7 +48,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <WorkspaceMenu />
               <NetworkStatus />
               <ScrollBoundaryGuard />
-              {children}
+              <WorkRecordFeedbackProvider>{children}</WorkRecordFeedbackProvider>
             </DecisionProvider>
           </WorkRecordExperimentProvider>
         </LanguageProvider>

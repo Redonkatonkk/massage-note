@@ -107,7 +107,7 @@ export function MonthlySummaryDashboard({ storeId, today, month, highlightFilter
   ];
   const valueText = (value: number | null | undefined, count = false) => value == null ? "—" : count ? value.toLocaleString(locale) : money(value);
 
-  return <section className="monthly-finance" aria-label={t("月度汇总", "Monthly summary")} aria-busy={loading}>
+  return <section className="monthly-finance" data-motion-content aria-label={t("月度汇总", "Monthly summary")} aria-busy={loading}>
     <header className="monthly-finance__toolbar">
       <div><p className="eyebrow">{t("每月经营账本", "MONTHLY FINANCES")}</p><h2>{t("月度汇总", "Monthly summary")}</h2><p>{ranges.dateFrom} — {ranges.dateTo}{ranges.partial ? t(" · 本月至今", " · Month to date") : t(" · 完整自然月", " · Full calendar month")}</p></div>
       <div className="monthly-finance__actions">
@@ -141,7 +141,7 @@ export function MonthlySummaryDashboard({ storeId, today, month, highlightFilter
       {metrics.map(metric => {
         const value = current?.totals[metric.key], baseline = previous?.totals[metric.key];
         return <article className="monthly-finance__metric" key={metric.key}>
-          <button type="button" disabled={!current || busy} onClick={() => onViewDetails(metric.label)}><span><UiIcon name={metric.icon} />{metric.label}</span><strong>{valueText(value, metric.key === "recordCount")}</strong></button>
+          <button type="button" disabled={!current || busy} onClick={() => onViewDetails(metric.label)}><span><UiIcon name={metric.icon} />{metric.label}</span><strong key={value ?? "empty"} data-motion-change>{valueText(value, metric.key === "recordCount")}</strong></button>
           <div className="monthly-finance__metric-comparison">{value != null && baseline != null ? <><span className={`monthly-finance__change ${value > baseline ? "is-up" : value < baseline ? "is-down" : ""}`}>{changeText(value, baseline, metric.key === "recordCount")}</span><small>{t("较上月", "vs. previous month")}</small></> : <small>{previousResult.loading ? t("正在读取对比…", "Loading comparison…") : t("暂无可用对比", "Comparison unavailable")}</small>}</div>
           <p>{metric.caption}</p>
         </article>;
@@ -157,7 +157,7 @@ export function MonthlySummaryDashboard({ storeId, today, month, highlightFilter
         {current ? <><div className="monthly-finance__donut"><svg viewBox="0 0 120 120" role="img" aria-label={t("现金、刷卡和礼物卡收款占比", "Cash, card and gift card payment shares")}><circle cx="60" cy="60" r="48" fill="none" stroke="var(--line)" strokeWidth="13" />{paymentSources.map(source => {
           const share = paymentTotal > 0 ? source.value / paymentTotal * 100 : 0;
           const offset = ringOffset; ringOffset += share;
-          return <circle key={source.label} cx="60" cy="60" r="48" fill="none" stroke={source.color} strokeWidth="13" pathLength="100" strokeDasharray={`${share} ${100 - share}`} strokeDashoffset={-offset} transform="rotate(-90 60 60)"><title>{source.label}: {money(source.value)}</title></circle>;
+          return <circle key={`${source.label}:${share}:${offset}`} data-motion-change cx="60" cy="60" r="48" fill="none" stroke={source.color} strokeWidth="13" pathLength="100" strokeDasharray={`${share} ${100 - share}`} strokeDashoffset={-offset} transform="rotate(-90 60 60)"><title>{source.label}: {money(source.value)}</title></circle>;
         })}</svg><div><strong>{money(paymentTotal)}</strong><span>{t("实收服务费", "Service fees collected")}</span></div></div>
         <dl className="monthly-finance__payment-list">{paymentSources.map(source => <div key={source.label}><dt><i style={{ background: source.color }} />{source.label}</dt><dd>{money(source.value)}<small>{paymentTotal > 0 ? `${(source.value / paymentTotal * 100).toFixed(1)}%` : "—"}</small></dd></div>)}</dl>{paymentTotal === 0 && <p className="monthly-finance__note">{t("本月暂无已录入的服务收款。", "No service payments recorded this month.")}</p>}</> : <p className="empty-state">{t("等待本月数据", "Waiting for monthly data")}</p>}
       </section>

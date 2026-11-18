@@ -13,6 +13,7 @@ import { useLanguage } from "../language-provider";
 import { UiIcon } from "../ui/primitives";
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 import { useNativeDialog } from "../use-native-dialog";
+import { useContentMotion, useSelectionIndicator } from "../ui/interaction-motion";
 import { MembersToolbar } from "./members-toolbar";
 
 const roleText = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工" } as const;
@@ -40,6 +41,8 @@ export function MembersPanel({ storeId, dailyRankingEnabled, members, requests, 
   const [role, setRole] = useState<MemberRoleFilter>("ALL");
   const [selectedMember, setSelectedMember] = useState<StoreMember | null>(null);
   const [detailTab, setDetailTab] = useState<"settings" | "commission" | "account">("settings");
+  const detailIndicator = useSelectionIndicator<HTMLElement>(detailTab);
+  const detailMotion = useContentMotion<HTMLElement>(`${selectedMember?.id ?? ""}:${detailTab}`, ".members-person, .member-sheet__form, .member-account");
   const [editorRevision, setEditorRevision] = useState(0);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -48,6 +51,7 @@ export function MembersPanel({ storeId, dailyRankingEnabled, members, requests, 
   const [notice, setNotice] = useAutoDismissState("");
   const submitting = useRef(false);
   const detailHeading = useRef<HTMLHeadingElement>(null);
+  const rosterTrigger = useRef<HTMLButtonElement | null>(null);
   const active = members.filter((member) => member.status === "ACTIVE");
   const pending = requests.filter((request) => request.status === "PENDING");
   const counts = { ACTIVE: active.length, UNCLAIMED: active.filter((member) => !member.user).length, INACTIVE: members.length - active.length, ALL: members.length };
@@ -64,7 +68,10 @@ export function MembersPanel({ storeId, dailyRankingEnabled, members, requests, 
     window.addEventListener("beforeunload", unload);
     return () => window.removeEventListener("beforeunload", unload);
   }, [dirty]);
-  useEffect(() => { if (selectedMember) detailHeading.current?.focus(); }, [selectedMember?.id]);
+  useEffect(() => {
+    if (selectedMember) detailHeading.current?.focus();
+    else rosterTrigger.current?.focus({ preventScroll: true });
+  }, [selectedMember?.id]);
 
   async function mayLeave() {
     return !disabled && (!dirty || await decision.confirm(t("有未保存的修改，确认放弃吗？")));
@@ -122,7 +129,7 @@ export function MembersPanel({ storeId, dailyRankingEnabled, members, requests, 
     <div className={`members-master-detail${selectedMember ? " has-selection" : ""}`}>
       <section className="members-directory" aria-label="成员列表">
         <MembersToolbar query={query} filter={filter} role={role} counts={counts} onQuery={setQuery} onFilter={setFilter} onRole={setRole} />
-        <div className="members-roster">{visible.map((member) => <button key={member.id} className={`members-roster-item${selectedMember?.id === member.id ? " is-selected" : ""}`} type="button" disabled={disabled} aria-pressed={selectedMember?.id === member.id} aria-controls="member-detail" onClick={() => choose(member)}>
+        <div className="members-roster">{visible.map((member) => <button key={member.id} className={`members-roster-item${selectedMember?.id === member.id ? " is-selected" : ""}`} type="button" disabled={disabled} aria-pressed={selectedMember?.id === member.id} aria-controls="member-detail" onClick={event => { rosterTrigger.current = event.currentTarget; void choose(member); }}>
           <span className="member-avatar" aria-hidden="true">{Array.from(member.displayName)[0]}</span>
           <span className="members-identity"><strong>{member.displayName}</strong><span><span>{roleText[member.role]}</span>{member.isServiceProvider && member.employmentType && <> · <span>{employmentText[member.employmentType]}</span></>}</span></span>
           <span className={`members-badge ${member.status !== "ACTIVE" ? "members-badge--muted" : member.user ? "members-badge--success" : "members-badge--pending"}`}>{member.status !== "ACTIVE" ? "已停用" : member.user ? "在职" : "等待注册"}</span>
@@ -130,14 +137,14 @@ export function MembersPanel({ storeId, dailyRankingEnabled, members, requests, 
         {visible.length === 0 && <div className="members-empty"><UiIcon name="user" /><strong>{members.length === 0 ? "还没有成员" : "没有符合条件的成员"}</strong><p>{members.length === 0 ? "添加员工后即可开始记工，账号可以稍后注册关联。" : "试试其他姓名、手机号或筛选条件。"}</p>{members.length === 0 ? <button className="primary-action compact" type="button" disabled={disabled} onClick={() => open({ kind: "create" })}>新增员工</button> : <button className="secondary-action compact" type="button" onClick={() => { setQuery(""); setRole("ALL"); setFilter("ALL"); }}>查看全部成员</button>}</div>}
         <div className="members-directory__footer"><span><span>当前显示</span> {visible.length} / {members.length}</span></div>
       </section>
-      <section className="member-detail" id="member-detail" aria-label="员工详情">
+      <section ref={detailMotion} className="member-detail" id="member-detail" aria-label="员工详情">
         {selectedMember && current ? <>
           <header className="member-detail__heading">
             <button className="table-action member-detail__back" type="button" disabled={disabled} onClick={() => choose(null)}>返回员工列表</button>
             <div className="members-person"><span className="member-avatar" aria-hidden="true">{Array.from(current.displayName)[0]}</span><div><p className="eyebrow">员工档案</p><h2 ref={detailHeading} tabIndex={-1}>{current.displayName}</h2><p><span>{roleText[current.role]}</span> · <span>{current.status === "ACTIVE" ? current.isServiceProvider ? "参与记工" : "不参与记工" : "已离职/停用"}</span></p></div></div>
           </header>
           {selectedMember.status === "ACTIVE" && latest ? <>
-            <nav className="member-detail-tabs" aria-label="员工设置">{([["settings", "资料与工资"], ["commission", "项目专属提成"], ["account", "账号与状态"]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={detailTab === value} disabled={disabled} onClick={async () => {
+            <nav ref={detailIndicator} className="member-detail-tabs" aria-label="员工设置">{([["settings", "资料与工资"], ["commission", "项目专属提成"], ["account", "账号与状态"]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={detailTab === value} disabled={disabled} onClick={async () => {
               if (value === detailTab || !await mayLeave()) return;
               setSelectedMember(latest); setDetailTab(value); setDirty(false); setError(""); setEditorRevision((revision) => revision + 1);
             }}>{label}</button>)}</nav>
@@ -180,7 +187,7 @@ function MemberAccount({ member, busy, onDeactivate }: { member: StoreMember; bu
 }
 
 function MemberSheet({ title, name, children, busy, error, onClose }: { title: string; name?: string | undefined; children: ReactNode; busy: boolean; error: string; onClose: () => void }) {
-  const [dialog, dialogRef] = useNativeDialog();
+  const [dialog, dialogRef] = useNativeDialog(true);
   useEffect(() => {
     const element = dialog.current;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;

@@ -2,17 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ApiError, apiRequest, errorMessage } from "../lib/api";
+import { ApiError, errorMessage } from "../lib/api";
+import { deletePlaceholder } from "../lib/delete-placeholder";
 import { displayTime } from "../lib/time";
-import { beginWorkRecordDeleteMotion, preloadWorkRecordDeleteMotion } from "../lib/work-record-delete-motion";
+import { preloadWorkRecordDeleteMotion } from "../lib/work-record-delete-motion";
 import type { WorkRecord } from "../lib/types";
 import { useNativeDialog } from "./use-native-dialog";
+import { useWorkRecordFeedback } from "./work-record-feedback";
 
-export function PlaceholderDeleteDialog({ storeId, record, employeeName, timezone, canDelete, isClosed, onClose, onDeleted, onChanged }: {
+export function PlaceholderDeleteDialog({ storeId, record, employeeName, timezone, canDelete, isClosed, onClose, onChanged }: {
   storeId: string; record: WorkRecord; employeeName: string; timezone: string; canDelete: boolean; isClosed: boolean;
-  onClose: () => void; onDeleted: () => void; onChanged: () => Promise<void>;
+  onClose: () => void; onChanged: () => Promise<void>;
 }) {
-  const [dialog, dialogRef] = useNativeDialog();
+  const { showDeleted } = useWorkRecordFeedback();
+  const [dialog, dialogRef] = useNativeDialog(true);
   const actionInFlight = useRef(false);
   const [busy, setBusy] = useState(false);
   const [blockedByClosing, setBlockedByClosing] = useState(false);
@@ -32,18 +35,11 @@ export function PlaceholderDeleteDialog({ storeId, record, employeeName, timezon
     setBusy(true);
     setError("");
     try {
-      await apiRequest(`/stores/${storeId}/work-records/${record.id}`, {
-        method: "DELETE", idempotent: true, body: { version: record.version },
-      });
-      const motion = beginWorkRecordDeleteMotion(record.id);
-      onDeleted();
-      onClose();
-      try {
-        await onChanged();
-      } finally {
-        await motion.finished;
-        motion.cancel();
-      }
+      await deletePlaceholder(storeId, record, (deletedRecord, cancelMotion) => {
+        dialog.current?.setAttribute("data-motion-skip-exit", "");
+        showDeleted(storeId, deletedRecord, onChanged, cancelMotion);
+        onClose();
+      }, onChanged);
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "BUSINESS_DAY_CLOSED") setBlockedByClosing(true);
       setError(errorMessage(caught));

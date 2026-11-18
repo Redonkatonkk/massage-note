@@ -35,7 +35,7 @@ export function DailySnapshotView({
       </div>
     </header>
     <p className="daily-snapshot-sr-only" role="status">{en ? "Showing" : "正在查看"} {date}</p>
-    {data ? <DailySnapshotCard key={date} snapshot={data.snapshot} locale={locale} /> : <section className="daily-snapshot-state" aria-live="polite">
+    {data ? <DailySnapshotCard key={date} snapshot={data.snapshot} locale={locale} /> : <section className="daily-snapshot-state" data-motion-content aria-live="polite">
       {dayRetry ? <><p>{en ? "Unable to load this date." : "暂时无法读取这一天的记工。"}</p><button className="secondary-action" type="button" onClick={dayRetry}>{en ? "Retry date" : "重试读取日期"}</button></> : <p>{en ? "Loading this date…" : "正在读取这一天的记工…"}</p>}
     </section>}
     <div className="daily-snapshot-overview">
@@ -49,7 +49,7 @@ export function DailySnapshotView({
         <p>{en ? "Amounts below dates are daily earnings in USD." : "日期下方为当日收入，单位为美元。"}</p>
         {calendarRetry && <p role="status"><button className="secondary-action" type="button" onClick={calendarRetry}>{en ? "Reload earnings calendar" : "重新读取日历收入"}</button></p>}
       </section>
-      {data ? <DailySnapshotSources snapshot={data.snapshot} monthToDate={data.monthToDate} locale={locale} /> : <section className="daily-snapshot-sources" aria-busy={!dayRetry}>
+      {data ? <DailySnapshotSources key={date} snapshot={data.snapshot} monthToDate={data.monthToDate} locale={locale} /> : <section className="daily-snapshot-sources" aria-busy={!dayRetry}>
         <h2>{en ? "Earnings by payment source" : "按收款来源核对收入"}</h2>
         <p>{dayRetry ? (en ? "Earnings unavailable for this date." : "这一天的收入暂不可用。") : (en ? "Loading earnings…" : "正在读取收入…")}</p>
       </section>}

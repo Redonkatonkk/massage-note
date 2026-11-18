@@ -6,6 +6,7 @@ import { apiRequest, errorMessage } from "../lib/api";
 import { useLanguage } from "./language-provider";
 import type { StoreMember, WeeklyDispatchConfig, WeeklyDispatchDay, WeeklyDispatchSchedule } from "../lib/types";
 import { useNativeDialog } from "./use-native-dialog";
+import { useListMotion } from "./ui/interaction-motion";
 
 const days: Array<{ key: WeeklyDispatchDay; label: string; english: string }> = [
   { key: "monday", label: "星期一", english: "Monday" }, { key: "tuesday", label: "星期二", english: "Tuesday" },
@@ -16,7 +17,7 @@ const days: Array<{ key: WeeklyDispatchDay; label: string; english: string }> = 
 const emptySchedule = (): WeeklyDispatchSchedule => ({ monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [] });
 
 export function BoardWeeklyDispatch({ storeId, businessDate, members, disabled, onSaved, setupRequest = 0 }: { storeId: string; businessDate: string; members: StoreMember[]; disabled: boolean; onSaved: () => Promise<void>; setupRequest?: number }) {
-  const [dialog, dialogRef] = useNativeDialog();
+  const [dialog, dialogRef, closeDialog] = useNativeDialog();
   const submitting = useRef(false);
   const generation = useRef(0);
   const [schedule, setSchedule] = useState<WeeklyDispatchSchedule>(emptySchedule);
@@ -34,6 +35,7 @@ export function BoardWeeklyDispatch({ storeId, businessDate, members, disabled, 
   const employees = members.filter(member => member.status === "ACTIVE" && member.isServiceProvider && !member.deletedAt);
   const full = fullOrder.flatMap(id => employees.filter(member => member.id === id && member.employmentType === "FULL_TIME"));
   const ordered = [...full, ...employees.filter(member => member.employmentType !== "FULL_TIME")];
+  const orderMotion = useListMotion<HTMLTableSectionElement>(ordered.map(member => member.id).join(" "), dragging === null);
 
   async function open() {
     const requestGeneration = ++generation.current;
@@ -76,7 +78,7 @@ export function BoardWeeklyDispatch({ storeId, businessDate, members, disabled, 
     try {
       await apiRequest(`/stores/${storeId}/weekly-dispatch`, { method: "PUT", idempotent: true, body: { version, schedule, ...(!readOnly ? { businessDate, boardVersion, fullTimeOrder: fullOrder } : {}) } });
       if (requestGeneration !== generation.current) return;
-      dialog.current?.close();
+      closeDialog();
       await onSaved();
     } catch (caught) { if (requestGeneration === generation.current) setError(errorMessage(caught)); }
     finally { submitting.current = false; if (requestGeneration === generation.current) setBusy(false); }
@@ -84,13 +86,13 @@ export function BoardWeeklyDispatch({ storeId, businessDate, members, disabled, 
   return <>
     <button className="secondary-action weekly-dispatch-trigger" type="button" disabled={disabled || busy} onClick={() => void open()}>{text("每周排工", "Weekly schedule")}</button>
     {error && !dialog.current?.open && <p className="form-error" role="alert">{error}</p>}
-    <dialog ref={dialogRef} className="board-delivery-dialog weekly-dispatch-dialog" aria-labelledby="weekly-dispatch-title" onCancel={event => { if (busy) event.preventDefault(); }}>
-      <div className="modal-heading"><div><p className="eyebrow">{businessDate}</p><h2 id="weekly-dispatch-title">{text("每周排工", "Weekly schedule")}</h2></div><button className="close-button" type="button" disabled={busy} onClick={() => dialog.current?.close()}>{text("取消", "Cancel")}</button></div>
+    <dialog ref={dialogRef} className="board-delivery-dialog weekly-dispatch-dialog" aria-labelledby="weekly-dispatch-title" onCancel={event => { event.preventDefault(); if (!busy) closeDialog(); }}>
+      <div className="modal-heading"><div><p className="eyebrow">{businessDate}</p><h2 id="weekly-dispatch-title">{text("每周排工", "Weekly schedule")}</h2></div><button className="close-button" type="button" disabled={busy} onClick={closeDialog}>{text("取消", "Cancel")}</button></div>
       <p className="field-help">{text("拖动全职整行调整所选日期的内部顺序，包括当天休息者。也可聚焦排序手柄后按上下方向键。保存会同时提交每周出勤与该日内部顺序；保存后需点击生成顺序，才会重排当前表格。", "Drag full-time rows to set this date’s internal order, including staff resting that day. You can also focus a reorder handle and use the arrow keys. Save submits weekly attendance and this date’s internal order together. Generate the order afterwards to reorder the current board.")}</p>
       {needsSetup && <p className="field-help" role="status">{text("内部顺序尚未初始化或历史数据缺失。请确认完整全职顺序，保存后再次点击生成顺序。", "The internal order is uninitialized or history is missing. Confirm the complete full-time order, save, then generate the order again.")}</p>}
       {readOnly && <p className="field-help">{text("所选日期已日结或属于历史日期，内部顺序只读；仍可修改每周出勤设置。", "The selected date is closed or historical. Its internal order is read-only; weekly attendance can still be edited.")}</p>}
       <p className="field-help weekly-dispatch-scroll-hint">{text("左右滑动查看整周。", "Scroll horizontally to see the whole week.")}</p>
-      <div className="weekly-dispatch-table-wrap"><table className="weekly-dispatch-table"><thead><tr><th scope="col">{text("员工", "Employee")}</th><th scope="col">{text("全职／兼职", "Employment")}</th>{days.map(day => <th scope="col" key={day.key}>{text(day.label, day.english)}</th>)}</tr></thead><tbody>{ordered.map(member => <tr key={member.id} data-full-time-id={member.employmentType === "FULL_TIME" ? member.id : undefined} className={dragging === member.id ? "weekly-dispatch-row--dragging" : undefined}
+      <div className="weekly-dispatch-table-wrap"><table className="weekly-dispatch-table"><thead><tr><th scope="col">{text("员工", "Employee")}</th><th scope="col">{text("全职／兼职", "Employment")}</th>{days.map(day => <th scope="col" key={day.key}>{text(day.label, day.english)}</th>)}</tr></thead><tbody ref={orderMotion} data-motion-list>{ordered.map(member => <tr key={member.id} data-motion-item={member.id} data-full-time-id={member.employmentType === "FULL_TIME" ? member.id : undefined} className={dragging === member.id ? "weekly-dispatch-row--dragging" : undefined}
         onPointerDown={event => {
           if (member.employmentType !== "FULL_TIME" || readOnly || busy || disabled || !event.isPrimary || event.button !== 0 || (event.target as HTMLElement).closest("input, label")) return;
           drag.current = { id: member.id, initial: fullOrder, pointerId: event.pointerId }; setDragging(member.id);

@@ -675,10 +675,27 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 
 /* Board actions announce results without inserting height above the work cards. */
 .screen-feedback { position: fixed; z-index: 10000; top: max(24px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); padding: 14px 20px; border-radius: var(--radius-panel); background: color-mix(in srgb, var(--success) 82%, transparent); backdrop-filter: blur(10px); color: var(--surface); font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; pointer-events: none; opacity: 1; transition: opacity 200ms ease-out; }
-.screen-feedback--error { background: color-mix(in srgb, var(--danger) 82%, transparent); }
+.screen-feedback--error { left: auto; right: max(16px, env(safe-area-inset-right)); transform: none; background: color-mix(in srgb, var(--danger) 82%, transparent); }
 .screen-feedback.is-leaving { opacity: 0; }
 
-.record-editor .delete-record { display: inline-grid; place-items: center; transition: background-color 180ms ease-out, border-color 180ms ease-out, color 180ms ease-out; }
+.work-record-toasts { position: fixed; z-index: 10000; top: max(24px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: grid; justify-items: center; gap: 8px; width: max-content; max-width: calc(100% - 32px); pointer-events: none; }
+.work-record-toast { position: relative; display: flex; align-items: center; gap: 12px; max-width: 100%; min-height: 52px; padding: 8px 14px 11px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-float); }
+.work-record-toast__message { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.work-record-toast__message > span { color: var(--success); }
+.work-record-toast .work-record-toast__undo { flex-shrink: 0; min-height: 44px; padding-inline: 10px; pointer-events: auto; }
+.work-record-toast__progress { position: absolute; inset: auto 0 0; height: 3px; background: var(--success); transform-origin: left center; }
+@media (prefers-reduced-motion: no-preference) {
+  .work-record-toast { animation: work-record-toast-in 160ms var(--ease-out); }
+  .work-record-toast__progress { animation: work-record-toast-countdown linear forwards; }
+}
+@keyframes work-record-toast-in { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes work-record-toast-countdown { to { transform: scaleX(0); } }
+
+.record-editor .delete-record, .record-placeholder-delete { display: inline-grid; place-items: center; transition: background-color 180ms ease-out, border-color 180ms ease-out, color 180ms ease-out; }
+.record-card--placeholder { cursor: default; }
+.record-placeholder-delete { position: absolute; inset-inline-start: 50%; inset-block-end: 10px; translate: -50% 0; z-index: 1; min-height: 44px; padding-inline: 10px; font-size: .8rem; line-height: 1.2; white-space: nowrap; }
+.record-placeholder-delete:disabled { cursor: default; opacity: .55; }
+.record-card--placeholder[data-placeholder-deleted] { visibility: hidden; }
 .delete-record__label, .delete-record__confirmation { grid-area: 1 / 1; transition: opacity 180ms ease-out, transform 180ms var(--ease-out); }
 .delete-record__confirmation { opacity: 0; transform: translateY(6px); }
 .delete-record--confirming { border-color: var(--danger-confirm); background: var(--danger-confirm); color: var(--surface); }
@@ -693,6 +710,5 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .work-save-result { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); overflow-wrap: anywhere; font-size: 14px; pointer-events: auto; }
 .work-save-result strong { display: block; font-size: 14px; }
 .work-save-result p { margin: 6px 0; }
-.work-save-result--saved { color: var(--success); pointer-events: none; }
 .work-save-result--failed, .work-save-result--uncertain, .work-save-result--syncFailed { border-color: var(--danger); }
 @media (prefers-reduced-motion: reduce) { .work-record-save-motion__fallback { animation: none; } }

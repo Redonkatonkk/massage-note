@@ -66,7 +66,7 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
                   <td>{item.closing ? `第 ${item.closing.cycleNo} 次` : "未日结"}</td>
                   <td>{item.kind === "INITIAL" ? "首次" : "补发"}</td>
                   <td>{item.locale === "zh_CN" ? "中文" : "English"}</td>
-                  <td><span className={`delivery-row-status ${messagesStatusClass(item)}`}>{messagesReceiptLabel(item) ?? statusLabels[item.status]}</span></td>
+                  <td><span key={`${item.status}:${messagesReceiptLabel(item) ?? ""}`} data-motion-change className={`delivery-row-status ${messagesStatusClass(item)}`}>{messagesReceiptLabel(item) ?? statusLabels[item.status]}</span></td>
                   <td>{item.attemptCount}</td>
                   <td>{formatTime(item.createdAt)}</td>
                   <td>{messagesReceiptError(item) || (item.status === "SENT" ? formatTime(item.sentAt) : "—")}</td>
@@ -76,7 +76,7 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
             </tbody>
           </table>
         </div>}>
-          <ul className="mobile-data-list">{deliveries.map(item => <li key={item.id}><MobileDataCard title={item.membership.displayName} subtitle={`${item.closing ? `第 ${item.closing.cycleNo} 次日结` : "未日结"} · ${item.kind === "INITIAL" ? "首次" : "补发"}`} status={<span className={`delivery-row-status ${messagesStatusClass(item)}`}>{messagesReceiptLabel(item) ?? statusLabels[item.status]}</span>} actions={cancelAction(item)}>
+          <ul className="mobile-data-list">{deliveries.map(item => <li key={item.id}><MobileDataCard title={item.membership.displayName} subtitle={`${item.closing ? `第 ${item.closing.cycleNo} 次日结` : "未日结"} · ${item.kind === "INITIAL" ? "首次" : "补发"}`} status={<span key={`${item.status}:${messagesReceiptLabel(item) ?? ""}`} data-motion-change className={`delivery-row-status ${messagesStatusClass(item)}`}>{messagesReceiptLabel(item) ?? statusLabels[item.status]}</span>} actions={cancelAction(item)}>
             <RecordFacts items={[{ label: "接收号码", value: <span className={item.recipientPhoneE164 ? "delivery-phone" : "delivery-phone invalid"}>{item.recipientPhoneE164 || "号码缺失"}</span> }, { label: "语言", value: item.locale === "zh_CN" ? "中文" : "English" }]} />
             {messagesReceiptError(item) && <p className="form-error">{messagesReceiptError(item)}</p>}
             <details className="mobile-data-card__details"><summary>发送详情</summary><RecordFacts items={[{ label: "排队时间", value: formatTime(item.createdAt) }, { label: "提交时间", value: formatTime(item.sentAt) }, { label: "尝试", value: item.attemptCount }]} /></details>
@@ -89,7 +89,7 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
 
 export function ClosingDeliveryQueueButton({ compact = false, ...props }: ClosingDeliveryQueueProps & { compact?: boolean }) {
   const { t } = useLanguage();
-  const [dialog, dialogRef] = useNativeDialog();
+  const [dialog, dialogRef, closeDialog] = useNativeDialog();
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   // Resolve the portal target only after hydration and keep the modal at body level.
   useEffect(() => setPortalTarget(document.body), []);
@@ -102,10 +102,10 @@ export function ClosingDeliveryQueueButton({ compact = false, ...props }: Closin
         ? <strong className="delivery-sent-count" aria-hidden="true" title={sentLabel}>{sentCount}</strong>
         : <> · <span>已提交</span> <strong>{sentCount}</strong></>}
     </button>
-    {portalTarget && createPortal(<dialog ref={dialogRef} className="board-delivery-dialog" aria-label="短信发送队列详情" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
+    {portalTarget && createPortal(<dialog ref={dialogRef} className="board-delivery-dialog" aria-label="短信发送队列详情" onCancel={event => { event.preventDefault(); closeDialog(); }} onClick={event => { if (event.target === event.currentTarget) closeDialog(); }}>
       <div className="modal-heading">
         <h2>短信发送队列详情</h2>
-        <button className="close-button" type="button" onClick={() => dialog.current?.close()}>关闭</button>
+        <button className="close-button" type="button" onClick={closeDialog}>关闭</button>
       </div>
       {props.value.deliveries.length === 0 ? <p>还没有短信发送记录。</p> : <ClosingDeliveryQueue {...props} expanded />}
     </dialog>, portalTarget)}

@@ -185,34 +185,68 @@ html:root .record-card { box-shadow: none; }
   initial-value: 0deg;
 }
 
+@property --record-pending-depth {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 24px;
+}
+
 @supports (mask-composite: exclude) {
   @media (forced-colors: none) {
-    html:root .record-card--pending::after {
+    html:root .record-card[data-record-status] { isolation: isolate; }
+
+    html:root .record-card[data-record-status]::after {
+      --record-pending-depth: 24px;
+      --record-pending-inner-light: color-mix(in srgb, var(--surface) 23%, transparent);
       content: "";
       position: absolute;
       inset: -1px;
-      padding: 2px;
+      z-index: -1;
+      padding: 3px;
       border-radius: inherit;
       pointer-events: none;
+      opacity: 0;
       background: conic-gradient(
         from var(--record-pending-angle, 0deg),
-        transparent 74%,
-        var(--line-strong) 83%,
-        var(--record-pending-glint) 90%,
-        transparent 100%
+        transparent 3%,
+        color-mix(in srgb, var(--record-pending-glint-teal) 32%, transparent) 14%,
+        var(--record-pending-glint-teal) 26%,
+        transparent 34%,
+        transparent 38%,
+        var(--line-strong) 45%,
+        var(--record-pending-glint) 54%,
+        color-mix(in srgb, var(--record-pending-glint) 48%, transparent) 59%,
+        transparent 65%,
+        transparent 71%,
+        color-mix(in srgb, var(--record-pending-glint-blue) 40%, transparent) 81%,
+        var(--record-pending-glint-blue) 90%,
+        transparent 98%
       );
-      mask: linear-gradient(var(--surface) 0 0) content-box, linear-gradient(var(--surface) 0 0);
-      mask-composite: exclude;
+      /* Off-center lobes extend inward from each edge. The last two masks form the bright rim. */
+      mask:
+        radial-gradient(ellipse 84% var(--record-pending-depth) at 26% 0, var(--record-pending-inner-light), transparent),
+        radial-gradient(ellipse calc(47px - var(--record-pending-depth)) 74% at 100% 36%, var(--record-pending-inner-light), transparent),
+        radial-gradient(ellipse 73% calc(56px - var(--record-pending-depth)) at 68% 100%, var(--record-pending-inner-light), transparent),
+        radial-gradient(ellipse calc(var(--record-pending-depth) + 4px) 79% at 0 70%, var(--record-pending-inner-light), transparent),
+        linear-gradient(var(--surface) 0 0) content-box,
+        linear-gradient(var(--surface) 0 0);
+      mask-composite: add, add, add, add, exclude, add;
     }
+    html:root .record-card--pending[data-record-status]::after { opacity: 1; }
   }
   @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
-    html:root .record-card--pending::after {
-      animation: record-pending-edge 5s linear infinite;
+    html:root .record-card[data-record-status]::after {
+      transition: opacity 220ms var(--ease-out);
     }
+    html:root .record-card--pending[data-record-status]::after { animation: record-pending-sweep 5.8s linear infinite; }
+    html:root .record-card--pending[data-motion-outside]::after { animation-play-state: paused; }
   }
 }
 
-@keyframes record-pending-edge {
+@keyframes record-pending-sweep {
+  22% { --record-pending-angle: .22turn; --record-pending-depth: 31px; }
+  48% { --record-pending-angle: .42turn; --record-pending-depth: 19px; }
+  72% { --record-pending-angle: .72turn; --record-pending-depth: 28px; }
   to { --record-pending-angle: 1turn; }
 }
 

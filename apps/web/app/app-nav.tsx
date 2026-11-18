@@ -66,7 +66,7 @@ export function AppNav({ active, storeId, role = "EMPLOYEE", activeTab, onTabCha
         return <div className="app-nav-group" key={item.page}>
           <a aria-label={item.label} aria-current={isActive ? "page" : undefined} className={`${itemClassName}${hasChildren ? " app-nav-parent-link" : ""}`} href={appHref(item.href)}><UiIcon name={item.icon} /><span className="app-nav-label">{item.label}</span></a>
           {hasChildren && <button type="button" aria-label={item.label} aria-current={isActive ? "page" : undefined} aria-expanded={isExpanded} aria-controls={`${submenuId}-${item.page}`} className={`${itemClassName} app-nav-toggle`} onClick={() => setExpandedGroups(groups => ({ ...groups, [item.page]: !groups[item.page] }))}><UiIcon name={item.icon} /><span className="app-nav-label">{item.label}</span><UiIcon name="arrow" className="app-nav-toggle__arrow" /></button>}
-          {hasChildren && (item.page === "finance" || item.page === "manage") && <div id={`${submenuId}-${item.page}`} className="app-nav-submenu" hidden={!isExpanded}>
+          {hasChildren && (item.page === "finance" || item.page === "manage") && <div id={`${submenuId}-${item.page}`} className="app-nav-submenu" hidden={!isExpanded} inert={!isExpanded}>
             {children.map(([value, label]) => <a key={value} href={appHref(navigationTabHref(item.page as "finance" | "manage", value, storeId))} aria-current={isActive && activeTab === value ? "page" : undefined} onClick={event => {
               if (isActive && onTabChange && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                 event.preventDefault(); onTabChange(value);

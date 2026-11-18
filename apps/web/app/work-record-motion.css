@@ -1,4 +1,13 @@
 /* Work-record interactions. */
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  .record-placeholder-delete { opacity: 0; pointer-events: none; }
+  .record-card--placeholder:hover > .record-placeholder-delete, .record-placeholder-delete:focus-visible { opacity: 1; pointer-events: auto; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .record-placeholder-delete { transition: opacity 160ms ease-out, background-color 180ms ease-out, border-color 180ms ease-out, color 180ms ease-out; }
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .board[data-work-record-motion] > [data-employee-entrance] {
     animation: work-record-employee-in 180ms ease-out backwards;
@@ -47,7 +56,7 @@
     margin-left: var(--record-stack-gap, var(--record-stack-inset));
   }
 
-  .record-track[data-record-stack] > .record-card:is(:hover, .record-track:not(:has(> .record-card:hover)) > :focus-visible) + .record-card {
+  .record-track[data-record-stack] > .record-card:is(:hover, .record-track:not(:has(> .record-card:hover)) > :is(:focus-visible, :has(> .record-placeholder-delete:focus-visible))) + .record-card {
     --record-stack-gap: 0px;
   }
 
@@ -63,7 +72,7 @@
         margin-left 360ms var(--record-stack-spring), scale 360ms var(--record-stack-spring);
     }
 
-    .record-track[data-record-stack] > .record-card:is(:hover, .record-track:not(:has(> .record-card:hover)) > :focus-visible) {
+    .record-track[data-record-stack] > .record-card:is(:hover, .record-track:not(:has(> .record-card:hover)) > :is(:focus-visible, :has(> .record-placeholder-delete:focus-visible))) {
       scale: 1.018 .988;
     }
   }

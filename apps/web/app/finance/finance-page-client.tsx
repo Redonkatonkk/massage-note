@@ -9,6 +9,7 @@ import { useAutoDismissState } from "../use-auto-dismiss-state";
 import { ExpensesPanel } from "./expenses-panel";
 import { PayrollLedger } from "./payroll-ledger";
 import { FinanceDetailsDialog } from "./finance-details-dialog";
+import { useSelectionIndicator, withButtonMotion } from "../ui/interaction-motion";
 import { AnalyticsPanel } from "./analytics-panel";
 
 import { browserStorage } from "../../lib/browser-storage";
@@ -69,6 +70,7 @@ export function FinancePageClient() {
   const [storeDetails, setStoreDetails] = useState<StoreDetails | null>(null);
   const [day, setDay] = useState<CurrentBusinessDay | null>(null);
   const [tab, setTab] = useState<FinanceTab>("summary");
+  const tabIndicator = useSelectionIndicator<HTMLElement>(tab);
   const selectTab = useNavigationTab(membership?.role, resolveFinanceTab, setTab);
   const [summary, setSummary] = useState<FinanceSummaryResponse | null>(null);
   const [details, setDetails] = useState<FinanceDetailsResponse | null>(null);
@@ -412,7 +414,7 @@ export function FinancePageClient() {
         <a className="store-switcher header-link" href={appHref("/")}>返回今日记工</a>
       </header>
 
-      <nav className="section-tabs" aria-label="财务页面">
+      <nav ref={tabIndicator} className="section-tabs" aria-label="财务页面">
         {financeTabs.map(([value, label]) => (
           <button key={value} className={tab === value ? "active" : ""} type="button" aria-pressed={tab === value} onClick={() => selectTab(value)}>{label}</button>
         ))}
@@ -455,10 +457,10 @@ export function FinancePageClient() {
       )}
 
       {tab === "closing" && canManage && closing?.storeId === membership.store.id && closing.businessDate === cashDate && (
-        <section className="finance-section">
-          <div className="date-toolbar"><div className="business-date-field"><span>营业日</span><BusinessDatePicker storeId={membership.store.id} value={cashDate} max={day.businessDate} ariaLabel="选择日结营业日" onChange={setCashDate} /></div><button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { await Promise.all([loadClosing(), loadCash()]); })}>重新检查</button></div>
-          <div className={`closing-status ${closing.hasWarnings ? "warning" : "ready"}`}><div><span>{closing.isClosed ? "已日结" : closingHasBlockingWarnings ? "发现日结异常" : "可以正常日结"}</span><strong>{closing.isClosed ? `第 ${closing.activeClosing?.cycleNo ?? 0} 次日结` : closing.hasWarnings ? `${closing.warningCount} 项提醒` : "检查通过"}</strong></div>{closing.isClosed ? <button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { if (!closing.activeClosing) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}/cancel`, { method: "POST", idempotent: true, body: { version: closing.activeClosing.version } }); await loadClosing(); await loadCash(); })}>取消日结</button> : <div className="closing-actions"><button className="primary-action" type="button" disabled={busy || closingHasBlockingWarnings} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: false } }); await loadClosing(); })}>确认日结</button>{closingHasBlockingWarnings && <button className="danger-button" type="button" disabled={busy} onClick={() => run(async () => { const reason = await decision.prompt("强制日结会保留全部异常快照，请填写原因", { action: "强制日结", required: true, danger: true }); if (!reason?.trim()) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: true, forceReason: reason.trim() } }); await loadClosing(); })}>强制日结</button>}</div>}</div>
-          {closing.warnings.length > 0 && <div className="warning-list">{closing.warnings.map((warning) => <article key={warning.code}><div className="warning-list__heading"><strong>{warning.labelZh}</strong><span>{warning.count} 条记录</span></div>{warning.blocking === false && <p className="warning-list__notice">仅提醒，不影响正常日结</p>}<div className="warning-record-links">{warning.recordIds.map((recordId, index) => <button className="secondary-action compact" key={recordId} type="button" disabled={busy} onClick={() => openWarningRecord(recordId)} aria-label={`查看${warning.labelZh}第 ${index + 1} 单`}>查看第 {index + 1} 单</button>)}</div></article>)}</div>}
+        <section className="finance-section" data-motion-content>
+          <div className="date-toolbar"><div className="business-date-field"><span>营业日</span><BusinessDatePicker storeId={membership.store.id} value={cashDate} max={day.businessDate} ariaLabel="选择日结营业日" onChange={setCashDate} /></div><button className="secondary-action" type="button" disabled={busy} onClick={event => void withButtonMotion(event.currentTarget, () => run(async () => { await Promise.all([loadClosing(), loadCash()]); }))}>重新检查</button></div>
+          <div className={`closing-status ${closing.hasWarnings ? "warning" : "ready"}`}><div key={`${closing.isClosed}:${closing.warningCount}:${closing.activeClosing?.cycleNo}`} data-motion-change><span>{closing.isClosed ? "已日结" : closingHasBlockingWarnings ? "发现日结异常" : "可以正常日结"}</span><strong>{closing.isClosed ? `第 ${closing.activeClosing?.cycleNo ?? 0} 次日结` : closing.hasWarnings ? `${closing.warningCount} 项提醒` : "检查通过"}</strong></div>{closing.isClosed ? <button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { if (!closing.activeClosing) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}/cancel`, { method: "POST", idempotent: true, body: { version: closing.activeClosing.version } }); await loadClosing(); await loadCash(); })}>取消日结</button> : <div className="closing-actions"><button className="primary-action" type="button" disabled={busy || closingHasBlockingWarnings} onClick={() => run(async () => { await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: false } }); await loadClosing(); })}>确认日结</button>{closingHasBlockingWarnings && <button className="danger-button" type="button" disabled={busy} onClick={() => run(async () => { const reason = await decision.prompt("强制日结会保留全部异常快照，请填写原因", { action: "强制日结", required: true, danger: true }); if (!reason?.trim()) return; await apiRequest(`/stores/${membership.store.id}/closings/${cashDate}`, { method: "POST", idempotent: true, body: { force: true, forceReason: reason.trim() } }); await loadClosing(); })}>强制日结</button>}</div>}</div>
+          {closing.warnings.length > 0 && <div className="warning-list" data-motion-content>{closing.warnings.map((warning) => <article key={warning.code}><div className="warning-list__heading"><strong>{warning.labelZh}</strong><span>{warning.count} 条记录</span></div>{warning.blocking === false && <p className="warning-list__notice">仅提醒，不影响正常日结</p>}<div className="warning-record-links">{warning.recordIds.map((recordId, index) => <button className="secondary-action compact" key={recordId} type="button" disabled={busy} onClick={() => openWarningRecord(recordId)} aria-label={`查看${warning.labelZh}第 ${index + 1} 单`}>查看第 {index + 1} 单</button>)}</div></article>)}</div>}
           <ClosingWorkspace delivery={<section className="closing-delivery-panel">
               <div><strong>员工个人日结短信</strong><p>{!closing.isClosed ? "未日结也可从个人日结逐人发送，发送状态显示在下方。" : closingDeliveries?.batchBlockedReason ?? "直接排队所有已开启接收、号码有效且当天有记工的员工。"}</p></div>
               {closing.isClosed && <button className="primary-action" type="button" disabled={busy || closingDeliveries?.batchAllowed === false} onClick={() => run(queueClosingDeliveries)}>{closingDeliveries?.batchAllowed === false ? "仅可逐人补发" : "发送员工小结"}</button>}
@@ -483,8 +485,8 @@ export function FinancePageClient() {
       )}
 
       {tab === "closing" && !canManage && (
-        <section className="finance-section employee-closing-finance-section">
-          <div className="date-toolbar"><div className="business-date-field"><span>营业日</span><BusinessDatePicker storeId={membership.store.id} value={cashDate} max={day.businessDate} ariaLabel="选择日结营业日" onChange={setCashDate} /></div><button className="secondary-action" type="button" disabled={busy} onClick={() => run(async () => { await Promise.all([loadClosing(), loadCash()]); })}>重新加载</button></div>
+        <section className="finance-section employee-closing-finance-section" data-motion-content>
+          <div className="date-toolbar"><div className="business-date-field"><span>营业日</span><BusinessDatePicker storeId={membership.store.id} value={cashDate} max={day.businessDate} ariaLabel="选择日结营业日" onChange={setCashDate} /></div><button className="secondary-action" type="button" disabled={busy} onClick={event => void withButtonMotion(event.currentTarget, () => run(async () => { await Promise.all([loadClosing(), loadCash()]); }))}>重新加载</button></div>
           <section className="personal-cash-settlement">
             <h2 className="table-title">现金结算</h2>
             <p className="field-help">现金未结清不影响正常日结，日结后仍可结清现金。</p>
@@ -541,7 +543,7 @@ function ClosingWorkspace({ delivery, children }: { delivery: ReactNode; childre
 function PayrollPanel({ storeId, businessDate, canManage, members, settlements, busy, run, reload }: { storeId: string; businessDate: string; canManage: boolean; members: StoreMember[]; settlements: PayrollSettlement[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
   const decision = useDecision();
   const [editing, setEditing] = useState<PayrollSettlement | null>(null);
-  return <section className="finance-section payroll-page">
+  return <section className="finance-section payroll-page" data-motion-content>
     {canManage && <EmployeeSettlementPanel key={storeId} storeId={storeId} businessDate={businessDate} members={members} settlements={settlements} busy={busy} run={run} onSettled={reload} />}
     <section className="payroll-ledger-panel" aria-label="工资结算账本">
       <header className="payroll-ledger-heading"><h2>工资结算账本</h2><p>已登记的实付工资与历史调整。</p></header>

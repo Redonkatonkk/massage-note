@@ -1,6 +1,7 @@
 "use client";
 
 import { useDecision } from "../decision-dialog";
+import { animateOverlayExit, withButtonMotion } from "../ui/interaction-motion";
 
 import { apiRequest } from "../../lib/api";
 import { formatUsd } from "../../lib/money";
@@ -14,18 +15,26 @@ export function RecoveryPanel({ storeId, records, giftCardSales, busy, run, relo
   run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void>;
 }) {
   const decision = useDecision();
-  const restoreRecord = async (record: DeletedWorkRecord) => {
+  const restoreRecord = async (record: DeletedWorkRecord, button: HTMLButtonElement) => {
     if (!await decision.confirm(record.status === "PLACEHOLDER" ? `确认恢复 ${record.employee.displayName} 的这张占位小卡吗？恢复后只在主表占位，不计入财务。` : `确认恢复 ${record.employee.displayName} 的这条记工吗？恢复后会重新计入财务。`)) return;
-    void run(async () => { await apiRequest(`/stores/${storeId}/work-records/${record.id}/restore`, { method: "POST", idempotent: true, body: { version: record.version } }); await reload(); });
+    await withButtonMotion(button, () => run(async () => {
+      await apiRequest(`/stores/${storeId}/work-records/${record.id}/restore`, { method: "POST", idempotent: true, body: { version: record.version } });
+      animateOverlayExit(button.closest<HTMLElement>("tr, li"), { backdrop: false, y: -4 });
+      await reload();
+    }));
   };
-  const restoreSale = async (sale: DeletedGiftCardSale) => {
+  const restoreSale = async (sale: DeletedGiftCardSale, button: HTMLButtonElement) => {
     if (!await decision.confirm(`确认恢复礼物卡 ${sale.serialNumber} 的销售记录吗？恢复后会重新计入店铺收入。`)) return;
-    void run(async () => { await apiRequest(`/stores/${storeId}/gift-card-sales/${sale.id}/restore`, { method: "POST", idempotent: true, body: { version: sale.version } }); await reload(); });
+    await withButtonMotion(button, () => run(async () => {
+      await apiRequest(`/stores/${storeId}/gift-card-sales/${sale.id}/restore`, { method: "POST", idempotent: true, body: { version: sale.version } });
+      animateOverlayExit(button.closest<HTMLElement>("tr, li"), { backdrop: false, y: -4 });
+      await reload();
+    }));
   };
-  const recordAction = (record: DeletedWorkRecord) => <button className="primary-action compact" disabled={busy} type="button" onClick={() => restoreRecord(record)}>{record.status === "PLACEHOLDER" ? "恢复占位" : "恢复记工"}</button>;
+  const recordAction = (record: DeletedWorkRecord) => <button className="primary-action compact" disabled={busy} type="button" onClick={event => void restoreRecord(record, event.currentTarget)}>{record.status === "PLACEHOLDER" ? "恢复占位" : "恢复记工"}</button>;
   const recordName = (record: DeletedWorkRecord) => record.status === "PLACEHOLDER" ? "占位" : record.serviceSnapshot?.shortName ?? "待选项目";
   const recordAmount = (record: DeletedWorkRecord) => record.status === "PLACEHOLDER" ? "—" : record.serviceSnapshot ? formatUsd(record.grossFeeBaseCents) : "未填写";
-  const saleAction = (sale: DeletedGiftCardSale) => <button className="primary-action compact" disabled={busy} type="button" onClick={() => restoreSale(sale)}>恢复卖卡记录</button>;
+  const saleAction = (sale: DeletedGiftCardSale) => <button className="primary-action compact" disabled={busy} type="button" onClick={event => void restoreSale(sale, event.currentTarget)}>恢复卖卡记录</button>;
 
   return <section className="manage-section">
     <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">软删除记录</p><h2>记工回收站</h2></div><span className="status-chip">{records.length} 条</span></div>

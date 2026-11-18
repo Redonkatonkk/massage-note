@@ -5,6 +5,8 @@ import { STORE_BACKUP_MAX_BYTES, storeBackupSchema, type StoreBackup, type Store
 import { apiRequest, errorMessage } from "../../lib/api";
 import { clearStoreDataDrafts, downloadStoreBackup } from "../../lib/store-data";
 
+import { withButtonMotion } from "../ui/interaction-motion";
+
 export function DataOperationsPanel({ storeId, memberIds, onImported }: { storeId: string; memberIds: string[]; onImported: () => void }) {
   const [mode, setMode] = useState<StoreBackupMode>("anonymized");
   const [backup, setBackup] = useState<StoreBackup | null>(null);
@@ -48,28 +50,28 @@ export function DataOperationsPanel({ storeId, memberIds, onImported }: { storeI
       <section><h3>导出数据</h3><p className="field-help">下载一个 JSON 文件，可在另一套部署中导入。</p>
         <label>导出内容<select value={mode} disabled={busy} onChange={event => setMode(event.target.value as StoreBackupMode)}><option value="anonymized">脱敏演示数据</option><option value="full">完整数据</option></select></label>
         <p className="field-help">{mode === "anonymized" ? "替换姓名、电话、备注和身份标识；金额和日期保留真实值。" : "包含真实业务资料，请妥善保存完整备份。"}</p>
-        <button type="button" className="secondary-action" disabled={busy} onClick={() => void run(async signal => { await downloadStoreBackup(storeId, mode, signal); if (!signal.aborted) setNotice("数据文件已准备下载"); })}>下载数据文件</button>
+        <button type="button" className="secondary-action" disabled={busy} onClick={event => void withButtonMotion(event.currentTarget, () => run(async signal => { await downloadStoreBackup(storeId, mode, signal); if (!signal.aborted) setNotice("数据文件已准备下载"); }))}>下载数据文件</button>
       </section>
       <section><h3>导入数据</h3><p className="field-help">导入会覆盖当前店铺的业务数据。其他成员需重新绑定账号，外部发送需重新配置。</p>
         <label>选择 JSON 文件<input ref={fileInput} type="file" accept=".json,application/json" disabled={busy} onChange={event => chooseFile(event.target.files?.[0])} /></label>
         <p className="field-help">支持完整或脱敏文件，最大 50 MiB。</p>
-        <button type="button" className="secondary-action" disabled={busy || !backup} onClick={() => void run(async signal => {
+        <button type="button" className="secondary-action" disabled={busy || !backup} onClick={event => void withButtonMotion(event.currentTarget, () => run(async signal => {
           const value = await apiRequest<StoreImportPreview>(`/stores/${storeId}/data/import/preview`, { method: "POST", body: { backup }, signal });
           if (!signal.aborted) { setPreview(value); setDownloaded(false); setSaved(false); setConfirmName(""); key.current = crypto.randomUUID(); }
-        })}>校验并预览</button>
+        }))}>校验并预览</button>
       </section>
     </div>
-    {preview && <section className="data-import-preview" aria-label="导入预览"><h3>确认覆盖当前店铺</h3>
+    {preview && <section className="data-import-preview" data-motion-content aria-label="导入预览"><h3>确认覆盖当前店铺</h3>
       <dl className="record-facts"><div><dt>来源店铺</dt><dd>{preview.source.storeName}</dd></div><div><dt>目标店铺</dt><dd>{preview.targetName}</dd></div><div><dt>文件类型</dt><dd>{preview.mode === "anonymized" ? "脱敏演示数据" : "完整数据"}</dd></div><div><dt>营业日期范围</dt><dd>{preview.source.dateFrom && preview.source.dateTo ? `${preview.source.dateFrom} – ${preview.source.dateTo}` : "没有营业记录"}</dd></div></dl>
       <details><summary>查看各类记录数量</summary><dl className="record-facts">{Object.entries(preview.counts).map(([table, count]) => <div key={table}><dt>{tableLabels[table] ?? table}</dt><dd>{count}</dd></div>)}</dl></details>
       <p className="field-help">预览有效期十分钟；店铺数据发生变化后需要重新校验。</p>
-      <button type="button" className="secondary-action" disabled={busy} onClick={() => void run(async signal => { await downloadStoreBackup(storeId, "full", signal, preview.previewId); if (!signal.aborted) setDownloaded(true); })}>下载覆盖前完整备份</button>
+      <button type="button" className="secondary-action" disabled={busy} onClick={event => void withButtonMotion(event.currentTarget, () => run(async signal => { await downloadStoreBackup(storeId, "full", signal, preview.previewId); if (!signal.aborted) setDownloaded(true); }))}>下载覆盖前完整备份</button>
       <label className="data-import-check"><input type="checkbox" disabled={busy || !downloaded} checked={saved} onChange={event => setSaved(event.target.checked)} />我已保存完整备份，并确认覆盖当前店铺</label>
       <label>输入目标店铺名称确认<input value={confirmName} disabled={busy} autoComplete="off" onChange={event => setConfirmName(event.target.value)} /></label>
-      <button type="button" className="secondary-action danger" disabled={busy || !downloaded || !saved || confirmName !== preview.targetName} onClick={() => void run(async signal => {
+      <button type="button" className="secondary-action danger" disabled={busy || !downloaded || !saved || confirmName !== preview.targetName} onClick={event => void withButtonMotion(event.currentTarget, () => run(async signal => {
         await apiRequest(`/stores/${storeId}/data/import/confirm`, { method: "POST", headers: { "Idempotency-Key": key.current }, body: { backup, previewId: preview.previewId, confirmName }, signal });
         if (!signal.aborted) { clearStoreDataDrafts(storeId, memberIds); onImported(); }
-      })}>确认覆盖导入</button>
+      }))}>确认覆盖导入</button>
     </section>}
     {busy && <p role="status">正在处理数据，请稍候…</p>}
     {notice && <p role="status">{notice}</p>}

@@ -611,7 +611,6 @@ button, summary { overflow-wrap: anywhere; }
 }
 
 @media (max-width: 640px) {
-  .quick-work-modal { padding: 0; }
   .quick-work-modal > .modal-heading { padding: 20px 16px; }
   .quick-modal-content { padding: 0 16px max(20px, env(safe-area-inset-bottom)); }
 }

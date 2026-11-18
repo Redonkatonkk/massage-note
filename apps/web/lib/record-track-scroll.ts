@@ -3,7 +3,7 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const pointers = new Set<number>();
   let rightReserve = 16;
-  const engagedCard = () => track.dataset.recordStack && track.querySelector(".record-card:is(:hover, :focus-visible)");
+  const engagedCard = () => track.dataset.recordStack && track.querySelector(".record-card:hover, .record-card:focus-visible, .record-placeholder-delete:focus-visible");
   const refreshLayout = () => {
     const anchor = track.querySelector<HTMLElement>(".add-record");
     const tail = track.querySelector<HTMLElement>(".record-track-tail");

@@ -428,6 +428,7 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
 
   // Offline and account entry.
   "网络已断开。当前不能新增、修改或结算；请保留本页，联网后再提交。": "You are offline. New records, edits, and settlements are unavailable. Keep this page open and submit after reconnecting.",
+  "网络已恢复，可以继续操作。": "Connection restored. You can continue working.",
   "当前离线": "You are offline",
   "暂时无法连接店铺数据": "Store data is temporarily unavailable",
   "为了避免多台设备互相覆盖，离线时不允许新增、修改、删除、日结或结算。请检查网络后重新打开；尚未提交的页面请不要关闭。": "To prevent devices from overwriting each other, creating, editing, deleting, closing the day, and settling are unavailable offline. Check your connection and reopen the app. Keep pages with unsaved work open.",
@@ -752,7 +753,7 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "此工跳过该员工，只在主表占位，不计入记工数或任何金额。时间仅用于日期归属和排序。": "Skip this employee for this turn. The placeholder appears only on the board and adds no service count or amounts. Its time determines the date and order only.",
   "确认删除这张占位小卡吗？删除后主表将隐藏，店长或经理可以从回收站恢复。": "Delete this placeholder card? It will be hidden from the board. An owner or manager can restore it from the recovery page.",
   "这个营业日已经日结，请先取消日结再删除占位。": "This business date is closed. Reopen it before deleting the placeholder.",
-  "此工需要跳过该员工时，先选择弹窗顶部的“占位”模式，下方仅保留开始时间和“确认”，调整时间后点击“确认”保存。主表小卡显示两条从角落连接到对角的 X 形线条，顶部显示所选时间，不记录项目、付款或金额；占位计入员工小卡左侧数量，不计入财务记工数、财务、工资、日结和工作状态。时间仅决定日期归属和排序；点击占位小卡只能删除，店长或经理可从回收站恢复。": "To skip this employee for a turn, select Placeholder mode at the top of the dialog. Only Start time and Confirm remain below. Adjust the time, then click Confirm to save. Its board card shows two corner-to-corner diagonal lines forming an X, with the selected time at the top. It records no service, payment, or amounts. It counts toward the employee-card left-side badge but is excluded from financial service counts, Finance, payroll, daily closing, and work status. The time determines the date and order only. Select the card to delete it; an owner or manager can restore it from the recovery page.",
+  "此工需要跳过该员工时，先选择弹窗顶部的“占位”模式，下方仅保留开始时间和“确认”，调整时间后点击“确认”保存。主表小卡显示两条从角落连接到对角的 X 形线条，顶部显示所选时间，不记录项目、付款或金额；占位计入员工小卡左侧数量，不计入财务记工数、财务、工资、日结和工作状态。时间仅决定日期归属和排序；删除时点击卡内「删除占位」，再点「确认删除」。店长或经理可从回收站恢复。": "To skip this employee for a turn, select Placeholder mode at the top of the dialog. Only Start time and Confirm remain below. Adjust the time, then click Confirm to save. Its board card shows two corner-to-corner diagonal lines forming an X, with the selected time at the top. It records no service, payment, or amounts. It counts toward the employee-card left-side badge but is excluded from financial service counts, Finance, payroll, daily closing, and work status. The time determines the date and order only. To delete it, choose Delete placeholder on the card and then Confirm delete. An owner or manager can restore it from the recovery page.",
   "恢复后会重新显示在主表；普通记工重新计入财务，占位只计入员工小卡左侧数量，不计入财务记工数或任何金额。若该营业日已日结，请先到财务页面取消日结。": "Restored records return to the board. Regular services are included in financial totals again; placeholders count only toward the employee-card left-side badge and add no financial service count or amounts. If the business date is closed, reopen it from Finance first.",
   "不算排工": "Exclude from rotation",
   "实际服务需要放在右侧排工区时，点击“不算排工”。快速记工中它位于“占位”和“高亮标记”之间，详情中位于高亮左侧；保存后与高亮记录按时间混排，取消后回到左侧。该标记不会自动高亮，小卡保持普通样式，财务记工数、付款、工资、自动折扣和手续费仍按原规则计算。员工小卡数字只统计左侧普通记工与占位，高亮和不算排工不计入。": "To place an actual service in the right-side rotation group, select Exclude from rotation. It sits between Placeholder and Highlight in quick entry, and to the left of Highlight in record details. Saved records share chronological ordering with highlighted records; clearing the flag returns them to the left. This flag does not enable highlighting. Cards keep their regular style, and financial service counts, payments, wages, automatic discounts, and card fees follow their existing rules. The employee-card badge counts only ordinary records and placeholders on the left, excluding highlighted and dispatch-excluded records.",
@@ -785,6 +786,7 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "记工已保存": "Record saved",
   "记工修改已保存": "Record changes saved",
   "记工已删除": "Work record deleted",
+  "删除已撤销": "Deletion undone",
   "记工详情": "Record details",
   "记工记录": "Work record",
   "所属员工": "Employee",
@@ -2465,6 +2467,7 @@ const API_ERROR_ENGLISH: Record<string, string> = {
   WORK_RECORD_HISTORY_FORBIDDEN: "Employees can view only their own historical records.",
   WORK_RECORD_NOT_FOUND: "The work record was not found.",
   WORK_RECORD_RESTORE_FORBIDDEN: "Only owners and managers can restore deleted records.",
+  WORK_RECORD_DELETE_UNDO_UNAVAILABLE: "You can only undo a deletion you just made.",
   WORK_RECORD_VERSION_CONFLICT: "The record changed on another device. Refresh and try again.",
   WORK_RECORD_WRITE_FORBIDDEN: "Employees can edit only the current business date.",
 };

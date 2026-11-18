@@ -10,7 +10,7 @@ import { useLanguage } from "./language-provider";
 import { useNativeDialog } from "./use-native-dialog";
 
 export function RankingExplanationButton({ board, readOnly = false }: { board: BoardResponse; readOnly?: boolean }) {
-  const [dialog, dialogRef] = useNativeDialog();
+  const [dialog, dialogRef, closeDialog] = useNativeDialog();
   const content = useRef<HTMLDivElement>(null);
   const savingRef = useRef(false);
   const [saving, setSaving] = useState(false);
@@ -39,12 +39,12 @@ export function RankingExplanationButton({ board, readOnly = false }: { board: B
 
   return <>
     <button className="ranking-help-button" type="button" aria-label={text("查看所选日期排序依据", "View selected date's ranking explanation")} title={text("为什么这样排序？", "Why this order?")} aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>?</button>
-    <dialog ref={dialogRef} className="board-delivery-dialog ranking-explanation-dialog" aria-labelledby="ranking-explanation-title" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
+    <dialog ref={dialogRef} className="board-delivery-dialog ranking-explanation-dialog" aria-labelledby="ranking-explanation-title" onCancel={event => { event.preventDefault(); closeDialog(); }} onClick={event => { if (event.target === event.currentTarget) closeDialog(); }}>
       <div className="modal-heading">
         <h2 id="ranking-explanation-title">{text("排序依据", "Ranking explanation")}</h2>
         <div className="modal-heading__actions">
           <button className="secondary-action compact" type="button" disabled={!snapshot || saving} onClick={() => void saveImage()}>{saving ? text("正在生成图片…", "Generating image…") : text("保存图片", "Save image")}</button>
-        <button className="close-button" type="button" onClick={() => dialog.current?.close()}>{text("关闭", "Close")}</button>
+        <button className="close-button" type="button" onClick={closeDialog}>{text("关闭", "Close")}</button>
         </div>
       </div>
       {saveError && <p role="alert" className="form-error">{text("图片保存失败，请重试。", "Could not save the image. Please try again.")}</p>}

@@ -1,0 +1,163 @@
+@media screen and (prefers-reduced-motion: no-preference) {
+  :root { --motion-press: 120ms; --motion-panel: 200ms; --motion-exit: 140ms; }
+
+  html:root :where(button, input:is([type="button"], [type="submit"], [type="reset"]), summary, a[href]) {
+    transition: scale var(--motion-press) var(--ease-out), filter var(--motion-press),
+      background-color var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast), box-shadow var(--motion-fast);
+  }
+
+  :is(button, input:is([type="button"], [type="submit"], [type="reset"]), a, summary):not(:disabled, [aria-disabled="true"], .record-card, .quick-mode-switch__option, .customer-type-switch__option):active {
+    scale: .985;
+  }
+  :is(button, a, summary, [role="button"]):not(:disabled, [aria-disabled="true"]):active { filter: brightness(.94); }
+  :is(button, input, select, textarea, summary, a):focus-visible { outline-offset: 3px; }
+  .record-card:not(:disabled, .record-card--placeholder):active { filter: brightness(.94); }
+
+  :is(.business-date-picker__days, .settlement-calendar, .analytics-revenue-calendar, .section-tabs, .language-switcher, .member-detail-tabs)
+  :is(button, a) { transition: background-color var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast), scale var(--motion-press), filter var(--motion-press); }
+  @media (forced-colors: none) {
+    html:root :is(.section-tabs, .member-detail-tabs, .quick-ranges, .workspace-preferences .language-switcher) {
+      position: relative;
+      isolation: isolate;
+    }
+    [data-motion-selection]::before {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      pointer-events: none;
+      left: var(--selection-x);
+      top: var(--selection-y);
+      width: var(--selection-width);
+      height: var(--selection-height);
+      border-radius: var(--radius-control);
+      background: var(--surface);
+      transition: left var(--motion-panel) var(--ease-out), top var(--motion-panel) var(--ease-out),
+        width var(--motion-panel) var(--ease-out), height var(--motion-panel) var(--ease-out);
+    }
+    html:root .language-switcher[data-motion-selection] button.active { background: transparent; }
+    .quick-ranges[data-motion-selection]::before { background: var(--brand); }
+    html:root .quick-ranges[data-motion-selection] button[aria-pressed="true"] { background: transparent; }
+    :is(.section-tabs, .member-detail-tabs)[data-motion-selection]::before {
+      z-index: auto;
+      background: var(--brand);
+      top: calc(var(--selection-y) + var(--selection-height) - 2px);
+      height: 2px;
+      border-radius: 0;
+    }
+    html:root .section-tabs[data-motion-selection] button.active { border-bottom-color: transparent; }
+    html:root .member-detail-tabs[data-motion-selection] button[aria-pressed="true"] { border-bottom-color: transparent; }
+  }
+
+  .app-nav-toggle__arrow, .business-date-picker__trigger > span:last-child { transition: rotate var(--motion-panel) var(--ease-out), transform var(--motion-panel) var(--ease-out); }
+  .business-date-picker__trigger[aria-expanded="true"] > span:last-child { rotate: 180deg; }
+  .app-nav-submenu { opacity: 0; translate: 0 -4px; transition: opacity var(--motion-exit), translate var(--motion-exit) var(--ease-out), display var(--motion-exit) allow-discrete; }
+  .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-submenu:not([hidden]) { opacity: 1; translate: 0 0; }
+  @starting-style {
+    .bottom-nav:is(:hover, :has(:focus-visible)) .app-nav-submenu:not([hidden]) { opacity: 0; translate: 0 -4px; }
+  }
+
+  :is(.modal-backdrop, .finance-details-backdrop) { animation: mn-fade var(--motion-panel) var(--ease-out); }
+  :is(.modal-backdrop, .finance-details-backdrop) > :not(.record-editor, .quick-work-modal) { animation: mn-enter var(--motion-panel) var(--ease-out); }
+  .business-date-picker:not(.business-date-picker--inline) > .business-date-picker__popover {
+    transform-origin: top center;
+    animation: mn-popover var(--motion-panel) var(--ease-out);
+  }
+  .floating-ai-dialog { transform-origin: bottom left; }
+  dialog[open] { animation: mn-dialog-in var(--motion-panel) var(--ease-out); }
+  dialog:is(.workspace-menu, .member-sheet) { --dialog-enter-x: 12px; --dialog-enter-y: 0px; }
+  dialog.workspace-menu { --dialog-enter-x: -12px; }
+  dialog[open]::backdrop { animation: mn-fade var(--motion-panel) var(--ease-out); }
+
+  @supports (transition-behavior: allow-discrete) and (overlay: auto) {
+    dialog {
+      opacity: 0;
+      translate: var(--dialog-enter-x, 0) var(--dialog-enter-y, 5px);
+      transition: opacity var(--motion-exit), translate var(--motion-exit) var(--ease-out),
+        display var(--motion-exit) allow-discrete, overlay var(--motion-exit) allow-discrete;
+    }
+    dialog[open] {
+      animation: none;
+      opacity: 1;
+      translate: 0 0;
+      transition-duration: var(--motion-panel);
+    }
+    dialog::backdrop {
+      opacity: 0;
+      transition: opacity var(--motion-exit), display var(--motion-exit) allow-discrete, overlay var(--motion-exit) allow-discrete;
+    }
+    dialog[open]::backdrop { animation: none; opacity: 1; transition-duration: var(--motion-panel); }
+    dialog:not([open]), dialog:not([open])::backdrop { pointer-events: none; }
+    @starting-style {
+      dialog[open] { opacity: 0; translate: var(--dialog-enter-x, 0) var(--dialog-enter-y, 5px); }
+      dialog[open]::backdrop { opacity: 0; }
+    }
+  }
+
+  details[open] > :not(summary) { animation: mn-content var(--motion-panel) var(--ease-out); }
+  @supports selector(details::details-content) {
+    details::details-content {
+      opacity: 0;
+      transition: opacity var(--motion-exit), content-visibility var(--motion-exit) allow-discrete;
+    }
+    details[open]::details-content { opacity: 1; transition-duration: var(--motion-panel); }
+    details[open] > :not(summary) { animation: none; }
+    @supports (interpolate-size: allow-keywords) {
+      details:not(.board-more-actions):not(:has(.table-scroll, .analytics-scroll))::details-content {
+        interpolate-size: allow-keywords;
+        block-size: 0;
+        overflow: clip;
+        transition-property: opacity, content-visibility, block-size;
+      }
+      details[open]:not(.board-more-actions):not(:has(.table-scroll, .analytics-scroll))::details-content { block-size: auto; }
+    }
+  }
+
+  [data-motion-content], .chat-message, .form-error, .mismatch-warning, .success-banner, .success-notice,
+  .network-notice, .loading-card, .error-card, .gift-card-sale-card, .lost-customers__list > button,
+  .login-card > :is(.field-label, .phone-field, .code-input, .code-sent, .login-notice, .login-name-grid, .login-secondary-actions) {
+    animation: mn-content var(--motion-panel) var(--ease-out);
+  }
+  :is(.finance-section, .monthly-finance, .manage-section, .loading-card)[data-motion-content] { animation-name: mn-data-change; }
+  .employee-content[data-motion-content] { animation-name: mn-disclose; }
+  [data-motion-change] { animation: mn-data-change 230ms var(--ease-out); }
+  [data-motion-busy] { position: relative; }
+  [data-motion-busy="true"] { cursor: progress; }
+  [data-motion-busy="true"]::after {
+    content: "";
+    position: absolute;
+    inset: auto 25% 2px;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+    pointer-events: none;
+    animation: mn-working 850ms ease-in-out infinite alternate;
+  }
+  :is(.closing-status, .status-chip, .delivery-row-status, .payroll-payment-status, .member-setting-toggle input, .offline-banner) {
+    transition: color var(--motion-fast), border-color var(--motion-fast), background-color var(--motion-fast);
+  }
+  .weekly-dispatch-table td, .weekly-dispatch-table th { transition: background-color var(--motion-fast); }
+  .help-card:target > summary { animation: mn-topic 750ms ease-out; }
+}
+
+.network-notice--online { background: var(--success); }
+.motion-overlay-exit {
+  position: fixed;
+  inset: 0;
+  z-index: var(--motion-overlay-layer, 95);
+  pointer-events: none;
+}
+.motion-overlay-exit[data-backdrop] { background: var(--member-backdrop); }
+.motion-overlay-exit * { pointer-events: none !important; animation: none !important; }
+.motion-overlay-exit > dialog { display: block; opacity: 1; translate: none; }
+.motion-overlay-exit > .member-sheet { display: flex; }
+@media (prefers-reduced-motion: reduce), print {
+  .motion-overlay-exit { display: none; }
+}
+
+@keyframes mn-popover { from { opacity: 0; transform: translateY(-4px) scale(.99); } }
+@keyframes mn-dialog-in { from { opacity: 0; translate: var(--dialog-enter-x, 0) var(--dialog-enter-y, 5px); } }
+@keyframes mn-content { from { opacity: .65; translate: 0 3px; } }
+@keyframes mn-data-change { from { opacity: .7; } }
+@keyframes mn-topic { from { background-color: var(--highlight); } }
+@keyframes mn-working { from { scale: .35 1; opacity: .55; } to { scale: 1 1; opacity: 1; } }
+@keyframes mn-disclose { from { opacity: .65; clip-path: inset(0 0 30% 0); } }

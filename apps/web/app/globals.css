@@ -53,7 +53,9 @@
   --motion-enter: 180ms;
   --ease-out: cubic-bezier(.22, 1, .36, 1);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --record-pending-glint: #7b8e9c;
+  --record-pending-glint: #5e7483;
+  --record-pending-glint-teal: #4d7c79;
+  --record-pending-glint-blue: #64728c;
   --radius-sheet: 16px;
   --sheet-inset: 8px;
   --sheet-gutter: clamp(16px, 2.1vw, 24px);
@@ -1640,13 +1642,21 @@ h2 {
   padding: 24px;
 }
 
-/* Keep the quick-work close controls outside the scrolling form. */
-.quick-work-modal {
+/* Anchor quick entry to the viewport so mode changes resize only its lower edge. */
+.modal-backdrop.modal-backdrop--quick-work {
+  grid-template-rows: minmax(0, 1fr);
+  padding-top: max(18px, env(safe-area-inset-top), calc(50dvh - 260px));
+}
+
+.modal-backdrop--quick-work > .quick-work-modal {
   display: flex;
   flex-direction: column;
+  align-self: start;
   min-height: 0;
+  max-height: 100%;
   overflow: hidden;
   padding: 0;
+  transform-origin: top center;
 }
 
 [data-quick-mode="NORMAL"] { --quick-mode-color: var(--surface); }
@@ -2112,23 +2122,6 @@ h2 {
 
   .add-employee-panel .field-label {
     min-width: 0;
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .record-card,
-  .add-record,
-  .primary-action,
-  .save-record {
-    transition: border-color 140ms ease, background-color 140ms ease,
-      transform 140ms ease;
-  }
-
-  .record-card:active,
-  .add-record:active,
-  .primary-action:active,
-  .save-record:active {
-    transform: scale(0.985);
   }
 }
 
@@ -3232,8 +3225,7 @@ body { position: relative; }
   position: fixed;
   z-index: 10000;
   top: max(20px, env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
+  right: max(16px, env(safe-area-inset-right));
   width: max-content;
   max-width: calc(100vw - 32px);
   padding: 14px 20px;

@@ -1,15 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAutoDismissState } from "./use-auto-dismiss-state";
 
 export function NetworkStatus() {
   const [online, setOnline] = useState(true);
+  const [recovered, setRecovered] = useAutoDismissState(false);
 
   useEffect(() => {
-    setOnline(navigator.onLine);
-
-    const onlineHandler = () => setOnline(true);
-    const offlineHandler = () => setOnline(false);
+    let wasOffline = !navigator.onLine;
+    setOnline(!wasOffline);
+    const onlineHandler = () => {
+      if (wasOffline) setRecovered(true);
+      wasOffline = false;
+      setOnline(true);
+    };
+    const offlineHandler = () => { wasOffline = true; setRecovered(false); setOnline(false); };
     window.addEventListener("online", onlineHandler);
     window.addEventListener("offline", offlineHandler);
 
@@ -36,11 +42,11 @@ export function NetworkStatus() {
       window.removeEventListener("online", onlineHandler);
       window.removeEventListener("offline", offlineHandler);
     };
-  }, []);
+  }, [setRecovered]);
 
-  return online ? null : (
-    <div className="offline-banner" role="status">
-      网络已断开。当前不能新增、修改或结算；请保留本页，联网后再提交。
+  return online && !recovered ? null : (
+    <div className={`offline-banner network-notice${online ? " network-notice--online" : ""}`} role="status">
+      {online ? "网络已恢复，可以继续操作。" : "网络已断开。当前不能新增、修改或结算；请保留本页，联网后再提交。"}
     </div>
   );
 }

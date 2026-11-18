@@ -79,7 +79,7 @@ async function singleClick(button: HTMLButtonElement, duringPress?: () => Promis
   });
 }
 
-it("stacks after five cards and returns to full spacing when the count drops", async () => {
+it("stacks at five work cards and returns to full spacing at four", async () => {
   const mount = async (recordCount: number) => act(async () => root.render(<WorkRecordExperimentProvider>
     <WorkspacePreferences />
     <RecordTrack recordCount={recordCount}>
@@ -88,24 +88,24 @@ it("stacks after five cards and returns to full spacing when the count drops", a
     </RecordTrack>
   </WorkRecordExperimentProvider>));
   const track = () => host.querySelector<HTMLElement>(".record-track")!;
-  await mount(5);
+  await mount(4);
   await singleClick(host.querySelector<HTMLButtonElement>(".work-record-edition-switch button:last-child")!);
   expect(track().dataset.recordStack).toBeUndefined();
-  await mount(6);
-  expect(track().dataset.recordStack).toBe("true");
   await mount(5);
+  expect(track().dataset.recordStack).toBe("true");
+  await mount(4);
   expect(track().dataset.recordStack).toBeUndefined();
 });
 
 it("reveals only the hovered or keyboard-focused work card in a stack", async () => {
   const { window } = new JSDOM(`<div class="board" data-work-record-motion><div class="record-track" data-record-stack>
-    <button class="record-card"></button><button class="record-card"></button><button class="record-card"></button>
+    <button class="record-card"></button><div class="record-card record-card--placeholder"><button class="record-placeholder-delete"></button></div><button class="record-card"></button>
     <button class="add-record"></button><button class="record-card record-card--right-group"></button>
     <button class="record-card record-card--right-group"></button>
   </div></div>`);
   const { document, CSSMediaRule, CSSStyleRule, MouseEvent, getComputedStyle } = window;
   const track = document.querySelector(".record-track")!;
-  const cards = [...track.querySelectorAll("button")];
+  const cards = [...track.children] as HTMLElement[];
   const style = document.createElement("style");
   style.textContent = await readFile("app/work-record-motion.css", "utf8");
   document.head.append(style);
@@ -117,7 +117,12 @@ it("reveals only the hovered or keyboard-focused work card in a stack", async ()
     const openGaps = () => cards.flatMap((card, index) => {
       return getComputedStyle(card).getPropertyValue("--record-stack-gap") === "0px" ? [index] : [];
     });
+    const placeholderAction = cards[1]!.querySelector("button")!;
+    placeholderAction.focus();
+    expect(openGaps()).toEqual([2]);
+    placeholderAction.blur();
     cards[4]!.focus();
+    track.setAttribute("data-test-refresh-style", "keyboard");
     expect(openGaps()).toEqual([5]);
     cards[4]!.blur();
     cards[1]!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));

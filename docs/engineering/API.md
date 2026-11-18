@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.61.6`
+> Applies to version: `1.62.0`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -74,7 +74,7 @@ The HTTP API of this system is shared by current Chinese and English web applica
 | POST | `/stores/:storeId/work-records/:recordId/save` | Details and payment are saved atomically; the body is `{ details, payment }`, both must have the same base `version`, and the idempotency key is required |
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | Confirm cash/card/gift card service fee and tips split; submit serial number when using gift card, automatically detect four digits as a serial number and all other nonempty text as a username |
 | GET | `/stores/:storeId/work-records/deleted` | work record Recycle Bin |
-| POST | `/stores/:storeId/work-records/:recordId/restore` | Restore soft deletion work record |
+| POST | `/stores/:storeId/work-records/:recordId/restore` | Restore a soft-deleted work record. Pass the returned deletion version with optional `undoDelete: true` to undo the caller’s own deletion within 15 seconds of server time. The shorter Web timer leaves room for network latency. Regular recovery remains restricted to owners and managers. Both paths use the existing business-day lock and version checks. |
 | GET | `/stores/:storeId/gift-card-sales` | The store manager or manager reads the gift card account grouped by serial number and user name, the next physical card serial number and multiple usage records |
 | POST | `/stores/:storeId/gift-card-sales` | Record the gift card sold; submit the business day, face value, cash, card swipe and operator. The physical card serial number is atomically assigned from 1001 to each store on the server side. Online card sales are recorded by user name; both new additions and modifications allow cash + card swipe and the payment after discount is different.`amountCents` Save the actual receipt total (must be greater than 0), the discount snapshot is not affected by the difference |
 | PATCH/DELETE | `/stores/:storeId/gift-card-sales/:saleId` | Modify or soft deletion card sales records; use `version`, `Idempotency-Key`, business day lock and audit |

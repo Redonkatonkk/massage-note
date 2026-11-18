@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createWorkRecordSaveManager, type WorkRecordSaveManager } from "../lib/work-record-saves";
 import { useLanguage } from "./language-provider";
+import { useWorkRecordFeedback } from "./work-record-feedback";
 
 const SaveContext = createContext<WorkRecordSaveManager | null>(null);
 export const useWorkRecordSaveManager = (): WorkRecordSaveManager | null => useContext(SaveContext);
@@ -26,11 +27,20 @@ const lifecycle = new WeakMap<WorkRecordSaveManager, object>();
 
 function WorkRecordSaveStatus({ manager }: { manager: WorkRecordSaveManager }) {
   const { tasks, recovery } = useWorkRecordSaveTasks(manager);
+  const { showSaved } = useWorkRecordFeedback();
+  const announced = useRef(new Set<string>());
+  useEffect(() => {
+    const saved = tasks.filter(task => task.status === "saved");
+    for (const task of saved) {
+      if (!announced.current.has(task.id)) showSaved(task.draft.kind === "quick" || task.draft.isNew);
+    }
+    announced.current = new Set(saved.map(task => task.id));
+  }, [tasks, showSaved]);
   const { locale } = useLanguage();
   const t = (zh: string, en: string) => locale === "en-US" ? en : zh;
   const saving = tasks.filter(task => task.status === "saving").length;
   const syncing = tasks.filter(task => task.status === "syncing").length;
-  const messages = tasks.filter(task => !["saving", "syncing"].includes(task.status));
+  const messages = tasks.filter(task => task.status === "failed" || task.status === "uncertain" || task.status === "syncFailed");
   return <>
     {saving + syncing > 0 && <div className="work-save-count" role="status" aria-live="polite" aria-atomic="true">
       {saving > 0 && <span>{t(`正在保存 ${saving} 笔`, `Saving ${saving} ${saving === 1 ? "record" : "records"}`)}</span>}
@@ -39,8 +49,7 @@ function WorkRecordSaveStatus({ manager }: { manager: WorkRecordSaveManager }) {
     {messages.length > 0 && <aside className="work-save-results" aria-label={t("记工保存结果", "Work record save results")}>
       {messages.map(task => <section className={`work-save-result work-save-result--${task.status}`} key={task.id}>
         <strong>{task.storeName} · {task.businessDate} · {task.employeeName}</strong>
-        <p role={task.status === "saved" ? "status" : "alert"}>{task.status === "saved" ? t("记工已保存", "Work record saved")
-          : task.status === "uncertain" ? t("保存结果待确认。请确认原请求结果后再修改这一笔。", "Save result unconfirmed. Confirm the original request before editing this record.")
+        <p role="alert">{task.status === "uncertain" ? t("保存结果待确认。请确认原请求结果后再修改这一笔。", "Save result unconfirmed. Confirm the original request before editing this record.")
           : task.status === "syncFailed" ? t("记工已保存，同步暂时失败。", "Record saved; synchronization failed.") : t("保存失败，填写内容已保留。", "Save failed; your form has been retained.")}</p>
         {task.error && <p>{task.error}</p>}
         {task.status === "failed" && <button type="button" className="secondary-action compact" disabled={recovery === task.id} onClick={() => manager.requestRecovery(task.id)}>

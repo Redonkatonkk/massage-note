@@ -1004,14 +1004,14 @@ export class WorkRecordsService {
     requestId: string,
     parentTransaction?: Prisma.TransactionClient,
   ) {
+    const requestedAt = Date.now();
     const actorMembership = await this.access.requireActiveMembership(
       actor.id,
       storeId,
       parentTransaction,
     );
-    if (
-      !hasStoreCapability(actorMembership.role, "WORK_RECORD_WRITE_HISTORY")
-    ) {
+    const canRestoreHistory = hasStoreCapability(actorMembership.role, "WORK_RECORD_WRITE_HISTORY");
+    if (!canRestoreHistory && !input.undoDelete) {
       throw new ForbiddenException({
         code: "WORK_RECORD_RESTORE_FORBIDDEN",
         messageZh: "只有店长或经理可以恢复已删除记工",
@@ -1031,6 +1031,13 @@ export class WorkRecordsService {
           where: { id: recordId, storeId, deletedAt: { not: null } },
           include: recordInclude,
         });
+        // Allow request delivery time beyond the five-second client countdown.
+        if (input.undoDelete && (record?.deletedBy !== actor.id || !record.deletedAt || requestedAt - record.deletedAt.getTime() > 15_000)) {
+          throw new ForbiddenException({
+            code: "WORK_RECORD_DELETE_UNDO_UNAVAILABLE",
+            messageZh: "只能撤销自己刚刚提交的删除操作",
+          });
+        }
         if (!record) this.throwRecordNotFound();
         await this.assertCanWrite(
           transaction,

@@ -1264,6 +1264,33 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     });
   });
 
+  it("员工只能短时撤销本人删除，且沿用版本检查及幂等", async () => {
+    const placeholder = await workRecords.create(actor(employeeId), storeId, {
+      employeeMembershipId, startAt: new Date().toISOString(), isPlaceholder: true,
+    }, randomUUID(), "create-undo-placeholder");
+    try {
+      const deletedByOwner = await workRecords.remove(actor(ownerId), storeId, placeholder.id, { version: placeholder.version }, randomUUID(), "owner-delete");
+      await expect(workRecords.restore(actor(employeeId), storeId, placeholder.id, { version: deletedByOwner.version, undoDelete: true }, randomUUID(), "undo-other-delete"))
+        .rejects.toMatchObject({ response: { code: "WORK_RECORD_DELETE_UNDO_UNAVAILABLE" } });
+      const reopened = await workRecords.restore(actor(ownerId), storeId, placeholder.id, { version: deletedByOwner.version }, randomUUID(), "owner-restore");
+      const deleted = await workRecords.remove(actor(employeeId), storeId, placeholder.id, { version: reopened.version }, randomUUID(), "employee-delete");
+      await expect(workRecords.restore(actor(employeeId), storeId, placeholder.id, { version: reopened.version, undoDelete: true }, randomUUID(), "stale-undo"))
+        .rejects.toMatchObject({ response: { code: "WORK_RECORD_VERSION_CONFLICT" } });
+      const input = { version: deleted.version, undoDelete: true } as const;
+      const undoKey = randomUUID();
+      const restored = await workRecords.restore(actor(employeeId), storeId, placeholder.id, input, undoKey, "employee-undo");
+      expect(restored).toMatchObject({ version: deleted.version + 1, deletedAt: null, deletedBy: null });
+      await expect(workRecords.restore(actor(employeeId), storeId, placeholder.id, input, undoKey, "replay-employee-undo"))
+        .resolves.toMatchObject({ version: restored.version, deletedAt: null });
+      const expired = await workRecords.remove(actor(employeeId), storeId, placeholder.id, { version: restored.version }, randomUUID(), "employee-delete-expired");
+      await prisma.workRecord.update({ where: { id: placeholder.id }, data: { deletedAt: new Date(Date.now() - 16_000) } });
+      await expect(workRecords.restore(actor(employeeId), storeId, placeholder.id, { version: expired.version, undoDelete: true }, randomUUID(), "expired-employee-undo"))
+        .rejects.toMatchObject({ response: { code: "WORK_RECORD_DELETE_UNDO_UNAVAILABLE" } });
+    } finally {
+      await prisma.workRecord.deleteMany({ where: { id: placeholder.id } });
+    }
+  });
+
   it("占位幂等保存空卡，禁止写业务信息，删除恢复不回退现金结清", async () => {
     const startAt = new Date();
     const current = await boards.currentBusinessDay(actor(ownerId), storeId);

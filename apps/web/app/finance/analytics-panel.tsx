@@ -1,5 +1,6 @@
 "use client";
 
+import { useContentMotion, useSelectionIndicator } from "../ui/interaction-motion";
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import { AnalyticsDailyReport } from "./analytics-daily-report";
@@ -32,6 +33,7 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
   const [cell, setCell] = useState("");
   const requests = useRef(new LatestRequest()).current;
   const scope = `${storeId}:${range.from}:${range.to}:${highlightFilter}`;
+  const rangeIndicator = useSelectionIndicator<HTMLDivElement>(scope);
   requests.setScope(scope);
   const queue = useRef<ReturnType<typeof createRefreshQueue> | null>(null);
   useEffect(() => {
@@ -52,6 +54,7 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
     return () => { refresh.dispose(); requests.begin(); };
   }, [storeId, range.from, range.to, highlightFilter, scope, requests]);
   const data = result?.scope === scope ? result.data : null;
+  const heatMotion = useContentMotion<HTMLTableSectionElement>(data?.weekdays.map(day => day.hours.join(",")).join(";"));
   const money = (cents: string | null) => cents === null ? "—" : formatUsdPrecise(Number(cents), locale);
   const dollars = (cents: string | null) => cents === null ? null : Number(cents) / 100;
   const names = en ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] : ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
@@ -60,10 +63,10 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
   const samples = (n: number) => t(`${n} 个已日结日`, `${n} closed days`);
   const visibleHours = visibleAnalyticsHours(data?.hours ?? []);
   const maxHeat = data ? Math.max(1, ...data.weekdays.flatMap(w => w.hours)) : 1;
-  return <section className="finance-section analytics-panel">
+  return <section className="finance-section analytics-panel" data-motion-content>
     <form className="filter-panel" onSubmit={event => { event.preventDefault(); if (from && to) setRange({ from, to }); }}>
       <div className="filter-panel__heading"><div><strong>{t("筛选范围", "Filter range")}</strong><p>{t("全店数据 · 独立日期与高光筛选", "Store-wide data · Independent date and highlight filters")}</p></div></div>
-      <div className="quick-ranges">{[["", "", t("全部", "All time")], [shiftDate(today, -6), today, t("最近7天", "Last 7 days")], [shiftDate(today, -29), today, t("最近30天", "Last 30 days")], [`${today.slice(0, 8)}01`, today, t("本月", "This month")]].map(([start, end, label]) => <button key={label} type="button" aria-pressed={range.from === start && range.to === end} onClick={() => select(start!, end!)}>{label}</button>)}</div>
+      <div ref={rangeIndicator} className="quick-ranges">{[["", "", t("全部", "All time")], [shiftDate(today, -6), today, t("最近7天", "Last 7 days")], [shiftDate(today, -29), today, t("最近30天", "Last 30 days")], [`${today.slice(0, 8)}01`, today, t("本月", "This month")]].map(([start, end, label]) => <button key={label} type="button" aria-pressed={range.from === start && range.to === end} onClick={() => select(start!, end!)}>{label}</button>)}</div>
       <label>{t("开始日期", "Start date")}<input type="date" required value={from} max={to || today} onChange={event => setFrom(event.target.value)} /></label>
       <label>{t("结束日期", "End date")}<input type="date" required value={to} min={from} max={today} onChange={event => setTo(event.target.value)} /></label>
       <label>{t("高光记工", "Highlighted records")}<select value={highlightFilter} onChange={event => setHighlightFilter(event.target.value as NonNullable<FinanceAnalyticsQuery["highlightFilter"]>)}><option value="ONLY_HIGHLIGHTED">{t("仅高光", "Highlighted only")}</option><option value="EXCLUDE_HIGHLIGHTED">{t("排除高光", "Exclude highlighted")}</option><option value="ALL">{t("全部", "All")}</option></select></label>
@@ -86,8 +89,8 @@ export function AnalyticsPanel({ storeId, today }: { storeId: string; today: str
         <Chart title={t("每日记工数量", "Daily service count")} description={t("按营业日统计；柱顶数字为记工笔数，+数字为跑客人数；跑客叠加在记工上方，无跑客时不显示。", "Counts by business day. Bar labels show service records; + labels show lost customers stacked above them and are hidden when zero.")} legend={data.days.some(d => d.lostCustomerCount > 0) ? t("深绿：记工 · 红色：跑客（+数字）", "Green: service records · Red: lost customers (+ labels)") : undefined} bars points={data.days.map(d => ({ label: d.businessDate, value: d.count, lostCount: d.lostCustomerCount, detail: `${d.businessDate} · ${t("记工", "Service records")} ${count(d.count)}${d.lostCustomerCount > 0 ? t(` · 跑客 ${d.lostCustomerCount} 位`, ` · ${d.lostCustomerCount} lost ${d.lostCustomerCount === 1 ? "customer" : "customers"}`) : ""}` }))} />
         <section className="analytics-card analytics-heatmap"><h2>{t("星期 × 小时热力图", "Weekday × hour heatmap")}</h2><p className="analytics-description">{t("显示实际最早至最晚上工小时；颜色越深，累计笔数越多；括号内为自然日数。", "Actual earliest-to-latest start hours. Darker cells mean more starts; parentheses show calendar days.")}</p>
           {visibleHours.length === 0 && <p className="empty-state">{t("当前范围没有记工。", "No service records in this range.")}</p>}
-          <div className="analytics-scroll"><table className="analytics-heat-table" style={{ minWidth: Math.max(300, 120 + visibleHours.length * 34) }}><thead><tr><th>{t("累计笔数", "Total starts")}</th>{visibleHours.map(h => <th key={h.hour}>{h.hour}</th>)}</tr></thead><tbody>{data.weekdays.map(w => <tr key={w.weekday}><th>{names[w.weekday]} ({w.calendarDayCount})</th>{visibleHours.map(({ hour }) => { const n = w.hours[hour]!; const detail = `${names[w.weekday]} ${hour}:00–${hour}:59 · ${count(n)} · ${w.calendarDayCount} ${t("个自然日", "calendar days")}`; return <td key={hour}><button type="button" title={detail} aria-label={detail} onFocus={() => setCell(detail)} onClick={() => setCell(detail)} style={{ background: `color-mix(in srgb, var(--brand) ${6 + n / maxHeat * 54}%, var(--surface))`, color: "var(--ink)" }}>{n}</button></td>; })}</tr>)}</tbody></table></div>
-          <p className="analytics-readout" aria-live="polite">{cell || t("点击色块查看累计笔数。", "Tap a cell to see total starts.")}</p>
+          <div className="analytics-scroll"><table className="analytics-heat-table" style={{ minWidth: Math.max(300, 120 + visibleHours.length * 34) }}><thead><tr><th>{t("累计笔数", "Total starts")}</th>{visibleHours.map(h => <th key={h.hour}>{h.hour}</th>)}</tr></thead><tbody ref={heatMotion}>{data.weekdays.map(w => <tr key={w.weekday}><th>{names[w.weekday]} ({w.calendarDayCount})</th>{visibleHours.map(({ hour }) => { const n = w.hours[hour]!; const detail = `${names[w.weekday]} ${hour}:00–${hour}:59 · ${count(n)} · ${w.calendarDayCount} ${t("个自然日", "calendar days")}`; return <td key={hour}><button type="button" title={detail} aria-label={detail} onFocus={() => setCell(detail)} onClick={() => setCell(detail)} style={{ background: `color-mix(in srgb, var(--brand) ${6 + n / maxHeat * 54}%, var(--surface))`, color: "var(--ink)" }}>{n}</button></td>; })}</tr>)}</tbody></table></div>
+          <p className="analytics-readout" aria-live="polite"><span key={cell} data-motion-change>{cell || t("点击色块查看累计笔数。", "Tap a cell to see total starts.")}</span></p>
           <p>{t("浅色 → 深色", "Light → Dark")} · 0–{maxHeat} {t("笔", "starts")}</p>
         </section>
         </>}

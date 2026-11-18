@@ -26,7 +26,7 @@ export function DailySnapshotCard({ snapshot, locale }: { snapshot: DailySnapsho
 
   return <div className="daily-snapshot-content" translate="no">
     <section className="daily-snapshot-strip" aria-label={en ? "Daily earnings and work records" : "当日收入与记工"}>
-      <div className="daily-snapshot-summary">
+      <div className="daily-snapshot-summary" data-motion-change>
         <header className="daily-snapshot-summary-heading"><time dateTime={snapshot.businessDate}>{date}</time><span>{model.state}</span></header>
         <div className="daily-snapshot-income"><h2>{en ? "Confirmed earnings" : "已确认收入"}</h2><strong>{model.income}</strong></div>
         <dl className="daily-snapshot-breakdown">
@@ -68,7 +68,7 @@ export function DailySnapshotSources({ snapshot, monthToDate, locale }: { snapsh
   // Presentation sums of the saved wage/tip cents; no commission or payment recalculation.
   const totals = [employee.cashLargeFeeDividendCents + employee.cashTipDividendCents, employee.cardLargeFeeDividendCents + employee.cardTipDividendCents];
 
-  return <section className="daily-snapshot-sources" aria-labelledby="daily-snapshot-sources-title" translate="no">
+  return <section className="daily-snapshot-sources" data-motion-change aria-labelledby="daily-snapshot-sources-title" translate="no">
     <h2 id="daily-snapshot-sources-title">{en ? "Earnings by payment source" : "按收款来源核对收入"}</h2>
     <p className="daily-snapshot-month-period">{en ? "Month to date" : "本月至今"}：<time dateTime={monthToDate.dateFrom}>{monthToDate.dateFrom}</time> — <time dateTime={monthToDate.dateTo}>{monthToDate.dateTo}</time></p>
     <div className="daily-snapshot-source-scroll" tabIndex={0} role="region" aria-label={en ? "Daily and month-to-date earnings by source; scroll for more" : "按来源核对今日与本月收入，可左右滑动"}><table>

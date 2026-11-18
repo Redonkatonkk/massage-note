@@ -52,7 +52,7 @@ export function GiftCardLedger({ ledger }: { ledger: GiftCardLedgerResponse }) {
   }
 
   return (
-    <section className="finance-section gift-card-ledger">
+    <section className="finance-section gift-card-ledger" data-motion-content>
       <div className="gift-card-ledger__summary">
         <article><span>已售礼物卡</span><strong>{ledger.sales.length} 张</strong></article>
         <article><span>售出总额</span><strong>{money(totalSoldCents)}</strong></article>

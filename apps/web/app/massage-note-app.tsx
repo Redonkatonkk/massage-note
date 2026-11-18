@@ -59,7 +59,11 @@ function deduplicateBoardRows(board: BoardResponse): BoardResponse {
 }
 
 function LoadingPage({ message = "正在加载记工表…" }: { message?: string }) {
-  return <main className="center-page"><div className="loading-card"><span className="spinner" aria-hidden="true" /><strong>{message}</strong></div></main>;
+  return <main className="center-page"><LoadingStatus message={message} /></main>;
+}
+
+function LoadingStatus({ message }: { message: string }) {
+  return <div className="loading-card" role="status"><span className="spinner" aria-hidden="true" /><strong>{message}</strong></div>;
 }
 
 function ProfileSetup({ onDone }: { onDone: () => Promise<void> }) {
@@ -132,9 +136,9 @@ function StoreSetup({ me, onDone }: { me: MeResponse; onDone: () => Promise<void
         {submitted ? (
           <><h1>加入申请已提交</h1><p className="field-help">店长或经理批准后，这家店会自动出现在你的店铺列表中。</p><button className="secondary-action" type="button" onClick={() => onDone()}>检查审批结果</button></>
         ) : mode === "choose" ? (
-          <><h1>创建或加入店铺</h1><p className="field-help">如果你是店主，请创建新店；如果你是员工，请使用店长提供的 6 位店铺代码。</p><div className="choice-grid"><button type="button" onClick={() => setMode("create")}><strong>创建新店</strong><span>设置项目、提成和营业日</span></button><button type="button" onClick={() => setMode("join")}><strong>加入已有店铺</strong><span>提交后等待店长批准</span></button></div></>
+          <><h1>创建或加入店铺</h1><p className="field-help">如果你是店主，请创建新店；如果你是员工，请使用店长提供的 6 位店铺代码。</p><div className="choice-grid" data-motion-content><button type="button" onClick={() => setMode("create")}><strong>创建新店</strong><span>设置项目、提成和营业日</span></button><button type="button" onClick={() => setMode("join")}><strong>加入已有店铺</strong><span>提交后等待店长批准</span></button></div></>
         ) : mode === "create" ? (
-          <form onSubmit={(event) => { event.preventDefault(); run(createStore); }}>
+          <form key="create" data-motion-content onSubmit={(event) => { event.preventDefault(); run(createStore); }}>
             <div className="modal-heading"><div><h1>创建新店</h1></div><button className="close-button" type="button" onClick={() => setMode("choose")}>返回</button></div>
             <div className="editor-grid">
               <label className="field-label">店铺名称<input required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} /></label>
@@ -146,10 +150,10 @@ function StoreSetup({ me, onDone }: { me: MeResponse; onDone: () => Promise<void
             <button className="primary-action" type="submit" disabled={busy}>{busy ? "正在创建…" : "创建店铺"}</button>
           </form>
         ) : (
-          <form onSubmit={(event) => { event.preventDefault(); run(requestJoin); }}>
+          <form key="join" data-motion-content onSubmit={(event) => { event.preventDefault(); run(requestJoin); }}>
             <div className="modal-heading"><div><h1>加入已有店铺</h1></div><button className="close-button" type="button" onClick={() => setMode("choose")}>返回</button></div>
             <label className="field-label">6 位店铺代码<input disabled={Boolean(resolvedStore)} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required value={storeCode} onChange={(event) => { setStoreCode(event.target.value.replace(/\D/g, "").slice(0, 6)); setResolvedStore(null); }} /></label>
-            {resolvedStore && <div className="resolved-store" role="status"><strong>{resolvedStore.name}</strong><span>店铺代码 {resolvedStore.storeCode}</span><button className="table-action" type="button" onClick={() => setResolvedStore(null)}>不是这家店</button></div>}
+            {resolvedStore && <div className="resolved-store" data-motion-content role="status"><strong>{resolvedStore.name}</strong><span>店铺代码 {resolvedStore.storeCode}</span><button className="table-action" type="button" onClick={() => setResolvedStore(null)}>不是这家店</button></div>}
             {resolvedStore && <label className="field-label">店内显示名称<input required maxLength={80} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /><small>如果店长或经理已用这个名字创建了员工，提交后会自动关联原有记工和资料。</small></label>}
             {error && <p className="form-error" role="alert">{error}</p>}
             <button className="primary-action" type="submit" disabled={busy}>{busy ? "正在处理…" : resolvedStore ? "确认并提交加入申请" : "查找店铺"}</button>
@@ -214,7 +218,7 @@ function CatalogSetup({ membership, onDone }: { membership: MembershipSummary; o
         <div className="setup-lines">{discounts.map((item, index) => <div className="setup-line setup-line--discount" key={item.key}><label>名称<input required placeholder="例如：会员优惠" value={item.name} onChange={(event) => setDiscounts((current) => current.map((row) => row.key === item.key ? { ...row, name: event.target.value } : row))} /></label><label>简称<input required maxLength={30} value={item.shortName} onChange={(event) => setDiscounts((current) => current.map((row) => row.key === item.key ? { ...row, shortName: event.target.value } : row))} /></label><label>类型<select value={item.percentage ? "percentage" : "fixed"} onChange={(event) => setDiscounts((current) => current.map((row) => row.key === item.key ? { ...row, percentage: event.target.value === "percentage" } : row))}><option value="fixed">固定金额</option><option value="percentage">按百分比</option></select></label><label>{item.percentage ? "比例（%）" : "金额（美元）"}<NumericInput required inputMode="decimal" value={item.amount} onChange={(event) => setDiscounts((current) => current.map((row) => row.key === item.key ? { ...row, amount: event.target.value } : row))} /></label><button className="danger-link" type="button" onClick={() => setDiscounts((current) => current.filter((row) => row.key !== item.key))}>移除第 {index + 1} 项</button></div>)}</div>
         <button className="secondary-action" type="button" onClick={() => setDiscounts((current) => [...current, { key: crypto.randomUUID(), name: "", shortName: "", amount: "", percentage: false }])}>＋ 添加折扣项目</button>
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="primary-action" type="submit" disabled={busy}>{busy ? "正在保存…" : "确认设置并进入今日记工"}</button>
+        <button className="primary-action" type="submit" disabled={busy} data-motion-busy={busy}>{busy ? "正在保存…" : "确认设置并进入今日记工"}</button>
       </form>
     </Workspace>
   );
@@ -403,9 +407,13 @@ function MassageNotePage() {
   if (!me) return <main className="center-page"><section className="error-card"><h1>暂时无法打开系统</h1><p>{error}</p><button className="primary-action" onClick={() => window.location.reload()} type="button">重新加载</button></section></main>;
   if (me.needsProfile) return <ProfileSetup onDone={loadMe} />;
   if (!membership) return <StoreSetup me={me} onDone={loadMe} />;
+  const navigation = { active: "today" as const, storeId: membership.store.id, role: membership.role };
   if (!currentDay || !board || !catalog || !storeDetails) {
-    if (lastReadError.current) return <main className="center-page"><section className="error-card"><h1>暂时无法读取店铺</h1>{error && <p role="alert">{error}</p>}<button className="primary-action" onClick={() => void loadStore()} type="button">重新加载</button></section></main>;
-    return <LoadingPage message="正在读取店铺数据…" />;
+    return <Workspace className="app-shell" navigation={navigation}>
+      {lastReadError.current
+        ? <section className="error-card"><h1>暂时无法读取店铺</h1>{error && <p role="alert">{error}</p>}<button className="primary-action" onClick={() => void loadStore()} type="button">重新加载</button></section>
+        : <LoadingStatus message="正在读取店铺数据…" />}
+    </Workspace>;
   }
   if (catalog.serviceItems.length === 0) return <CatalogSetup membership={membership} onDone={loadStore} />;
 
@@ -415,7 +423,7 @@ function MassageNotePage() {
   const returnToToday = viewDate !== currentDay.businessDate && <button className="secondary-action" type="button" onClick={() => selectDate(currentDay.businessDate)}>返回今天</button>;
 
   return (
-    <Workspace className="app-shell" navigation={{ active: "today", storeId: membership.store.id, role: membership.role, assistant: <FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} timezone={currentDay.timezone} type="work" onWorkChanged={loadStore} /> }}>
+    <Workspace className="app-shell" navigation={{ ...navigation, assistant: <FloatingAiAssistant key={`work-ai-${membership.store.id}`} storeId={membership.store.id} timezone={currentDay.timezone} type="work" onWorkChanged={loadStore} /> }}>
       <TodayBoard
         wideLayout={wideLayout}
         heading={<><p className="eyebrow">{membership.store.name} · 店铺代码 {membership.store.storeCode}</p><h1>{viewDate === currentDay.businessDate ? "今日记工" : viewDate > currentDay.businessDate ? "未来记工" : "历史记工"}</h1><p className="business-date">{chineseDate(viewDate)} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></>}

@@ -5,6 +5,7 @@ import { CustomerTypeSwitch } from "./customer-type-switch";
 import { NumericInput } from "./numeric-input";
 
 import { useAutoDismissState } from "./use-auto-dismiss-state";
+import { useWorkRecordFeedback } from "./work-record-feedback";
 import { GiftCardIdentityField } from "./gift-card-identity-field";
 
 import { calculateDiscountAmount, parseDiscountInput } from "@massage-note/domain";
@@ -14,6 +15,7 @@ import { automaticRecordEnd, sameDayRecordTimeAfterDuration, recordTimeError } f
 import { browserStorage } from "../lib/browser-storage";
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useOverlayExitRef } from "./ui/interaction-motion";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
 import { closedRecordBusinessDate, reopenRecordBusinessDay } from "../lib/record-closing";
@@ -168,8 +170,10 @@ export function RecordEditor({
   onDeleted,
   onChanged, onSubmitSave, initialDraft, initialSaveError, initialClosedBusinessDate, sessionId,
 }: RecordEditorProps) {
+  const { showSaved, showDeleted } = useWorkRecordFeedback();
   const actionInFlight = useRef(false);
   const editorElement = useRef<HTMLElement>(null);
+  const editorPanelRef = useOverlayExitRef(editorElement, true, 16, 0);
   useEffect(() => { preloadWorkRecordSaveMotion(); }, []);
   useEffect(() => { if (!isNew) preloadWorkRecordDeleteMotion(); }, [isNew]);
   useEffect(() => {
@@ -273,6 +277,7 @@ export function RecordEditor({
     if (!onSubmitSave({ path, method, body, fields: captureDraft(), dialog: editorElement.current, employeeId, draftKey })) {
       throw new Error("这条记工正在保存，请稍候再试");
     }
+    editorElement.current?.setAttribute("data-motion-skip-exit", "");
     return true;
   }
 
@@ -681,7 +686,9 @@ export function RecordEditor({
     try {
       await onChanged();
     } finally {
+      editorElement.current?.setAttribute("data-motion-skip-exit", "");
       await absorbWorkRecordDialog(editorElement.current, savedRecordId);
+      showSaved(isNew);
       onSaved();
       onClose();
     }
@@ -689,9 +696,10 @@ export function RecordEditor({
 
   async function deleteRecord() {
     try {
-      await apiRequest(`/stores/${storeId}/work-records/${record.id}`, { method: "DELETE", idempotent: true, body: { version: record.version } });
+      const deleted = await apiRequest<WorkRecord>(`/stores/${storeId}/work-records/${record.id}`, { method: "DELETE", idempotent: true, body: { version: record.version } });
       const motion = beginWorkRecordDeleteMotion(record.id);
       browserStorage.removeItem(draftKey);
+      showDeleted(storeId, deleted, onChanged, motion.cancel);
       (onDeleted ?? onSaved)();
       onClose();
       try {
@@ -861,7 +869,7 @@ export function RecordEditor({
 
   return (
     <div className="modal-backdrop modal-backdrop--editor" role="presentation">
-      <section ref={editorElement} tabIndex={-1} className="record-editor" data-work-record-motion={fullDrawerEntrance || undefined} role="dialog" aria-modal="true" aria-labelledby="record-title" onFocusCapture={selectEditorInput} onClick={selectEditorInput} onChangeCapture={() => setDraftDirty(true)} onKeyDown={saveOnEnter}>
+      <section ref={editorPanelRef} tabIndex={-1} className="record-editor" data-work-record-motion={fullDrawerEntrance || undefined} role="dialog" aria-modal="true" aria-labelledby="record-title" onFocusCapture={selectEditorInput} onClick={selectEditorInput} onChangeCapture={() => setDraftDirty(true)} onKeyDown={saveOnEnter}>
         <header className="modal-heading sticky-heading">
           <div>
             <p className="eyebrow">{isNew ? "详细记工" : "记工详情"}</p>
@@ -941,12 +949,12 @@ export function RecordEditor({
             <div className="section-heading"><h3 id="record-addons-title">额外项目</h3><button type="button" onClick={addAddon}>＋ 添加</button></div>
             {addons.length === 0 && <p className="empty-note">本单没有额外项目</p>}
             {addons.map((item) => (
-              <div className="line-item line-item--addon" key={item.key}>
+              <div className="line-item line-item--addon" key={item.key} data-motion-content>
                 <label className="field-label line-item__wide">额外项目<select value={item.sourceItemId} onChange={(event) => selectAddon(item.key, event.target.value)}>
                   {catalog.addonItems.filter((candidate) => candidate.isEnabled && !candidate.deletedAt).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
                   <option value="__custom__">自定义额外项目</option>
                 </select></label>
-                {item.sourceItemId === "__custom__" && <label className="field-label line-item__wide">额外项目名称<input aria-label="额外项目名称" placeholder="额外项目名称" value={item.name} onChange={(event) => updateAddon(item.key, { name: event.target.value, shortName: event.target.value.slice(0, 30) })} /></label>}
+                {item.sourceItemId === "__custom__" && <label className="field-label line-item__wide" data-motion-content>额外项目名称<input aria-label="额外项目名称" placeholder="额外项目名称" value={item.name} onChange={(event) => updateAddon(item.key, { name: event.target.value, shortName: event.target.value.slice(0, 30) })} /></label>}
                 <label className="field-label">金额（美元）<NumericInput aria-label="额外项目金额" inputMode="decimal" placeholder="金额" value={item.amount} onChange={(event) => updateAddon(item.key, { amount: event.target.value })} /></label>
                 <label className="field-label">加时（分钟）<NumericInput aria-label="额外项目加时分钟" inputMode="numeric" placeholder="加时分钟" value={item.durationMinutes} onChange={(event) => changeAddonDuration(item.key, event.target.value)} /></label>
                 {canManage && <label className="field-label">提成（%）<NumericInput aria-label="额外项目提成百分比" inputMode="decimal" placeholder="提成 %（留空按规则）" value={item.commissionPercent} onChange={(event) => updateAddon(item.key, { commissionPercent: event.target.value })} /></label>}
@@ -974,12 +982,12 @@ export function RecordEditor({
             <p className="field-help">可输入金额或百分比（如 10%）；百分比按大费与全部加项合计计算。</p>
             {discounts.length === 0 && draftAutomaticDiscount === 0 && !automaticDiscountSuppressed && <p className="empty-note">本单没有折扣</p>}
             {discounts.map((item) => (
-              <div className="line-item" key={item.key}>
+              <div className="line-item" key={item.key} data-motion-content>
                 <label className="field-label line-item__wide">折扣项目<select value={item.sourceItemId} onChange={(event) => selectDiscount(item.key, event.target.value)}>
                   {catalog.discountItems.filter((candidate) => candidate.isEnabled && !candidate.deletedAt).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
                   <option value="__custom__">自定义折扣</option>
                 </select></label>
-                {item.sourceItemId === "__custom__" && <label className="field-label line-item__wide">折扣名称<input aria-label="折扣名称" value={item.name} onChange={(event) => updateDiscount(item.key, { name: event.target.value })} /></label>}
+                {item.sourceItemId === "__custom__" && <label className="field-label line-item__wide" data-motion-content>折扣名称<input aria-label="折扣名称" value={item.name} onChange={(event) => updateDiscount(item.key, { name: event.target.value })} /></label>}
                 <label className="field-label line-item__wide">折扣金额或百分比<NumericInput aria-label="折扣金额或百分比" inputMode="decimal" allowPercent placeholder="例如 10 或 10%" value={item.amount} onChange={(event) => updateDiscount(item.key, { amount: event.target.value })} /></label>
                 <button className="danger-link" type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => current.filter((candidate) => candidate.key !== item.key)); }}>移除</button>
               </div>
@@ -1006,7 +1014,7 @@ export function RecordEditor({
             <label className="gift-card-toggle"><input type="checkbox" checked={usesGiftCard} onChange={(event) => setUsesGiftCard(event.target.checked)} /> 使用礼物卡付款</label>
             <CustomerTypeSwitch value={customerType} disabled={busy || dayClosed} onChange={value => { setDraftDirty(true); setCustomerType(value); }} />
           </div>
-          {usesGiftCard && <div className="editor-grid editor-grid--gift-card">
+          {usesGiftCard && <div className="editor-grid editor-grid--gift-card" data-motion-content>
             <GiftCardIdentityField value={giftCardSerialNumber} onChange={setGiftCardSerialNumber} disabled={busy} />
             <label className="field-label">礼物卡大费（美元）<NumericInput inputMode="decimal" placeholder="可填 0" value={giftCardService} onChange={(event) => setGiftCardService(event.target.value)} /></label>
             <label className="field-label">礼物卡小费（美元）<NumericInput inputMode="decimal" placeholder="可填 0" value={giftCardTip} onChange={(event) => setGiftCardTip(event.target.value)} /></label>

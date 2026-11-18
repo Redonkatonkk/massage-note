@@ -22,7 +22,7 @@ export function WorkspacePreferences() {
 }
 
 export function WorkspaceMenu({ links, workspace = false }: { links?: ReactNode; workspace?: boolean }) {
-  const [dialog, dialogRef] = useNativeDialog();
+  const [dialog, dialogRef, closeDialog] = useNativeDialog();
   const titleId = useId();
   const { locale } = useLanguage();
   const chinese = locale === "zh-CN";
@@ -35,11 +35,11 @@ export function WorkspaceMenu({ links, workspace = false }: { links?: ReactNode;
         <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 5h14M3 10h14M3 15h14" /></svg>
       </button>
     </div>
-    <dialog ref={dialogRef} className="workspace-menu" aria-labelledby={titleId} onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
+    <dialog ref={dialogRef} className="workspace-menu" aria-labelledby={titleId} onCancel={event => { event.preventDefault(); closeDialog(); }} onClick={event => { if (event.target === event.currentTarget) closeDialog(); }}>
       <div className="workspace-menu-body">
-        <header className="modal-heading"><h2 id={titleId} translate="no">{title}</h2><button className="close-button" type="button" translate="no" onClick={() => dialog.current?.close()}>{chinese ? "关闭" : "Close"}</button></header>
+        <header className="modal-heading"><h2 id={titleId} translate="no">{title}</h2><button className="close-button" type="button" translate="no" onClick={closeDialog}>{chinese ? "关闭" : "Close"}</button></header>
         {links && <nav className="workspace-menu-links" aria-label={title} onClick={event => {
-          if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.target instanceof Element && event.target.closest("a")) dialog.current?.close();
+          if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.target instanceof Element && event.target.closest("a")) closeDialog();
         }}>{links}</nav>}
         <WorkspacePreferences />
       </div>

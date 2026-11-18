@@ -25,7 +25,7 @@ export function SettlementCalendar({ month, range, data, loading, error, failed,
     {loading && <p role="status" className="settlement-calendar-status">{en ? "Loading settlement status…" : "正在读取结算状态…"}</p>}
     {failed && <p role={error ? "alert" : "status"} className="settlement-calendar-status">{error} <button type="button" className="table-action" disabled={disabled} onClick={retry}>{en ? "Retry" : "重试"}</button></p>}
     <div className="settlement-calendar-weekdays" aria-hidden="true">{weekdays.map((day) => <span key={day}>{day}</span>)}</div>
-    <div className="settlement-calendar-days">
+    <div key={month} className="settlement-calendar-days" data-motion-change>
       {settlementMonthDays(month).map((date, index) => {
         if (!date) return <span key={`blank-${index}`} aria-hidden="true" />;
         const day = byDate.get(date);

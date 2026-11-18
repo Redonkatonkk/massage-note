@@ -26,7 +26,7 @@ interface BoardEmployeePickerProps {
 }
 
 export function BoardEmployeePicker({ storeId, businessDate, members, allMembers, weeklyDispatchEnabled, rankingAction, onCopyRanking, rankingHelp, rankingSetupRequest, empty, disabled, onAdd, onReload }: BoardEmployeePickerProps) {
-  const [dialog, dialogRef] = useNativeDialog();
+  const [dialog, dialogRef, closeDialog] = useNativeDialog();
   const submitting = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [singleId, setSingleId] = useState("");
@@ -49,7 +49,7 @@ export function BoardEmployeePicker({ storeId, businessDate, members, allMembers
         setSelected((current) => current.filter((value) => value !== id));
         setSingleId("");
       });
-      if (batch) dialog.current?.close();
+      if (batch) closeDialog();
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -81,10 +81,10 @@ export function BoardEmployeePicker({ storeId, businessDate, members, allMembers
       </div>
     </section>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    <dialog ref={dialogRef} className="board-delivery-dialog employee-picker-dialog" aria-labelledby="employee-picker-title" onCancel={(event) => { if (busy) event.preventDefault(); }}>
+    <dialog ref={dialogRef} className="board-delivery-dialog employee-picker-dialog" aria-labelledby="employee-picker-title" onCancel={(event) => { event.preventDefault(); if (!busy) closeDialog(); }}>
       <div className="modal-heading">
         <h2 id="employee-picker-title">选择今日上班员工</h2>
-        <button className="close-button" type="button" disabled={busy} onClick={() => dialog.current?.close()}>取消</button>
+        <button className="close-button" type="button" disabled={busy} onClick={closeDialog}>取消</button>
       </div>
       <p className="field-help">按点击顺序排列，取消后重新选择会排到最后。</p>
       <div className="employee-picker-options">

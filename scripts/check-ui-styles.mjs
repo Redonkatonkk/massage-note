@@ -10,7 +10,7 @@ const postcss = webRequire(webRequire.resolve("postcss", {
 }));
 
 // Check source styles in their real loading order, including rules inside media queries.
-export const uiStyleFiles = ["globals.css", "design-system.css", "responsive.css", "workspace.css", "work-record-motion.css", "share/settlement/settlement-share.css", "daily-snapshot.css"];
+export const uiStyleFiles = ["globals.css", "design-system.css", "responsive.css", "workspace.css", "work-record-motion.css", "interaction-motion.css", "share/settlement/settlement-share.css", "daily-snapshot.css"];
 const frameProperties = new Set(["background", "background-color", "border", "border-color", "border-radius", "box-shadow"]);
 const boardSurfaces = new Set([".gift-card-sales", ".lost-customers", ".add-employee-panel", ".board-empty-state"]);
 

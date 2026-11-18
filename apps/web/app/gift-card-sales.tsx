@@ -1,6 +1,7 @@
 "use client";
 
 import { NumericInput } from "./numeric-input";
+import { useOverlayExitRef } from "./ui/interaction-motion";
 
 import { useDecision } from "./decision-dialog";
 
@@ -142,6 +143,8 @@ export function GiftCardSales({
     setError("");
   }
 
+  const panelRef = useOverlayExitRef<HTMLElement>();
+
   async function save() {
     setBusy(true);
     setError("");
@@ -266,7 +269,7 @@ export function GiftCardSales({
 
       {editing !== undefined && (
         <div className="modal-backdrop" role="presentation">
-          <section className="quick-modal gift-card-sale-modal" role="dialog" aria-modal="true" aria-labelledby="gift-card-sale-title">
+          <section ref={panelRef} className="quick-modal gift-card-sale-modal" role="dialog" aria-modal="true" aria-labelledby="gift-card-sale-title">
             <div className="modal-heading">
               <div><p className="eyebrow">礼物卡记工</p><h2 id="gift-card-sale-title">{editing ? "修改卖卡记录" : "记录卖出的礼物卡"}</h2></div>
               <button className="close-button" type="button" disabled={busy} onClick={() => setEditing(undefined)}>关闭</button>
@@ -292,7 +295,7 @@ export function GiftCardSales({
               {editing ? <button className="delete-record" type="button" disabled={busy} onClick={() => void remove()}>删除记录</button> : <span />}
               <span />
               <button className="secondary-action" type="button" disabled={busy} onClick={() => setEditing(undefined)}>取消</button>
-              <button className="primary-action" type="button" disabled={busy} onClick={() => void save()}>{busy ? "正在保存…" : "保存卖卡记录"}</button>
+              <button className="primary-action" type="button" disabled={busy} data-motion-busy={busy} onClick={() => void save()}>{busy ? "正在保存…" : "保存卖卡记录"}</button>
             </footer>
           </section>
         </div>

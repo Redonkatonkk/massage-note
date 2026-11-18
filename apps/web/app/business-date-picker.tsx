@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useOverlayExitRef } from "./ui/interaction-motion";
 import { apiRequest } from "../lib/api";
 import type { BusinessDateCalendarCache, OpenWorkDatesResponse } from "../lib/business-date-calendar-cache";
 import type { AppLocale } from "../lib/i18n";
@@ -75,6 +76,8 @@ export function BusinessDatePicker({
   const closedRevenue = useMemo(() => new Map((data.closedDates ?? []).map(item => [item.date, item.revenueCents])), [data]);
   const [loadingMarks, setLoadingMarks] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useOverlayExitRef<HTMLElement>(undefined, false, 0, -4);
   const requestGeneration = useRef(0);
   const dialogId = useId();
 
@@ -92,7 +95,10 @@ export function BusinessDatePicker({
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        if (rootRef.current?.contains(document.activeElement)) triggerRef.current?.focus({ preventScroll: true });
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", close);
     window.addEventListener("keydown", closeOnEscape);
@@ -141,6 +147,7 @@ export function BusinessDatePicker({
   return (
     <div className={`business-date-picker${inline ? " business-date-picker--inline" : ""}`} ref={rootRef}>
       {!inline && <button
+        ref={triggerRef}
         className="business-date-picker__trigger"
         type="button"
         aria-label={ariaLabel + (en ? ": " : "：") + dateLabel(value, locale)}
@@ -151,7 +158,7 @@ export function BusinessDatePicker({
         <span>{value}</span><span aria-hidden="true">▾</span>
       </button>}
       {expanded && (
-        <section className="business-date-picker__popover" id={dialogId} role={inline ? "group" : "dialog"} aria-label={ariaLabel + (en ? " calendar" : "日历")} aria-busy={calendarData !== undefined ? calendarLoading : loadingMarks}>
+        <section ref={inline ? undefined : popoverRef} className="business-date-picker__popover" id={dialogId} role={inline ? "group" : "dialog"} aria-label={ariaLabel + (en ? " calendar" : "日历")} aria-busy={calendarData !== undefined ? calendarLoading : loadingMarks}>
           <header>
             <button type="button" aria-label={en ? "Previous month" : "上个月"} disabled={min !== undefined && shiftMonth(month, -1) < min.slice(0, 7)} onClick={() => setMonth((current) => shiftMonth(current, -1))}>‹</button>
             <strong>{monthLabel(month, locale)}</strong>
@@ -160,7 +167,7 @@ export function BusinessDatePicker({
           <div className="business-date-picker__weekdays" aria-hidden="true">
             {(en ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] : ["日", "一", "二", "三", "四", "五", "六"]).map((day) => <span key={day}>{day}</span>)}
           </div>
-          <div className="business-date-picker__days">
+          <div key={month} className="business-date-picker__days" data-motion-change>
             {Array.from({ length: calendar.leading }, (_, index) => <span key={"blank-" + index} />)}
             {calendar.days.map(({ day, date }) => {
               const marked = markedDates.has(date);
@@ -174,7 +181,7 @@ export function BusinessDatePicker({
                   className={(date === value ? "selected" : "") + (marked ? " has-open-work" : "") + (amount !== undefined ? " has-closed-revenue" : "")}
                   aria-pressed={date === value}
                   aria-label={dateLabel(date, locale) + (marked ? (en ? ", work recorded, not closed" : "，有记工但未日结") : "")}
-                  onClick={() => { onChange(date); setOpen(false); }}
+                  onClick={() => { onChange(date); setOpen(false); if (!inline) triggerRef.current?.focus({ preventScroll: true }); }}
                 >
                   <span>{day}</span>
                   {amount !== undefined && <small className="business-date-picker__revenue">{amount}</small>}

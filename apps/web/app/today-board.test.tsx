@@ -9,6 +9,7 @@ import type { BoardStatistics, StoreDetails, StoreMember, WorkRecord } from "../
 import { newWorkRecord } from "../lib/new-work-record";
 import { TodayBoard } from "./today-board";
 import { WorkRecordExperimentProvider } from "./work-record-experiment";
+import { WorkRecordFeedbackProvider } from "./work-record-feedback";
 import { WorkspacePreferences } from "./workspace-menu";
 import { absorbWorkRecordDialog, beginWorkRecordSaveMotion, cancelWorkRecordSaveMotion, beginDetachedWorkRecordSaveMotion } from "../lib/work-record-save-motion";
 import { beginWorkRecordDeleteMotion } from "../lib/work-record-delete-motion";
@@ -74,7 +75,7 @@ beforeEach(() => {
     catalog: { serviceItems: [{ id: "service", position: 0, fullName: "足部按摩", shortName: "足疗", priceOptions: [{ id: "option", durationMinutes: 60, priceCents: 6000, position: 0 }], defaultCommissionBps: null, isEnabled: true, deletedAt: null, version: 1 }], addonItems: [], discountItems: [] }, members: [employee], onReload: reload };
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
-async function render() { await act(async () => root.render(<TodayBoard {...props} />)); }
+async function render() { await act(async () => root.render(<WorkRecordFeedbackProvider><TodayBoard {...props} /></WorkRecordFeedbackProvider>)); }
 function button(text: string, scope: ParentNode = document): HTMLButtonElement {
   const found = [...scope.querySelectorAll<HTMLButtonElement>("button")].find((node) => node.getAttribute("aria-label") === text || node.textContent === text);
   if (!found) throw new Error(`Missing button ${text}`);
@@ -805,7 +806,7 @@ describe("快速记工占位", () => {
     expect(document.querySelector(".duration-picker .empty-note")!.textContent).toContain("没有可用时长");
     await click("占位"); await click("确认");
     expect(writes()).toEqual([["/stores/store/work-records", { method: "POST", idempotent: true, headers: { "Idempotency-Key": expect.any(String) }, body: { employeeMembershipId: "employee", startAt: "2026-10-06T14:00:00.000Z", isPlaceholder: true } }]]);
-    expect(document.querySelector(".quick-work-modal")).toBeNull(); expect(reload).toHaveBeenCalledTimes(1); expect(document.querySelector(".work-save-results")!.textContent).toContain("记工已保存");
+    expect(document.querySelector(".quick-work-modal")).toBeNull(); expect(reload).toHaveBeenCalledTimes(1); expect(document.querySelector(".work-record-toast")!.textContent).toContain("记工已保存");
   });
   it.each([false, true])("员工小卡宽布局=%s 只统计左侧普通记工与占位，排除高亮和不算排工", async wideLayout => {
     props.wideLayout = wideLayout;
@@ -830,8 +831,8 @@ describe("快速记工占位", () => {
   });
   it("普通、占位与高亮混排，占位卡显示所选时间和整卡对角线", async () => {
     props.board.rows[0]!.workRecords = [ordinary, placeholder, { ...ordinary, id: "highlight", isHighlighted: true }]; await render();
-    const card = container.querySelector<HTMLButtonElement>(".record-card--placeholder")!;
-    expect(card.textContent).toBe("11:00 AM"); expect(card.getAttribute("aria-label")).toBe("占位");
+    const card = container.querySelector<HTMLElement>(".record-card--placeholder")!;
+    expect(card.getAttribute("aria-label")).toBe("占位");
     const time = card.querySelector("time.record-time.record-placeholder-time")!;
     expect(time.textContent).toBe("11:00 AM"); expect(time.getAttribute("datetime")).toBe(placeholder.startAt);
     expect(time.id).toBe("placeholder-time-placeholder"); expect(card.getAttribute("aria-describedby")).toBe(time.id);
@@ -841,25 +842,59 @@ describe("快速记工占位", () => {
     expect(container.querySelector(".row-work-count strong")!.textContent).toBe("2");
     props.board.rows = [{ ...props.board.rows[0]!, isHidden: true }]; await render(); expect(container.querySelector(".hidden-rows-panel small")!.textContent).toBe("2 条记工");
   });
-  it("点击占位只打开删除确认并保留版本，取消不写入", async () => {
+  it("在占位卡内二次确认删除，保留版本及删除动画", async () => {
     props.board.rows[0]!.workRecords = [placeholder]; await render();
-    await act(async () => container.querySelector<HTMLButtonElement>(".record-card--placeholder")!.click());
-    expect(document.querySelector(".placeholder-delete-dialog[open]")).not.toBeNull(); expect(document.querySelector(".normal-record-editor")).toBeNull(); expect(writes()).toEqual([]);
-    await click("取消", document.querySelector(".placeholder-delete-dialog")!); expect(document.querySelector(".placeholder-delete-dialog")).toBeNull();
-    await act(async () => container.querySelector<HTMLButtonElement>(".record-card--placeholder")!.click()); await click("删除占位");
-    expect(writes()).toEqual([["/stores/store/work-records/placeholder", { method: "DELETE", idempotent: true, body: { version: 7 } }]]); expect(reload).toHaveBeenCalledTimes(1); expect(document.querySelector(".placeholder-delete-dialog")).toBeNull();
+    const card = container.querySelector<HTMLElement>(".record-card--placeholder")!;
+    await act(async () => card.click());
+    const action = button("删除占位", card);
+    await click("删除占位", card);
+    expect(button("确认删除", card)).toBe(action);
+    expect(action.classList.contains("delete-record--confirming")).toBe(true);
+    expect(writes()).toEqual([]);
+    expect(document.querySelector(".placeholder-delete-dialog, .normal-record-editor")).toBeNull();
+    await act(async () => action.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    expect(button("删除占位", card)).toBe(action);
+    await click("删除占位", card);
+    request.mockResolvedValueOnce({ ...placeholder, version: 8 });
+    await click("确认删除", card);
+    expect(writes()).toEqual([["/stores/store/work-records/placeholder", { method: "DELETE", idempotent: true, body: { version: 7 } }]]);
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(card.dataset.placeholderDeleted).toBe("true");
     expect(deleteMotion).toHaveBeenCalledExactlyOnceWith(placeholder.id); expect(releaseDeleteMotion).toHaveBeenCalledOnce();
+    const toast = document.querySelector(".work-record-toast")!;
+    expect(toast.textContent).toContain("占位已删除");
+    await click("撤销", toast);
+    expect(writes().at(-1)).toEqual(["/stores/store/work-records/placeholder/restore", { method: "POST", idempotent: true, body: { version: 8, undoDelete: true } }]);
+    expect(reload).toHaveBeenCalledTimes(2);
+    props.board.rows[0]!.workRecords = [{ ...placeholder, version: 9 }]; await render();
+    expect(card.dataset.placeholderDeleted).toBeUndefined();
   });
   it("历史员工不能操作占位，日结后禁用删除；冲突不覆盖旧版本", async () => {
     props.board.rows[0]!.workRecords = [placeholder]; props.isCurrentBusinessDay = false; props.membership.role = "EMPLOYEE"; await render();
-    expect(container.querySelector<HTMLButtonElement>(".record-card--placeholder")!.disabled).toBe(true);
-    props.membership.role = "OWNER"; props.board.isClosed = true; await render(); await act(async () => container.querySelector<HTMLButtonElement>(".record-card--placeholder")!.click());
-    expect(button("删除占位").disabled).toBe(true); await click("取消");
-    props.board.isClosed = false; await render(); await act(async () => container.querySelector<HTMLButtonElement>(".record-card--placeholder")!.click());
-    request.mockRejectedValue(new ApiError(409, { code: "WORK_RECORD_VERSION_CONFLICT", messageZh: "版本冲突" })); await click("删除占位");
-    expect(document.querySelector(".placeholder-delete-dialog [role=alert]")!.textContent).toBe("版本冲突"); await click("删除占位");
+    expect(button("删除占位").disabled).toBe(true);
+    props.membership.role = "OWNER"; props.board.isClosed = true; await render();
+    expect(button("删除占位").disabled).toBe(true);
+    props.board.isClosed = false; await render();
+    await click("删除占位");
+    request.mockRejectedValue(new ApiError(409, { code: "WORK_RECORD_VERSION_CONFLICT", messageZh: "版本冲突" })); await click("确认删除");
+    expect(document.querySelector(".screen-feedback[role=alert]")!.textContent).toBe("版本冲突");
+    await click("删除占位"); await click("确认删除");
     expect(writes().map(([, options]) => options!.body)).toEqual([{ version: 7 }, { version: 7 }]); expect(reload).not.toHaveBeenCalled();
     expect(deleteMotion).not.toHaveBeenCalled();
+  });
+  it("占位实时更新后需重新确认，删除请求处理中只提交一次", async () => {
+    props.board.rows[0]!.workRecords = [placeholder]; await render();
+    await click("删除占位");
+    props.board.rows[0]!.workRecords = [{ ...placeholder, version: 8 }]; await render();
+    await click("删除占位");
+    expect(writes()).toEqual([]);
+    let finish!: (value: WorkRecord) => void;
+    request.mockImplementationOnce(() => new Promise<WorkRecord>(resolve => { finish = resolve; }));
+    await click("确认删除");
+    expect(button("处理中…").disabled).toBe(true);
+    await click("处理中…");
+    expect(writes().map(([, options]) => options!.body)).toEqual([{ version: 8 }]);
+    await act(async () => finish({ ...placeholder, version: 9 }));
   });
 });
 

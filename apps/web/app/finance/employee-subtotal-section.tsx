@@ -5,6 +5,7 @@ import { useDecision } from "../decision-dialog";
 import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import { useCallback, useEffect, useState } from "react";
+import { useOverlayExitRef } from "../ui/interaction-motion";
 import { displayUsPhone, usPhoneToE164 } from "../../lib/member-closing-delivery";
 import { apiRequest, errorMessage } from "../../lib/api";
 import { formatCommissionRate } from "../../lib/employee-subtotal";
@@ -39,9 +40,10 @@ function EmployeeSummaryDeliveryHistory({
   action: (delivery: EmployeeSettlementDelivery, kind: "cancel" | "retry" | "retry-detail") => void;
   close: () => void;
 }) {
+  const panelRef = useOverlayExitRef<HTMLElement>();
   return (
     <div className="modal-backdrop settlement-delivery-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
-      <section className="settlement-delivery-modal" role="dialog" aria-modal="true" aria-labelledby="employee-summary-delivery-title">
+      <section ref={panelRef} className="settlement-delivery-modal" role="dialog" aria-modal="true" aria-labelledby="employee-summary-delivery-title">
         <div className="modal-heading">
           <div>
             <p className="eyebrow">员工小计短信</p>
@@ -60,7 +62,7 @@ function EmployeeSummaryDeliveryHistory({
                   <td>{dateOnly(item.periodStart)} 至 {dateOnly(item.periodEnd)}</td>
                   <td>{paymentLabel(item.paymentScope)}</td>
                   <td>{displayUsPhone(item.recipientPhoneE164)}</td>
-                  <td><span className={`delivery-row-status ${messagesStatusClass(item)}`}>{deliveryStage(item)}</span></td>
+                  <td><span key={deliveryStage(item)} className={`delivery-row-status ${messagesStatusClass(item)}`} data-motion-change>{deliveryStage(item)}</span></td>
                   <td>{item.attemptCount}</td>
                   <td>{messagesReceiptError(item) || "—"}</td>
                   <td>{item.deliveryStatus === "DELIVERED" ? "—" : item.status === "QUEUED"
@@ -197,7 +199,7 @@ export function EmployeeSubtotalSection({
         </div>
         {canSend && <div className="employee-subtotal-send-panel">
           <label>接收号码<input type="tel" inputMode="tel" autoComplete="tel-national" value={recipientPhone} onChange={(event) => { setRecipientPhone(displayUsPhone(event.target.value)); setSendMessage(""); }} /></label>
-          <button className="primary-action" type="button" disabled={busy || sending || summary.employees.length === 0 || !recipientPhone.trim()} onClick={() => void run(send)}>{sending ? "正在排队…" : "短信发送"}</button>
+          <button className="primary-action" type="button" data-motion-busy={sending} disabled={busy || sending || summary.employees.length === 0 || !recipientPhone.trim()} onClick={() => void run(send)}>{sending ? "正在排队…" : "短信发送"}</button>
           <button className="secondary-action settlement-history-button" type="button" onClick={() => setHistoryOpen(true)}>发送记录 <span>{deliveries?.deliveries.length ?? 0}</span></button>
           {sendMessage && <p role="status">{sendMessage}</p>}
         </div>}

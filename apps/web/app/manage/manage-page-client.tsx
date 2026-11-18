@@ -39,6 +39,7 @@ import { WorkBotPanel } from "./work-bot-panel";
 import { RecoveryPanel } from "./recovery-panel";
 import { DataOperationsPanel } from "./data-operations-panel";
 import { AuditDetails } from "./audit-details";
+import { useSelectionIndicator } from "../ui/interaction-motion";
 import { UiIcon } from "../ui/primitives";
 import { MembersPanel } from "./members-panel";
 import { manageNavigationTabs, resolveManageTab, type ManageTab } from "../../lib/app-navigation";
@@ -191,6 +192,7 @@ export function ManagePageClient() {
   const [deletedGiftCardSales, setDeletedGiftCardSales] = useState<DeletedGiftCardSale[]>([]);
   const [workBot, setWorkBot] = useState<WorkBotSettings | null>(null);
   const [tab, setTab] = useState<ManageTab>("store");
+  const tabIndicator = useSelectionIndicator<HTMLElement>(tab);
   const selectTab = useNavigationTab(membership?.role, resolveManageTab, setTab);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -278,14 +280,14 @@ export function ManagePageClient() {
         <div><p className="eyebrow">{store.name}</p><h1>{tabs.find(([value]) => value === tab)?.[1]}</h1><p className="business-date">{pageDescriptions[tab]} <span className={`sync-status ${realtimeState === "网络已断开" ? "offline" : ""}`}>{realtimeState}</span></p></div>
         <div className="topbar-actions"><a className="store-switcher header-link" href={appHref("/help")}>使用帮助</a><a className="store-switcher header-link" href={appHref("/")}>返回今日记工</a></div>
       </header>
-      <nav className="section-tabs" aria-label="管理页面">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? "active" : ""} aria-pressed={tab === value} onClick={() => changeTab(value)}>{label}</button>)}</nav>
+      <nav ref={tabIndicator} className="section-tabs" aria-label="管理页面">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? "active" : ""} aria-pressed={tab === value} onClick={() => changeTab(value)}>{label}</button>)}</nav>
       {error && <p className="form-error" role="alert">{error}</p>}
       {tab === "store" && <StorePanel store={store} membership={membership} members={members} busy={busy} run={run} reload={loadAll} />}
       {tab === "members" && canManage && <MembersPanel key={store.id} storeId={store.id} dailyRankingEnabled={store.automaticDispatchEnabled} members={members} requests={requests} catalog={catalog} busy={busy} run={run} reload={loadAll} onDirtyChange={setMemberDirty} />}
       {tab === "catalog" && <CatalogPanel storeId={store.id} canManage={canManage} catalog={catalog} busy={busy} run={run} reload={loadAll} />}
       {tab === "work-bot" && canManage && workBot && <WorkBotPanel key={store.id} storeId={store.id} catalog={catalog} settings={workBot} busy={busy} run={run} reload={loadAll} />}
       {tab === "recovery" && canManage && <RecoveryPanel storeId={store.id} records={deletedRecords} giftCardSales={deletedGiftCardSales} busy={busy} run={run} reload={loadAll} />}
-      {tab === "audit" && canManage && <div className="manage-section">{membership.role === "OWNER" && <DataOperationsPanel key={store.id} storeId={store.id} memberIds={members.map(member => member.id)} onImported={() => window.location.reload()} />}<AuditPanel key={store.id} storeId={store.id} members={members} onUndone={loadAll} /></div>}
+      {tab === "audit" && canManage && <div className="manage-section" data-motion-content>{membership.role === "OWNER" && <DataOperationsPanel key={store.id} storeId={store.id} memberIds={members.map(member => member.id)} onImported={() => window.location.reload()} />}<AuditPanel key={store.id} storeId={store.id} members={members} onUndone={loadAll} /></div>}
     </Workspace>
   );
 }
@@ -475,7 +477,7 @@ function CatalogCreateForm({ storeId, kind, busy, run, reload, onCreated }: { st
   const [commission, setCommission] = useState("");
   const label = kind === "SERVICE" ? "主要项目" : kind === "ADDON" ? "额外项目" : "折扣项目";
   const updatePriceOption = (key: string, changes: Partial<PriceOptionDraft>) => setPriceOptions((current) => current.map((option) => option.key === key ? { ...option, ...changes } : option));
-  return <form className={`catalog-create catalog-create--${kind.toLowerCase()}`} onSubmit={(event) => { event.preventDefault(); void run(async () => {
+  return <form className={`catalog-create catalog-create--${kind.toLowerCase()}`} data-motion-content onSubmit={(event) => { event.preventDefault(); void run(async () => {
     const body = kind === "SERVICE"
       ? { type: kind, fullName: name, shortName, priceOptions: priceOptions.map((option) => ({ durationMinutes: Number(option.duration), priceCents: parseMoney(option.amount, `${option.duration} 分钟价格`) })) }
       : kind === "ADDON"
@@ -490,7 +492,7 @@ function CatalogCreateForm({ storeId, kind, busy, run, reload, onCreated }: { st
     <div className="catalog-create-heading"><div><p className="eyebrow">新增</p><h4>{`新增${label}`}</h4></div><button className="close-button" type="button" onClick={onCreated}>关闭</button></div>
     <label className="catalog-field catalog-field--name"><span>{kind === "SERVICE" ? "项目全名" : "名称"}</span><input required aria-label={`${label}名称`} placeholder={kind === "SERVICE" ? "例如 Body Massage" : "填写名称"} value={name} onChange={(event) => setName(event.target.value)} /></label>
     <label className="catalog-field catalog-field--short-name"><span>简称</span><input required aria-label={`${label}简称`} maxLength={30} placeholder="记工卡片上显示" value={shortName} onChange={(event) => setShortName(event.target.value)} /></label>
-    {kind === "SERVICE" ? <div className="catalog-field catalog-field--price-options catalog-price-options-edit"><span>时长与价格</span>{priceOptions.map((option, index) => <div className="catalog-price-option-row" key={option.key}>
+    {kind === "SERVICE" ? <div className="catalog-field catalog-field--price-options catalog-price-options-edit"><span>时长与价格</span>{priceOptions.map((option, index) => <div className="catalog-price-option-row" key={option.key} data-motion-content>
       <NumericInput required min="1" max="720" inputMode="numeric" aria-label={`第 ${index + 1} 个时长`} placeholder="分钟" value={option.duration} onChange={(event) => updatePriceOption(option.key, { duration: event.target.value })} />
       <NumericInput required inputMode="decimal" aria-label={`第 ${index + 1} 个价格`} placeholder="价格（美元）" value={option.amount} onChange={(event) => updatePriceOption(option.key, { amount: event.target.value })} />
       {priceOptions.length > 1 && <button className="danger-link" type="button" onClick={() => setPriceOptions((current) => current.filter((candidate) => candidate.key !== option.key))}>移除</button>}
@@ -551,12 +553,12 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, 
         {canManage && deleted && <button className="primary-action compact" disabled={busy} type="button" onClick={() => void run(async () => { await apiRequest(`/stores/${storeId}/catalog/items/${item.id}/restore`, { method: "POST", idempotent: true, body: { type, version: item.version } }); await reload(); })}>恢复项目</button>}
       </div>
     </div>
-    {canManage && !deleted && editing && <div className={`catalog-edit-panel catalog-edit-panel--${type.toLowerCase()}`}>
+    {canManage && !deleted && editing && <div className={`catalog-edit-panel catalog-edit-panel--${type.toLowerCase()}`} data-motion-content>
       <label className="catalog-field catalog-field--name"><span>{service ? "项目全名" : "名称"}</span><input aria-label={`${item.shortName}名称`} value={name} onChange={(event) => setName(event.target.value)} /></label>
       <label className="catalog-field catalog-field--short-name"><span>简称</span><input aria-label={`${item.shortName}简称`} value={shortName} onChange={(event) => setShortName(event.target.value)} /></label>
       {service ? <div className="catalog-field catalog-field--price-options catalog-price-options-edit">
         <span>时长与价格</span>
-        {priceOptions.map((option, index) => <div className="catalog-price-option-row" key={option.key}>
+        {priceOptions.map((option, index) => <div className="catalog-price-option-row" key={option.key} data-motion-content>
           <NumericInput min="1" max="720" inputMode="numeric" aria-label={`${item.shortName}第 ${index + 1} 个时长`} value={option.duration} onChange={(event) => updatePriceOption(option.key, { duration: event.target.value })} />
           <NumericInput inputMode="decimal" aria-label={`${item.shortName}第 ${index + 1} 个价格`} value={option.amount} onChange={(event) => updatePriceOption(option.key, { amount: event.target.value })} />
           {priceOptions.length > 1 && <button className="danger-link" type="button" onClick={() => setPriceOptions((current) => current.filter((candidate) => candidate.key !== option.key))}>移除</button>}
@@ -637,6 +639,6 @@ export function AuditPanel({ storeId, members, onUndone }: { storeId: string; me
             <button type="button" className="table-action" aria-expanded={expanded === item.id} aria-controls={`audit-details-${item.id}`} onClick={() => setExpanded(current => current === item.id ? null : item.id)}>{expanded === item.id ? "收起" : "详情"}</button>
           </div>
         </div>
-        {expanded === item.id && <div id={`audit-details-${item.id}`}>{item.undo?.reason && <p className="field-help audit-undo-reason">{item.undo.reason}</p>}<AuditDetails item={item} entityLabel={entityText[item.entityType] ?? "其他对象"} /></div>}
+        {expanded === item.id && <div id={`audit-details-${item.id}`} data-motion-content>{item.undo?.reason && <p className="field-help audit-undo-reason">{item.undo.reason}</p>}<AuditDetails item={item} entityLabel={entityText[item.entityType] ?? "其他对象"} /></div>}
       </article>)}{!loading && items.length === 0 && <p className="empty-state">没有符合条件的审计记录。</p>}</div>{loading && <p className="empty-state">正在读取审计记录…</p>}{cursor && <button className="secondary-action" disabled={loading} type="button" onClick={() => void load(true)}>加载更多</button>}</section></section>;
 }

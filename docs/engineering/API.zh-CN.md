@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.61.6`
+> 适用版本：`1.62.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -68,7 +68,7 @@
 | POST | `/stores/:storeId/work-records/:recordId/save` | 详情与付款原子保存；body 为 `{ details, payment }`，两者必须带相同基准 `version`，需幂等键 |
 | POST | `/stores/:storeId/work-records/:recordId/confirm-payment` | 确认现金/刷卡/礼物卡大费和小费拆分；使用礼物卡时提交序列号，四位数字自动识别为序列号，其他非空内容为用户名 |
 | GET | `/stores/:storeId/work-records/deleted` | 记工回收站 |
-| POST | `/stores/:storeId/work-records/:recordId/restore` | 恢复软删除记工 |
+| POST | `/stores/:storeId/work-records/:recordId/restore` | 恢复软删除记工。用删除响应中的版本加可选的 `undoDelete: true`，在服务器记录删除后 15 秒内撤销本人操作。Web 倒计时较短，为网络延迟留出时间。常规回收站恢复仍限店主和经理。两条路径都检查营业日锁和版本。 |
 | GET | `/stores/:storeId/gift-card-sales` | 店长或经理读取按序列号及用户名归组的礼物卡台账、下一实体卡序列号及多条使用记录 |
 | POST | `/stores/:storeId/gift-card-sales` | 记录卖出的礼物卡；提交营业日、面值、现金、刷卡和操作人，实体卡序列号由服务端每店从 1001 原子分配，网上卖卡按用户名记录；新增和修改均允许现金＋刷卡与折后应付不同，`amountCents` 保存实收合计（必须大于 0），折扣快照不受差额影响 |
 | PATCH/DELETE | `/stores/:storeId/gift-card-sales/:saleId` | 修改或软删除卖卡记录；使用 `version`、`Idempotency-Key`、营业日锁和审计 |

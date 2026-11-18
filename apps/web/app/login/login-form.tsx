@@ -320,12 +320,12 @@ export function LoginForm() {
 
   return (
     <section className="login-card" aria-label="手机号登录">
-      <div><p className="login-step">{heading[0]}</p><h2>{heading[1]}</h2></div>
+      <div key={step} data-motion-content><p className="login-step">{heading[0]}</p><h2>{heading[1]}</h2></div>
 
       {step === "phone" && <>
         <label className="field-label" htmlFor="phone-number">美国手机号码</label>
         <div className="phone-field"><span aria-hidden="true">+1</span><input id="phone-number" type="tel" inputMode="numeric" autoComplete="tel-national" placeholder="(470) 123-4567" value={displayPhone(phoneDigits)} onChange={(event) => { setPhoneDigits(normalizeUsPhoneDigits(event.target.value)); setError(""); }} disabled={busy} /></div>
-        <button className="save-record" type="button" disabled={busy} onClick={startLogin}>{busy ? "正在登录…" : "登录"}</button>
+        <button className="save-record" type="button" disabled={busy} data-motion-busy={busy} onClick={startLogin}>{busy ? "正在登录…" : "登录"}</button>
         {developmentLoginEnabled && <div className="dev-login-box"><strong>本地开发模式</strong><span>不会发送短信，只用于这台电脑上的功能验证。</span><button type="button" disabled={busy} onClick={developmentLogin}>使用此号码直接进入</button></div>}
       </>}
 
@@ -333,7 +333,7 @@ export function LoginForm() {
         <p className="code-sent">账号 <strong>+1 {displayPhone(phoneDigits)}</strong></p>
         <label className="field-label" htmlFor="login-password">密码<input id="login-password" type="password" autoComplete="current-password" minLength={8} maxLength={72} value={password} onChange={(event) => { setPassword(event.target.value); setError(""); }} disabled={busy || account?.hasPassword === false} /></label>
         {account?.hasPassword === false && <p className="login-notice">这个老账号还没有密码，请先使用验证码验证身份并设置密码。</p>}
-        <button className="save-record" type="button" disabled={busy || account?.hasPassword === false} onClick={passwordLogin}>{busy ? "正在登录…" : "密码登录"}</button>
+        <button className="save-record" type="button" disabled={busy || account?.hasPassword === false} data-motion-busy={busy} onClick={passwordLogin}>{busy ? "正在登录…" : "密码登录"}</button>
         <div className="login-secondary-actions"><button type="button" disabled={busy} onClick={resetPhone}>修改号码</button><button type="button" disabled={busy} onClick={sendCode}>使用验证码登录</button></div>
       </>}
 
@@ -341,7 +341,7 @@ export function LoginForm() {
         <p className="code-sent">验证码已发送到 <strong>+1 {displayPhone(phoneDigits)}</strong></p>
         <label className="field-label" htmlFor="verification-code">6 位验证码</label>
         <input className="code-input" id="verification-code" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(event) => { setCode(event.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }} disabled={busy} />
-        <button className="save-record" type="button" disabled={busy} onClick={verifyCode}>{busy ? "正在验证…" : "确认验证码"}</button>
+        <button className="save-record" type="button" disabled={busy} data-motion-busy={busy} onClick={verifyCode}>{busy ? "正在验证…" : "确认验证码"}</button>
         <div className="login-secondary-actions"><button type="button" disabled={busy} onClick={resetPhone}>修改号码</button><button type="button" disabled={countdown > 0 || busy} onClick={sendCode}>{countdown > 0 ? `${countdown} 秒后可重发` : "重新发送"}</button></div>
       </>}
 
@@ -349,7 +349,7 @@ export function LoginForm() {
         {step === "register" ? <div className="editor-grid login-name-grid"><label className="field-label">名<input autoComplete="given-name" required maxLength={50} value={firstName} onChange={(event) => { setFirstName(event.target.value); setError(""); }} /></label><label className="field-label">姓<input autoComplete="family-name" required maxLength={50} value={lastName} onChange={(event) => { setLastName(event.target.value); setError(""); }} /></label></div> : <p className="login-notice">验证码已通过。设置密码后，以后可以直接用密码登录。</p>}
         <label className="field-label">设置密码<input type="password" autoComplete="new-password" minLength={8} maxLength={72} value={password} onChange={(event) => { setPassword(event.target.value); setError(""); }} /><small>8 至 72 个字符</small></label>
         <label className="field-label">再次输入密码<input type="password" autoComplete="new-password" minLength={8} maxLength={72} value={passwordAgain} onChange={(event) => { setPasswordAgain(event.target.value); setError(""); }} /></label>
-        <button className="save-record" type="button" disabled={busy} onClick={step === "register" ? finishRegistration : finishPasswordSetup}>{busy ? "正在保存…" : step === "register" ? "完成注册并登录" : "保存密码并登录"}</button>
+        <button className="save-record" type="button" disabled={busy} data-motion-busy={busy} onClick={step === "register" ? finishRegistration : finishPasswordSetup}>{busy ? "正在保存…" : step === "register" ? "完成注册并登录" : "保存密码并登录"}</button>
       </>}
 
       {error && <p className="form-error" role="alert">{error}</p>}

@@ -184,14 +184,14 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
               <div className="payroll-employee-list" role="group" aria-label="选择员工">{payable.map((member) => <button key={member.id} type="button" disabled={busy || sharing || previewLoading} aria-pressed={membershipId === member.id} onClick={() => { setMembershipId(member.id); clearPreview(); }}>{member.displayName}</button>)}</div>
             </div>
             <div className="payroll-setup-options"><SettlementOptions paymentScope={paymentScope} amountType={amountType} disabled={busy || sharing || previewLoading || !dateTo} onPaymentScope={value => { setPaymentScope(value); clearPreview(); }} onAmountType={value => { setAmountType(value); clearPreview(); }} /></div>
-            <button className={preview ? "secondary-action" : "primary-action"} type="submit" disabled={busy || sharing || previewLoading || !membershipId || !dateTo}>{previewLoading ? "正在生成结算单…" : "生成结算单"}</button>
+            <button className={preview ? "secondary-action" : "primary-action"} type="submit" data-motion-busy={previewLoading} disabled={busy || sharing || previewLoading || !membershipId || !dateTo}>{previewLoading ? "正在生成结算单…" : "生成结算单"}</button>
           </div>
           {payable.length === 0 ? <p className="empty-state">没有可查看的在职成员。</p> : <SettlementCalendar month={month} range={range} data={calendar?.membershipId === membershipId && calendar.month === month ? calendar : null} loading={calendarLoading} error={calendarError} failed={calendarFailed} disabled={busy || sharing || previewLoading} onMonth={setMonth} onDate={(date) => { setRange((current) => selectSettlementDate(current, date)); clearPreview(); }} retry={() => setCalendarEpoch((value) => value + 1)} />}
         </form>
-        {preview ? <section className="payroll-statement" aria-label="结算单汇总" aria-busy={previewLoading}>
+        {preview ? <section className="payroll-statement" data-motion-content aria-label="结算单汇总" aria-busy={previewLoading}>
           <header className="payroll-statement-heading">
             <h2>{preview.employee.displayName}</h2>
-            <span className={`payroll-payment-status${alreadyRegistered ? " is-confirmed" : ""}`}>{!preview.records.length ? "无可结算记工" : isOwnerPreview || !preview.payment ? "仅查看结算" : alreadyRegistered ? "已确认结清" : "待付款确认"}</span>
+            <span key={String(alreadyRegistered)} data-motion-change className={`payroll-payment-status${alreadyRegistered ? " is-confirmed" : ""}`}>{!preview.records.length ? "无可结算记工" : isOwnerPreview || !preview.payment ? "仅查看结算" : alreadyRegistered ? "已确认结清" : "待付款确认"}</span>
           </header>
           <div className="payroll-statement-scope"><p><time dateTime={preview.dateFrom}>{preview.dateFrom}</time><span>至</span><time dateTime={preview.dateTo}>{preview.dateTo}</time><span>{locale === "en-US" ? `${preview.records.length} records` : `${preview.records.length} 笔记工`}</span></p></div>
           <SettlementSummary preview={preview} layout="ledger" />
@@ -226,7 +226,7 @@ export function EmployeeSettlementPanel({ storeId, businessDate, members, settle
           <div className="payroll-statement-actions"><div className="employee-settlement-send-actions"><button className="primary-action" type="button" disabled>已付款</button><button className="secondary-action" type="button" disabled>复制分享链接</button></div></div>
         </section>}
       </div>
-      {preview && <section className="payroll-records-panel">
+      {preview && <section className="payroll-records-panel" data-motion-content>
         <SettlementRecords preview={preview} />
       </section>}
     </section>

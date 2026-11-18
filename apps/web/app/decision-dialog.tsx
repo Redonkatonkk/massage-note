@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useLanguage } from "./language-provider";
 import { useNativeDialog } from "./use-native-dialog";
+import { animateOverlayExit } from "./ui/interaction-motion";
 
 interface DecisionOptions {
   action?: string;
@@ -37,7 +38,10 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
     if (!decision) return;
     active.current = null;
     decision.signal.removeEventListener("abort", decision.cancel);
-    if (dialog.current?.open) dialog.current.close();
+    if (dialog.current?.open) {
+      animateOverlayExit(dialog.current);
+      dialog.current.close();
+    }
     setPending(null);
     decision.resolve(result);
   }

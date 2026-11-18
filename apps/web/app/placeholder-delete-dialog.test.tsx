@@ -24,7 +24,7 @@ function Page() {
     <button onClick={() => setOpen(true)}>Open</button>
     <button onClick={outsideAction}>Other action</button>
     {open && <PlaceholderDeleteDialog storeId="store" record={record} employeeName="Amy" timezone="America/New_York"
-      canDelete isClosed={false} onClose={() => setOpen(false)} onDeleted={() => {}} onChanged={changed} />}
+      canDelete isClosed={false} onClose={() => setOpen(false)} onChanged={changed} />}
   </>;
 }
 beforeEach(() => {

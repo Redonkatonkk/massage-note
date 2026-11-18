@@ -34,7 +34,7 @@ export function WorkBotPanel({ storeId, catalog, settings, busy, run, reload }: 
   const dirty = instructions !== settings.instructions;
   const services = catalog.serviceItems.filter((item) => item.isEnabled && !item.deletedAt);
 
-  return <section className="manage-section work-bot-panel">
+  return <section className="manage-section work-bot-panel" data-motion-content>
     <header className="work-bot-intro">
       <div><p className="eyebrow">微信群 · 智能记工</p><h2>让机器人听懂店里的话</h2><p>写下大家常用的说法，机器人会结合店铺项目理解群消息。</p></div>
       <span className="status-chip">{settings.groups.length ? t(`已接入 ${settings.groups.length} 个群`) : "等待绑定微信群"}</span>

@@ -3,6 +3,7 @@
 import { useAutoDismissState } from "./use-auto-dismiss-state";
 
 import { useEffect, useRef, useState } from "react";
+import { useOverlayExitRef } from "./ui/interaction-motion";
 import { apiRequest, errorMessage } from "../lib/api";
 import type { AppLocale } from "../lib/i18n";
 import { EmployeeClosingStatement } from "./employee-closing-statement";
@@ -148,11 +149,11 @@ export function EmployeeClosingSummary({ preview: initialPreview, canSend = fals
     <section className="employee-closing-card" aria-label={`${employee.displayName}个人日结`}>
       <div className="employee-closing-toolbar">
         <div className="employee-closing-image-actions">
-          <button className="primary-action" type="button" disabled={generating} onClick={() => void createImage()}>{generating ? "正在生成…" : generated ? "重新生成图片" : "生成日结图片"}</button>
+          <button className="primary-action" type="button" disabled={generating} data-motion-busy={generating} onClick={() => void createImage()}>{generating ? "正在生成…" : generated ? "重新生成图片" : "生成日结图片"}</button>
           {generated && <button className="secondary-action" type="button" onClick={() => void saveImage()}>保存到相册 / 分享</button>}
-          {canSend && <button className="secondary-action" type="button" disabled={sending} onClick={() => void sendToEmployee()}>{sending ? "正在排队…" : "短信发送给员工"}</button>}
+          {canSend && <button className="secondary-action" type="button" disabled={sending} data-motion-busy={sending} onClick={() => void sendToEmployee()}>{sending ? "正在排队…" : "短信发送给员工"}</button>}
         </div>
-        {imageMessage && <p className="employee-closing-image-message" role="status">{imageMessage}</p>}
+        {imageMessage && <p className="employee-closing-image-message" data-motion-content role="status">{imageMessage}</p>}
         {imageError && <p className="form-error" role="alert">{imageError}</p>}
       </div>
       <EmployeeClosingStatement snapshot={preview} locale={locale} />
@@ -164,10 +165,10 @@ export function EmployeeClosingSummary({ preview: initialPreview, canSend = fals
 
       <div className="employee-closing-image-actions">
         <span role="status">{preview.dailySettlementEnabled ? (cashSettlement.status === "SETTLED" ? (locale === "en-US" ? "Daily wages fully settled" : "已结：当天工资已全部结清") : (locale === "en-US" ? "Daily wages pending" : "当天工资尚未结清")) : (cashSettlement.status === "SETTLED" ? "已结现金：当天现金大费工资已发放" : "现金尚未结清")}</span>
-        {canSend && preview.records.length > 0 && <button className="secondary-action" type="button" disabled={settlingCash} onClick={() => void toggleCashSettlement()}>{settlingCash ? "正在保存…" : cashSettlement.status === "SETTLED" ? (preview.dailySettlementEnabled ? (locale === "en-US" ? "Undo settlement" : "取消已结") : "取消已结现金") : (preview.dailySettlementEnabled ? (locale === "en-US" ? "Settled" : "已结") : "已结现金")}</button>}
+        {canSend && preview.records.length > 0 && <button className="secondary-action" type="button" disabled={settlingCash} data-motion-busy={settlingCash} onClick={() => void toggleCashSettlement()}>{settlingCash ? "正在保存…" : cashSettlement.status === "SETTLED" ? (preview.dailySettlementEnabled ? (locale === "en-US" ? "Undo settlement" : "取消已结") : "取消已结现金") : (preview.dailySettlementEnabled ? (locale === "en-US" ? "Settled" : "已结") : "已结现金")}</button>}
       </div>
 
-      {generated && <figure className="employee-closing-image-preview"><img src={generated.url} alt={`${employee.displayName}的个人日结图片预览`} /><figcaption>图片包含全部逐笔记工；手机可通过系统分享菜单保存到相册。</figcaption></figure>}
+      {generated && <figure className="employee-closing-image-preview" data-motion-content><img src={generated.url} alt={`${employee.displayName}的个人日结图片预览`} /><figcaption>图片包含全部逐笔记工；手机可通过系统分享菜单保存到相册。</figcaption></figure>}
     </section>
   );
 }
@@ -180,6 +181,7 @@ export function EmployeeClosingModal({
   canSend = false,
   onClose,
 }: EmployeeClosingModalProps) {
+  const panelRef = useOverlayExitRef<HTMLElement>();
   const [preview, setPreview] = useState<EmployeeClosingPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useAutoDismissState("");
@@ -211,7 +213,7 @@ export function EmployeeClosingModal({
 
   return (
     <div className="modal-backdrop employee-closing-backdrop" role="presentation">
-      <section className="employee-closing-modal" role="dialog" aria-modal="true" aria-labelledby="employee-closing-title">
+      <section ref={panelRef} className="employee-closing-modal" role="dialog" aria-modal="true" aria-labelledby="employee-closing-title">
         <div className="modal-heading employee-closing-modal-heading">
           <div><p className="eyebrow">个人日结</p><h2 id="employee-closing-title">{displayName}</h2></div>
           <button className="close-button" type="button" onClick={onClose}>关闭</button>

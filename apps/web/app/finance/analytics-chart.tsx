@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLanguage } from "../language-provider";
 import { smoothChartPath } from "./analytics-curve";
 import { AnalyticsHorizontalBars } from "./analytics-horizontal-bars";
+import { useContentMotion } from "../ui/interaction-motion";
 
 export type ChartPoint = { label: string; value: number | null; secondary?: number | null; lostCount?: number; detail: string; dailyDetails?: { date: string; count: number }[]; dailyRevenueDetails?: { date: string; revenue: string; revenues?: string[] }[] };
 
@@ -20,14 +21,20 @@ export function Chart({ title, description, points, bars = false, horizontalBars
   const [revenueSelection, setRevenueSelection] = useState<string | null>(null);
   const revenuePoint = points.find(point => point.label === revenueSelection);
   const revenueTable = useRef<HTMLDetailsElement>(null);
+  const hourlyTable = useRef<HTMLDetailsElement>(null);
   const activate = (point: ChartPoint) => {
     setSelected(point.label);
+    if (point.dailyDetails !== undefined && hourlyTable.current) hourlyTable.current.open = true;
     if (point.dailyRevenueDetails !== undefined) {
       setRevenueSelection(point.label);
       if (revenueTable.current) revenueTable.current.open = true;
     }
   };
-  const plot = useRef<HTMLDivElement>(null);
+  const curves: ChartSeries[] = series ?? [
+    { id: "primary", color: "var(--brand)", values: points.map(point => point.value) },
+    { id: "secondary", color: "var(--chart-secondary)", dash: "6 4", values: points.map(point => point.secondary ?? null) },
+  ];
+  const plot = useContentMotion<HTMLDivElement>(JSON.stringify([points.map(point => [point.label, point.lostCount]), curves.map(curve => curve.values)]), "[data-motion-mark]");
   const [plotWidth, setPlotWidth] = useState(600);
   const groupedBars = bars && series !== undefined;
   useEffect(() => {
@@ -38,10 +45,6 @@ export function Chart({ title, description, points, bars = false, horizontalBars
     observer.observe(plot.current);
     return () => observer.disconnect();
   }, [horizontalBars]);
-  const curves: ChartSeries[] = series ?? [
-    { id: "primary", color: "var(--brand)", values: points.map(point => point.value) },
-    { id: "secondary", color: "var(--chart-secondary)", dash: "6 4", values: points.map(point => point.secondary ?? null) },
-  ];
   const number = new Intl.NumberFormat(locale, currency ? { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol", minimumFractionDigits: 0, maximumFractionDigits: 2 } : { maximumFractionDigits: 0 });
   const label = (value: number | null | undefined) => value == null ? "—" : number.format(value);
   const values = groupedBars ? curves.flatMap(curve => curve.values) : points.map(point => point.value);
@@ -86,7 +89,7 @@ export function Chart({ title, description, points, bars = false, horizontalBars
           <line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="var(--line)" />
           <text className="analytics-y-label" x={left - 8} y={y(value) + 4} textAnchor="end">{peak ? label(value) : currency ? `$${Math.round(value)}` : value}</text>
         </g>; })}
-        {!bars && curves.map(curve => <path key={curve.id} data-series={curve.id} d={smoothChartPath(curve.values, x, y)} fill="none" stroke={curve.color} strokeWidth="2.5" strokeDasharray={curve.dash} />)}
+        {!bars && curves.map(curve => <path key={curve.id} data-motion-mark data-series={curve.id} d={smoothChartPath(curve.values, x, y)} fill="none" stroke={curve.color} strokeWidth="2.5" strokeDasharray={curve.dash} />)}
         {groupedBars && <line className="analytics-zero-line" x1={left} x2={right} y1={y(0)} y2={y(0)} stroke="var(--muted)" />}
         {points.map((point, i) => <g key={point.label}>
           {groupedBars && curves.map((curve, seriesIndex) => {
@@ -95,20 +98,20 @@ export function Chart({ title, description, points, bars = false, horizontalBars
             const barWidth = Math.min(28, seriesSlot * .65);
             const labelY = value != null && value < 0 ? y(value) + 18 : y(value ?? 0) - 8;
             return <g key={curve.id}>
-              {value != null && <rect data-series={curve.id} x={center - barWidth / 2} y={Math.min(y(value), y(0))} width={barWidth} height={Math.abs(y(value) - y(0))} fill={curve.color} rx="1" />}
+              {value != null && <rect data-motion-mark data-series={curve.id} x={center - barWidth / 2} y={Math.min(y(value), y(0))} width={barWidth} height={Math.abs(y(value) - y(0))} fill={curve.color} rx="1" />}
               <text className="analytics-bar-value" data-series={curve.id} x={center} y={labelY} textAnchor="middle">{label(value)}</text>
             </g>;
           })}
           {bars && !groupedBars && point.value !== null && <>
-            <rect x={x(i) - Math.min(22, (right - left) / points.length * .32)} y={y(point.value)} width={Math.min(44, (right - left) / points.length * .64)} height={bottom - y(point.value)} fill="var(--brand)" rx="3" />
+            <rect data-motion-mark x={x(i) - Math.min(22, (right - left) / points.length * .32)} y={y(point.value)} width={Math.min(44, (right - left) / points.length * .64)} height={bottom - y(point.value)} fill="var(--brand)" rx="3" />
             <text className="analytics-bar-value" x={x(i)} y={y(point.value + (point.lostCount ?? 0)) - ((point.lostCount ?? 0) > 0 ? 25 : 8)} textAnchor="middle">{label(point.value)}</text>
           </>}
           {bars && (point.lostCount ?? 0) > 0 && <g data-lost-count={point.lostCount}>
-            <rect x={x(i) - Math.min(22, (right - left) / points.length * .32)} y={y((point.value ?? 0) + point.lostCount!)} width={Math.min(44, (right - left) / points.length * .64)} height={y(point.value ?? 0) - y((point.value ?? 0) + point.lostCount!)} fill="var(--chart-loss)" rx="2" />
+            <rect data-motion-mark x={x(i) - Math.min(22, (right - left) / points.length * .32)} y={y((point.value ?? 0) + point.lostCount!)} width={Math.min(44, (right - left) / points.length * .64)} height={y(point.value ?? 0) - y((point.value ?? 0) + point.lostCount!)} fill="var(--chart-loss)" rx="2" />
             <text className="analytics-bar-value analytics-lost-count" x={x(i)} y={y((point.value ?? 0) + point.lostCount!) - 8} textAnchor="middle">+{point.lostCount}</text>
           </g>}
           {bars && !groupedBars && point.value === null && <text x={x(i)} y={bottom - 8} textAnchor="middle">—</text>}
-          {!bars && curves.map(curve => curve.values[i] != null && <circle key={curve.id} cx={x(i)} cy={y(curve.values[i]!)} r={points.length > 90 ? 1.5 : 2.5} fill={curve.color} />)}
+          {!bars && curves.map(curve => curve.values[i] != null && <circle key={curve.id} data-motion-mark cx={x(i)} cy={y(curve.values[i]!)} r={points.length > 90 ? 1.5 : 2.5} fill={curve.color} />)}
           {(bars || labelIndices.has(i)) && <text className="analytics-axis-label" x={x(i)} y={bottom + (bars ? 44 : 23)} textAnchor="middle">{point.label.length === 10 ? point.label.slice(5) : point.label}</text>}
           <rect className="analytics-hit" x={x(i) - (right - left) / points.length / 2} y={top} width={(right - left) / points.length} height={bottom - top + (point.dailyRevenueDetails !== undefined ? (bars ? 55 : 35) : 0)} fill="transparent" tabIndex={0} role="button" aria-label={point.detail} aria-pressed={point.dailyRevenueDetails !== undefined ? revenueSelection === point.label : undefined}
             onMouseEnter={() => setSelected(point.label)} onFocus={() => setSelected(point.label)} onClick={() => activate(point)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(point); } }}><title>{point.detail}</title></rect>
@@ -118,7 +121,7 @@ export function Chart({ title, description, points, bars = false, horizontalBars
     </div>
     {peak && <p className="analytics-description analytics-peak" role="status">{en ? "Highest average revenue" : "最高平均营业额"} <strong>{label(peak.value)}</strong> · {points[peak.index]?.label} · {peak.curve.label}</p>}
     <p className="analytics-readout" aria-live="polite">{selectedPoint ? selectedPoint.detail : en ? "Tap or focus a point to see its value." : "点击或聚焦图中位置查看具体数值。"}</p>
-    {points.some(point => point.dailyDetails !== undefined) ? <details className="hourly-details">
+    {points.some(point => point.dailyDetails !== undefined) ? <details className="hourly-details" ref={hourlyTable}>
       <summary>{en ? "Selected hour record details" : "我选择的时段记工明细"}<span>{en ? "Dates with service starts only" : "仅显示有上工的日期"}</span></summary>
       <div className="hourly-details__list">
         {!selectedPoint && <p className="hourly-details__empty">{en ? "Select an hour in the chart to see its daily records." : "请先在图表中选择时段，查看该时段每天的记工笔数。"}</p>}

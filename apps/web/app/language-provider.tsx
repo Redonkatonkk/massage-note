@@ -1,5 +1,6 @@
 "use client";
 
+import { useSelectionIndicator } from "./ui/interaction-motion";
 import { browserStorage } from "../lib/browser-storage";
 
 import {
@@ -143,8 +144,9 @@ export function LanguageProvider({
 
 export function LanguageSwitcher() {
   const { locale, setLocale } = useLanguage();
+  const selection = useSelectionIndicator<HTMLDivElement>(locale);
   return (
-    <div className="language-switcher" role="group" aria-label={locale === "zh-CN" ? "选择语言" : "Choose language"}>
+    <div ref={selection} className="language-switcher" role="group" aria-label={locale === "zh-CN" ? "选择语言" : "Choose language"}>
       <button
         className={locale === "zh-CN" ? "active" : ""}
         type="button"

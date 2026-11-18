@@ -59,14 +59,14 @@ export function ClosingEmployeeTable({ employees, cashRows, busy, cashLoadFailed
           <td>{formatUsd(employee.employeeIncomeCents, locale)}</td><td>{employee.incompleteRecordCount}</td>
           <td>{cash ? formatUsd(cash.cashToSubmitToStoreCents, locale) : "—"}</td>
           <td>{cash ? formatUsd(cash.cashRetainedCents, locale) : "—"}</td>
-          <td>{cash ? <><span>{cashStatus(cash)}</span><CashSettlementDetails row={cash} /></> : "—"}</td>
+          <td>{cash ? <><span key={cash.status} data-motion-change>{cashStatus(cash)}</span><CashSettlementDetails row={cash} /></> : "—"}</td>
           <td>{cashAction(cash)}</td>
         </tr>;
       })}</tbody>
     </table></div>}>
       <ul className="mobile-data-list">{employees.map(employee => {
         const cash = cashByMember.get(employee.membershipId);
-        return <li key={employee.membershipId}><MobileDataCard title={employee.displayName} subtitle={`${employee.recordCount} 单`} status={cash ? <span className={`status-chip${cash.status === "SETTLED" ? "" : " warning"}`}>{cashStatus(cash)}</span> : "现金结算暂不可用"} actions={cashAction(cash)}>
+        return <li key={employee.membershipId}><MobileDataCard title={employee.displayName} subtitle={`${employee.recordCount} 单`} status={cash ? <span key={cash.status} data-motion-change className={`status-chip${cash.status === "SETTLED" ? "" : " warning"}`}>{cashStatus(cash)}</span> : "现金结算暂不可用"} actions={cashAction(cash)}>
           <RecordFacts items={[{ label: "应得工资", value: formatUsd(employee.employeeIncomeCents, locale) }, { label: "待结账", value: employee.incompleteRecordCount }, { label: "应提交店铺", value: cash ? formatUsd(cash.cashToSubmitToStoreCents, locale) : "—" }, { label: "员工应保留", value: cash ? formatUsd(cash.cashRetainedCents, locale) : "—" }]} />
           <details className="mobile-data-card__details"><summary>工资与记工明细</summary><RecordFacts items={[{ label: "大费基数", value: formatUsd(employee.grossFeeBaseCents, locale) }, { label: "折扣", value: formatUsd(employee.discountTotalCents, locale) }, { label: "折后大费", value: formatUsd(employee.discountedFeePerformanceCents, locale) }, { label: "小费", value: formatUsd(employee.totalTipCents, locale) }]} />{cash && <CashSettlementDetails row={cash} />}</details>
         </MobileDataCard></li>;

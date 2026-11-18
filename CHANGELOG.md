@@ -4,6 +4,43 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.62.0 — 2026-11-17
+
+- Give enabled controls shared press and selection feedback. Add entrance and exit motion to confirmation dialogs, forms, sheets, calendars, and the AI panel. Closing releases interaction immediately.
+- Animate changed rows, disclosures, and results in work records, finance, settings, and shared statements. Respect reduced motion and show committed amounts throughout the transition. The NAS Web image needs an update.
+
+## 1.61.15 — 2026-11-17
+
+- Show work-record create and edit success in a white, top-center toast with a two-second green countdown. Deletion gets five seconds and an Undo action for the exact deleted version. Failures stay on the right. NAS needs a Web and API update.
+
+## 1.61.14 — 2026-11-17
+
+- Add a third, blue-gray glint to the pending-payment card’s uneven edge sweep. NAS needs a Web update.
+
+## 1.61.12 — 2026-11-17
+
+- Shape the two pending-payment glints into uneven bands just inside the rim, with distinct tails and a gently changing pace. NAS needs a Web update.
+
+## 1.61.11 — 2026-11-17
+
+- Reveal Delete placeholder at the bottom of each placeholder card on hover or keyboard focus. The pink button turns bright red and reads Confirm delete after the first activation. The second deletes the placeholder. Touch layouts show the button directly. NAS needs a Web update.
+
+## 1.61.10 — 2026-11-17
+
+- Give pending-payment cards two synchronized bands on opposite sides, one cool gray and one muted teal. NAS needs a Web update.
+
+## 1.61.9 — 2026-11-17
+
+- In New, stack an employee’s work cards starting at five across both groups. Show four or fewer cards in full. NAS needs a Web update.
+
+## 1.61.8 — 2026-11-17
+
+- Make the pending-payment edge shimmer more visible and carry it into the card as a softer, synchronized band beneath the text. NAS needs a Web update.
+
+## 1.61.7 — 2026-11-17
+
+- Keep the quick-entry dialog’s top edge and header controls in place when switching to or from Placeholder. The lower edge moves as the form changes height. NAS needs a Web update.
+
 ## 1.61.6 — 2026-11-17
 
 - Stack an employee’s work cards in New only when both groups together contain more than five cards. Placeholder cards count toward the threshold. Add record is a separate control. NAS needs a Web update.

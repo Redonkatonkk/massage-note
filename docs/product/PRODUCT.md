@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](PRODUCT.zh-CN.md)**
 
-> Applies to version: `1.62.1`
+> Applies to version: `1.62.2`
 > Check basis: domain functions, shared contracts, API services and their tests. See [API](../engineering/API.md) for the HTTP fields, see [UI Design](../engineering/UI_DESIGN.md) for the layout, and see [Development Guide](../engineering/DEVELOPMENT.md) for the maintenance process.
 
 <a id="产品范围与数据原则"></a>
@@ -85,6 +85,7 @@
 - Gift-card payments use one identifier field with automatic detection: trim surrounding spaces, treat exactly four digits as a serial number and every other nonempty value as a username, retaining leading zeros. At least one gift-card service fee or tip amount must be positive; unused gift cards have an empty identifier and zero amounts. Cash, card and gift-card payments can be mixed. Reason: the ledger and cash wage allocation require a complete payment split without a manual identifier mode.
 - Projects, add-ons, discounts and various payments must not be negative. The actual service fee may be inconsistent with the discounted performance. Only warnings and confirmations are allowed. Reason: Currently, fact records such as undercharge, overcharge, and order exemption are supported. There is no independent business process for negative refunds.
 - The main number of work record card service fee shows the items before discount plus add-on, and the payment area shows confirmed receipt or pending confirmation of receivables; tips are separated independently, with card swiping and frame, cash without frame, and gift card logo. Discount is marked with `off`, and add-on and remarks are marked separately. Reason: The original price, receivables, actual receipts and wages cannot be mixed into one number.
+- On the work board, clicking a card’s amounts, tips, or Pending payment opens record details at Customer payment. The + and `off` badges open the same details at Add-ons and Discounts respectively. The rest of the card opens details at the top. The selected section heading receives focus.
 - The confirmed service payment balance is displayed abnormally, and is mutually exclusive with the pending checkout mark; highlight continues to use gray-green, and hover/read-only maintains the color. Reason: Status should be identified by both text and markup, and the style should not obscure financial exceptions.
 - Deletion only confirms and does not force input of reasons; soft deletion excludes ordinary pages and statistics, and the administrator restores and retains deleted snapshots. Reason: Recovery still requires daily closing locks and versions, and deletion cannot damage the audit content.
 

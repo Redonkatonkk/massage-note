@@ -4,6 +4,10 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.62.2 — 2026-11-18
+
+- Open Customer payment from the amounts, tips, or Pending payment on a work card. The + and `off` badges open Add-ons and Discounts in the same record details. NAS needs a Web update.
+
 ## 1.62.1 — 2026-11-17
 
 - In New, right-group work cards stack with the left card above its right neighbor. Hover or keyboard focus reveals one card by opening the gap to the left. The NAS Web image needs an update.

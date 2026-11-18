@@ -6,12 +6,12 @@
       background-color var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast), box-shadow var(--motion-fast);
   }
 
-  :is(button, input:is([type="button"], [type="submit"], [type="reset"]), a, summary):not(:disabled, [aria-disabled="true"], .record-card, .quick-mode-switch__option, .customer-type-switch__option):active {
+  :is(button, input:is([type="button"], [type="submit"], [type="reset"]), a, summary):not(:disabled, [aria-disabled="true"], .record-card__open, .record-money, .quick-mode-switch__option, .customer-type-switch__option):active {
     scale: .985;
   }
-  :is(button, a, summary, [role="button"]):not(:disabled, [aria-disabled="true"]):active { filter: brightness(.94); }
+  :is(button, a, summary, [role="button"]):not(:disabled, [aria-disabled="true"], .record-card__open, .record-money):active { filter: brightness(.94); }
   :is(button, input, select, textarea, summary, a):focus-visible { outline-offset: 3px; }
-  .record-card:not(:disabled, .record-card--placeholder):active { filter: brightness(.94); }
+  .record-card:not([data-record-unavailable], .record-card--placeholder):active { filter: brightness(.94); }
 
   :is(.business-date-picker__days, .settlement-calendar, .analytics-revenue-calendar, .section-tabs, .language-switcher, .member-detail-tabs)
   :is(button, a) { transition: background-color var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast), scale var(--motion-press), filter var(--motion-press); }

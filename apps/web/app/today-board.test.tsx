@@ -99,6 +99,46 @@ async function pressEnter(target: Element, options: KeyboardEventInit = {}) {
   return event;
 }
 
+it("opens work-card shortcuts at the matching section below the sticky editor header", async () => {
+  editorRendering.actual = true;
+  props.board.rows[0]!.workRecords = [{
+    ...ordinary, status: "PENDING_PAYMENT",
+    addonSnapshots: [{ id: "addon", sourceAddonItemId: null, isCustom: true, name: "热石", shortName: "热石", amountCents: 1000, durationMinutes: 0, commissionBps: 6000, commissionSource: "STORE", wageCents: 600, position: 0 }],
+    discountSnapshots: [{ id: "discount", sourceDiscountItemId: null, isCustom: true, isAutomatic: false, name: "会员优惠", amountCents: 500, position: 0 }],
+  }];
+  const headingRows = new Map([
+    ["record-addons-title", 410], ["record-discounts-title", 560], ["record-payment-title", 710],
+  ]);
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    if (this.classList.contains("sticky-heading")) return new DOMRect(0, 0, 400, 90);
+    return new DOMRect(0, headingRows.get(this.id) ?? 0, 100, 22);
+  });
+  await render();
+  for (const [selector, id] of [
+    [".record-service-amount b", "record-payment-title"],
+    [".record-service-due", "record-payment-title"],
+    [".record-payment-row", "record-payment-title"],
+    [".record-pending-badge", "record-payment-title"],
+    [".record-addon-badge", "record-addons-title"],
+    [".record-discount-badge", "record-discounts-title"],
+    [".record-card__open", ""],
+  ] as const) {
+    await act(async () => container.querySelector<HTMLElement>(selector)!.click());
+    const editor = container.querySelector<HTMLElement>(".record-editor")!;
+    expect(document.activeElement).toBe(id ? editor.querySelector(`#${id}`) : editor);
+    expect(editor.scrollTop).toBe(id ? headingRows.get(id)! - 102 : 0);
+    expect(container.querySelectorAll(".record-editor")).toHaveLength(1);
+    await click("关闭", editor);
+  }
+  props.isCurrentBusinessDay = false;
+  props.membership.role = "EMPLOYEE";
+  await render();
+  const actions = [...container.querySelectorAll<HTMLButtonElement>(".record-card button")];
+  expect(actions).toHaveLength(4);
+  expect(actions.every(action => action.disabled)).toBe(true);
+  expect(writes()).toHaveLength(0);
+});
+
 it.each(["旧版", "新版"])("uses the shared board motion in %s and remembers the selection", async edition => {
   editorRendering.actual = true;
   const row = props.board.rows[0]!;
@@ -129,7 +169,7 @@ it.each(["旧版", "新版"])("uses the shared board motion in %s and remembers 
     expect(editor().hasAttribute(motion)).toBe(false);
     await click("关闭", editor());
 
-    const card = container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!;
+    const card = container.querySelector<HTMLElement>('[data-work-record-id="ordinary"]')!;
     const track = card.closest(".record-track")!;
     Object.defineProperties(card, {
       offsetParent: { value: track }, offsetLeft: { value: 16 }, offsetTop: { value: 16 },
@@ -154,7 +194,7 @@ it.each(["旧版", "新版"])("uses the shared board motion in %s and remembers 
     hover("pointermove", "mouse", 60);
     expect(tilt()).toBe("");
 
-    await act(async () => card.click());
+    await act(async () => card.querySelector<HTMLButtonElement>(".record-card__open")!.click());
     expect(editor().hasAttribute(motion)).toBe(true);
     await click("关闭", editor());
 
@@ -436,7 +476,7 @@ describe("历史员工出勤隐藏", () => {
     expect(document.querySelector(".row-actions")!.textContent).toBe("隐藏");
     expect(document.querySelector('.row-actions [aria-label="上移"], .row-actions [aria-label="下移"]')).toBeNull();
     expect(document.querySelector(".add-record")).toBeNull();
-    await act(async () => document.querySelector<HTMLButtonElement>(".record-card")!.click());
+    await act(async () => document.querySelector<HTMLButtonElement>(".record-card__open")!.click());
     expect(document.querySelector(".normal-record-editor")!.getAttribute("data-readonly")).toBe("true");
     request.mockResolvedValueOnce({ removed: false });
     await click("隐藏");
@@ -913,12 +953,12 @@ describe("不算排工", () => {
   it("普通样式的小卡与高亮混排，取消标记回左侧，历史只读保持分组", async () => {
     props.board.rows[0]!.workRecords = [ordinary, { ...ordinary, id: "excluded", isDispatchExcluded: true }, { ...ordinary, id: "highlight", isHighlighted: true }];
     await render();
-    const cards = () => [...container.querySelectorAll<HTMLButtonElement>(".record-track > button")];
+    const cards = () => [...container.querySelectorAll<HTMLElement>(".record-track > :is(.record-card, .add-record)")];
     expect(cards().map(card => card.className)).toEqual(["record-card", "add-record", "record-card record-card--right-group record-card--highlighted", "record-card record-card--right-group"]);
     expect(cards().map(card => card.style.getPropertyValue("--record-stack-layer"))).toEqual(["", "", "2", "1"]);
     expect(container.querySelector(".row-work-count strong")!.textContent).toBe("1");
     props.isCurrentBusinessDay = false; props.membership.role = "EMPLOYEE"; await render();
-    expect(cards().at(-1)!.disabled).toBe(true);
+    expect(cards().at(-1)!.querySelector<HTMLButtonElement>(".record-card__open")!.disabled).toBe(true);
     expect(cards().at(-1)!.classList.contains("record-card--highlighted")).toBe(false);
     props.board.rows[0]!.workRecords[1]!.isDispatchExcluded = false; await render();
     expect(cards().map(card => card.className)).toEqual(["record-card", "record-card", "record-card record-card--right-group record-card--highlighted"]);
@@ -1248,7 +1288,7 @@ describe("独立保存任务", () => {
     if (!isNew) props.board.rows[0]!.workRecords = [ordinary];
     await render();
     if (isNew) { await click("新增记工"); await click("详细记工"); }
-    else await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!.click());
+    else await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"] .record-card__open')!.click());
     await click("老客");
     await note("上一笔完整备注 / retained note");
     let fail!: (error: unknown) => void;
@@ -1257,7 +1297,11 @@ describe("独立保存任务", () => {
     expect(document.querySelector(".record-editor")).toBeNull();
     expect(writes()).toHaveLength(1);
     expect(writes()[0]![1]!.body).toMatchObject({ details: { customerType: "RETURNING" } });
-    if (!isNew) expect(container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!.disabled).toBe(true);
+    if (!isNew) {
+      const actions = [...container.querySelectorAll<HTMLButtonElement>('[data-work-record-id="ordinary"] button')];
+      expect(actions).toHaveLength(2);
+      expect(actions.every(action => action.disabled)).toBe(true);
+    }
     await click("新增记工"); await click("详细记工"); await note("下一笔还在填写");
     const next = document.querySelector(".record-editor");
     await act(async () => fail(new ApiError(409, { code: "WORK_RECORD_VERSION_CONFLICT", messageZh: "版本冲突" })));
@@ -1325,15 +1369,15 @@ describe("新老客标记", () => {
     editorRendering.actual = true;
     props.board.rows[0]!.workRecords = [{ ...ordinary, customerType: "NEW", tipSettledManualFlag: true, largeFeeSettledManualFlag: true }];
     await render();
-    await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"] .record-card__open')!.click());
     expect(button("新客").getAttribute("aria-pressed")).toBe("true");
     expect(document.querySelector(".record-editor")!.textContent).not.toContain("已人工结算");
     expect(document.querySelector(".payment-customer-controls .customer-type-switch")).not.toBeNull();
     await click("老客"); await click("关闭");
-    await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"] .record-card__open')!.click());
     expect(button("老客").getAttribute("aria-pressed")).toBe("true");
     await click("老客"); await click("关闭");
-    await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"]')!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-work-record-id="ordinary"] .record-card__open')!.click());
     expect(document.querySelectorAll('.customer-type-switch [aria-pressed="true"]')).toHaveLength(0);
     request.mockResolvedValueOnce(ordinary); await click("保存");
     const body = writes()[0]![1]!.body as { details: Record<string, unknown> };

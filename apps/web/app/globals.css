@@ -447,6 +447,25 @@ h2 {
   gap: 8px;
 }
 
+.record-card__open,
+.record-money {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: inherit;
+}
+
+.record-card__open {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+}
+
+.record-card :is(.record-card__open, .record-money, .record-addon-badge, .record-discount-badge) {
+  cursor: inherit;
+}
+
 .record-card--placeholder { overflow: hidden; }
 .record-placeholder-lines { position: absolute; inset: 0; width: 100%; height: 100%; stroke: var(--line); pointer-events: none; }
 .record-placeholder-time { position: relative; z-index: 1; align-self: flex-start; padding: 2px 4px; background: var(--surface); }
@@ -456,19 +475,18 @@ h2 {
   border-color: var(--line);
 }
 
-.record-card:disabled {
+.record-card[data-record-unavailable] {
   opacity: 1;
   color: var(--ink);
   cursor: default;
 }
 
-.record-card:disabled:hover {
+.record-card[data-record-unavailable]:hover {
   border-color: var(--line);
 }
 
 .record-card--highlighted,
-.record-card--highlighted:disabled,
-.record-card--highlighted:disabled:hover {
+.record-card--highlighted[data-record-unavailable]:hover {
   border-color: var(--highlight-line);
   background: var(--highlight);
   box-shadow: none;
@@ -484,8 +502,8 @@ h2 {
 
 .record-card__indicators {
   position: absolute;
-  right: 6px;
-  bottom: 10px;
+  right: 0;
+  bottom: 0;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -493,10 +511,18 @@ h2 {
 
 .record-card--has-note .record-money {
   padding-right: 0;
-  padding-bottom: 28px;
+  padding-bottom: 30px;
+}
+
+.record-card--has-note .record-card__indicators {
+  right: 28px;
 }
 
 .record-note-badge {
+  position: absolute;
+  right: 7px;
+  bottom: 11px;
+  z-index: 2;
   display: grid;
   width: 23px;
   height: 23px;
@@ -559,6 +585,7 @@ h2 {
   display: inline-flex;
   width: 24px;
   height: 24px;
+  padding: 0;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--success-line);
@@ -578,6 +605,7 @@ h2 {
   min-height: 24px;
   justify-content: center;
   padding: 2px 6px;
+  border: 0;
   border-radius: var(--radius-panel);
   background: var(--danger);
   color: var(--surface);
@@ -590,6 +618,11 @@ h2 {
   white-space: nowrap;
 }
 
+.record-card__badges > button {
+  position: relative;
+  z-index: 1;
+}
+
 .record-time {
   white-space: nowrap;
   color: var(--muted);
@@ -599,8 +632,18 @@ h2 {
 }
 
 .record-money {
+  position: relative;
   display: grid;
   gap: 6px;
+  z-index: 1;
+  /* Keep the status inside the button and aligned with the note icon. */
+  padding-bottom: 2px;
+  margin-bottom: -2px;
+  border-radius: var(--radius-control);
+}
+
+@media (hover: hover) {
+  .record-money:hover:not(:disabled) { background: var(--focus-soft); }
 }
 
 .record-money b {
@@ -929,6 +972,13 @@ h2 {
 .editor-section h3 {
   margin: 0 0 14px;
   font-size: 1.15rem;
+}
+
+.editor-section h3[tabindex="-1"]:focus {
+  width: fit-content;
+  border-radius: var(--radius-control);
+  outline: 2px solid var(--brand);
+  outline-offset: 4px;
 }
 
 .section-heading {

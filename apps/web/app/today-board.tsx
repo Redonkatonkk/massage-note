@@ -51,7 +51,7 @@ import { BoardWeeklyDispatch } from "./board-weekly-dispatch";
 import { BoardEmployeePicker } from "./board-employee-picker";
 import { RecordTrack } from "./record-track";
 import { animateOverlayExit, useListMotion, useOverlayExitRef, usePanelHeight, withButtonMotion } from "./ui/interaction-motion";
-import { RecordEditor } from "./record-editor";
+import { RecordEditor, type RecordEditorSection } from "./record-editor";
 import { PlaceholderDeleteDialog } from "./placeholder-delete-dialog";
 import { PlaceholderCard } from "./placeholder-card";
 import { AutoCloseDetails } from "./auto-close-details";
@@ -207,7 +207,7 @@ function TodayBoardContent({
   const [startTimeValid, setStartTimeValid] = useState(true);
   const [startTime, setStartTime] = useState(currentStoreTime(currentDay.timezone));
   const [creatingRecord, setCreatingRecord] = useState<WorkRecord | null>(null);
-  const [editingRecord, setEditingRecord] = useState<WorkRecord | null>(null);
+  const [editingRecord, setEditingRecord] = useState<{ record: WorkRecord; section?: RecordEditorSection | undefined } | null>(null);
   const [deletingPlaceholder, setDeletingPlaceholder] = useState<WorkRecord | null>(null);
   const [closingEmployee, setClosingEmployee] = useState<{ id: string; displayName: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -238,7 +238,7 @@ function TodayBoardContent({
       setCollapsed((current) => current.filter((id) => id !== row.id));
       if (row.isHidden) setShowHidden(true);
       if (record.status === "PLACEHOLDER") setDeletingPlaceholder(record);
-      else setEditingRecord(record);
+      else setEditingRecord({ record });
     } else {
       setError("没有找到这条异常记工，记录可能已被删除或不属于当前店铺。");
     }
@@ -330,6 +330,12 @@ function TodayBoardContent({
     );
   }
 
+  function openRecord(record: WorkRecord, section?: RecordEditorSection) {
+    setEditorSessionId(crypto.randomUUID());
+    setRestoredSave(null);
+    setEditingRecord({ record, section });
+  }
+
   useEffect(() => {
     saves.setRestoreBlocked(Boolean(quickEmployeeId || creatingRecord || editingRecord || deletingPlaceholder || closingEmployee));
   }, [saves, quickEmployeeId, creatingRecord, editingRecord, deletingPlaceholder, closingEmployee]);
@@ -345,7 +351,7 @@ function TodayBoardContent({
       setQuickCustomerType(draft.customerType ?? null); setQuickServiceId(draft.serviceId); setQuickMode(draft.mode); setStartTime(draft.startTime); setStartTimeValid(true);
     } else {
       setEditorSessionId(crypto.randomUUID());
-      if (draft.isNew) setCreatingRecord(draft.record); else setEditingRecord(draft.record);
+      if (draft.isNew) setCreatingRecord(draft.record); else setEditingRecord({ record: draft.record });
     }
   }, [saves, recovery, membership.store.id, currentDay.businessDate, quickEmployeeId, creatingRecord, editingRecord, deletingPlaceholder, closingEmployee]);
 
@@ -458,7 +464,7 @@ function TodayBoardContent({
   }
 
   function submitEditor(submission: PreparedRecordSave) {
-    const record = creatingRecord ?? editingRecord;
+    const record = creatingRecord ?? editingRecord?.record;
     if (!record) return false;
     const accepted = saves.submit({
       id: editorSessionId, ...scope, storeName: membership.store.name,
@@ -682,36 +688,53 @@ function TodayBoardContent({
                         record.status,
                         record.paymentDifferenceCents,
                       );
+                      const locked = recordLocked(record.id);
+                      const unavailable = locked || (!isCurrentBusinessDay && !canManage);
+                      const serviceName = record.serviceSnapshot?.shortName ?? "待选项目";
+                      const time = `${displayTime(record.startAt, currentDay.timezone)}–${displayTime(record.endAt, currentDay.timezone)}`;
                       return (
-                      <button
+                      <div
                         className={`record-card${record.status === "PENDING_PAYMENT" ? " record-card--pending" : ""}${isRightGroup ? " record-card--right-group" : ""}${record.isHighlighted ? " record-card--highlighted" : ""}${hasNote ? " record-card--has-note" : ""}${hasPaymentMismatch ? " record-card--payment-mismatch" : ""}`}
                         key={record.id}
                         data-work-record-id={record.id} data-motion-item={record.id} data-motion-skip-in data-record-status={record.status}
                         style={isRightGroup ? { "--record-stack-layer": items.length - index } as CSSProperties : undefined}
-                        type="button"
                         {...recordCardHover}
-                        disabled={(!isCurrentBusinessDay && !canManage) || recordLocked(record.id)}
-                        title={recordLocked(record.id) ? "这条记工正在保存或同步，请稍候再试" : !isCurrentBusinessDay && !canManage ? "历史记录只读" : undefined}
-                        onClick={() => { setEditorSessionId(crypto.randomUUID()); setRestoredSave(null); setEditingRecord(record); }}
+                        data-record-unavailable={unavailable || undefined}
+                        title={locked ? "这条记工正在保存或同步，请稍候再试" : unavailable ? "历史记录只读" : undefined}
                       >
+                        <button className="record-card__open" type="button" disabled={unavailable} aria-haspopup="dialog"
+                          aria-label={`${t("记工详情")} · ${t(serviceName)} · ${time}${hasNote ? ` · ${t("有备注")}` : ""}`}
+                          onClick={() => openRecord(record)}>
+                          {hasNote && (
+                            <span className="record-note-badge" title="有备注">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></svg>
+                            </span>
+                          )}
+                        </button>
                         <span className="record-card__topline">
-                          <strong>{record.serviceSnapshot?.shortName ?? "待选项目"}</strong>
+                          <strong>{serviceName}</strong>
                           <span className="record-card__badges">
-                            {record.addonSnapshots.length > 0 && <span className="record-addon-badge" aria-label="有加项" title="有加项">＋</span>}
+                            {record.addonSnapshots.length > 0 && (
+                              <button className="record-addon-badge" type="button" disabled={unavailable} aria-haspopup="dialog"
+                                aria-label="额外项目" title="额外项目" onClick={() => openRecord(record, "addons")}>＋</button>
+                            )}
                             {record.discountSnapshots.length > 0 && (
-                              <span
+                              <button
                                 className="record-discount-badge"
+                                type="button" disabled={unavailable} aria-haspopup="dialog"
                                 aria-label={`折扣 ${money(record.discountTotalCents)}`}
                                 title={`折扣 ${money(record.discountTotalCents)}`}
+                                onClick={() => openRecord(record, "discounts")}
                               >
                                 {discountBadgeText(record.discountTotalCents)}
-                              </span>
+                              </button>
                             )}
                           </span>
                         </span>
                         {record.customerType && <span className="record-customer-type" data-customer-type={record.customerType}>{record.customerType === "NEW" ? "新客" : "老客"}</span>}
-                        <span className="record-time">{displayTime(record.startAt, currentDay.timezone)}–{displayTime(record.endAt, currentDay.timezone)}</span>
-                        <span className="record-money">
+                        <span className="record-time">{time}</span>
+                        <button className="record-money" type="button" disabled={unavailable} aria-haspopup="dialog"
+                          title="客人付款" onClick={() => openRecord(record, "payment")}>
                           <span className="record-service-amount">
                             <b>{record.serviceSnapshot ? compactPaymentAmount(record.grossFeeBaseCents) : "未填写"}</b>
                             <span className={`record-service-payment-box${record.status === "PENDING_PAYMENT" ? " record-service-payment-box--pending" : ""}`}>
@@ -724,25 +747,20 @@ function TodayBoardContent({
                             </span>
                           </span>
                           <span className="record-payment-row"><span>小费</span><PaymentBreakdown status={record.status} cashCents={record.cashTipCents} cardCents={record.cardTipCents} giftCardCents={record.giftCardTipCents} zeroLabel="0" /></span>
-                        </span>
-                        <span className="record-card__indicators">
-                          {hasPaymentMismatch && (
-                            <span
-                              className="record-payment-mismatch-badge"
-                              aria-label={`付款差额 ${money(Math.abs(record.paymentDifferenceCents ?? 0))}`}
-                              title="实收服务费与应收金额不一致"
-                            >!</span>
-                          )}
-                          {record.status === "PENDING_PAYMENT" && (
-                            <span className="record-pending-badge">待结账</span>
-                          )}
-                          {hasNote && (
-                            <span className="record-note-badge" aria-label="有备注" title="有备注">
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></svg>
+                          {(hasPaymentMismatch || record.status === "PENDING_PAYMENT") && (
+                            <span className="record-card__indicators">
+                              {hasPaymentMismatch && (
+                                <span
+                                  className="record-payment-mismatch-badge"
+                                  aria-label={`付款差额 ${money(Math.abs(record.paymentDifferenceCents ?? 0))}`}
+                                  title="实收服务费与应收金额不一致"
+                                >!</span>
+                              )}
+                              {record.status === "PENDING_PAYMENT" && <span className="record-pending-badge">待结账</span>}
                             </span>
                           )}
-                        </span>
-                      </button>
+                        </button>
+                      </div>
                       );
                     })}
                   </RecordTrack>
@@ -837,9 +855,10 @@ function TodayBoardContent({
           timezone={currentDay.timezone}
           businessDate={currentDay.businessDate}
           autoDiscountSettings={store}
-          record={(creatingRecord ?? editingRecord)!}
+          record={(creatingRecord ?? editingRecord?.record)!}
           isNew={creatingRecord !== null}
           fullDrawerEntrance={editingRecord !== null}
+          initialSection={editingRecord?.section}
           initialServiceItemId={restoredSave?.draft.kind === "editor" ? restoredSave.draft.initialServiceItemId : creatingRecord ? quickService?.id : undefined}
           catalog={catalog}
           members={members}

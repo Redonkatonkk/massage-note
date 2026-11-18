@@ -100,8 +100,8 @@ it("stacks at five work cards and returns to full spacing at four", async () => 
 it("reveals only the hovered or keyboard-focused work card in a stack", async () => {
   const { window } = new JSDOM(`<div class="board" data-work-record-motion><div class="record-track" data-record-stack>
     <button class="record-card"></button><div class="record-card record-card--placeholder"><button class="record-placeholder-delete"></button></div><button class="record-card"></button>
-    <button class="add-record"></button><button class="record-card record-card--right-group"></button>
-    <button class="record-card record-card--right-group"></button><button class="record-card record-card--right-group"></button>
+    <button class="add-record"></button><div class="record-card record-card--right-group"><button class="record-money"></button></div>
+    <div class="record-card record-card--right-group"><button class="record-money"></button></div><div class="record-card record-card--right-group"><button class="record-money"></button></div>
   </div></div>`);
   const { document, CSSMediaRule, CSSStyleRule, MouseEvent, getComputedStyle } = window;
   const track = document.querySelector(".record-track")!;
@@ -121,14 +121,14 @@ it("reveals only the hovered or keyboard-focused work card in a stack", async ()
     placeholderAction.focus();
     expect(openGaps()).toEqual([2]);
     placeholderAction.blur();
-    cards[4]!.focus();
+    cards[4]!.querySelector("button")!.focus();
     track.setAttribute("data-test-refresh-style", "first-right");
     expect(openGaps()).toEqual([]);
-    cards[4]!.blur();
-    cards[5]!.focus();
+    cards[4]!.querySelector("button")!.blur();
+    cards[5]!.querySelector("button")!.focus();
     track.setAttribute("data-test-refresh-style", "middle-right");
     expect(openGaps()).toEqual([5]);
-    cards[5]!.blur();
+    cards[5]!.querySelector("button")!.blur();
     cards[5]!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
     track.setAttribute("data-test-refresh-style", "hover-right");
     expect(openGaps()).toEqual([5]);
@@ -177,7 +177,7 @@ it.each(["zh-CN", "en-US"] as AppLocale[])("keeps single-click navigation and di
     expect(document.querySelector(".quick-work-modal")).not.toBeNull();
     await singleClick(document.querySelector<HTMLButtonElement>(".quick-work-modal .close-button")!);
     expect(document.querySelector(".quick-work-modal")).toBeNull();
-    await singleClick(host.querySelector<HTMLButtonElement>(".record-card")!, backgroundRefresh);
+    await singleClick(host.querySelector<HTMLButtonElement>(".record-card__open")!, backgroundRefresh);
     expect(document.querySelector(".record-editor")).not.toBeNull();
     await singleClick(document.querySelector<HTMLButtonElement>(".record-editor .close-button")!);
     expect(document.querySelector(".record-editor")).toBeNull();

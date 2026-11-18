@@ -14,7 +14,7 @@ import { WorkTimeInput } from "./work-time-input";
 import { automaticRecordEnd, sameDayRecordTimeAfterDuration, recordTimeError } from "../lib/record-time";
 import { browserStorage } from "../lib/browser-storage";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useOverlayExitRef } from "./ui/interaction-motion";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
@@ -45,6 +45,8 @@ function selectEditorInput(event: { target: EventTarget }) {
   }
 }
 
+export type RecordEditorSection = "addons" | "discounts" | "payment";
+
 interface RecordEditorProps {
   storeId: string;
   timezone: string;
@@ -57,6 +59,7 @@ interface RecordEditorProps {
   record: WorkRecord;
   isNew?: boolean;
   fullDrawerEntrance?: boolean;
+  initialSection?: RecordEditorSection | undefined;
   initialServiceItemId?: string | undefined;
   catalog: CatalogResponse;
   members: StoreMember[];
@@ -160,6 +163,7 @@ export function RecordEditor({
   record,
   isNew = false,
   fullDrawerEntrance = false,
+  initialSection,
   initialServiceItemId,
   catalog,
   members,
@@ -173,6 +177,7 @@ export function RecordEditor({
   const { showSaved, showDeleted } = useWorkRecordFeedback();
   const actionInFlight = useRef(false);
   const editorElement = useRef<HTMLElement>(null);
+  const editorHeading = useRef<HTMLElement>(null);
   const editorPanelRef = useOverlayExitRef(editorElement, true, 16, 0);
   useEffect(() => { preloadWorkRecordSaveMotion(); }, []);
   useEffect(() => { if (!isNew) preloadWorkRecordDeleteMotion(); }, [isNew]);
@@ -180,7 +185,6 @@ export function RecordEditor({
     const dialog = editorElement.current;
     return () => cancelWorkRecordSaveMotion(dialog);
   }, []);
-  useEffect(() => { editorElement.current?.focus({ preventScroll: true }); }, [record.id]);
   const [blockedBusinessDate, setBlockedBusinessDate] = useState<string | null>(initialClosedBusinessDate ?? null);
   const closedBusinessDate = blockedBusinessDate ?? (isClosed ? record.businessDate.slice(0, 10) : null);
   const dayClosed = closedBusinessDate !== null;
@@ -341,6 +345,20 @@ export function RecordEditor({
       setDraftLoaded(true);
     }
   }, [draftKey, record.version, isNew, initialDraft]);
+
+  const waitingForDraft = Boolean(initialSection && !draftLoaded);
+  useLayoutEffect(() => {
+    const editor = editorElement.current;
+    if (!editor || waitingForDraft) return;
+    const heading = initialSection && editor.querySelector<HTMLElement>(`#record-${initialSection}-title`);
+    if (heading && editorHeading.current) {
+      const headerBottom = editorHeading.current.getBoundingClientRect().bottom;
+      editor.scrollTop += heading.getBoundingClientRect().top - headerBottom - 12;
+      heading.focus({ preventScroll: true });
+    } else {
+      editor.focus({ preventScroll: true });
+    }
+  }, [record.id, initialSection, waitingForDraft]);
 
   useEffect(() => {
     if (isNew || !draftLoaded || !draftDirty) return;
@@ -870,7 +888,7 @@ export function RecordEditor({
   return (
     <div className="modal-backdrop modal-backdrop--editor" role="presentation">
       <section ref={editorPanelRef} tabIndex={-1} className="record-editor" data-work-record-motion={fullDrawerEntrance || undefined} role="dialog" aria-modal="true" aria-labelledby="record-title" onFocusCapture={selectEditorInput} onClick={selectEditorInput} onChangeCapture={() => setDraftDirty(true)} onKeyDown={saveOnEnter}>
-        <header className="modal-heading sticky-heading">
+        <header className="modal-heading sticky-heading" ref={editorHeading}>
           <div>
             <p className="eyebrow">{isNew ? "详细记工" : "记工详情"}</p>
             <h2 id="record-title">{service?.name ?? "记工记录"}</h2>
@@ -946,7 +964,7 @@ export function RecordEditor({
 
         <div className="editor-section record-adjustments">
           <section className="record-adjustments__section" aria-labelledby="record-addons-title">
-            <div className="section-heading"><h3 id="record-addons-title">额外项目</h3><button type="button" onClick={addAddon}>＋ 添加</button></div>
+            <div className="section-heading"><h3 id="record-addons-title" tabIndex={-1}>额外项目</h3><button type="button" onClick={addAddon}>＋ 添加</button></div>
             {addons.length === 0 && <p className="empty-note">本单没有额外项目</p>}
             {addons.map((item) => (
               <div className="line-item line-item--addon" key={item.key} data-motion-content>
@@ -964,7 +982,7 @@ export function RecordEditor({
           </section>
 
           <section className="record-adjustments__section" aria-labelledby="record-discounts-title">
-            <div className="section-heading"><h3 id="record-discounts-title">折扣</h3><button type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => [...current, catalog.discountItems[0] ? discountFromItem(catalog.discountItems[0]) : { key: crypto.randomUUID(), sourceItemId: "__custom__", name: "自定义折扣", amount: "0" }]); }}>＋ 添加</button></div>
+            <div className="section-heading"><h3 id="record-discounts-title" tabIndex={-1}>折扣</h3><button type="button" onClick={() => { setDraftDirty(true); setDiscounts((current) => [...current, catalog.discountItems[0] ? discountFromItem(catalog.discountItems[0]) : { key: crypto.randomUUID(), sourceItemId: "__custom__", name: "自定义折扣", amount: "0" }]); }}>＋ 添加</button></div>
             {automaticDiscountSuppressed ? (
               <div className="automatic-discount-line automatic-discount-line--removed">
                 <div><strong>本单已手动移除自动折扣</strong><small>只影响这笔记工，不会关闭店铺的周一至周四自动折扣规则</small></div>
@@ -995,8 +1013,8 @@ export function RecordEditor({
           </section>
         </div>
 
-        <section className="editor-section">
-          <h3>客人付款</h3>
+        <section className="editor-section" aria-labelledby="record-payment-title">
+          <h3 id="record-payment-title" tabIndex={-1}>客人付款</h3>
           <p className="field-help">实收金额全为 0 或空白时保存为待结账；录入付款后，大费至少填一项，小费空白按 0 处理。</p>
           <div className="payment-method-rows">
             <div className="payment-method-row" role="group" aria-label="刷卡">

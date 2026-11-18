@@ -152,10 +152,9 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .employee-toggle .on-duty { color: var(--success); font-size: 1.125rem; font-weight: 700; white-space: nowrap; }
 .employee-toggle .off-duty { color: var(--muted); }
 .record-card { border-radius: var(--radius-control); transition: border-color var(--motion-fast), background-color var(--motion-fast); }
-.record-card:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface-soft); box-shadow: none; transform: none; }
-.record-card:active:not(:disabled) { transform: none; }
-.record-card--highlighted, .record-card--highlighted:hover:not(:disabled), .record-card--highlighted:active:not(:disabled), .record-card--highlighted:disabled, .record-card--highlighted:disabled:hover { border-color: var(--highlight-line); background: var(--highlight); box-shadow: none; transform: none; transition: none; }
-.record-card--placeholder, .record-card--placeholder:hover:not(:disabled), .record-card--placeholder:active:not(:disabled), .record-card--placeholder:disabled { border-color: var(--line); background: var(--surface); }
+.record-card:hover:not(:where([data-record-unavailable])) { border-color: var(--line-strong); background: var(--surface-soft); box-shadow: none; transform: none; }
+.record-card--highlighted, .record-card--highlighted:hover { border-color: var(--highlight-line); background: var(--highlight); box-shadow: none; transform: none; transition: none; }
+.record-card--placeholder, .record-card--placeholder:hover { border-color: var(--line); background: var(--surface); }
 .add-record { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; border: 1px dashed var(--line-strong); border-radius: var(--radius-control); font-weight: 500; transition: background-color var(--motion-fast), border-color var(--motion-fast); }
 .add-record > span { display: grid; place-items: center; width: 32px; height: 32px; }
 .add-record > span > .ui-icon { width: 18px; height: 18px; }

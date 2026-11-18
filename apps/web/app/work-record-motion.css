@@ -29,11 +29,11 @@
 @media (any-hover: hover) and (any-pointer: fine) and (prefers-reduced-motion: no-preference) {
   .board[data-work-record-motion] .record-track { position: relative; }
 
-  .board[data-work-record-motion] .record-card:not(:disabled) {
+  .board[data-work-record-motion] .record-card:not([data-record-unavailable]) {
     transition: border-color var(--motion-fast), background-color var(--motion-fast), transform 180ms var(--ease-out);
   }
 
-  .board[data-work-record-motion] .record-card:hover:not(:disabled) {
+  .board[data-work-record-motion] .record-card:hover:not([data-record-unavailable]) {
     z-index: 1;
     transform: var(--record-card-hover, none);
   }
@@ -57,8 +57,8 @@
     margin-left: var(--record-stack-gap, var(--record-stack-inset));
   }
 
-  .record-track[data-record-stack] > .record-card:not(.record-card--right-group):is(:hover, .record-track:not(:has(> .record-card:hover)) > :is(:focus-visible, :has(> .record-placeholder-delete:focus-visible))) + .record-card:not(.record-card--right-group),
-  .record-track[data-record-stack] > .record-card--right-group + .record-card--right-group:is(:hover, .record-track:not(:has(> .record-card:hover)) > :focus-visible) {
+  .record-track[data-record-stack] > .record-card:not(.record-card--right-group):is(:hover, .record-track:not(:has(> .record-card:hover)) > :has(:focus-visible)) + .record-card:not(.record-card--right-group),
+  .record-track[data-record-stack] > .record-card--right-group + .record-card--right-group:is(:hover, .record-track:not(:has(> .record-card:hover)) > :has(:focus-visible)) {
     --record-stack-gap: 0px;
   }
 
@@ -82,7 +82,7 @@
         margin-left 360ms var(--record-stack-spring), scale 360ms var(--record-stack-spring);
     }
 
-    .record-track[data-record-stack] > .record-card:is(:hover, .record-track:not(:has(> .record-card:hover)) > :is(:focus-visible, :has(> .record-placeholder-delete:focus-visible))) {
+    .record-track[data-record-stack] > .record-card:is(:hover, .record-track:not(:has(> .record-card:hover)) > :has(:focus-visible)) {
       scale: 1.018 .988;
     }
   }

@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.62.14`
+> 适用版本：`1.63.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -513,3 +513,7 @@ AI 金额文本在两种语言下统一使用 `$`，兼容并移除模型输出�
 `customerType` 是记工创建和 PATCH 接受的可选可空字段，也适用于详细新建及原子保存的 `create`、`details` 对象。取值为 `NEW`、`RETURNING` 或 `null`；更新省略时保留原值，显式 `null` 清空，响应返回已保存值。占位创建禁止该字段，包括显式空值；数据库也要求占位分类为空。沿用权限、日结锁、版本和幂等规则。
 
 看板响应新增 `statistics.customerTypeCounts`，包含整数 `newCount`、`returningCount`、`unmarkedCount`。按所选店铺、营业日及既有授权记录范围统计，每条实际记工计一次，包含待结账和已确认服务，不受高亮、不算排工或员工行隐藏影响；排除已删除记录和占位。历史记录及校验通过的旧备份缺少字段时补为空值，完整和匿名备份均保留分类。
+
+### 微信记工确认与排工
+
+已绑定的 `work-context` 继续使用协议 2，在 `capabilities` 中声明 `BOARD` 与 `CONFIRMATION`。`BOARD` 接受 `AVAILABILITY`、`ROSTER` 或 `END_TIME`，数据来自当前看板。`work-events` 的 `followUp` 在当前回复之外提供原消息的编号、时间和正文。有效的敏感操作返回 `CONFIRMATION_REQUIRED`。同一群的原发送人可用新事件发送预览里的 `确认 <code>` 或 `取消 <code>`。确认码 10 分钟失效，提交前 API 会重新检查记录和权限。

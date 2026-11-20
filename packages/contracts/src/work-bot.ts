@@ -70,6 +70,12 @@ const singleWorkBotIntentSchema = z.discriminatedUnion("kind", [
     evidence: z.string().trim().min(1).max(1000),
   }).strict(),
   z.object({ kind: z.literal("HELP") }),
+  z.object({
+    kind: z.literal("BOARD"),
+    view: z.enum(["AVAILABILITY", "ROSTER", "END_TIME"]),
+    memberName: z.string().trim().min(1).max(80).optional(),
+    memberMention: z.string().trim().min(1).max(80).optional(),
+  }).strict(),
 ]);
 
 // Batch children must name distinct employees; nested batches and record-ID fanout are forbidden.
@@ -94,6 +100,11 @@ export const workBotEventSchema = z.object({
   occurredAt: instantSchema,
   rawText: z.string().trim().min(1).max(1000),
   parsedIntent: workBotParsedIntentSchema.optional(),
+  followUp: z.object({
+    messageId: externalIdSchema,
+    occurredAt: instantSchema,
+    rawText: z.string().trim().min(1).max(1000),
+  }).strict().optional(),
 });
 
 export const workBotContextRequestSchema = z.object({

@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.62.14`
+> Applies to version: `1.63.0`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -565,3 +565,7 @@ Share creation accepts `{ membershipId, dateFrom, dateTo, paymentScope, amountTy
 `customerType` is an optional nullable field accepted by work-record creation and PATCH, including the `create` and `details` objects used by detailed creation and atomic saves. Values are `NEW`, `RETURNING` or `null`. Omission during updates preserves the saved value; explicit `null` clears it. Responses include the saved value. Placeholder creation rejects this field even when null; the database also requires placeholder classification to be null. Existing permissions, closing locks, versions and idempotency apply.
 
 The board response adds `statistics.customerTypeCounts` with integer `newCount`, `returningCount` and `unmarkedCount`. Counts use the selected store/business date and the existing authorized record scope, include pending and confirmed services regardless of highlight, dispatch exclusion or employee-row visibility, and exclude deleted records and placeholders. Each record counts once. Historical rows and verified older backups missing the field default to null; full and anonymized backups preserve classifications.
+
+### WeChat work confirmation and dispatch
+
+The bound `work-context` response advertises `BOARD` and `CONFIRMATION` in `capabilities` while keeping protocol 2. `BOARD` accepts `AVAILABILITY`, `ROSTER` or `END_TIME` and uses the current board. A `work-events` request with `followUp` carries the original message ID, time and text alongside the current reply. The API returns `CONFIRMATION_REQUIRED` for a valid sensitive action. Send the printed `确认 <code>` or `取消 <code>` as a new event from the same sender and group. The code expires after 10 minutes, and the API checks the record and authorization again before committing.

@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](readme/README_zh_Hans.md)**
 
-Current plugin: **1.4.1**; complete features require API **1.7.0 or later**, protocol version 2. Version source: `manifest.yaml`. Reason: plugin releases are independent of the application, and protocol 2 and batch intents need compatible server support.
+Plug-in **1.5.0** works with protocol 2. Live dispatch and chat confirmation require Massage Note API **1.63.0** or later. The manifest records the independent plug-in version.
 
 When mentioned in a group, the plugin loads the live store catalog and instructions, asks the model to interpret the message, then submits a scoped intent to the API. It supports binding, starting/finishing work, discounts/add-ons/highlights, historical queries, record edits, soft deletion/restoration, and atomic batches of 2–10 employees. Ambiguities are clarified within the plugin.
 
@@ -22,6 +22,12 @@ When mentioned in a group, the plugin loads the live store catalog and instructi
 - Upgrade the required API/migrations, build and install the plugin, then verify `mounted` and `initialized`. Exclude tokens from packages and do not release copied runtime directories. Reason: local source does not prove the running version; packages must be traceable and credential-free.
 
 <a id="使用举例"></a>
+
+## Dispatch and confirmation
+
+- Ask `现在谁有空`, `今天谁排工`, or `Lily 预计几点下工` for live board data.
+- If checkout lacks a payment method, answer `现金` or `刷卡`. Review the preview and reply with its `确认 <code>` or `取消 <code>` within 10 minutes. History, paid-record changes and restored or deleted records also require a preview.
+- During the protocol 2 trial against an older API, routine work continues and the plug-in directs sensitive requests to the web app.
 
 ## Usage examples
 

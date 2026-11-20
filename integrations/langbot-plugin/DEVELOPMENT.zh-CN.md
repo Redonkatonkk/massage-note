@@ -2,7 +2,7 @@
 
 **[English](DEVELOPMENT.md)** | **简体中文**
 
-版本由 [manifest.yaml](manifest.yaml) 的 `metadata.version` 定义，当前为 **1.4.1**，与应用版本独立。完整能力要求 API 至少 1.7.0、协议版本 2。保留原因：插件安装包版本与应用独立，协议二及多人意图需要对应的后端支持。
+版本由 [manifest.yaml](manifest.yaml) 的 `metadata.version` 定义，当前为 **1.5.0**，与应用版本独立。 完整的看板与群内确认需要 Massage Note API 1.63.0 或更高版本。完整功能上线前，可连接旧版协议 2 API 试用日常记工。
 
 ## 目录职责
 

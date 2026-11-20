@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](LANGBOT_WORK_BOT.zh-CN.md)**
 
-The current plug-in is **1.4.1**, and complete capabilities require API **at least 1.7.0** and protocol 2; the current version of the application is subject to the root directory `VERSION`. Reason: The plug-in installation package version is independent of the application. Protocol 2 and multi-player intent require corresponding back-end support.
+Plug-in **1.5.0** uses protocol 2. Live dispatch and chat confirmation require Massage Note API **1.63.0** or later. The plug-in and the application ship separately.
 
 After adding the @bot in the group, each message is combined with the store’s real-time catalog and natural language description and handed over to the model for understanding. Final writes, permissions and queries are performed by the Massage Note backend, with the database being the only source of amounts.
 
@@ -36,6 +36,12 @@ Editing by number also supports employees, projects, duration, notes, automatic 
 
 The query covers up to 366 business day periods. Ordinary employees can only query their personal financial history, while managers and store owners can query the entire store. The total in paginated replies always covers the complete filtering range; long pages are split into multiple WeChat replies. When turning pages, you need to repeat the query range and indicate the page number. Reason: Limit query load, protect employee privacy, and keep pagination totals consistent with actual filtering.
 
+## Live dispatch and sensitive changes
+
+Mention the bot in the configured group. Ask who is free, who is on today's roster, or when a named employee is expected to finish. The reply uses visible employees on the current business-day board and their current active records. An unknown end time stays unknown. Current store members with a WeChat binding can query the board. Financial queries still require verified identity and the existing role checks.
+
+Explicit routine writes execute immediately. Historical or paid-record changes and operations completed through a follow-up return a preview. The originating sender can use its short confirmation or cancellation code in the same group for up to 10 minutes. A changed record, catalog or authorization requires a new preview. The plug-in checks payment against the store's explicit checkout convention and asks for cash or card when the method is missing. The confirmation code for changing a record is separate from a reply that teaches the bot a phrase.
+
 <a id="核实身份并开启数据访问"></a>
 
 ## Verify identity and enable data access
@@ -53,7 +59,7 @@ Before verification, only ordinary employee-level work records of the day are al
 ## Components and Interfaces
 
 - Plug-in: `integrations/langbot-plugin`, event component `components/events/work_bot.py`.
-- Contract: `packages/contracts/src/work-bot.ts`. Backend intents are BIND_STORE, BIND_MEMBER, START, FINISH, ADJUST, QUERY, MANAGE, HELP, BATCH; CLARIFY is only handled within the plugin.
+- Contract: `packages/contracts/src/work-bot.ts`. Backend intents are BIND_STORE, BIND_MEMBER, START, FINISH, ADJUST, QUERY, BOARD, MANAGE, HELP and BATCH. The plug-in handles CLARIFY locally.
 - Backend: `apps/api/src/work-bot`. Complex writing uses the internal binding identity adapter and reuses `WorkRecordsService`; WeChat sources and membership identities are also audited.
 - Management UI: `apps/web/app/manage/work-bot-panel.tsx`.
 - `POST /api/v1/integrations/langbot/work-context`: Returns `protocolVersion: 2`, store business day/timezone, description, live directory, employees and intent JSON Schema. The model does not hold database connection information.

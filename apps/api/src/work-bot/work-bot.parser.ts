@@ -29,8 +29,8 @@ function amountTokens(text: string): string[] {
 
 function paymentMethods(text: string): { cash: boolean; card: boolean; gift: boolean } {
   return {
-    cash: /现金|\bcash\b/iu.test(text),
-    card: /信用卡|刷卡|银行卡|卡|\b(?:card|credit|debit)\b/iu.test(text),
+    cash: /现金|付现|\bcash\b/iu.test(text),
+    card: /信用卡|刷卡|刷了|银行卡|卡|\b(?:card|credit|debit)\b/iu.test(text),
     gift: /礼物卡|礼卡|\bgift\s*card/iu.test(text),
   };
 }
@@ -114,8 +114,12 @@ export function parseWorkBotMessage(rawText: string): WorkBotParsedIntent {
 }
 
 function numericDurationMatches(mention: string, duration: number): boolean {
-  const numeric = /^(\d+(?:\.\d+)?)\s*(分钟|分|mins?|minutes?|小时|hours?|hrs?|h)?$/iu.exec(mention.normalize("NFKC").trim());
-  if (!numeric) return true; // Natural-language evidence is checked against the raw message below.
+  const text = mention.normalize("NFKC").trim();
+  if (text === "半小时") return duration === 30;
+  const chinese = /^([一二两三四五六七八九十])个?(半)?小时$/u.exec(text);
+  if (chinese) return "零一二三四五六七八九十".indexOf(chinese[1]!.replace("两", "二")) * 60 + (chinese[2] ? 30 : 0) === duration;
+  const numeric = /^(\d+(?:\.\d+)?)\s*(分钟|分|mins?|minutes?|小时|hours?|hrs?|h)?$/iu.exec(text);
+  if (!numeric) return true; // Less common phrases still need literal evidence in the message.
   const hours = /^(小时|hours?|hrs?|h)$/iu.test(numeric[2] ?? "");
   return Number(numeric[1]) * (hours ? 60 : 1) === duration;
 }
@@ -185,13 +189,17 @@ export function parsedIntentAppearsInRawText(intent: WorkBotParsedIntent, rawTex
         && [...(intent.discounts ?? []), ...(intent.addons ?? [])].every(item => appears(item.mention));
     case "FINISH": {
       const text = rawText.normalize("NFKC").replace(/[@＠][^\s，,。！？!?：:]+/gu, " ");
-      const amounts = amountTokens(intent.recordId ? text.replace(intent.recordId, "") : text);
+      const amountText = intent.recordId ? text.replace(intent.recordId, "") : text;
+      const amounts = amountTokens(amountText);
+      const labelledService = /(?:大费|服务费)\s*[:：]?\s*\$?(\d+(?:\.\d{1,2})?)(?![\d.])/u.exec(amountText);
+      const labelledTip = /小费\s*[:：]?\s*\$?(\d+(?:\.\d{1,2})?)(?![\d.])/u.exec(amountText);
+      const [service, tip] = labelledService && labelledTip ? [labelledService[1], labelledTip[1]] : amounts;
       const methods = paymentMethods(text);
       const methodPresent = intent.paymentMention
         ? appears(intent.paymentMention)
         : intent.paymentMethod === "CASH"
           ? methods.cash : methods.card;
-      return adjustmentEvidence(intent) && amounts.length === 2 && amounts[0] === intent.serviceAmount && amounts[1] === intent.tipAmount
+      return adjustmentEvidence(intent) && amounts.length === 2 && service === intent.serviceAmount && tip === intent.tipAmount
         && methodPresent && !methods.gift && !(methods.cash && methods.card)
         && !(intent.paymentMethod === "CASH" ? methods.card : methods.cash)
         && (!intent.memberName || appears(intent.memberMention ?? intent.memberName))
@@ -201,6 +209,11 @@ export function parsedIntentAppearsInRawText(intent: WorkBotParsedIntent, rawTex
       return /查|列表|多少|合计|汇总|明细|记录|list|query|show|total/iu.test(rawText)
         && (!intent.memberName || appears(intent.memberMention ?? intent.memberName))
         && (!intent.recordId || rawText.includes(intent.recordId));
+    case "BOARD":
+      return (intent.view === "AVAILABILITY" ? /空|有时间|接客|available|free|idle/iu
+        : intent.view === "ROSTER" ? /排工|排班|当班|上班|roster|schedule|on duty/iu
+          : /下工|结束|做完|出房|还要多久|finish|end/iu).test(rawText)
+        && (!intent.memberName || (intent.view === "END_TIME" && appears(intent.memberMention ?? intent.memberName)));
     case "MANAGE":
       return managementEvidence(intent, rawText);
     case "HELP":

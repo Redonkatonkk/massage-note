@@ -11,7 +11,7 @@ import { formatWorkBotMoney, formatWorkBotTime, parseWorkBotDollars } from "./wo
 import { WorkRecordsService } from "../work-records/work-records.service.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { updateWorkRecordSchema, confirmPaymentSchema } from "@massage-note/contracts";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   BadRequestException,
   ConflictException,
@@ -47,6 +47,7 @@ import {
   parseWorkBotMessage,
   parsedIntentAppearsInRawText,
 } from "./work-bot.parser.js";
+import { previewOutcome, workBotConfirmation, workBotFingerprint, workBotPreviewSchema, workBotReviewMs, type WorkBotActionReview } from "./work-bot-review.js";
 
 interface WorkBotReply {
   outcome: string;
@@ -69,7 +70,13 @@ interface StoreSettings {
 
 // Internal-only marker: never accepted from the HTTP payload.
 const batchChild = Symbol("workBotBatchChild");
-type InternalWorkBotInput = WorkBotEventInput & { [batchChild]?: boolean };
+type InternalWorkBotInput = WorkBotEventInput & {
+  [batchChild]?: boolean;
+  review?: (action: WorkBotActionReview) => boolean;
+  receipt?: WorkBotEventInput;
+};
+type WorkAction = Extract<WorkBotParsedIntent, { kind: "START" | "FINISH" | "ADJUST" | "MANAGE" }>;
+type WorkChange = WorkAction | Extract<WorkBotParsedIntent, { kind: "BATCH" }>;
 
 const HELP_REPLY = "支持记工和查账：最近 15 天折后大费列表；查询结果含记录编号，可按编号修改、付款、删除和恢复；高亮/取消高亮；折扣和加项添加/移除。示例：绑定店铺 123456、绑定 张三、大力 90、Jessie 脚 30、Lily 下了，收 75/15卡，评论；Lily 加热石；Lily 加评论折扣。信息不完整时不会写账。";
 const DELEGATED_SENDER_PREFIX = "__massage_note_delegated__:";
@@ -123,6 +130,7 @@ export class WorkBotService {
     return {
       status: "BOUND" as const,
       protocolVersion: 2,
+      capabilities: ["BOARD", "CONFIRMATION"],
       storeId: group.storeId,
       today: businessDateFor({ startAt: deviceNow(), timezone: group.store.timezone, cutoffLocal: group.store.businessCutoffLocal }),
       timezone: group.store.timezone,
@@ -166,15 +174,18 @@ export class WorkBotService {
           messageZh: "同一个微信消息编号不能用于不同内容",
         });
       }
-      if (existing.intent === "QUERY") {
+      if (existing.intent === "QUERY" || existing.intent === "BOARD") {
         const query = workBotParsedIntentSchema.parse(existing.parsedJson);
         if (query.kind === "QUERY") return this.prisma.$transaction(transaction => this.queryWork(transaction, input, query, false));
+        if (query.kind === "BOARD") return this.prisma.$transaction(transaction => this.board(transaction, input, query, false));
       }
       return this.operationReply(existing);
     }
 
-    let intent = input.parsedIntent ?? parseWorkBotMessage(input.rawText);
-    const evidenceRejected = !parsedIntentAppearsInRawText(intent, input.rawText);
+    const evidence = this.followUpEvidence(input);
+    const confirmation = workBotConfirmation(input.rawText);
+    let intent = input.parsedIntent ?? parseWorkBotMessage(evidence);
+    const evidenceRejected = !parsedIntentAppearsInRawText(intent, evidence);
     if (evidenceRejected) intent = { kind: "HELP" };
 
     try {
@@ -191,39 +202,23 @@ export class WorkBotService {
           include: { workRecord: { select: { businessDate: true } } },
         });
         if (duplicate) return this.checkedOperationReply(duplicate, input);
+        if (confirmation) return this.resolvePreview(transaction, secret, input, confirmation, requestId);
 
         switch (intent.kind) {
-          case "BATCH": {
-            const results: WorkBotReply[] = [];
-            for (const [index, action] of intent.actions.entries()) {
-              const childInput: InternalWorkBotInput = { ...input, messageId: `batch:${createHash("sha256").update(JSON.stringify([input.messageId, index])).digest("hex")}`, [batchChild]: true };
-              const result = action.kind === "START"
-                ? await this.startWork(transaction, secret, childInput, action, requestId)
-                : await this.finishWork(transaction, childInput, action, requestId);
-              if (!["WORK_STARTED", "WORK_FINISHED", "WORK_ADJUSTED"].includes(result.outcome)) {
-                throw new BadRequestException({ code: "WORK_BOT_BATCH_REJECTED", messageZh: `${action.memberName}：${result.reply} 本条多人操作全部未执行。` });
-              }
-              results.push(result);
-            }
-            const group = await this.findGroupBinding(transaction, input);
-            return this.persistReply(transaction, input, intent, {
-              outcome: "BATCH_COMPLETED",
-              reply: results.map((result, index) => `${intent.actions[index]!.memberName}：${intent.actions[index]!.kind === "START" ? result.reply.split("\n")[0] : result.reply}${result.recordId ? `\n编号 ${result.recordId}` : ""}`).join("\n\n"),
-            }, group);
-          }
+          case "BATCH":
+          case "START":
+          case "ADJUST":
+          case "FINISH":
+          case "MANAGE":
+            return this.reviewChange(transaction, secret, input, evidence, intent, requestId);
           case "BIND_STORE":
             return this.bindStore(transaction, input, intent, requestId);
           case "BIND_MEMBER":
             return this.bindMember(transaction, input, intent, requestId);
-          case "START":
-            return this.startWork(transaction, secret, input, intent, requestId);
-          case "ADJUST":
-          case "FINISH":
-            return this.finishWork(transaction, input, intent, requestId);
           case "QUERY":
             return this.queryWork(transaction, input, intent);
-          case "MANAGE":
-            return this.manageWork(transaction, input, intent, requestId);
+          case "BOARD":
+            return this.board(transaction, input, intent);
           case "HELP":
             return this.persistReply(transaction, input, intent, {
               outcome: evidenceRejected ? "INTENT_EVIDENCE_REJECTED" : "HELP",
@@ -239,6 +234,11 @@ export class WorkBotService {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         const duplicate = await this.findOperation(input);
         if (duplicate) return this.checkedOperationReply(duplicate, input);
+        if (input.followUp) {
+          const source = { ...input, ...input.followUp };
+          const duplicateSource = await this.findOperation(source);
+          if (duplicateSource) return this.checkedOperationReply(duplicateSource, source);
+        }
       }
       throw error;
     }
@@ -254,6 +254,147 @@ export class WorkBotService {
       await transaction.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: manager.id, source: "api", action: "work_bot.member_verified", entityType: "work_bot_member_binding", entityId: bindingId, beforeJson: { verified: !!binding.verifiedAt }, afterJson: { verified }, requestId } });
       return { verified };
     });
+  }
+
+  private followUpEvidence(input: WorkBotEventInput): string {
+    if (!input.followUp) return input.rawText;
+    const gap = Date.parse(input.occurredAt) - Date.parse(input.followUp.occurredAt);
+    const evidence = `${input.followUp.rawText} ${input.rawText}`;
+    if (input.followUp.messageId === input.messageId || gap < 0 || gap > workBotReviewMs || evidence.length > 1000
+      || !["START", "FINISH", "ADJUST"].includes(input.parsedIntent?.kind ?? "")) {
+      throw new BadRequestException("补充信息已过期或不完整，请重新发送指令");
+    }
+    return evidence;
+  }
+
+  private async reviewChange(transaction: Prisma.TransactionClient, secret: string, input: WorkBotEventInput,
+    evidenceText: string, intent: WorkChange, requestId: string) {
+    const source = input.followUp ? { ...input, ...input.followUp } : input;
+    if (input.followUp) {
+      const prior = await transaction.workBotOperation.findUnique({
+        where: { platform_botId_groupId_messageId: {
+          platform: source.platform, botId: source.botId, groupId: source.groupId, messageId: source.messageId,
+        } },
+        include: { workRecord: { select: { businessDate: true } } },
+      });
+      if (prior) return this.checkedOperationReply(prior, source);
+    }
+    const reviews: WorkBotActionReview[] = [];
+    const actionInput: InternalWorkBotInput = { ...input, rawText: evidenceText, receipt: input };
+    const check = await this.dispatchChange(transaction, secret, {
+      ...actionInput, [batchChild]: true, review: action => { reviews.push(action); return true; },
+    }, intent, requestId);
+    if (reviews.length !== (intent.kind === "BATCH" ? intent.actions.length : 1)) {
+      return this.persistReply(transaction, input, intent, check, await this.findGroupBinding(transaction, input));
+    }
+    const fingerprints = reviews.map(action => action.fingerprint);
+    if (!input.followUp && !reviews.some(action => action.sensitive)) {
+      return this.commitChange(transaction, secret, actionInput, intent, fingerprints, requestId);
+    }
+    const group = await this.findGroupBinding(transaction, input);
+    if (!group) throw new ConflictException("群绑定已变化，请重新发送指令");
+    const code = randomBytes(4).toString("hex").toUpperCase();
+    const expiresAt = Date.now() + workBotReviewMs;
+    const result = {
+      outcome: previewOutcome,
+      reply: `请核对，尚未记账：\n${reviews.map(action => action.summary).join("\n")}\n10 分钟内回复「确认 ${code}」执行，或回复「取消 ${code}」。`,
+    };
+    await this.persistReply(transaction, source, intent, result, group, {
+      code, expiresAt, intent, evidenceText, occurredAt: input.occurredAt, scope: group.id, fingerprints,
+    });
+    return input.followUp ? this.persistReply(transaction, input, intent, result, group) : result;
+  }
+
+  private async resolvePreview(transaction: Prisma.TransactionClient, secret: string, input: WorkBotEventInput,
+    command: NonNullable<ReturnType<typeof workBotConfirmation>>, requestId: string) {
+    const previous = await transaction.workBotOperation.findFirst({
+      where: { platform: input.platform, botId: input.botId, groupId: input.groupId, senderId: input.senderId,
+        outcome: previewOutcome, parsedJson: { path: ["code"], equals: command.code } },
+      orderBy: { createdAt: "desc" },
+    });
+    const parsed = workBotPreviewSchema.safeParse(previous?.parsedJson);
+    if (!previous || !parsed.success || parsed.data.expiresAt <= Date.now()) {
+      return { outcome: "CONFIRMATION_UNAVAILABLE", reply: "找不到属于你的有效待确认操作，请核对确认码或重新发送指令。" };
+    }
+    const preview = parsed.data;
+    const group = await this.findGroupBinding(transaction, input);
+    if (!group || group.id !== preview.scope) throw new ConflictException("群绑定已变化，请重新发送指令");
+    const claim = await transaction.workBotOperation.updateMany({
+      where: { id: previous.id, outcome: previewOutcome },
+      data: { outcome: command.confirm ? "PREVIEW_CONFIRMED" : "PREVIEW_CANCELLED" },
+    });
+    if (claim.count !== 1) throw new ConflictException("该操作已处理，请核对群内回复");
+    const intent = preview.intent;
+    if (!command.confirm) {
+      const reply = "已取消，记工未修改。";
+      await transaction.workBotOperation.update({ where: { id: previous.id }, data: { reply } });
+      return this.persistReply(transaction, input, intent, { outcome: "PREVIEW_CANCELLED", reply }, group);
+    }
+    if (intent.kind !== "START" && intent.kind !== "FINISH" && intent.kind !== "ADJUST" && intent.kind !== "MANAGE" && intent.kind !== "BATCH") {
+      throw new ConflictException("待确认操作无效，请重新发送指令");
+    }
+    const result = await this.commitChange(transaction, secret, {
+      ...input, rawText: preview.evidenceText, occurredAt: preview.occurredAt, receipt: input,
+    }, intent, preview.fingerprints, requestId);
+    await transaction.workBotOperation.update({ where: { id: previous.id }, data: { reply: result.reply } });
+    return result;
+  }
+
+  private async commitChange(transaction: Prisma.TransactionClient, secret: string, input: InternalWorkBotInput,
+    intent: WorkChange, fingerprints: string[], requestId: string) {
+    let position = 0;
+    const stale = () => new ConflictException({ code: "WORK_BOT_PREVIEW_STALE", messageZh: "记录、目录或权限已变化，请重新发送指令。" });
+    const result = await this.dispatchChange(transaction, secret, {
+      ...input,
+      review: action => {
+        if (action.fingerprint !== fingerprints[position++]) throw stale();
+        return false;
+      },
+    }, intent, requestId);
+    if (position !== fingerprints.length) throw stale();
+    return result;
+  }
+
+  private async dispatchChange(transaction: Prisma.TransactionClient, secret: string, input: InternalWorkBotInput,
+    intent: WorkChange, requestId: string): Promise<WorkBotReply> {
+    const dispatch = (event: InternalWorkBotInput, action: WorkAction) => {
+      if (action.kind === "START") return this.startWork(transaction, secret, event, action, requestId);
+      if (action.kind === "MANAGE") return this.manageWork(transaction, event, action, requestId);
+      return this.finishWork(transaction, event, action, requestId);
+    };
+    if (intent.kind !== "BATCH") return dispatch(input, intent);
+    const results: WorkBotReply[] = [];
+    for (const [index, action] of intent.actions.entries()) {
+      const child: InternalWorkBotInput = {
+        ...input, [batchChild]: true,
+        messageId: `batch:${workBotFingerprint([input.messageId, index])}`,
+      };
+      const result = await dispatch(child, action);
+      if (!["REVIEW", "WORK_STARTED", "WORK_FINISHED", "WORK_ADJUSTED"].includes(result.outcome)) {
+        throw new BadRequestException({ code: "WORK_BOT_BATCH_REJECTED", messageZh: `${action.memberName}：${result.reply} 本条多人操作全部未执行。` });
+      }
+      results.push(result);
+    }
+    return this.persistReply(transaction, input, intent, {
+      outcome: "BATCH_COMPLETED",
+      reply: results.map((result, index) => `${intent.actions[index]!.memberName}：${intent.actions[index]!.kind === "START" ? result.reply.split("\n")[0] : result.reply}${result.recordId ? `\n编号 ${result.recordId}` : ""}`).join("\n\n"),
+    }, await this.findGroupBinding(transaction, input));
+  }
+
+  private reviewAction(input: InternalWorkBotInput, summary: string, sensitive: boolean, scope: unknown[]): WorkBotReply | undefined {
+    if (input.review?.({ summary, sensitive, fingerprint: workBotFingerprint([summary, sensitive, ...scope]) })) {
+      return { outcome: "REVIEW", reply: summary };
+    }
+  }
+
+  private async board(transaction: Prisma.TransactionClient, input: WorkBotEventInput, intent: Extract<WorkBotParsedIntent, { kind: "BOARD" }>, persist = true) {
+    const context = await this.requireBoundMember(transaction, { ...input, [batchChild]: !persist }, intent);
+    if ("reply" in context) return context.reply;
+    const store = await this.requireStoreSettings(transaction, context.group.storeId);
+    const now = deviceNow();
+    const members = await this.boardMembers(transaction, store, now);
+    const result = { outcome: "WORK_BOARD", reply: workBotAvailability(members, now, store.timezone, intent.view, intent.memberName) };
+    return persist ? this.persistReply(transaction, input, intent, result, context.group) : result;
   }
 
   private async queryWork(transaction: Prisma.TransactionClient, input: WorkBotEventInput, intent: Extract<WorkBotParsedIntent, { kind: "QUERY" }>, persist = true) {
@@ -300,20 +441,42 @@ export class WorkBotService {
     return persist ? this.persistReply(transaction, input, intent, result, group) : result;
   }
 
-  private async manageWork(transaction: Prisma.TransactionClient, input: WorkBotEventInput, intent: Extract<WorkBotParsedIntent, { kind: "MANAGE" }>, requestId: string) {
+  private async manageWork(transaction: Prisma.TransactionClient, input: InternalWorkBotInput, intent: Extract<WorkBotParsedIntent, { kind: "MANAGE" }>, requestId: string) {
     const context = await this.requireBoundMember(transaction, input, intent);
     if ("reply" in context) return context.reply;
     const { group, binding } = context;
     const service = new WorkRecordsService(this.prisma, new WorkBotAccess(this.prisma, binding.id), new IdempotencyService(this.prisma)).withWorkBotAudit();
     const actor = { id: binding.membershipId } as User;
     const key = `bot-${createHash("sha256").update(`${input.botId}:${input.groupId}:${input.messageId}`).digest("hex")}`;
+    const store = await this.requireStoreSettings(transaction, group.storeId);
+    const employeeId = intent.create?.employeeMembershipId ?? intent.details?.employeeMembershipId;
+    const serviceId = intent.create?.serviceItemId ?? intent.details?.serviceItemId;
+    const [employee, catalogItem] = await Promise.all([
+      employeeId ? transaction.storeMembership.findFirst({
+        where: { id: employeeId, storeId: store.id, status: "ACTIVE", deletedAt: null, isServiceProvider: true },
+        select: { displayName: true },
+      }) : null,
+      serviceId ? transaction.serviceItem.findFirst({
+        where: { id: serviceId, storeId: store.id, isEnabled: true, deletedAt: null },
+        select: { shortName: true, durationMinutes: true, priceOptions: { orderBy: { durationMinutes: "asc" }, select: { durationMinutes: true, priceCents: true } } },
+      }) : null,
+    ]);
+    if ((employeeId && !employee) || (serviceId && !catalogItem)) throw new BadRequestException("没有找到本店的可用员工或项目");
+    const changes = this.managementChanges(intent, employee?.displayName, catalogItem?.shortName);
     if (intent.operation === "CREATE") {
       if (!intent.create || intent.recordId || intent.details || intent.payment) throw new BadRequestException("新增记工请提供完整员工、项目和开始时间");
+      const businessDate = businessDateFor({ startAt: new Date(intent.create.startAt), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
+      const scope = await this.reviewScope(transaction, store, binding, businessDate);
+      const review = this.reviewAction(input, `补录记工｜${businessDate}｜${changes}`, true, [scope, intent, employee, catalogItem]);
+      if (review) return review;
       const created = await service.create(actor, group.storeId, intent.create, key, requestId, transaction);
       return this.persistReply(transaction, input, intent, { outcome: "WORK_CREATED", recordId: created.id, businessDate: created.businessDate.toISOString().slice(0, 10), reply: `✅ 已新增记工，编号 ${created.id}` }, group);
     }
     if (!intent.recordId || intent.create || (intent.operation === "PAYMENT" && intent.details)) throw new BadRequestException("请指定完整记录编号，并将修改字段放在 UPDATE 中");
-    const record = await transaction.workRecord.findFirst({ where: { id: intent.recordId, storeId: group.storeId, ...(intent.operation === "RESTORE" ? {} : { deletedAt: null }) } });
+    const record = await transaction.workRecord.findFirst({
+      where: { id: intent.recordId, storeId: group.storeId, deletedAt: intent.operation === "RESTORE" ? { not: null } : null },
+      include: { employee: { select: { displayName: true } }, serviceSnapshot: { select: { shortName: true } } },
+    });
     if (!record) throw new NotFoundException("没有找到本店的指定记工");
     if (record.status === "PLACEHOLDER" && !["DELETE", "RESTORE"].includes(intent.operation)) {
       throw new BadRequestException({ code: "PLACEHOLDER_READ_ONLY", messageZh: "占位只能删除或恢复，不能修改或付款" });
@@ -321,26 +484,69 @@ export class WorkBotService {
     let version = record.version;
     if (intent.operation === "UPDATE") {
       if (!intent.details || !Object.keys(intent.details).length) throw new BadRequestException("请说明要修改的记工字段");
+      parseRequest(updateWorkRecordSchema, { ...intent.details, version });
+    }
+    if (intent.operation === "DELETE" && (intent.details || intent.payment)) throw new BadRequestException("删除不能同时修改记工");
+    if (intent.payment) {
+      if (intent.operation !== "UPDATE" && intent.operation !== "PAYMENT") throw new BadRequestException("操作不支持付款");
+      parseRequest(confirmPaymentSchema, { ...intent.payment, version });
+    } else if (intent.operation === "PAYMENT") throw new BadRequestException("请提供付款明细");
+    const businessDate = record.businessDate.toISOString().slice(0, 10);
+    const scope = await this.reviewScope(transaction, store, binding, businessDate);
+    const operation = { UPDATE: "修改", DELETE: "删除", RESTORE: "恢复", PAYMENT: "调整收款" }[intent.operation];
+    const review = this.reviewAction(input, `${operation}记工｜${record.employee.displayName}｜${businessDate} ${record.serviceSnapshot?.shortName ?? ""}${changes ? `｜${changes}` : ""}（编号 ${record.id}）`,
+      true, [scope, record.id, version, intent, employee, catalogItem]);
+    if (review) return review;
+    if (intent.operation === "UPDATE") {
       const details = parseRequest(updateWorkRecordSchema, { ...intent.details, version });
       const updated = await service.update(actor, group.storeId, record.id, details, key, requestId, transaction);
       version = updated.version;
     } else if (intent.operation === "DELETE") {
-      if (intent.details || intent.payment) throw new BadRequestException("删除不能同时修改记工");
       await service.remove(actor, group.storeId, record.id, { version, reason: intent.reason }, key, requestId, transaction);
     } else if (intent.operation === "RESTORE") {
       if (intent.details || intent.payment) throw new BadRequestException("恢复不能同时修改记工");
       await service.restore(actor, group.storeId, record.id, { version }, key, requestId, transaction);
     }
     if (intent.payment) {
-      if (intent.operation !== "UPDATE" && intent.operation !== "PAYMENT") throw new BadRequestException("操作不支持付款");
       await service.confirmPayment(actor, group.storeId, record.id, parseRequest(confirmPaymentSchema, { ...intent.payment, version }), key, requestId, transaction);
-    } else if (intent.operation === "PAYMENT") throw new BadRequestException("请提供付款明细");
+    }
     await transaction.auditLog.create({ data: { storeId: group.storeId, actorUserId: null, actorMembershipId: binding.membershipId, source: "langbot", action: `work_bot.${intent.operation.toLowerCase()}`, entityType: "work_record", entityId: record.id, afterJson: { messageId: input.messageId, operation: intent.operation }, requestId } });
     const updated = await transaction.workRecord.findUniqueOrThrow({ where: { id: record.id } });
     if (updated.status === "PLACEHOLDER") {
       return this.persistReply(transaction, input, intent, { outcome: "WORK_MANAGED", recordId: record.id, businessDate: updated.businessDate.toISOString().slice(0, 10), reply: `✅ 占位${intent.operation === "DELETE" ? "已删除" : "已恢复"}：${record.id}` }, group);
     }
     return this.persistReply(transaction, input, intent, { outcome: "WORK_MANAGED", recordId: record.id, businessDate: updated.businessDate.toISOString().slice(0, 10), reply: `✅ 记工${intent.operation === "DELETE" ? "已删除" : intent.operation === "RESTORE" ? "已恢复" : "已更新"}：${record.id}\n折后大费 ${formatWorkBotMoney(updated.discountedFeePerformanceCents)}；实收 ${updated.actualServiceCollectedCents === null ? "未收款" : formatWorkBotMoney(updated.actualServiceCollectedCents)}；${updated.isHighlighted ? "已高亮" : "未高亮"}。` }, group);
+  }
+
+  private managementChanges(intent: Extract<WorkAction, { kind: "MANAGE" }>, employee?: string, service?: string): string {
+    const labels: Record<string, string> = {
+      employeeMembershipId: "员工", serviceItemId: "项目", startAt: "开始", endAt: "结束", businessDate: "营业日",
+      durationMinutes: "时长", serviceDurationMinutes: "项目时长", mainServiceAmountCents: "项目金额", mainServiceCommissionBps: "提成",
+      cashServiceCents: "现金大费", cardServiceCents: "刷卡大费", giftCardServiceCents: "礼卡大费",
+      cashTipCents: "现金小费", cardTipCents: "刷卡小费", giftCardTipCents: "礼卡小费", giftCardSerialNumber: "礼卡",
+      isPlaceholder: "占位", customerType: "客源", customService: "自定义项目", isHighlighted: "高亮", isDispatchExcluded: "排工时排除",
+      addons: "加项", discounts: "折扣", automaticDiscountSuppressed: "停用自动折扣", tipSettledManualFlag: "小费已结清",
+      largeFeeSettledManualFlag: "大费已结清", note: "备注", reason: "原因",
+    };
+    return Object.entries({ ...intent.create, ...intent.details, ...intent.payment, ...(intent.reason ? { reason: intent.reason } : {}) })
+      .map(([field, value]) => {
+        let shown = String(value);
+        if (field === "employeeMembershipId" && employee) shown = employee;
+        if (field === "serviceItemId" && service) shown = service;
+        if (typeof value === "number" && field.endsWith("Cents")) shown = formatWorkBotMoney(BigInt(value));
+        if (typeof value === "number" && field.endsWith("Bps")) shown = `${value / 100}%`;
+        if (typeof value === "boolean") shown = value ? "是" : "否";
+        if (value === null) shown = "清空";
+        if (Array.isArray(value)) shown = value.map(item => `${item.name} ${"amountCents" in item && item.amountCents != null ? formatWorkBotMoney(BigInt(item.amountCents)) : ""}`.trim()).join("、") || "清空";
+        if (field === "customService" && intent.create?.customService) {
+          const custom = intent.create.customService;
+          shown = `${custom.name} ${custom.durationMinutes} 分钟 ${formatWorkBotMoney(BigInt(custom.amountCents))}`;
+        } else if (field === "customService" && intent.details?.customService) {
+          const custom = intent.details.customService;
+          shown = `${custom.name} ${custom.durationMinutes} 分钟 ${formatWorkBotMoney(BigInt(custom.amountCents))}`;
+        }
+        return `${labels[field] ?? field} ${shown}`;
+      }).join("；");
   }
 
   async getSettings(actor: User, storeId: string) {
@@ -566,7 +772,7 @@ export class WorkBotService {
     return this.persistReply(transaction, input, intent, { outcome: "MEMBER_BOUND", reply: `✅ 绑定成功：这个微信现在代表 ${target.displayName}。` }, group);
   }
 
-  private async startWork(transaction: Prisma.TransactionClient, secret: string, input: WorkBotEventInput, intent: Extract<WorkBotParsedIntent, { kind: "START" }>, requestId: string) {
+  private async startWork(transaction: Prisma.TransactionClient, secret: string, input: InternalWorkBotInput, intent: Extract<WorkBotParsedIntent, { kind: "START" }>, requestId: string) {
     const context = await this.requireBoundMember(transaction, input, intent);
     if ("reply" in context) return context.reply;
     const { group, binding: actorBinding } = context;
@@ -633,9 +839,7 @@ export class WorkBotService {
     const startAt = workBotStartTime(input.rawText, input.occurredAt, store.timezone);
     if (!startAt) return this.persistReply(transaction, input, intent, { outcome: "START_TIME_UNCLEAR", reply: "上工时间不明确，尚未记工。请注明最近的实际开始时间，例如‘下午1:00 上工，大力60’；历史补录请在网页处理。" }, group);
     const businessDate = businessDateFor({ startAt, timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
-    const actorMembership = await new WorkBotAccess(this.prisma, actorBinding.id).requireActiveMembership(actorBinding.membershipId, store.id, transaction);
-    if (!canWriteWorkRecord({ role: actorMembership.role, isCurrentBusinessDay: businessDate === businessDateFor({ startAt: deviceNow(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal }), isDayClosed: false })) throw new ForbiddenException("普通员工只能操作当前营业日记工；历史修改需核实经理或店主身份");
-    await this.assertBusinessDayOpen(transaction, store, businessDate);
+    const scope = await this.reviewScope(transaction, store, actorBinding, businessDate);
     const employee = await transaction.storeMembership.findFirst({ where: { id: targetMembershipId, storeId: store.id, status: "ACTIVE", deletedAt: null, isServiceProvider: true } });
     if (!employee) return this.persistReply(transaction, input, intent, { outcome: "MEMBER_INACTIVE", reply: "绑定的员工已停用，请联系管理员处理。" }, group);
     const employeeDefaultBps = await this.resolveEmployeeDefaultCommission(transaction, store.id, employee.id, employee.defaultCommissionBps, startAt);
@@ -645,6 +849,9 @@ export class WorkBotService {
     const discountTotal = discounts.reduce((sum, discount) => sum + discount.amountCents, 0n);
     const wage = multiplyByBps(option.priceCents, commission.bps);
     const endAt = new Date(startAt.getTime() + durationMinutes * 60_000);
+    const review = this.reviewAction(input, `${employee.displayName} 上工｜${alias.serviceItem.shortName} ${durationMinutes} 分钟｜${businessDate} ${formatWorkBotTime(startAt, store.timezone)}｜项目金额 ${formatWorkBotMoney(option.priceCents)}`,
+      scope.historical, [scope, employee.id, alias.serviceItem.id, startAt, durationMinutes, option.priceCents, commission.bps, discounts]);
+    if (review) return review;
     const actorId = this.integrationActorId(secret);
     const record = await transaction.workRecord.create({ data: {
       storeId: store.id, employeeMembershipId: employee.id,
@@ -691,8 +898,17 @@ export class WorkBotService {
       businessDate: record.businessDate, afterJson: { employeeMembershipId: employee.id, requestedByMembershipId: actorBinding.membershipId, alias: alias.alias, serviceItemId: alias.serviceItem.id, durationMinutes, startAt: startAt.toISOString(), endAt: endAt.toISOString(), amountCents: option.priceCents.toString(), status: record.status }, requestId,
     } });
     const now = new Date();
+    const members = await this.boardMembers(transaction, store, now);
+    const availability = workBotAvailability(members, now, store.timezone);
+    return this.persistReply(transaction, input, intent, {
+      outcome: "WORK_STARTED", reply: `✅ ${employee.displayName} 已上工：${alias.serviceItem.shortName} ${durationMinutes} 分钟，开始 ${formatWorkBotTime(startAt, store.timezone)}，预计 ${formatWorkBotTime(endAt, store.timezone)}。\n${availability}`,
+      recordId: record.id, businessDate,
+    }, group);
+  }
+
+  private boardMembers(transaction: Prisma.TransactionClient, store: StoreSettings, now: Date) {
     const today = businessDateFor({ startAt: now, timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
-    const members = await transaction.storeMembership.findMany({
+    return transaction.storeMembership.findMany({
       where: { storeId: store.id, status: "ACTIVE", deletedAt: null, isServiceProvider: true,
         OR: [{ userId: null }, { user: { status: "ACTIVE" } }],
         dailyRows: { some: { storeId: store.id, isHidden: false,
@@ -707,14 +923,9 @@ export class WorkBotService {
         select: { endAt: true },
       } },
     });
-    const availability = workBotAvailability(members, now, store.timezone);
-    return this.persistReply(transaction, input, intent, {
-      outcome: "WORK_STARTED", reply: `✅ ${employee.displayName} 已上工：${alias.serviceItem.shortName} ${durationMinutes} 分钟，开始 ${formatWorkBotTime(startAt, store.timezone)}，预计 ${formatWorkBotTime(endAt, store.timezone)}。\n${availability}`,
-      recordId: record.id, businessDate,
-    }, group);
   }
 
-  private async finishWork(transaction: Prisma.TransactionClient, input: WorkBotEventInput, intent: Extract<WorkBotParsedIntent, { kind: "FINISH" | "ADJUST" }>, requestId: string) {
+  private async finishWork(transaction: Prisma.TransactionClient, input: InternalWorkBotInput, intent: Extract<WorkBotParsedIntent, { kind: "FINISH" | "ADJUST" }>, requestId: string) {
     const context = await this.requireBoundMember(transaction, input, intent);
     if ("reply" in context) return context.reply;
     const { group, binding } = context;
@@ -727,7 +938,7 @@ export class WorkBotService {
     const records = await transaction.workRecord.findMany({
       where: { storeId: group.storeId, ...(intent.recordId ? { id: intent.recordId } : {}), ...(targetId ? { employeeMembershipId: targetId } : {}), deletedAt: null,
         ...(!intent.recordId || intent.kind === "FINISH" ? { status: "PENDING_PAYMENT" } : { status: { not: "PLACEHOLDER" } }), startAt: { lte: new Date(input.occurredAt) } },
-      include: { employee: true, addonSnapshots: true, discountSnapshots: true }, take: 2,
+      include: { employee: true, serviceSnapshot: true, addonSnapshots: true, discountSnapshots: true }, take: 2,
     });
     if (records.length !== 1) return this.persistReply(transaction, input, intent, { outcome: records.length ? "ACTIVE_WORK_AMBIGUOUS" : "NO_ACTIVE_WORK", reply: records.length ? "该员工有多条待付款记工，请查询待付款列表后指定完整记录编号。" : "没有找到对应记工，请先上工或核对编号。" }, group);
     const record = records[0]!;
@@ -766,6 +977,18 @@ export class WorkBotService {
       }
     }
     if (intent.kind === "FINISH") details.endAt = input.occurredAt;
+    const store = await this.requireStoreSettings(transaction, group.storeId);
+    const businessDate = record.businessDate.toISOString().slice(0, 10);
+    const scope = await this.reviewScope(transaction, store, binding, businessDate);
+    const changes = [
+      ...(intent.discounts ?? []).map(item => `${item.action === "REMOVE" ? "移除" : "加"}折扣「${item.name}」`),
+      ...(intent.addons ?? []).map(item => `${item.action === "REMOVE" ? "移除" : "加"}加项「${item.name}」`),
+      ...(intent.isHighlighted === undefined ? [] : [intent.isHighlighted ? "高亮" : "取消高亮"]),
+    ];
+    if (intent.kind === "FINISH") changes.unshift(`${intent.paymentMethod === "CASH" ? "现金" : "刷卡"}大费 ${formatWorkBotMoney(parseWorkBotDollars(intent.serviceAmount))}，小费 ${formatWorkBotMoney(parseWorkBotDollars(intent.tipAmount))}`);
+    const review = this.reviewAction(input, `${record.employee.displayName} ${intent.kind === "FINISH" ? "下工" : "修改记工"}｜${businessDate} ${record.serviceSnapshot?.shortName ?? ""}｜${changes.join("；")}（编号 ${record.id}）`,
+      scope.historical || record.status === "CONFIRMED", [scope, record.id, record.version, details, intent]);
+    if (review) return review;
     const service = new WorkRecordsService(this.prisma, new WorkBotAccess(this.prisma, binding.id), new IdempotencyService(this.prisma)).withWorkBotAudit();
     const actor = { id: binding.membershipId } as User;
     const key = `bot-${createHash("sha256").update(`${input.botId}:${input.groupId}:${input.messageId}`).digest("hex")}`;
@@ -810,7 +1033,7 @@ export class WorkBotService {
     return this.persistReply(transaction, input, intent, { outcome: "WORK_ADJUSTED", recordId: record.id, businessDate: record.businessDate.toISOString().slice(0, 10), reply: `✅ ${record.employee.displayName} 记工已更新\n项目金额 ${formatWorkBotMoney(final.mainServiceAmountCents)}；加项 ${formatWorkBotMoney(final.addonTotalCents)}；折扣 ${formatWorkBotMoney(final.discountTotalCents)}；折后大费 ${formatWorkBotMoney(final.discountedFeePerformanceCents)}\n实收 ${final.actualServiceCollectedCents === null ? "未收款" : formatWorkBotMoney(final.actualServiceCollectedCents)}；小费 ${formatWorkBotMoney(final.totalTipCents ?? 0n)}；${final.isHighlighted ? "已高亮" : "未高亮"}\n折扣项：${final.discountSnapshots.map(d => d.name).join("、") || "无"}；加项：${final.addonSnapshots.map(a => a.name).join("、") || "无"}\n编号 ${record.id}` }, group);
   }
 
-  private async requireBoundMember(transaction: Prisma.TransactionClient, input: WorkBotEventInput, intent: WorkBotParsedIntent): Promise<{ group: Awaited<ReturnType<WorkBotService["findGroupBinding"]>> & {}; binding: NonNullable<Awaited<ReturnType<typeof transaction.workBotMemberBinding.findUnique>>> } | { reply: WorkBotReply }> {
+  private async requireBoundMember(transaction: Prisma.TransactionClient, input: InternalWorkBotInput, intent: WorkBotParsedIntent): Promise<{ group: Awaited<ReturnType<WorkBotService["findGroupBinding"]>> & {}; binding: NonNullable<Awaited<ReturnType<typeof transaction.workBotMemberBinding.findUnique>>> } | { reply: WorkBotReply }> {
     const group = await this.findGroupBinding(transaction, input);
     if (!group) return { reply: await this.persistReply(transaction, input, intent, { outcome: "GROUP_NOT_BOUND", reply: "请先发送“绑定店铺 6位店铺代码”。" }) };
     const binding = await transaction.workBotMemberBinding.findUnique({ where: { groupBindingId_senderId: { groupBindingId: group.id, senderId: input.senderId } } });
@@ -830,13 +1053,15 @@ export class WorkBotService {
     return this.operationReply(operation);
   }
 
-  private async persistReply(transaction: Prisma.TransactionClient, input: InternalWorkBotInput, intent: WorkBotParsedIntent, result: WorkBotReply, group?: { id: string; storeId: string } | null): Promise<WorkBotReply> {
+  private async persistReply(transaction: Prisma.TransactionClient, input: InternalWorkBotInput, intent: WorkBotParsedIntent, result: WorkBotReply,
+    group?: { id: string; storeId: string } | null, parsed: Prisma.InputJsonValue = intent as Prisma.InputJsonValue): Promise<WorkBotReply> {
     if (input[batchChild]) return result;
+    const receipt = input.receipt ?? input;
     await transaction.workBotOperation.create({ data: {
-      platform: input.platform, botId: input.botId, groupId: input.groupId, senderId: input.senderId,
-      messageId: input.messageId, groupBindingId: group?.id ?? null, storeId: group?.storeId ?? null,
-      workRecordId: result.recordId ?? null, intent: intent.kind, outcome: result.outcome, rawText: input.rawText,
-      parsedJson: intent as Prisma.InputJsonValue, reply: result.reply, occurredAt: new Date(input.occurredAt),
+      platform: receipt.platform, botId: receipt.botId, groupId: receipt.groupId, senderId: receipt.senderId,
+      messageId: receipt.messageId, groupBindingId: group?.id ?? null, storeId: group?.storeId ?? null,
+      workRecordId: result.recordId ?? null, intent: intent.kind, outcome: result.outcome, rawText: receipt.rawText,
+      parsedJson: parsed, reply: result.reply, occurredAt: new Date(receipt.occurredAt),
     } });
     return result;
   }
@@ -877,6 +1102,17 @@ export class WorkBotService {
     await lockBusinessDay(transaction, store.id, businessDate);
     const closed = await transaction.businessDayClosing.findFirst({ where: { storeId: store.id, businessDate: new Date(`${businessDate}T00:00:00.000Z`), status: "CLOSED" }, select: { id: true } });
     if (closed) throw new ConflictException({ code: "BUSINESS_DAY_CLOSED", messageZh: "该营业日已经日结，请先到网页取消日结" });
+  }
+
+  private async reviewScope(transaction: Prisma.TransactionClient, store: StoreSettings,
+    binding: { id: string; membershipId: string; verifiedAt: Date | null }, businessDate: string) {
+    const membership = await new WorkBotAccess(this.prisma, binding.id).requireActiveMembership(binding.membershipId, store.id, transaction);
+    const historical = businessDate !== businessDateFor({ startAt: deviceNow(), timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
+    if (!canWriteWorkRecord({ role: membership.role, isCurrentBusinessDay: !historical, isDayClosed: false })) {
+      throw new ForbiddenException("普通员工只能操作当前营业日记工；历史修改需核实经理或店主身份");
+    }
+    await this.assertBusinessDayOpen(transaction, store, businessDate);
+    return { storeId: store.id, bindingId: binding.id, actorId: membership.id, role: membership.role, verifiedAt: binding.verifiedAt, historical };
   }
 
   private async requireServiceOption(transaction: Prisma.TransactionClient, storeId: string, serviceItemId: string, durationMinutes: number) {

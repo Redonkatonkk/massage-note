@@ -2,7 +2,7 @@
 
 **[English](LANGBOT_WORK_BOT.md)** | **简体中文**
 
-当前插件 **1.4.1**，完整能力要求 API **至少 1.7.0**、协议 2；应用当前版本以根目录 `VERSION` 为准。保留原因：插件安装包版本与应用独立，协议二及多人意图需要对应的后端支持。
+插件 **1.5.0** 使用协议 2。实时排工和群内确认需要 Massage Note API **1.63.0** 或更高版本。插件与应用独立发布。
 
 群内 @ 机器人后，每条消息结合店铺实时目录和自然语言说明交给模型理解。最终写入、权限和查询由 Massage Note 后端执行，数据库是金额的唯一来源。
 
@@ -32,6 +32,12 @@
 
 查询最多覆盖 366 个营业日期。普通员工只能查询本人历史财务，经理和店主可查询全店。分页回复中的总计始终覆盖完整筛选范围；长页拆成多条微信回复。翻页需重复查询范围并注明页码。保留原因：限制查询负载、保护员工隐私，并让分页合计与实际筛选一致。
 
+## 实时排工与敏感操作
+
+在已配置的群里 @ 机器人，可问谁有空、今天谁排工或某位员工预计何时下工。回复使用当前营业日看板中的可见员工及进行中的记工记录，未知的结束时间会显示待定。绑定微信的在职成员可查排工。财务查询仍按已核实身份和现有角色权限执行。
+
+明确的日常写入即时执行。历史或已付款记录的变更，以及补问后形成的操作会先给预览。原发送人可以在同一个群里用短码确认或取消，有效期为 10 分钟。记录、目录或权限变化后需要重新获取预览。机器人依据店铺明确的简写规则判断付款方式，缺少时追问现金还是刷卡。用于学习说法的回复与记账确认码各自处理。
+
 ## 核实身份并开启数据访问
 
 1. 在群内完成绑定。
@@ -45,7 +51,7 @@
 ## 组件与接口
 
 - 插件：`integrations/langbot-plugin`，事件组件 `components/events/work_bot.py`。
-- 契约：`packages/contracts/src/work-bot.ts`。后端意图为 BIND_STORE、BIND_MEMBER、START、FINISH、ADJUST、QUERY、MANAGE、HELP、BATCH；CLARIFY 仅在插件内处理。
+- 契约：`packages/contracts/src/work-bot.ts`。后端意图为 BIND_STORE、BIND_MEMBER、START、FINISH、ADJUST、QUERY、BOARD、MANAGE、HELP、BATCH。CLARIFY 由插件处理。
 - 后端：`apps/api/src/work-bot`。复杂写入使用内部绑定身份适配器，复用 `WorkRecordsService`；微信来源与成员身份另有审计记录。
 - 管理 UI：`apps/web/app/manage/work-bot-panel.tsx`。
 - `POST /api/v1/integrations/langbot/work-context`：返回 `protocolVersion: 2`、店铺营业日期/时区、说明、实时目录、员工和意图 JSON Schema。模型不持有数据库连接信息。

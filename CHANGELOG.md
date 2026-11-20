@@ -4,6 +4,10 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.63.0 — 2026-11-19
+
+- Improve recognition of store shorthand in the WeChat work bot. Add live dispatch queries and require a sender-scoped confirmation for historical, paid-record, and follow-up changes. NAS needs an API update for the complete flow. The LangBot plug-in ships separately as 1.5.0.
+
 ## 1.62.14 — 2026-11-18
 
 - Make Framed Sheet the single work interface and remove the Legacy/New switch. Existing browser choices no longer affect the layout. On wide, mouse-capable screens, work cards stack from five per employee. Narrow and touch layouts keep cards at full width. NAS needs a Web update.

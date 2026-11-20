@@ -6,6 +6,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { PrismaService } from "../src/database/prisma.service.js";
 import { StoreAccessService } from "../src/stores/store-access.service.js";
 import { WorkBotService } from "../src/work-bot/work-bot.service.js";
+import { ensureBoardRow } from "../src/common/ensure-board-row.js";
+import type { WorkBotParsedIntent } from "@massage-note/contracts";
 
 const enabled = process.env.DATABASE_INTEGRATION_TESTS === "1";
 const prisma = new PrismaService();
@@ -26,7 +28,7 @@ const previousToken = process.env.LANGBOT_WORK_TOKEN;
 const actor = { id: ownerId } as User;
 const baseEvent = {
   platform: "WECHATPAD" as const,
-  botId: "wechat-bot-test",
+  botId: `wechat-bot-test-${randomUUID()}`,
   groupId: "work-group-test",
   senderId: "employee-wxid-test",
 };
@@ -37,6 +39,12 @@ function event(messageId: string, rawText: string, occurredAt: Date) {
 
 function key(messageId: string) {
   return `wechatpad:${baseEvent.botId}:${messageId}`;
+}
+
+function confirmationCode(reply: string): string {
+  const code = /确认 ([A-F0-9]{8})/u.exec(reply)?.[1];
+  if (!code) throw new Error("Missing confirmation code");
+  return code;
 }
 
 describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
@@ -552,18 +560,27 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
 
   it("完整记工编辑复用网页规则：高亮、移除、混合付款、删除恢复和幂等", async () => {
     const record = await prisma.workRecord.findFirstOrThrow({ where: { storeId, employeeMembershipId: delegatedEmployeeId, status: "CONFIRMED", addonTotalCents: { gt: 0n } }, orderBy: { createdAt: "asc" } });
-    const call = async (messageId: string, rawText: string, parsedIntent: import("@massage-note/contracts").WorkBotParsedIntent) => workBot.handleEvent(`Bearer ${token}`, key(messageId), { ...event(messageId, rawText, new Date("2026-09-08T21:00:00Z")), senderId: "verified-owner", parsedIntent }, messageId);
+    const codes = new Map<string, string>();
+    const send = (id: string, rawText: string, parsedIntent?: WorkBotParsedIntent) => workBot.handleEvent(
+      `Bearer ${token}`, key(id), { ...event(id, rawText, new Date("2026-09-08T21:00:00Z")), senderId: "verified-owner", parsedIntent }, id,
+    );
+    const call = async (id: string, rawText: string, intent?: WorkBotParsedIntent) => {
+      const preview = await send(id, rawText, intent);
+      if (preview.outcome === "CONFIRMATION_REQUIRED") codes.set(id, confirmationCode(preview.reply));
+      expect(codes.has(id)).toBe(true);
+      return send(`confirm-${id}`, `确认 ${codes.get(id)}`);
+    };
     const highlighted = await call("highlight-record", `高亮 ${record.id}`, { kind: "ADJUST", recordId: record.id, isHighlighted: true, highlightMention: "高亮" });
     expect(highlighted.outcome).toBe("WORK_ADJUSTED");
     expect(await prisma.workRecord.findUniqueOrThrow({ where: { id: record.id } })).toMatchObject({ isHighlighted: true });
     for (const [index, command, state] of [[0, "取消高亮", false], [1, "高亮", true], [2, "去掉高亮", false]] as const) {
       const messageId = `highlight-toggle-${index}`;
-      const input = { ...event(messageId, `${command} ${record.id}`, new Date("2026-09-08T21:00:00Z")), senderId: "verified-owner" };
-      const result = await workBot.handleEvent(`Bearer ${token}`, key(messageId), input, messageId);
+      const raw = `${command} ${record.id}`;
+      const result = await call(messageId, raw);
       expect(result.outcome).toBe("WORK_ADJUSTED");
       expect(result.reply).toContain(state ? "已高亮" : "未高亮");
       expect(await prisma.workRecord.findUniqueOrThrow({ where: { id: record.id } })).toMatchObject({ isHighlighted: state });
-      expect(await workBot.handleEvent(`Bearer ${token}`, key(messageId), input, messageId)).toEqual(result);
+      expect(await call(messageId, raw)).toEqual(result);
     }
     await call("remove-record-addon", `移除热石 ${record.id}`, { kind: "ADJUST", recordId: record.id, addons: [{ name: "热石", mention: "移除热石", action: "REMOVE" }] });
     expect(await prisma.workRecordAddonSnapshot.count({ where: { workRecordId: record.id } })).toBe(0);
@@ -585,6 +602,87 @@ describe.skipIf(!enabled).sequential("记工机器人端到端写账", () => {
     const foreignId = randomUUID();
     const foreignText = `删除 ${foreignId}`;
     await expect(call("foreign-record", foreignText, { kind: "MANAGE", operation: "DELETE", recordId: foreignId, evidence: foreignText })).rejects.toThrow();
+  });
+
+  it("群内看板只读，按排工、当前服务与请求人身份查询", async () => {
+    const now = new Date("2026-09-23T19:00:00Z");
+    vi.setSystemTime(now);
+    await prisma.$transaction(tx => ensureBoardRow(tx, storeId, "2026-09-23", employeeMembershipId, ownerId));
+    const started = await workBot.handleEvent(`Bearer ${token}`, key("board-start"), {
+      ...event("board-start", "Jessie 大力 60", now),
+      parsedIntent: { kind: "START", serviceAlias: "大力", memberName: "Jessie", memberMention: "Jessie", durationMinutes: 60 },
+    }, "board-start");
+    expect(started.outcome).toBe("WORK_STARTED");
+    const query = (id: string, rawText: string, parsedIntent: WorkBotParsedIntent, senderId = baseEvent.senderId) =>
+      workBot.handleEvent(`Bearer ${token}`, key(id), { ...event(id, rawText, now), senderId, parsedIntent }, id);
+    const roster = await query("board-roster", "今天谁排工", { kind: "BOARD", view: "ROSTER" });
+    expect(roster).toMatchObject({ outcome: "WORK_BOARD", reply: expect.stringMatching(/Jessie.*小王|小王.*Jessie/u) });
+    expect(await query("board-availability", "现在谁有空", { kind: "BOARD", view: "AVAILABILITY" }))
+      .toMatchObject({ outcome: "WORK_BOARD", reply: "空闲：小王" });
+    expect(await query("board-end", "Jessie 预计几点下工", { kind: "BOARD", view: "END_TIME", memberName: "Jessie" }))
+      .toMatchObject({ outcome: "WORK_BOARD", reply: expect.stringContaining("Jessie 16:00（预计）") });
+    expect(await query("board-unbound", "今天谁排工", { kind: "BOARD", view: "ROSTER" }, "not-a-store-member"))
+      .toMatchObject({ outcome: "MEMBER_NOT_BOUND" });
+    await workBot.handleEvent(`Bearer ${token}`, key("board-finish"), event("board-finish", "Jessie 下工 100 0 卡", new Date("2026-09-23T20:00:00Z")), "board-finish");
+    expect(await query("board-availability", "现在谁有空", { kind: "BOARD", view: "AVAILABILITY" }))
+      .toMatchObject({ outcome: "WORK_BOARD", reply: expect.stringMatching(/Jessie.*小王|小王.*Jessie/u) });
+  });
+
+  it("补问、确认、取消、过期和过时版本均只按原发送人处理", async () => {
+    const now = new Date("2026-09-24T19:00:00Z");
+    vi.setSystemTime(now);
+    const send = (id: string, rawText: string, options: Partial<import("@massage-note/contracts").WorkBotEventInput> = {}) =>
+      workBot.handleEvent(`Bearer ${token}`, key(id), { ...event(id, rawText, new Date()), ...options }, id);
+    const started = await send("confirm-start", "大力 60");
+    expect(started.outcome).toBe("WORK_STARTED");
+    const recordId = started.recordId!;
+    const original = { messageId: "checkout-original", rawText: "小王小费5、大费75", occurredAt: now.toISOString() };
+    vi.setSystemTime(now.getTime() + 60_000);
+    const checkout: WorkBotParsedIntent = { kind: "FINISH", memberName: "小王", memberMention: "小王",
+      serviceAmount: "75", tipAmount: "5", paymentMethod: "CARD", paymentMention: "刷卡" };
+    const preview = await send("checkout-payment", "@星 刷卡", { parsedIntent: checkout, followUp: original });
+    expect(preview).toMatchObject({ outcome: "CONFIRMATION_REQUIRED", reply: expect.stringContaining("刷卡大费 $75.00，小费 $5.00") });
+    expect(await send("checkout-payment-repeated", "刷卡", { parsedIntent: checkout, followUp: original })).toEqual(preview);
+    const code = confirmationCode(preview.reply);
+    await expect(send("confirm-wrong-user", `确认 ${code}`, { senderId: "verified-owner" }))
+      .resolves.toMatchObject({ outcome: "CONFIRMATION_UNAVAILABLE" });
+    await expect(send("confirm-other-group", `确认 ${code}`, { groupId: "different-group" }))
+      .resolves.toMatchObject({ outcome: "CONFIRMATION_UNAVAILABLE" });
+    expect((await prisma.workRecord.findUniqueOrThrow({ where: { id: recordId } })).status).toBe("PENDING_PAYMENT");
+    const finished = await send("confirm-correct-user", `@星 确认 ${code}`);
+    expect(finished).toMatchObject({ outcome: "WORK_FINISHED", recordId });
+    expect(await send("confirm-correct-user", `@星 确认 ${code}`)).toEqual(finished);
+    await expect(send("confirm-duplicate", `确认 ${code}`)).resolves.toMatchObject({ outcome: "CONFIRMATION_UNAVAILABLE" });
+    await expect(send("checkout-after-execution", "刷卡", { parsedIntent: checkout, followUp: original }))
+      .resolves.toMatchObject({ outcome: "PREVIEW_CONFIRMED" });
+    expect(await prisma.workRecord.findUniqueOrThrow({ where: { id: recordId } }))
+      .toMatchObject({ status: "CONFIRMED", cardServiceCents: 7500n, cardTipCents: 500n });
+
+    const rawText = `删除 ${recordId}`;
+    const ownerOptions = { senderId: "verified-owner", parsedIntent: { kind: "MANAGE", operation: "DELETE", evidence: rawText, recordId } as const };
+    const draft = async (id: string) => confirmationCode((await send(id, rawText, ownerOptions)).reply);
+    const cancelled = await draft("delete-cancel");
+    await expect(send("cancelled", `取消 ${cancelled}`, { senderId: "verified-owner" })).resolves.toMatchObject({ outcome: "PREVIEW_CANCELLED" });
+    await expect(send("cancelled-confirm", `确认 ${cancelled}`, { senderId: "verified-owner" })).resolves.toMatchObject({ outcome: "CONFIRMATION_UNAVAILABLE" });
+    const expired = await draft("delete-expired");
+    vi.setSystemTime(Date.now() + 610_000);
+    await expect(send("expired-confirm", `确认 ${expired}`, { senderId: "verified-owner" })).resolves.toMatchObject({ outcome: "CONFIRMATION_UNAVAILABLE" });
+    const stale = await draft("delete-stale");
+    await prisma.workRecord.update({ where: { id: recordId }, data: { version: { increment: 1 } } });
+    await expect(send("stale-confirm", `确认 ${stale}`, { senderId: "verified-owner" })).rejects.toThrow();
+    expect((await prisma.workRecord.findUniqueOrThrow({ where: { id: recordId } })).deletedAt).toBeNull();
+    const revoked = await draft("delete-revoked");
+    const binding = await prisma.workBotMemberBinding.findFirstOrThrow({
+      where: { senderId: "verified-owner", groupBinding: { storeId, groupId: baseEvent.groupId, botId: baseEvent.botId } },
+    });
+    await workBot.verifyMemberBinding(actor, storeId, binding.id, binding.version, false, "revoke-preview");
+    await expect(send("revoked-confirm", `确认 ${revoked}`, { senderId: "verified-owner" })).rejects.toThrow();
+    expect((await prisma.workRecord.findUniqueOrThrow({ where: { id: recordId } })).deletedAt).toBeNull();
+    await workBot.verifyMemberBinding(actor, storeId, binding.id, binding.version + 1, true, "restore-verification");
+    const concurrent = await draft("delete-concurrent");
+    const confirmations = await Promise.allSettled(["a", "b"].map(id => send(`confirm-concurrent-${id}`, `确认 ${concurrent}`, { senderId: "verified-owner" })));
+    expect(confirmations.filter(result => result.status === "fulfilled" && result.value.outcome === "WORK_MANAGED")).toHaveLength(1);
+    expect((await prisma.workRecord.findUniqueOrThrow({ where: { id: recordId } })).deletedAt).not.toBeNull();
   });
 
 

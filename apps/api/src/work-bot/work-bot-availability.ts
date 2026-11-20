@@ -4,18 +4,27 @@ interface AvailableMember {
   workRecords: { endAt: Date | null }[];
 }
 
-export function workBotAvailability(members: AvailableMember[], now: Date, timezone: string): string {
+export function workBotAvailability(
+  members: AvailableMember[], now: Date, timezone: string,
+  view: "AVAILABILITY" | "ROSTER" | "END_TIME" = "AVAILABILITY",
+  memberName?: string,
+): string {
   if (!members.length) return "今日暂无排工";
+  if (view === "ROSTER") return `今日排工：${members.map(member => member.displayName).join("、")}`;
+  const selected = memberName ? members.filter(member => member.displayName === memberName) : members;
+  if (memberName && selected.length !== 1) return "今日排工中没有唯一匹配的员工，请核对姓名。";
   const idle = members.filter(member => !member.workRecords.length);
-  if (idle.length) return `空闲：${idle.map(member => member.displayName).join("、")}`;
+  if (view === "AVAILABILITY" && idle.length) return `空闲：${idle.map(member => member.displayName).join("、")}`;
+  const busy = selected.filter(member => member.workRecords.length);
+  if (!busy.length) return memberName ? `${memberName} 目前空闲。` : "目前无人上工。";
 
   // Overlapping records keep a member occupied until their last service ends.
-  const ends = members.map(member => ({
+  const ends = busy.map(member => ({
     name: member.displayName,
     end: Math.max(...member.workRecords.map(record => record.endAt?.getTime() ?? Infinity)),
   }));
   const earliest = Math.min(...ends.map(member => member.end));
-  if (!Number.isFinite(earliest)) return "全员上工｜下工时间待定";
+  if (!Number.isFinite(earliest)) return view === "AVAILABILITY" ? "全员上工｜下工时间待定" : "下工时间待定";
 
   const day = (value: Date) => new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
@@ -25,5 +34,6 @@ export function workBotAvailability(members: AvailableMember[], now: Date, timez
     timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   }).format(endAt);
   const date = day(endAt) === day(now) ? "" : `${day(endAt)} `;
-  return `全员上工｜最早下工：${ends.filter(member => member.end === earliest).map(member => member.name).join("、")} ${date}${time}（预计）`;
+  const label = view === "AVAILABILITY" ? "全员上工｜最早下工：" : memberName ? "预计下工：" : "最早下工：";
+  return `${label}${ends.filter(member => member.end === earliest).map(member => member.name).join("、")} ${date}${time}（预计）`;
 }

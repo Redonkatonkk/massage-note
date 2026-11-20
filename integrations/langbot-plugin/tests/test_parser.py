@@ -20,6 +20,97 @@ pure = ast.Module(body=[node for node in tree.body if isinstance(node, (ast.Func
 namespace = {"re": re, "json": json, "Any": Any, "math": math, "datetime": datetime, "timezone": timezone, "urlsplit": urlsplit}
 exec(compile(pure, str(source), "exec"), namespace)
 parse = namespace["parse_llm_json"]
+short_intent = namespace["short_work_intent"]
+
+
+class StoreLanguageTest(unittest.TestCase):
+    context = {
+        "status": "BOUND",
+        "members": ["Lily", "Jessica", "Ann", "Ann Marie", "小王"],
+        "instructions": "下工简写格式：姓名 大费 小费，默认刷卡，以此类推。",
+        "aliases": [
+            {"alias": "deep", "serviceName": "Deep Tissue", "serviceShortName": "大力", "availableDurationMinutes": [30, 60, 90, 120]},
+            {"alias": "foot", "serviceName": "Foot Massage", "serviceShortName": "脚", "availableDurationMinutes": [30, 60]},
+        ],
+        "addons": [{"name": "热石", "shortName": "石"}],
+        "discounts": [{"name": "评论折扣", "shortName": "评论"}],
+    }
+
+    def test_store_language_regression_corpus(self):
+        samples = (
+            ("Lily 大力一小时", ("START", "Lily", "deep", 60)),
+            ("lily 上工 大力60分钟", ("START", "Lily", "deep", 60)),
+            ("@星 Jessica 大力 90", ("START", "Jessica", "deep", 90)),
+            ("小王上工脚半小时", ("START", "小王", "foot", 30)),
+            ("Ann Marie 开工大力一个半小时", ("START", "Ann Marie", "deep", 90)),
+            ("Ann 脚 30", ("START", "Ann", "foot", 30)),
+            ("Jessica Deep Tissue 2h", ("START", "Jessica", "deep", 120)),
+            ("开工脚半小时", ("START", None, "foot", 30)),
+            ("Lily 大力两小时", ("START", "Lily", "deep", 120)),
+            ("Jessica 75 5", ("FINISH", "Jessica", "75", "5", "CARD")),
+            ("Lily 95 0", ("FINISH", "Lily", "95", "0", "CARD")),
+            ("Jessica 75.50 5.25 现金", ("FINISH", "Jessica", "75.50", "5.25", "CASH")),
+            ("Lily 下了，收 75/15卡", ("FINISH", "Lily", "75", "15", "CARD")),
+            ("Lily 下了，75/15卡", ("FINISH", "Lily", "75", "15", "CARD")),
+            ("@星 Lily 刷了75，小费5", ("FINISH", "Lily", "75", "5", "CARD")),
+            ("小王小费5、大费75 刷卡", ("FINISH", "小王", "75", "5", "CARD")),
+            ("小王现金收了80，小费10", ("FINISH", "小王", "80", "10", "CASH")),
+            ("下工 80 0 cash", ("FINISH", None, "80", "0", "CASH")),
+            ("Lily 下工 80/10", ("ASK_PAYMENT", "Lily", "80", "10")),
+            ("Lily 加热石", ("ADJUST", "Lily", "addons", "热石")),
+            ("Jessica 加评论", ("ADJUST", "Jessica", "discounts", "评论折扣")),
+            ("小王加上石", ("ADJUST", "小王", "addons", "热石")),
+            ("现在谁有空", ("BOARD", "AVAILABILITY", None)),
+            ("@星 谁有空？", ("BOARD", "AVAILABILITY", None)),
+            ("谁现在能接客", ("BOARD", "AVAILABILITY", None)),
+            ("今天谁排工", ("BOARD", "ROSTER", None)),
+            ("今日排班", ("BOARD", "ROSTER", None)),
+            ("Lily 预计几点下工", ("BOARD", "END_TIME", "Lily")),
+            ("Jessica 还有多久做完？", ("BOARD", "END_TIME", "Jessica")),
+            ("谁最早下工", ("BOARD", "END_TIME", None)),
+            ("谢谢！", ("IGNORE",)),
+            ("@星 收到", ("IGNORE",)),
+            ("Lily 75 5 礼物卡", None),
+            ("Lily 75 5 现金 刷卡", None),
+            ("Lily 大力一小时？", None),
+            ("Lily 大力 45", None),
+            ("别给 Lily 记工", None),
+        )
+        for raw, expected in samples:
+            with self.subTest(raw=raw):
+                intent = short_intent(raw, self.context)
+                if intent is None:
+                    self.assertIsNone(expected)
+                    continue
+                kind = intent["kind"]
+                if kind == "START":
+                    actual = (kind, intent.get("memberName"), intent["serviceAlias"], intent["durationMinutes"])
+                elif kind == "FINISH":
+                    actual = (kind, intent.get("memberName"), intent["serviceAmount"], intent["tipAmount"], intent["paymentMethod"])
+                elif kind == "ASK_PAYMENT":
+                    draft = intent["intent"]
+                    actual = (kind, draft.get("memberName"), draft["serviceAmount"], draft["tipAmount"])
+                elif kind == "ADJUST":
+                    field = "addons" if "addons" in intent else "discounts"
+                    actual = (kind, intent.get("memberName"), field, intent[field][0]["name"])
+                elif kind == "BOARD":
+                    actual = (kind, intent["view"], intent.get("memberName"))
+                else:
+                    actual = (kind,)
+                self.assertEqual(actual, expected)
+
+    def test_unconfigured_or_conflicting_payment_defaults_ask(self):
+        for instructions in ("", "Jessica 的示例默认刷卡。", "下工简写大费 小费默认刷卡；简写大费 小费默认现金"):
+            with self.subTest(instructions=instructions):
+                self.assertEqual(short_intent("Jessica 75 5", {**self.context, "instructions": instructions})["kind"], "ASK_PAYMENT")
+
+    def test_model_cannot_drop_named_employee_or_invent_payment(self):
+        check = namespace["model_action_matches_text"]
+        intent = {"kind": "FINISH", "paymentMethod": "CARD", "memberName": "Jessica"}
+        self.assertFalse(check(intent, "给 Lily 下工 75 5 刷卡", self.context))
+        self.assertFalse(check(intent, "Jessica 75 5 现金", self.context))
+        self.assertFalse(check(intent, "Jessica 75 5", {**self.context, "instructions": ""}))
+        self.assertFalse(check(intent, "Jessica 能不能下工 75 5 刷卡？", self.context))
 
 
 class ParserTest(unittest.TestCase):
@@ -177,7 +268,7 @@ class LlmIntentTest(unittest.IsolatedAsyncioTestCase):
 class HistoryTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         listener_node = next(node for node in tree.body if isinstance(node, ast.ClassDef))
-        ns = {**namespace, "EventListener": object, "time": time, "hashlib": hashlib,
+        ns = {**namespace, "EventListener": object, "time": time, "hashlib": hashlib, "OrderedDict": OrderedDict,
               "os": SimpleNamespace(environ={}), "Message": SimpleNamespace}
         future = [node for node in tree.body if isinstance(node, ast.ImportFrom) and node.module == "__future__"]
         exec(compile(ast.Module(body=future + [listener_node], type_ignores=[]), str(source), "exec"), ns)
@@ -192,7 +283,8 @@ class HistoryTest(unittest.IsolatedAsyncioTestCase):
         event = SimpleNamespace(launcher_id=group, sender_id=sender,
                                 message_chain=SimpleNamespace(source=SimpleNamespace(id=message_id, time=1700000000)))
         await self.listener._handle_message(SimpleNamespace(event=event), {"model": "model"}, bot, text)
-        return self.listener.plugin.invoke_llm.call_args.kwargs["messages"]
+        call = self.listener.plugin.invoke_llm.call_args
+        return call.kwargs["messages"] if call else []
 
     async def test_next_request_includes_actual_reply_and_current_text_once(self):
         await self.send("1", "上一条指令")
@@ -349,6 +441,58 @@ class LearningTest(unittest.IsolatedAsyncioTestCase):
         await self.send("b", "对")
         self.assertIn("无法读取", self.listener._reply.call_args.args[1])
         self.listener.plugin.set_plugin_storage.assert_not_awaited()
+
+
+class WorkBotTrialTest(unittest.IsolatedAsyncioTestCase):
+    send = HistoryTest.send
+
+    def setUp(self):
+        HistoryTest.setUp(self)
+        self.listener._fetch_skill_context.return_value = {
+            **StoreLanguageTest.context, "instructions": "", "capabilities": ["BOARD", "CONFIRMATION"],
+        }
+
+    async def test_checkout_follow_up_sends_evidence_and_waits_for_server_preview(self):
+        await self.send("first", "@星 Lily 75 5")
+        self.listener._post_event.assert_not_awaited()
+        self.assertIn("现金还是刷卡", self.listener._reply.call_args.args[1])
+        await self.send("other-user", "刷卡", sender="another")
+        await self.send("other-group", "刷卡", group="another")
+        self.listener._post_event.assert_not_awaited()
+        self.listener._post_event.return_value = {"reply": "尚未记账，请确认 ABCD1234"}
+        await self.send("follow", "刷卡")
+        payload = self.listener._post_event.call_args.args[1]
+        self.assertEqual(payload["followUp"]["messageId"], "first")
+        self.assertEqual(payload["rawText"], "刷卡")
+        self.assertEqual(payload["parsedIntent"]["memberName"], "Lily")
+        self.assertEqual(payload["parsedIntent"]["paymentMethod"], "CARD")
+        self.assertIn("尚未记账", self.listener._reply.call_args.args[1])
+        await self.send("confirmation", "@星 确认 ABCD1234")
+        self.assertNotIn("parsedIntent", self.listener._post_event.call_args.args[1])
+        self.listener.plugin.invoke_llm.assert_not_awaited()
+
+    async def test_legacy_api_allows_daily_writes_and_fences_sensitive_actions(self):
+        self.listener._fetch_skill_context.return_value["capabilities"] = []
+        await self.send("daily", "Jessica 75 5 刷卡")
+        self.assertEqual(self.listener._post_event.call_args.args[1]["parsedIntent"]["kind"], "FINISH")
+        self.listener._post_event.reset_mock()
+        await self.send("board", "现在谁有空")
+        await self.send("confirmation", "确认 ABCD1234")
+        await self.send("draft", "Lily 75 5")
+        await self.send("follow-up", "刷卡")
+        record_id = "11111111-1111-4111-8111-111111111111"
+        raw = f"删除 {record_id}"
+        self.listener.plugin.invoke_llm.return_value.content = json.dumps({
+            "kind": "MANAGE", "operation": "DELETE", "recordId": record_id, "evidence": raw,
+        })
+        await self.send("sensitive", raw)
+        self.listener._post_event.assert_not_awaited()
+        self.assertIn("网页处理", self.listener._reply.call_args.args[1])
+
+    async def test_casual_chat_does_not_reach_the_business_api(self):
+        await self.send("thanks", "谢谢")
+        self.listener._post_event.assert_not_awaited()
+        self.listener._reply.assert_not_awaited()
         self.listener._post_event.assert_not_awaited()
 
 

@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](DEVELOPMENT.zh-CN.md)**
 
-The version is defined by `metadata.version` in [manifest.yaml](manifest.yaml), which is currently **1.4.1** and is independent of the application version. Full capability requires API at least 1.7.0, protocol version 2. Reason: The plug-in installation package version is independent of the application. Protocol 2 and multi-player intent require corresponding back-end support.
+The version is defined by `metadata.version` in [manifest.yaml](manifest.yaml), which is currently **1.5.0** and is independent of the application version. Full dispatch and chat confirmation require Massage Note API 1.63.0 or later. The plug-in can serve routine work against an older protocol 2 API while preparing the full rollout.
 
 <a id="目录职责"></a>
 

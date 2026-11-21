@@ -74,7 +74,7 @@ describe("open-day record track", () => {
     surface = new EventTarget();
     vi.stubGlobal("window", Object.assign(surface, {
       matchMedia: () => ({ matches: false }),
-      getComputedStyle: () => ({ columnGap: "12px", paddingLeft: "16px", paddingRight: "16px", getPropertyValue: () => "" }),
+      getComputedStyle: () => ({ columnGap: "12px", paddingLeft: "16px", paddingRight: "16px" }),
     }));
     vi.stubGlobal("ResizeObserver", class {
       constructor(callback: () => void) { resize = callback; }
@@ -94,34 +94,25 @@ describe("open-day record track", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
-  it("opens at the end, allows browsing, and returns after ten idle seconds", () => {
+  it("opens at the end and keeps the manual position indefinitely", () => {
     expect(track.scrollLeft).toBe(800);
     scrollBack();
-    vi.advanceTimersByTime(9999);
+    vi.advanceTimersByTime(60_000);
     expect(track.scrollLeft).toBe(100);
-    vi.advanceTimersByTime(1);
-    expect(track.scrollLeft).toBe(800);
-    expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 800, behavior: "smooth" });
+    expect(track.scrollTo).toHaveBeenCalledExactlyOnceWith({ left: 800, behavior: "instant" });
   });
-  it("restarts the interval after further scrolling or wheel input", () => {
-    scrollBack();
-    vi.advanceTimersByTime(9000);
-    track.dispatchEvent(new Event("wheel"));
-    vi.advanceTimersByTime(9000);
-    expect(track.scrollLeft).toBe(100);
-    vi.advanceTimersByTime(1000);
-    expect(track.scrollLeft).toBe(800);
-  });
-  it("does not return while a pointer is held, including touch scrolling", () => {
+  it("does not move an aligned track during a touch gesture", () => {
     pointer(track, "pointerdown");
-    scrollBack();
-    vi.advanceTimersByTime(20000);
-    expect(track.scrollLeft).toBe(100);
-    pointer(surface, "pointercancel");
-    vi.advanceTimersByTime(10000);
+    track.scrollWidth = 1500;
+    resize();
     expect(track.scrollLeft).toBe(800);
+    pointer(surface, "pointercancel");
+    track.scrollLeft = 1100;
+    track.scrollWidth = 1700;
+    resize();
+    expect(track.scrollLeft).toBe(1300);
   });
-  it("follows new content at the end without interrupting a reading interval", () => {
+  it("follows new content only when still aligned", () => {
     track.scrollWidth = 1500;
     resize();
     expect(track.scrollLeft).toBe(1100);
@@ -129,22 +120,8 @@ describe("open-day record track", () => {
     track.scrollWidth = 1800;
     resize();
     expect(track.scrollLeft).toBe(100);
-    vi.advanceTimersByTime(10000);
-    expect(track.scrollLeft).toBe(1400);
-  });
-  it("cancels pending returns and listeners on closing or unmount", () => {
-    scrollBack();
-    cleanup();
-    vi.advanceTimersByTime(10000);
-    track.dispatchEvent(new Event("scroll"));
-    vi.advanceTimersByTime(10000);
+    vi.advanceTimersByTime(10_000);
     expect(track.scrollLeft).toBe(100);
-  });
-  it("respects reduced motion", () => {
-    vi.stubGlobal("window", Object.assign(surface, { matchMedia: () => ({ matches: true }) }));
-    scrollBack();
-    vi.advanceTimersByTime(10000);
-    expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 800, behavior: "instant" });
   });
   it("aligns the add-record card 16px from the right edge and permits browsing both directions", () => {
     // Its right edge is at content coordinate 700, so scrollLeft 316 leaves 16px.
@@ -158,10 +135,9 @@ describe("open-day record track", () => {
     vi.advanceTimersByTime(5000);
     track.scrollLeft = 500;
     track.dispatchEvent(new Event("scroll"));
-    vi.advanceTimersByTime(9999);
+    vi.advanceTimersByTime(10_000);
     expect(track.scrollLeft).toBe(500);
-    vi.advanceTimersByTime(1);
-    expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 316, behavior: "smooth" });
+    expect(track.scrollTo).toHaveBeenLastCalledWith({ left: 316, behavior: "instant" });
   });
   it("updates the followed anchor after reorder or highlight changes when dimensions stay the same", () => {
     track.setAnchor(700);
@@ -171,18 +147,11 @@ describe("open-day record track", () => {
     mutate();
     expect(track.scrollLeft).toBe(616);
 
-    // A content change during a reading interval updates the future destination
-    // but leaves the user's current position and ten-second deadline intact.
-    track.scrollLeft = 100;
-    track.dispatchEvent(new Event("scroll"));
-    vi.advanceTimersByTime(5000);
+    scrollBack();
     track.setAnchor(900);
     mutate();
+    vi.advanceTimersByTime(10_000);
     expect(track.scrollLeft).toBe(100);
-    vi.advanceTimersByTime(4999);
-    expect(track.scrollLeft).toBe(100);
-    vi.advanceTimersByTime(1);
-    expect(track.scrollLeft).toBe(516);
   });
 
   it("follows the add card's layout position while its visible position animates", () => {
@@ -197,23 +166,11 @@ describe("open-day record track", () => {
     resize();
     expect(track.scrollTo).toHaveBeenCalledTimes(jumps);
   });
-  it("keeps the reading interval through resize and falls back to the end without an add-record card", () => {
+  it("keeps the manual position through resize without an add-record card", () => {
     scrollBack();
-    vi.advanceTimersByTime(4000);
     track.clientWidth = 500;
     resize();
     expect(track.scrollLeft).toBe(100);
-    vi.advanceTimersByTime(6000);
-    expect(track.scrollLeft).toBe(700);
-
-    track.scrollLeft = 0;
-    track.anchor = null;
-    mutate();
-    expect(track.scrollLeft).toBe(700);
-    const callsAtEnd = track.scrollTo.mock.calls.length;
-    track.dispatchEvent(new Event("scroll"));
-    vi.advanceTimersByTime(10000);
-    expect(track.scrollTo).toHaveBeenCalledTimes(callsAtEnd);
   });
 
   it.each([
@@ -221,7 +178,7 @@ describe("open-day record track", () => {
     [1, 305.5],
     [2, 289.5],
     [4, 289.5],
-  ])("returns with the expected highlighted preview for %i highlights", (highlightedCount, expectedRightReserve) => {
+  ])("opens with the expected highlighted preview for %i highlights", (highlightedCount, expectedRightReserve) => {
     track.useLayout(highlightedCount);
     track.clientWidth = 700;
     cleanup();
@@ -261,13 +218,11 @@ describe("open-day record track", () => {
       expect(track.dataset.returnTail).toBe(track.tail!.style.width > 0 ? "true" : "false");
     }
     scrollBack();
-    vi.advanceTimersByTime(9999);
+    vi.advanceTimersByTime(10_000);
     expect(track.scrollLeft).toBe(100);
-    vi.advanceTimersByTime(1);
-    expect(track.anchor!.getBoundingClientRect().right - 177 - 12).toBeCloseTo(previewWidth);
   });
 
-  it("recalculates mobile and desktop return positions across breakpoints without interrupting browsing", () => {
+  it("recalculates touch alignment across breakpoints while preserving manual browsing", () => {
     let mobile = true;
     vi.stubGlobal("window", Object.assign(surface, {
       matchMedia: (query: string) => ({ matches: mobile && query === "(max-width: 760px)" }),
@@ -278,14 +233,13 @@ describe("open-day record track", () => {
     expect(track.anchor!.getBoundingClientRect().right).toBeCloseTo(277.5);
 
     scrollBack();
-    vi.advanceTimersByTime(5000);
     mobile = false;
     track.clientWidth = 700;
     resize();
     expect(track.scrollLeft).toBe(100);
-    vi.advanceTimersByTime(5000);
-    expect(track.anchor!.getBoundingClientRect().right).toBeCloseTo(700 - 305.5);
 
+    const addRightInTrack = track.anchor!.offsetLeft + track.anchor!.offsetWidth;
+    track.scrollLeft = addRightInTrack - (700 - 305.5);
     mobile = true;
     track.clientWidth = 220;
     resize();
@@ -294,6 +248,7 @@ describe("open-day record track", () => {
     expect(addRight - 177).toBeGreaterThanOrEqual(16);
 
     track.useLayout(0, 0);
+    track.scrollLeft = 0; // Native clamping once all cards fit.
     mutate();
     expect(track.scrollLeft).toBe(0);
     expect(track.dataset.returnTail).toBe("false");
@@ -317,65 +272,18 @@ describe("open-day record track", () => {
     expect(addRight - 177).toBeGreaterThanOrEqual(16 - 2);
   });
 
-  it("only reserves trailing scroll space when the resting stack overflows", () => {
-    track.useLayout(0, 2);
-    track.clientWidth = 550;
-    track.dataset.recordStack = "true";
-    vi.spyOn(track, "querySelectorAll").mockImplementation(selector => selector.includes(".record-card +") ? track.children.slice(1, 2) : []);
-    vi.stubGlobal("window", Object.assign(surface, {
-      getComputedStyle: () => ({ columnGap: "12px", paddingLeft: "16px", paddingRight: "16px", getPropertyValue: () => "-72px" }),
-    }));
-    mutate();
-    expect(track.dataset.returnTail).toBe("false");
-
-    delete track.dataset.recordStack;
-    mutate();
-    expect(track.dataset.returnTail).toBe("true");
-  });
-
-  it("waits for the pointer to leave a revealed card before resuming the idle return", () => {
-    track.dataset.recordStack = "true";
-    vi.stubGlobal("window", Object.assign(surface, {
-      getComputedStyle: () => ({ getPropertyValue: () => "-72px" }),
-    }));
-    let hovering = true;
-    vi.spyOn(track, "querySelector").mockImplementation(selector => selector.includes(":hover") && hovering ? track : null);
-    scrollBack();
-    vi.advanceTimersByTime(10_000);
-    expect(track.scrollLeft).toBe(100);
-
-    hovering = false;
-    track.dispatchEvent(new Event("pointerleave"));
-    vi.advanceTimersByTime(9_999);
-    expect(track.scrollLeft).toBe(100);
-    vi.advanceTimersByTime(1);
-    expect(track.scrollLeft).toBe(800);
-  });
-
-  it("keeps the idle return on flat touch layouts even when a card retains hover", () => {
-    track.dataset.recordStack = "true";
-    vi.spyOn(track, "querySelector").mockImplementation(selector => selector.includes(":hover") ? track : null);
-    scrollBack();
-    vi.advanceTimersByTime(10_000);
-    expect(track.scrollLeft).toBe(800);
-  });
-
-  it("refreshes the tail on content changes without moving the user or restarting the idle deadline", () => {
+  it("refreshes the tail on content changes without moving the user", () => {
     track.useLayout(0);
     track.clientWidth = 700;
     cleanup();
     cleanup = followRecordTrackEnd(track as unknown as HTMLDivElement).dispose;
     scrollBack();
-    vi.advanceTimersByTime(5000);
-
     track.useLayout(2);
     mutate();
     expect(track.scrollLeft).toBe(100);
     expect(track.dataset.returnTail).toBe("false");
 
-    vi.advanceTimersByTime(4999);
+    vi.advanceTimersByTime(10_000);
     expect(track.scrollLeft).toBe(100);
-    vi.advanceTimersByTime(1);
-    expect(track.clientWidth - track.anchor!.getBoundingClientRect().right).toBeCloseTo(289.5);
   });
 });

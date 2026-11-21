@@ -1,7 +1,7 @@
 "use client";
 
-import { Component, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { followRecordTrackEnd, stackableRecordPairs, unstackedRecordTrackWidth } from "../lib/record-track-scroll";
+import { Component, useEffect, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
+import { followRecordTrackEnd, unstackedRecordTrackWidth } from "../lib/record-track-scroll";
 import { allowsMotion, animateListItemMove } from "./ui/interaction-motion";
 
 interface RecordTrackCardsProps {
@@ -19,24 +19,65 @@ function measureCards(track: HTMLDivElement) {
   });
 }
 
-const stackMediaQuery = "(min-width: 761px) and (hover: hover) and (pointer: fine) and (not (any-pointer: coarse))";
+const stackMediaQuery = "(hover: hover) and (pointer: fine) and (not (any-pointer: coarse))";
+const minimumExposedCardWidth = 56;
+
+function measureRecordTrackLayout(track: HTMLDivElement) {
+  const width = track.clientWidth;
+  if (!width || !window.matchMedia?.(stackMediaQuery)?.matches) return;
+
+  const style = window.getComputedStyle(track);
+  const overflow = unstackedRecordTrackWidth(track, style) - width;
+  if (overflow <= 0) return;
+
+  const pairs = track.querySelectorAll<HTMLElement>(
+    ":scope > .record-card:not(.record-card--right-group) + .record-card:not(.record-card--right-group), :scope > .record-card--right-group + .record-card--right-group",
+  );
+  const gap = parseFloat(style.columnGap) || 0;
+  let inset = pairs.length ? Math.ceil(overflow / pairs.length) : 0;
+  for (const card of pairs) {
+    const exposed = card.classList.contains("record-card--right-group") ? card : card.previousElementSibling as HTMLElement;
+    const maxInset = Math.max(0, Math.floor(exposed.offsetWidth + gap - minimumExposedCardWidth));
+    inset = Math.min(inset, maxInset);
+  }
+
+  const scrollable = overflow > inset * pairs.length;
+  const sideSpace = Math.max(0, (track.parentElement?.clientWidth ?? width) - width);
+  const sideReveal = Math.floor(sideSpace / 1.1);
+  // A scrollport clips the side column. Open after the active card when it cannot move into that space.
+  const revealAfter = scrollable || sideReveal === 0;
+  const reveal = revealAfter ? inset : Math.min(inset, sideReveal);
+  return { inset, reveal, scrollable, revealAfter };
+}
 
 function syncRecordStack(track: HTMLDivElement) {
-  const width = track.clientWidth;
-  const stacked = Boolean(window.matchMedia?.(stackMediaQuery)?.matches && width > 0
-    && track.querySelector(stackableRecordPairs) && unstackedRecordTrackWidth(track) > width);
-  if (stacked === track.hasAttribute("data-record-stack")) return false;
+  const layout = measureRecordTrackLayout(track);
+  const overlap = layout?.inset ?? 0;
+  const stacked = overlap > 0;
+  const scrollable = layout?.scrollable ?? false;
+  const revealAfter = stacked && layout?.revealAfter === true;
+  const inset = stacked ? `${-overlap}px` : "";
+  const openInset = stacked ? `${(layout?.reveal ?? 0) - overlap}px` : "";
+  const layer = stacked ? String(track.children.length) : "";
+  if (track.style.getPropertyValue("--record-stack-inset") === inset
+    && track.style.getPropertyValue("--record-stack-open-inset") === openInset
+    && track.style.getPropertyValue("--record-stack-front") === layer
+    && track.hasAttribute("data-record-scroll") === scrollable
+    && track.hasAttribute("data-record-reveal-after") === revealAfter) return;
 
   const reflowing = track.hasAttribute("data-record-reflow");
   if (!reflowing) track.setAttribute("data-record-reflow", "");
-  if (stacked) track.dataset.recordStack = "true";
-  else delete track.dataset.recordStack;
+  track.style.setProperty("--record-stack-inset", inset);
+  track.style.setProperty("--record-stack-open-inset", openInset);
+  track.style.setProperty("--record-stack-front", layer);
+  track.toggleAttribute("data-record-stack", stacked);
+  track.toggleAttribute("data-record-scroll", scrollable);
+  track.toggleAttribute("data-record-reveal-after", revealAfter);
   if (!reflowing) {
     // Resolve the resting spacing before re-enabling hover transitions.
     track.getBoundingClientRect();
     track.removeAttribute("data-record-reflow");
   }
-  return true;
 }
 
 // Capture the visible positions before React changes card order, overlap, or scroll bounds.
@@ -60,7 +101,7 @@ class RecordTrackCards extends Component<RecordTrackCardsProps> {
     const track = trackRef.current;
     if (!track) return;
     if (movementKey === previous.movementKey) {
-      if (children !== previous.children && syncRecordStack(track)) follow.current?.refresh();
+      if (children !== previous.children) syncRecordStack(track);
       return;
     }
     this.stopMoves();
@@ -100,74 +141,48 @@ class RecordTrackCards extends Component<RecordTrackCardsProps> {
   }
 }
 
-export function RecordTrack({ children, movementKey, autoReturn = false }: { children: ReactNode; movementKey?: string; autoReturn?: boolean }) {
+export function RecordTrack({ children, movementKey, alignAddRecord = false }: { children: ReactNode; movementKey?: string; alignAddRecord?: boolean }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const follow = useRef<ReturnType<typeof followRecordTrackEnd> | null>(null);
-  const [canJump, setCanJump] = useState(false);
 
   useLayoutEffect(() => {
-    if (!autoReturn || !trackRef.current) return;
-    const controller = followRecordTrackEnd(trackRef.current);
-    follow.current = controller;
-    return () => { follow.current = null; controller.dispose(); };
-  }, [autoReturn]);
+    const track = trackRef.current;
+    if (!track) return;
+    const media = window.matchMedia?.(stackMediaQuery);
+    const stopFollowing = () => {
+      follow.current?.dispose();
+      follow.current = null;
+    };
+    const updateMode = () => {
+      if (media?.matches) stopFollowing();
+      syncRecordStack(track);
+      if (alignAddRecord && !media?.matches && !follow.current) follow.current = followRecordTrackEnd(track);
+    };
+    updateMode();
+    media?.addEventListener?.("change", updateMode);
+    return () => {
+      stopFollowing();
+      media?.removeEventListener?.("change", updateMode);
+    };
+  }, [alignAddRecord]);
 
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
-    const update = () => setCanJump(track.scrollWidth - track.clientWidth - track.scrollLeft > 2);
-    const updateLayout = () => {
-      if (syncRecordStack(track)) follow.current?.refresh();
-      update();
-    };
-    const updateStackScroll = () => { if (track.hasAttribute("data-record-stack")) update(); };
-    const settleSpacing = (event: TransitionEvent) => {
-      if (!track.hasAttribute("data-record-stack") || event.propertyName !== "margin-left") return;
-      const focused = track.querySelector(":focus-visible")?.closest(".record-card");
-      if (focused && !track.querySelector(".record-card:hover")) {
-        // Closing the previous gap can move a newly focused card after native focus scrolling.
-        const card = focused.getBoundingClientRect(), viewport = track.getBoundingClientRect();
-        const delta = card.left < viewport.left ? card.left - viewport.left : Math.max(0, card.right - viewport.right);
-        if (delta) track.scrollTo({ left: track.scrollLeft + delta, behavior: "instant" });
-      }
-      update();
-    };
-    const observer = new ResizeObserver(updateLayout);
+    const observer = new ResizeObserver(() => syncRecordStack(track));
     observer.observe(track);
+    if (track.parentElement) observer.observe(track.parentElement);
     for (const child of track.children) observer.observe(child);
     const cards = track.querySelectorAll<HTMLElement>(".record-card[data-record-status]");
     const viewport = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(entries => {
       for (const entry of entries) entry.target.toggleAttribute("data-motion-outside", !entry.isIntersecting);
     }, { root: track });
     for (const card of cards) viewport?.observe(card);
-    track.addEventListener("scroll", update, { passive: true });
-    const stackEvents = ["pointerover", "pointerout", "focusin", "focusout", "transitioncancel"];
-    for (const event of stackEvents) track.addEventListener(event, updateStackScroll);
-    track.addEventListener("transitionend", settleSpacing);
-    const media = window.matchMedia?.(stackMediaQuery);
-    media?.addEventListener?.("change", updateLayout);
-    update();
     return () => {
       observer.disconnect();
       viewport?.disconnect();
-      track.removeEventListener("scroll", update);
-      for (const event of stackEvents) track.removeEventListener(event, updateStackScroll);
-      track.removeEventListener("transitionend", settleSpacing);
-      media?.removeEventListener?.("change", updateLayout);
     };
   }, [children]);
 
-  return <div className="record-track-container">
-    <RecordTrackCards trackRef={trackRef} follow={follow} movementKey={movementKey}>{children}</RecordTrackCards>
-    {canJump && <button
-      className="record-track-jump"
-      type="button"
-      aria-label="跳到最后"
-      title="跳到最后"
-      onClick={() => {
-        const track = trackRef.current;
-        if (track) track.scrollTo({ left: track.scrollWidth, behavior: "instant" });
-      }}
-    ><span aria-hidden="true">»</span></button>}
-  </div>;
+  return <RecordTrackCards trackRef={trackRef} follow={follow} movementKey={movementKey}>{children}</RecordTrackCards>;
 }

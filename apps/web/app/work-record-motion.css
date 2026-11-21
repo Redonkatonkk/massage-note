@@ -144,17 +144,28 @@
   }
 }
 
-/* Open only the gap between the active card and the card above it. */
-@media (min-width: 761px) and (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
-  .record-track[data-record-stack] {
-    --record-stack-inset: -72px;
-    --record-stack-spring: cubic-bezier(.2, .8, .32, 1.18);
+@media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
+  .record-track {
+    flex-wrap: nowrap;
+    overflow: visible;
     isolation: isolate;
+  }
+
+  .record-track[data-record-scroll] { overflow-x: auto; overflow-anchor: none; }
+
+  .record-track:has(> .record-card:is(:hover, :focus-visible), > .record-card :focus-visible) { z-index: 1; }
+
+  .record-track[data-record-stack] {
+    --record-stack-spring: cubic-bezier(.2, .8, .32, 1.18);
   }
 
   .board[data-work-record-motion] .record-track[data-record-stack] > .record-card {
     isolation: isolate;
     z-index: var(--record-stack-layer, 0);
+  }
+
+  .board[data-work-record-motion] .record-track[data-record-stack] > .record-card:is(:focus-visible, :has(:focus-visible), .record-track:not(:has(> .record-card:focus-visible, > .record-card :focus-visible)) > :hover) {
+    z-index: var(--record-stack-front);
   }
 
   .record-track[data-record-stack] > .record-card:nth-child(even) {
@@ -169,22 +180,30 @@
     }
   }
 
-  .record-track[data-record-stack] > .record-card + .record-card:not(.record-card--right-group),
+  .record-track[data-record-stack] > .record-card:not(.record-card--right-group) + .record-card:not(.record-card--right-group),
   .record-track[data-record-stack] > .record-card--right-group + .record-card--right-group {
     margin-left: var(--record-stack-gap, var(--record-stack-inset));
   }
 
-  .record-track[data-record-stack] > .record-card:not(.record-card--right-group):is(:hover, .record-track:not(:has(> .record-card:hover)) > :has(:focus-visible)) + .record-card:not(.record-card--right-group),
-  .record-track[data-record-stack] > .record-card--right-group + .record-card--right-group:is(:hover, .record-track:not(:has(> .record-card:hover)) > :has(:focus-visible)) {
-    --record-stack-gap: 0px;
+  /* Open one gap. Keep the active card in place when the track scrolls. */
+  .record-track[data-record-stack] > .record-card:not(.record-card--right-group):is(:focus-visible, :has(:focus-visible), .record-track:not(:has(> .record-card:focus-visible, > .record-card :focus-visible)) > :hover) + .record-card:not(.record-card--right-group),
+  .record-track[data-record-stack][data-record-reveal-after] > .record-card--right-group:is(:focus-visible, :has(:focus-visible), .record-track:not(:has(> .record-card:focus-visible, > .record-card :focus-visible)) > :hover) + .record-card--right-group,
+  .record-track[data-record-stack]:not([data-record-reveal-after]) > .record-card--right-group + .record-card--right-group:is(:focus-visible, :has(:focus-visible), .record-track:not(:has(> .record-card:focus-visible, > .record-card :focus-visible)) > :hover) {
+    --record-stack-gap: var(--record-stack-open-inset);
   }
 
   /* Keep the pointer on a right-group card as the opening gap moves its left edge. */
-  .record-track[data-record-stack] > .record-card--right-group + .record-card--right-group:hover::before {
+  .record-track[data-record-stack]:not([data-record-reveal-after]) > .record-card--right-group + .record-card--right-group::before {
     content: "";
     position: absolute;
     inset: 0 100% 0 auto;
-    width: 24px;
+    width: 0;
+    pointer-events: none;
+  }
+
+  .record-track[data-record-stack]:not([data-record-reveal-after]) > .record-card--right-group + .record-card--right-group:hover::before {
+    width: calc(var(--record-stack-gap, var(--record-stack-inset)) - var(--record-stack-inset));
+    pointer-events: auto;
   }
 
   @supports (animation-timing-function: linear(0, 1)) {
@@ -201,7 +220,11 @@
         margin-left var(--record-stack-spacing-duration, 360ms) var(--record-stack-spring), scale 360ms var(--record-stack-spring);
     }
 
-    .record-track[data-record-stack] > .record-card:is(:hover, .record-track:not(:has(> .record-card:hover)) > :has(:focus-visible)) {
+    .record-track[data-record-stack]:not([data-record-reveal-after]) > .record-card--right-group + .record-card--right-group::before {
+      transition: width var(--record-stack-spacing-duration, 360ms) var(--record-stack-spring);
+    }
+
+    .record-track[data-record-stack] > .record-card:is(:focus-visible, :has(:focus-visible), .record-track:not(:has(> .record-card:focus-visible, > .record-card :focus-visible)) > :hover) {
       scale: 1.018 .988;
     }
   }

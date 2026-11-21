@@ -4,6 +4,18 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.63.11 — 2026-11-21
+
+- Restore the gap on hover and keyboard focus in dense work-card stacks. In scrollable tracks, following cards shift right while the active card stays in place. NAS needs a Web update.
+
+## 1.63.10 — 2026-11-21
+
+- Keep employee work cards on one row on mouse devices. Leave 56px of each stacked card exposed at maximum overlap and enable horizontal scrolling when more space is needed. NAS needs a Web update.
+
+## 1.63.9 — 2026-11-21
+
+- Fit employee work cards to the available width on mouse devices with adaptive stacking and wrapping. Raise the active card above employee totals. Keep horizontal browsing on touch devices and remove the edge jump and idle return. NAS needs a Web update.
+
 ## 1.63.8 — 2026-11-20
 
 - Set the work card expansion to 500ms. On desktop, stack cards when the unstacked track would overflow and restore full spacing when they fit. NAS needs a Web update.

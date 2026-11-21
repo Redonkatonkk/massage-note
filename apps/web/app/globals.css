@@ -3159,32 +3159,6 @@ body { position: relative; }
 .board-toolbar .board-closing-action { gap: 5px; text-decoration: none; flex-shrink: 0; }
 
 
-.record-track-container { position: relative; display: grid; min-width: 0; }
-.record-track-jump { display: none; }
-
-@media (min-width: 901px) and (hover: hover) and (pointer: fine) {
-  .record-track-jump {
-    display: grid;
-    place-items: center;
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 44px;
-    height: 64px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-panel);
-    background: var(--surface);
-    color: var(--ink);
-    box-shadow: none;
-    font-size: 2rem;
-    opacity: 0;
-    cursor: pointer;
-  }
-  .record-track-jump:hover,
-  .record-track-jump:focus-visible { opacity: 1; }
-}
-
 .editor-save-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-inline-start: auto; }
 .editor-save-actions > button { min-height: 44px; padding-block: 8px; }
 .editor-actions button:disabled {

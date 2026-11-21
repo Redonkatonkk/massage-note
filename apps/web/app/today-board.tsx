@@ -734,7 +734,7 @@ function TodayBoardContent({
 
               {!isCollapsed && (
                 <div className={`employee-content${showTotals ? "" : " employee-content--records-only"}`} data-motion-content>
-                  <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed} movementKey={row.workRecords.map(record => `${record.id}:${record.startAt}:${record.isHighlighted}:${record.isDispatchExcluded}`).join(" ")}>
+                  <RecordTrack key={currentDay.businessDate} alignAddRecord={!board.isClosed} movementKey={row.workRecords.map(record => `${record.id}:${record.startAt}:${record.isHighlighted}:${record.isDispatchExcluded}`).join(" ")}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record, index, items) => {
                       if (record === null) return (
                         <button key="add-record" className="add-record" type="button" data-motion-item="add-record" data-motion-skip-in onClick={() => { setQuickSessionId(crypto.randomUUID()); setRestoredSave(null); setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickMode("NORMAL"); setQuickCustomerType(null); setQuickEmployeeId(row.membershipId); }}>

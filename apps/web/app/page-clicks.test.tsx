@@ -77,12 +77,12 @@ async function singleClick(button: HTMLButtonElement, duringPress?: () => Promis
 }
 
 it("reveals only the hovered or keyboard-focused work card in a stack", async () => {
-  const { window } = new JSDOM(`<div class="board" data-work-record-motion><div class="record-track" data-record-stack>
+  const { window } = new JSDOM(`<div class="board" data-work-record-motion><div class="employee-content"><div class="record-track" data-record-stack>
     <button class="record-card"></button><div class="record-card record-card--placeholder"><button class="record-placeholder-delete"></button></div><button class="record-card"></button>
     <button class="add-record"></button><div class="record-card record-card--right-group"><button class="record-money"></button></div>
     <div class="record-card record-card--right-group"><button class="record-money"></button></div><div class="record-card record-card--right-group"><button class="record-money"></button></div>
-  </div></div>`);
-  const { document, CSSMediaRule, CSSStyleRule, MouseEvent, getComputedStyle } = window;
+  </div><dl class="employee-totals"></dl></div></div>`);
+  const { document, CSSMediaRule, CSSStyleRule, KeyboardEvent, MouseEvent, getComputedStyle } = window;
   const track = document.querySelector(".record-track")!;
   const cards = [...track.children] as HTMLElement[];
   const style = document.createElement("style");
@@ -91,10 +91,13 @@ it("reveals only the hovered or keyboard-focused work card in a stack", async ()
   try {
     // jsdom does not evaluate hover input media queries. Apply the authored rules for that mode.
     const stackMedia = [...style.sheet!.cssRules].find((rule): rule is CSSMediaRule =>
-      rule instanceof CSSMediaRule && rule.conditionText.includes("min-width: 761px"))!;
+      rule instanceof CSSMediaRule && rule.conditionText.includes("any-pointer: coarse")
+        && [...rule.cssRules].some(nested => nested instanceof CSSStyleRule && nested.selectorText === ".record-track"))!;
     style.textContent = [...stackMedia.cssRules].filter(rule => rule instanceof CSSStyleRule).map(rule => rule.cssText).join("\n");
+    expect(getComputedStyle(track).overflow).toBe("visible");
+    expect(getComputedStyle(track).flexWrap).toBe("nowrap");
     const openGaps = () => cards.flatMap((card, index) => {
-      return getComputedStyle(card).getPropertyValue("--record-stack-gap") === "0px" ? [index] : [];
+      return getComputedStyle(card).getPropertyValue("--record-stack-gap") === "var(--record-stack-open-inset)" ? [index] : [];
     });
     const placeholderAction = cards[1]!.querySelector("button")!;
     placeholderAction.focus();
@@ -112,12 +115,40 @@ it("reveals only the hovered or keyboard-focused work card in a stack", async ()
     track.setAttribute("data-test-refresh-style", "hover-right");
     expect(openGaps()).toEqual([5]);
     cards[5]!.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: track }));
+    const last = cards.at(-1)!;
+    last.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    track.setAttribute("data-test-refresh-style", "last-right");
+    expect(openGaps()).toEqual([6]);
+    expect(getComputedStyle(track).zIndex).toBe("1");
+    expect(getComputedStyle(last).zIndex).toBe("var(--record-stack-front)");
+    last.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: track }));
     cards[1]!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
     track.setAttribute("data-test-refresh-style", ""); // Invalidate jsdom's style cache after input changes.
     expect(openGaps()).toEqual([2]);
     cards[1]!.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: track }));
     track.removeAttribute("data-test-refresh-style");
     expect(openGaps()).toEqual([]);
+    track.setAttribute("data-record-scroll", "");
+    track.setAttribute("data-record-reveal-after", "");
+    expect(getComputedStyle(track).overflowX).toBe("auto");
+    expect(getComputedStyle(track).flexWrap).toBe("nowrap");
+    cards[1]!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    track.setAttribute("data-test-refresh-style", "scroll-left-group");
+    expect(openGaps()).toEqual([2]);
+    cards[1]!.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: track }));
+    track.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    cards[5]!.querySelector("button")!.focus();
+    track.setAttribute("data-test-refresh-style", "scroll-right-group");
+    expect(openGaps()).toEqual([6]);
+    expect(getComputedStyle(cards[5]!).zIndex).toBe("var(--record-stack-front)");
+    cards[5]!.querySelector("button")!.blur();
+    last.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    track.setAttribute("data-test-refresh-style", "scroll-last-right");
+    expect(openGaps()).toEqual([]);
+    expect(getComputedStyle(last).zIndex).toBe("var(--record-stack-front)");
+    track.removeAttribute("data-record-stack");
+    expect(getComputedStyle(track).overflowX).toBe("auto");
+    expect(getComputedStyle(track).flexWrap).toBe("nowrap");
   } finally {
     window.close();
   }

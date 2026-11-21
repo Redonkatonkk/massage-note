@@ -310,7 +310,6 @@ const ENGLISH_TRANSLATIONS: Record<string, string> = {
   "已选择": "Selected",
   "正在添加…": "Adding…",
   "添加所选员工": "Add selected staff",
-  "跳到最后": "Jump to last",
   "这个营业日已经日结，请先取消日结再保存。": "This business day is closed. Reopen it before saving.",
   "服务日期": "Service date",
   "项目与金额": "Service and price",

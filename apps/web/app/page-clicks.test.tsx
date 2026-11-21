@@ -8,7 +8,6 @@ import { DecisionProvider } from "./decision-dialog";
 import { LanguageProvider } from "./language-provider";
 import { ScrollBoundaryGuard } from "./scroll-boundary-guard";
 import { NetworkStatus } from "./network-status";
-import { RecordTrack } from "./record-track";
 import type { AppLocale } from "../lib/i18n";
 import type { RealtimeChange } from "../lib/realtime-client";
 
@@ -77,22 +76,6 @@ async function singleClick(button: HTMLButtonElement, duringPress?: () => Promis
   });
 }
 
-it("stacks at five work cards and returns to full spacing at four", async () => {
-  const mount = async (recordCount: number) => act(async () => root.render(
-    <RecordTrack recordCount={recordCount}>
-      {Array.from({ length: recordCount }, (_, index) => <button key={index} className="record-card" />)}
-      <button className="add-record">新增记工</button>
-    </RecordTrack>
-  ));
-  const track = () => host.querySelector<HTMLElement>(".record-track")!;
-  await mount(4);
-  expect(track().dataset.recordStack).toBeUndefined();
-  await mount(5);
-  expect(track().dataset.recordStack).toBe("true");
-  await mount(4);
-  expect(track().dataset.recordStack).toBeUndefined();
-});
-
 it("reveals only the hovered or keyboard-focused work card in a stack", async () => {
   const { window } = new JSDOM(`<div class="board" data-work-record-motion><div class="record-track" data-record-stack>
     <button class="record-card"></button><div class="record-card record-card--placeholder"><button class="record-placeholder-delete"></button></div><button class="record-card"></button>
@@ -153,9 +136,7 @@ it.each(["zh-CN", "en-US"] as AppLocale[])("keeps single-click navigation and di
   const toggle = () => host.querySelector<HTMLButtonElement>("button.app-nav-toggle")!;
   const queue = () => host.querySelector<HTMLButtonElement>('button.board-closing-action.secondary-action[aria-haspopup="dialog"]')!;
   const tracks = [...host.querySelectorAll<HTMLElement>(".record-track")];
-  expect(tracks.map(track => [track.querySelectorAll(".record-card").length, track.dataset.recordStack])).toEqual([
-    [3, undefined], [4, undefined], [6, "true"], [4, undefined], [6, "true"],
-  ]);
+  expect(tracks.map(track => track.querySelectorAll(".record-card").length)).toEqual([3, 4, 6, 4, 6]);
   expect(tracks[2]!.querySelectorAll(".record-card--right-group")).toHaveLength(1);
   for (let index = 0; index < 4; index++) {
     await singleClick(toggle(), tick);
@@ -181,7 +162,6 @@ it.each(["zh-CN", "en-US"] as AppLocale[])("keeps single-click navigation and di
     await singleClick(refresh);
     expect(refresh.disabled).toBe(false);
   }
-  expect(host.querySelectorAll(".record-track[data-record-stack]")).toHaveLength(2);
   expect(network).not.toHaveBeenCalled();
   expect(host.querySelector(".decision-dialog")).toBeNull();
   expect(document.querySelector(".screen-feedback--error, .record-error-toast")).toBeNull();

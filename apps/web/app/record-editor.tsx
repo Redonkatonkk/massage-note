@@ -15,7 +15,7 @@ import { automaticRecordEnd, sameDayRecordTimeAfterDuration, recordTimeError } f
 import { browserStorage } from "../lib/browser-storage";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { useOverlayExitRef } from "./ui/interaction-motion";
+import { allowsMotion, useOverlayExitRef } from "./ui/interaction-motion";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import { formatMoneyInput, formatUsd } from "../lib/money";
 import { closedRecordBusinessDate, reopenRecordBusinessDay } from "../lib/record-closing";
@@ -58,7 +58,7 @@ interface RecordEditorProps {
   >;
   record: WorkRecord;
   isNew?: boolean;
-  fullDrawerEntrance?: boolean;
+  centered?: boolean;
   initialSection?: RecordEditorSection | undefined;
   initialServiceItemId?: string | undefined;
   catalog: CatalogResponse;
@@ -162,7 +162,7 @@ export function RecordEditor({
   autoDiscountSettings,
   record,
   isNew = false,
-  fullDrawerEntrance = false,
+  centered = false,
   initialSection,
   initialServiceItemId,
   catalog,
@@ -223,7 +223,6 @@ export function RecordEditor({
   );
   const [employeeId, setEmployeeId] = useState(record.employeeMembershipId);
   const [startTimeValid, setStartTimeValid] = useState(true);
-  const [endTimeValid, setEndTimeValid] = useState(true);
   const [startAt, setStartAt] = useState(initialStart);
   const [endAt, setEndAt] = useState(() => automaticRecordEnd(initialStart, initialEnd, (initialServiceDuration ?? 0) + initialAddons.reduce((sum, item) => sum + addonDurationValue(item), 0), timezone));
   const [serviceChoice, setServiceChoice] = useState(
@@ -347,17 +346,24 @@ export function RecordEditor({
   }, [draftKey, record.version, isNew, initialDraft]);
 
   const waitingForDraft = Boolean(initialSection && !draftLoaded);
+  const previousSection = useRef(initialSection);
   useLayoutEffect(() => {
     const editor = editorElement.current;
     if (!editor || waitingForDraft) return;
     const heading = initialSection && editor.querySelector<HTMLElement>(`#record-${initialSection}-title`);
     if (heading && editorHeading.current) {
       const headerBottom = editorHeading.current.getBoundingClientRect().bottom;
-      editor.scrollTop += heading.getBoundingClientRect().top - headerBottom - 12;
+      const top = editor.scrollTop + heading.getBoundingClientRect().top - headerBottom - 12;
+      if (previousSection.current !== initialSection && allowsMotion() && typeof editor.scrollTo === "function") {
+        editor.scrollTo({ top, behavior: "smooth" });
+      } else {
+        editor.scrollTop = top;
+      }
       heading.focus({ preventScroll: true });
     } else {
       editor.focus({ preventScroll: true });
     }
+    previousSection.current = initialSection;
   }, [record.id, initialSection, waitingForDraft]);
 
   useEffect(() => {
@@ -380,11 +386,6 @@ export function RecordEditor({
   function changeStartAt(value: string) {
     setStartAt(value);
     if (value && configuredDuration() > 0) setEndAt(sameDayRecordTimeAfterDuration(value, configuredDuration(), timezone));
-  }
-
-  function changeEndAt(value: string) {
-    setEndAt(value);
-    if (value && configuredDuration() > 0) setStartAt(sameDayRecordTimeAfterDuration(value, -configuredDuration(), timezone));
   }
 
   function changeServiceDuration(value: string) {
@@ -423,10 +424,6 @@ export function RecordEditor({
     if (option) {
       setServiceAmount(dollars(option.priceCents));
     }
-  }
-
-  function changeCustomServiceDuration(value: string) {
-    changeServiceDuration(value);
   }
 
   function updateAddon(key: string, changes: Partial<AddonDraft>) {
@@ -816,7 +813,7 @@ export function RecordEditor({
   async function saveRecord() {
     if (dayClosed) return;
     if (serviceChoice === "__unassigned__" && willConfirmPayment) throw new Error("请先选择项目");
-    if (!startTimeValid || !endTimeValid) throw new Error("请选择有效的开始和结束时间");
+    if (!startTimeValid) throw new Error("请选择有效的开始时间");
     const timeError = recordTimeError(startAt, endAt);
     if (timeError) throw new Error(timeError);
     if (isNew || willConfirmPayment || record.status === "CONFIRMED") {
@@ -871,14 +868,8 @@ export function RecordEditor({
   const draftServicePaid = cashService !== "" || cardService !== "" || usesGiftCard
     ? draftCashService !== null && draftCardService !== null && draftGiftCardService !== null ? draftCashService + draftCardService + draftGiftCardService : null
     : null;
-  const draftDifference = draftServicePaid !== null && draftDiscounted !== null ? draftServicePaid - draftDiscounted : null;
-  const draftMismatchText = draftDifference !== null && draftDifference !== 0
-    ? `实收服务费与折后大费业绩不一致，相差 ${formatUsd(Math.abs(draftDifference))}（${draftDifference > 0 ? "多收" : "少收"}）。系统允许确认，但会保留这条异常。`
-    : null;
   const [timeNotice, setTimeNotice] = useAutoDismissState<string | null>(null);
-  const [mismatchNotice, setMismatchNotice] = useAutoDismissState<string | null>(null);
   useEffect(() => { setTimeNotice(recordTimeError(startAt, endAt)); }, [startAt, endAt, setTimeNotice]);
-  useEffect(() => { setMismatchNotice(draftMismatchText); }, [draftMismatchText, setMismatchNotice]);
   const selectedCatalogService = catalog.serviceItems.find(
     (item) => item.id === serviceChoice,
   );
@@ -886,82 +877,110 @@ export function RecordEditor({
     (option) => option.durationMinutes.toString() === serviceDuration,
   );
 
-  return (
-    <div className="modal-backdrop modal-backdrop--editor" role="presentation">
-      <section ref={editorPanelRef} tabIndex={-1} className="record-editor" data-work-record-motion={fullDrawerEntrance || undefined} role="dialog" aria-modal="true" aria-labelledby="record-title" onFocusCapture={selectEditorInput} onClick={selectEditorInput} onChangeCapture={() => setDraftDirty(true)} onKeyDown={saveOnEnter}>
-        <header className="modal-heading sticky-heading" ref={editorHeading}>
-          <div>
-            <p className="eyebrow">{isNew ? "详细记工" : "记工详情"}</p>
-            <h2 id="record-title">{service?.name ?? "记工记录"}</h2>
+  const serviceSection = (
+    <section className="record-service-section" aria-labelledby="record-service-title">
+      <h3 id="record-service-title">项目与金额</h3>
+      <div className="record-service-fields">
+        <label className="field-label record-service-fields__project">主要项目
+          <select value={serviceChoice} onChange={(event) => chooseService(event.target.value)}>
+            {!service && <option value="__unassigned__">暂不选择项目</option>}
+            {serviceChoice !== "__custom__" && serviceChoice !== "__unassigned__" && !catalog.serviceItems.some((item) => item.id === serviceChoice && item.isEnabled && !item.deletedAt) && (
+              <option value={serviceChoice}>{service?.name ?? "历史项目"}（历史项目）</option>
+            )}
+            {catalog.serviceItems.filter((item) => item.isEnabled && !item.deletedAt).map((item) => (
+              <option key={item.id} value={item.id}>{item.fullName}</option>
+            ))}
+            <option value="__custom__">自定义项目</option>
+          </select>
+        </label>
+        <label className="field-label record-service-fields__employee">所属员工
+          <select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
+            {members.filter((member) => member.status === "ACTIVE" && member.isServiceProvider).map((member) => (
+              <option key={member.id} value={member.id}>{member.displayName}</option>
+            ))}
+          </select>
+        </label>
+        {serviceChoice === "__custom__" && (
+          <>
+            <label className="field-label">项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} /></label>
+            <label className="field-label">项目简称<input value={serviceShortName} onChange={(event) => setServiceShortName(event.target.value)} /></label>
+            <label className="field-label">时长（分钟）<NumericInput inputMode="numeric" value={serviceDuration} onChange={(event) => changeServiceDuration(event.target.value)} /></label>
+          </>
+        )}
+        {serviceChoice === "__unassigned__" && <label className="field-label">时长（分钟）<input value={serviceDuration} readOnly /></label>}
+        {serviceChoice !== "__custom__" && serviceChoice !== "__unassigned__" && (
+          <label className="field-label">项目时长与价格
+            <select value={serviceDuration} onChange={(event) => chooseServiceDuration(event.target.value)}>
+              {!hasCurrentDuration && <option value={serviceDuration}>{serviceDuration} 分钟（历史档位）</option>}
+              {selectedCatalogService?.priceOptions.map((option) => (
+                <option key={option.id} value={option.durationMinutes}>{option.durationMinutes} 分钟 · ${dollars(option.priceCents)}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="field-label">主要项目金额（美元）<NumericInput inputMode="decimal" value={serviceAmount} disabled={serviceChoice === "__unassigned__"} onChange={(event) => setServiceAmount(event.target.value)} /></label>
+        <label className="field-label record-service-fields__commission">提成（%）<NumericInput inputMode="decimal" value={serviceCommission} placeholder="按规则" disabled={!canManage || serviceChoice === "__unassigned__"} onChange={(event) => setServiceCommission(event.target.value)} />{!canManage && <small>只有店长或经理可以修改</small>}</label>
+        <div className="record-service-fields__clock">
+          <div className="field-label" role="group" aria-label="开始时间" data-record-detail-part="time">开始时间
+            <WorkTimeInput value={startAt.slice(11)} onChange={(value) => changeStartAt(`${startAt.slice(0, 10)}T${value}`)} onValidityChange={setStartTimeValid} />
           </div>
-          <div className="modal-heading__actions">
+          <CustomerTypeSwitch value={customerType} disabled={busy || dayClosed} onChange={value => { setDraftDirty(true); setCustomerType(value); }} />
+        </div>
+      </div>
+      {timeNotice && <p className="form-error" role="alert">{timeNotice}</p>}
+    </section>
+  );
+  const paymentSection = (
+    <section className="record-payment-section" aria-labelledby="record-payment-title">
+      <h3 id="record-payment-title" tabIndex={-1}>客人付款</h3>
+      <dl className="amount-explainer" aria-label="本单金额摘要">
+        <div><dt>折后应收</dt><dd data-record-detail-part={record.status === "PENDING_PAYMENT" ? "payment" : undefined}>{draftDiscounted === null ? "未填写" : formatUsd(draftDiscounted)}</dd></div>
+        <div><dt>实收服务费</dt><dd data-record-detail-part={record.status === "CONFIRMED" ? "payment" : undefined}>{draftServicePaid === null ? "未填写" : formatUsd(draftServicePaid)}</dd></div>
+        <div><dt>折扣前大费</dt><dd data-record-detail-part="gross">{draftGross === null ? (serviceChoice === "__unassigned__" ? "未填写" : "请检查金额") : formatUsd(draftGross)}</dd></div>
+        <div><dt>已保存员工大费工资</dt><dd>{service ? formatUsd(record.totalLargeFeeWageCents) : "未填写"}</dd></div>
+      </dl>
+      <div className="payment-method-rows">
+        <div className="payment-method-row payment-method-row--labels" aria-hidden="true">
+          <span>支付方式</span><span>大费</span><span data-record-detail-part="tip">小费</span>
+        </div>
+        <div className="payment-method-row" role="group" aria-label="刷卡">
+          <strong>刷卡</strong>
+          <div className="field-label"><NumericInput aria-label="刷卡大费（美元）" inputMode="decimal" placeholder="可留空" value={cardService} onChange={(event) => setCardService(event.target.value)} /></div>
+          <div className="field-label"><NumericInput aria-label="刷卡小费（美元）" inputMode="decimal" placeholder="空白按 0" value={cardTip} onChange={(event) => setCardTip(event.target.value)} /></div>
+        </div>
+        <div className="payment-method-row" role="group" aria-label="现金">
+          <strong>现金</strong>
+          <div className="field-label"><NumericInput aria-label="现金大费（美元）" inputMode="decimal" placeholder="可留空" value={cashService} onChange={(event) => setCashService(event.target.value)} /></div>
+          <div className="field-label"><NumericInput aria-label="现金小费（美元）" inputMode="decimal" placeholder="空白按 0" value={cashTip} onChange={(event) => setCashTip(event.target.value)} /></div>
+        </div>
+      </div>
+      <label className="gift-card-toggle"><input type="checkbox" checked={usesGiftCard} onChange={(event) => setUsesGiftCard(event.target.checked)} /> 使用礼物卡付款</label>
+      {usesGiftCard && <div className="editor-grid editor-grid--gift-card" data-motion-content>
+        <GiftCardIdentityField value={giftCardSerialNumber} onChange={setGiftCardSerialNumber} disabled={busy} />
+        <label className="field-label">礼物卡大费（美元）<NumericInput inputMode="decimal" placeholder="可填 0" value={giftCardService} onChange={(event) => setGiftCardService(event.target.value)} /></label>
+        <label className="field-label">礼物卡小费（美元）<NumericInput inputMode="decimal" placeholder="可填 0" value={giftCardTip} onChange={(event) => setGiftCardTip(event.target.value)} /></label>
+      </div>}
+      <p className="record-save-help">实收为 0 或留空时保存为待结账。结账至少填写一项大费。</p>
+    </section>
+  );
+
+  return (
+    <div className={`modal-backdrop modal-backdrop--editor${centered ? " modal-backdrop--record-detail" : ""}`} role="presentation">
+      <section ref={editorPanelRef} tabIndex={-1} className={`record-editor${centered ? " record-editor--card-detail" : ""}`} role="dialog" aria-modal="true" aria-labelledby="record-title" onFocusCapture={selectEditorInput} onClick={selectEditorInput} onChangeCapture={() => setDraftDirty(true)} onKeyDown={saveOnEnter}>
+        <header className="modal-heading sticky-heading" ref={editorHeading}>
+          <h2 id="record-title" data-record-detail-part="service">{isNew ? "详细记工" : service?.name ?? "记工详情"}</h2>
+          <div className="record-editor-heading-actions">
             <button className={`highlight-toggle dispatch-excluded-toggle${isDispatchExcluded ? " active" : ""}`} type="button" aria-pressed={isDispatchExcluded} disabled={busy} onClick={() => { setDraftDirty(true); setIsDispatchExcluded((current) => !current); }}>不算排工</button>
             <button className={`highlight-toggle${isHighlighted ? " active" : ""}`} type="button" aria-pressed={isHighlighted} disabled={busy} onClick={() => { setDraftDirty(true); setIsHighlighted((current) => !current); }}><span aria-hidden="true">★</span>{isHighlighted ? "已高亮" : "高亮标记"}</button>
             <button className="close-button" type="button" onClick={onClose} disabled={busy}>关闭</button>
           </div>
         </header>
-
-        <div className="editor-grid">
-          <label className="field-label">所属员工
-            <select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
-              {members.filter((member) => member.status === "ACTIVE" && member.isServiceProvider).map((member) => (
-                <option key={member.id} value={member.id}>{member.displayName}</option>
-              ))}
-            </select>
-          </label>
-          <label className="field-label">服务日期
-            <input type="date" value={startAt.slice(0, 10)} onChange={(event) => {
-              if (event.target.value) changeStartAt(`${event.target.value}T${startAt.slice(11)}`);
-            }} />
-          </label>
+        {closedBusinessDate && <p className="record-closed-note"><time>{closedBusinessDate}</time><span>这个营业日已经日结，请先取消日结再保存。</span></p>}
+        <div className="record-editor-main">
+          {isNew && serviceSection}
+          {paymentSection}
+          {!isNew && serviceSection}
         </div>
-        <div className="editor-grid record-time-row">
-          <div className="field-label" role="group" aria-label="开始时间">开始时间
-            <WorkTimeInput value={startAt.slice(11)} onChange={(value) => changeStartAt(`${startAt.slice(0, 10)}T${value}`)} onValidityChange={setStartTimeValid} />
-          </div>
-          <div className="field-label" role="group" aria-label="结束时间">结束时间
-            <WorkTimeInput value={endAt.slice(11)} optional={serviceChoice === "__unassigned__"} onChange={(value) => changeEndAt(value ? `${startAt.slice(0, 10)}T${value}` : "")} onValidityChange={setEndTimeValid} />
-          </div>
-        </div>
-        {timeNotice && <p className="form-error" role="alert">{timeNotice}</p>}
-        <section className="editor-section record-service-section">
-          <h3>项目与金额</h3>
-          <div className="editor-grid">
-          <label className="field-label">主要项目
-            <select value={serviceChoice} onChange={(event) => chooseService(event.target.value)}>
-              {!service && <option value="__unassigned__">暂不选择项目</option>}
-              {serviceChoice !== "__custom__" && serviceChoice !== "__unassigned__" && !catalog.serviceItems.some((item) => item.id === serviceChoice && item.isEnabled && !item.deletedAt) && (
-                <option value={serviceChoice}>{service?.name ?? "历史项目"}（历史项目）</option>
-              )}
-              {catalog.serviceItems.filter((item) => item.isEnabled && !item.deletedAt).map((item) => (
-                <option key={item.id} value={item.id}>{item.fullName}</option>
-              ))}
-              <option value="__custom__">自定义项目</option>
-            </select>
-          </label>
-          {serviceChoice === "__custom__" && (
-            <>
-              <label className="field-label">项目名称<input value={serviceName} onChange={(event) => setServiceName(event.target.value)} /></label>
-              <label className="field-label">项目简称<input value={serviceShortName} onChange={(event) => setServiceShortName(event.target.value)} /></label>
-              <label className="field-label">时长（分钟）<NumericInput inputMode="numeric" value={serviceDuration} onChange={(event) => changeCustomServiceDuration(event.target.value)} /></label>
-            </>
-          )}
-          {serviceChoice === "__unassigned__" && <label className="field-label">时长（分钟）<input value={serviceDuration} readOnly /></label>}
-          {serviceChoice !== "__custom__" && serviceChoice !== "__unassigned__" && (
-            <label className="field-label">项目时长与价格
-              <select value={serviceDuration} onChange={(event) => chooseServiceDuration(event.target.value)}>
-                {!hasCurrentDuration && <option value={serviceDuration}>{serviceDuration} 分钟（历史档位）</option>}
-                {selectedCatalogService?.priceOptions.map((option) => (
-                  <option key={option.id} value={option.durationMinutes}>{option.durationMinutes} 分钟 · ${dollars(option.priceCents)}</option>
-                ))}
-              </select>
-            </label>
-          )}
-          <label className="field-label">主要项目金额（美元）<NumericInput inputMode="decimal" value={serviceAmount} disabled={serviceChoice === "__unassigned__"} onChange={(event) => setServiceAmount(event.target.value)} /></label>
-          <label className="field-label">本单主要项目提成（%）<NumericInput inputMode="decimal" value={serviceCommission} placeholder="按项目规则计算" disabled={!canManage || serviceChoice === "__unassigned__"} onChange={(event) => setServiceCommission(event.target.value)} /><small>{canManage ? "修改会保留审计记录" : "只有店长或经理可以修改"}</small></label>
-        </div>
-
-        </section>
 
         <div className="editor-section record-adjustments">
           <section className="record-adjustments__section" aria-labelledby="record-addons-title">
@@ -1014,53 +1033,9 @@ export function RecordEditor({
           </section>
         </div>
 
-        <section className="editor-section" aria-labelledby="record-payment-title">
-          <h3 id="record-payment-title" tabIndex={-1}>客人付款</h3>
-          <p className="field-help">实收金额全为 0 或空白时保存为待结账；录入付款后，大费至少填一项，小费空白按 0 处理。</p>
-          <div className="payment-method-rows">
-            <div className="payment-method-row" role="group" aria-label="刷卡">
-              <strong><span>刷卡</span><span aria-hidden="true">：</span></strong>
-              <label className="field-label"><span>大费</span><NumericInput aria-label="刷卡大费（美元）" inputMode="decimal" placeholder="可留空" value={cardService} onChange={(event) => setCardService(event.target.value)} /></label>
-              <label className="field-label"><span>小费</span><NumericInput aria-label="刷卡小费（美元）" inputMode="decimal" placeholder="空白按 0" value={cardTip} onChange={(event) => setCardTip(event.target.value)} /></label>
-            </div>
-            <div className="payment-method-row" role="group" aria-label="现金">
-              <strong><span>现金</span><span aria-hidden="true">：</span></strong>
-              <label className="field-label"><span>大费</span><NumericInput aria-label="现金大费（美元）" inputMode="decimal" placeholder="可留空" value={cashService} onChange={(event) => setCashService(event.target.value)} /></label>
-              <label className="field-label"><span>小费</span><NumericInput aria-label="现金小费（美元）" inputMode="decimal" placeholder="空白按 0" value={cashTip} onChange={(event) => setCashTip(event.target.value)} /></label>
-            </div>
-          </div>
-          <div className="payment-customer-controls">
-            <label className="gift-card-toggle"><input type="checkbox" checked={usesGiftCard} onChange={(event) => setUsesGiftCard(event.target.checked)} /> 使用礼物卡付款</label>
-            <CustomerTypeSwitch value={customerType} disabled={busy || dayClosed} onChange={value => { setDraftDirty(true); setCustomerType(value); }} />
-          </div>
-          {usesGiftCard && <div className="editor-grid editor-grid--gift-card" data-motion-content>
-            <GiftCardIdentityField value={giftCardSerialNumber} onChange={setGiftCardSerialNumber} disabled={busy} />
-            <label className="field-label">礼物卡大费（美元）<NumericInput inputMode="decimal" placeholder="可填 0" value={giftCardService} onChange={(event) => setGiftCardService(event.target.value)} /></label>
-            <label className="field-label">礼物卡小费（美元）<NumericInput inputMode="decimal" placeholder="可填 0" value={giftCardTip} onChange={(event) => setGiftCardTip(event.target.value)} /></label>
-          </div>}
-        </section>
-
         <section className="editor-section">
-          <label className="field-label">备注<textarea rows={4} maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} /></label>
+          <label className="field-label">备注<textarea rows={3} maxLength={2000} value={note} onChange={(event) => setNote(event.target.value)} /></label>
         </section>
-
-        <section className="amount-explainer" aria-label="本单金额摘要">
-          <div><span>大费总额（按当前填写）</span><strong>{draftGross === null ? (serviceChoice === "__unassigned__" ? "未填写" : "请检查金额") : formatUsd(draftGross)}</strong></div>
-          <div><span>折后大费业绩（按当前填写）</span><strong>{draftDiscounted === null ? (serviceChoice === "__unassigned__" ? "未填写" : "请检查金额") : formatUsd(draftDiscounted)}</strong></div>
-          <div><span>实收服务费（按当前填写）</span><strong>{draftServicePaid === null ? "未填写" : formatUsd(draftServicePaid)}</strong></div>
-          <div><span>当前已保存员工大费工资</span><strong>{service ? formatUsd(record.totalLargeFeeWageCents) : "未填写"}</strong></div>
-        </section>
-        {mismatchNotice && <p className="mismatch-warning" role="status">{mismatchNotice}</p>}
-
-        {closedBusinessDate && <p className="record-save-help">{closedBusinessDate} · 取消日结</p>}
-        <p className="record-save-help">
-          {dayClosed
-            ? "这个营业日已经日结，请先取消日结再保存。"
-            : willConfirmPayment
-            ? "点击保存会校验付款信息；完整时同时确认付款。小费留空按 0 处理。"
-            : "实收金额全为 0 或空白，可不选项目保存为待结账，之后仍可补录付款。"}
-        </p>
-        {!dayClosed && <p className="record-save-help">也可按 Enter 保存；备注框内按 Enter 换行。</p>}
 
         {error && createPortal(
           <div className="record-error-toast" role="alert" aria-atomic="true">
@@ -1079,7 +1054,6 @@ export function RecordEditor({
             <span className="delete-record__label" aria-hidden={deleteConfirming}>删除记录</span>
             <span className="delete-record__confirmation" aria-hidden={!deleteConfirming}>确认删除</span>
           </button>}
-          <span />
           <div className="editor-save-actions">
             {dayClosed && canManage && <button className="secondary-action" type="button" disabled={busy} onClick={() => run(reopenDay)}>取消日结</button>}
             <button className="primary-action" type="button" aria-keyshortcuts="Enter" disabled={busy || dayClosed} onClick={() => run(saveRecord)}>{busy ? "处理中…" : "保存"}</button>

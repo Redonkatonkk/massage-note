@@ -1,4 +1,20 @@
 /* Work-record interactions. */
+.modal-backdrop--editor.modal-backdrop--record-detail { place-items: center; }
+
+.record-editor.record-editor--card-detail {
+  width: clamp(min(360px, calc(100vw - 24px)), 70vw, calc(100vw - 24px));
+  height: 90dvh;
+  border-radius: var(--radius-sheet);
+  overscroll-behavior: contain;
+  animation: none;
+}
+
+@media (max-width: 960px) {
+  .record-editor.record-editor--card-detail {
+    height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
+
 @media (hover: hover) and (pointer: fine) and (not (any-pointer: coarse)) {
   .record-placeholder-delete { opacity: 0; pointer-events: none; }
   .record-card--placeholder:hover > .record-placeholder-delete, .record-placeholder-delete:focus-visible { opacity: 1; pointer-events: auto; }
@@ -21,8 +37,98 @@
     animation: work-record-quick-in 320ms var(--ease-out) backwards;
   }
 
-  .record-editor[data-work-record-motion] {
-    animation: work-record-detail-in 200ms var(--ease-out) backwards;
+  .modal-backdrop--editor.modal-backdrop--record-detail {
+    animation: work-record-detail-scrim 320ms var(--ease-out);
+  }
+
+  /* Give the card, the editor and each matching field independent snapshots. */
+  :root:has([data-record-detail-source]) {
+    --record-detail-duration: 500ms;
+    view-transition-name: none;
+  }
+  :root:not(:has(.modal-backdrop--record-detail)) [data-record-detail-source],
+  :root:has([data-record-detail-source]) .modal-backdrop--record-detail > .record-editor {
+    view-transition-name: work-record-detail;
+  }
+  :is(:root:not(:has(.modal-backdrop--record-detail)) [data-record-detail-source],
+      :root:has([data-record-detail-source]) .modal-backdrop--record-detail > .record-editor) [data-record-detail-part] {
+    view-transition-name: var(--record-detail-part);
+  }
+  [data-record-detail-part="service"] { --record-detail-part: work-record-detail-service; }
+  [data-record-detail-part="time"] { --record-detail-part: work-record-detail-time; }
+  [data-record-detail-part="gross"] { --record-detail-part: work-record-detail-gross; }
+  [data-record-detail-part="payment"] { --record-detail-part: work-record-detail-payment; }
+  [data-record-detail-part="tip"] { --record-detail-part: work-record-detail-tip; }
+  [data-record-detail-source] :is(.record-time, [data-record-detail-part="tip"]),
+  :root:has([data-record-detail-source]) .modal-backdrop--record-detail [data-record-detail-part="tip"],
+  :root:has([data-record-detail-source]) .modal-backdrop--record-detail dd[data-record-detail-part] { width: fit-content; }
+
+  /* Hide badges and accents in the old snapshot without shifting the card's fields. */
+  [data-record-detail-source] :is(.record-card__open, .record-card__badges, .record-customer-type, .record-card__indicators) {
+    opacity: 0;
+  }
+  [data-record-detail-source]::before,
+  [data-record-detail-source]::after { visibility: hidden; }
+
+  :root:has(.modal-backdrop--record-detail) [data-record-detail-source] { opacity: 0; }
+  :root:has([data-record-detail-source]) .modal-backdrop--record-detail { animation-duration: var(--record-detail-duration); }
+  :root:has([data-record-detail-source])::view-transition { pointer-events: none; }
+  ::view-transition-group(work-record-detail),
+  ::view-transition-group(work-record-detail-service),
+  ::view-transition-group(work-record-detail-time),
+  ::view-transition-group(work-record-detail-gross),
+  ::view-transition-group(work-record-detail-payment),
+  ::view-transition-group(work-record-detail-tip) {
+    animation-duration: var(--record-detail-duration);
+    animation-timing-function: cubic-bezier(.32, .1, .35, 1);
+  }
+
+  ::view-transition-image-pair(work-record-detail) {
+    overflow: clip;
+    border-radius: var(--radius-sheet);
+    background: var(--surface);
+    box-shadow: var(--shadow-float);
+    animation-name: work-record-detail-corners;
+  }
+  ::view-transition-old(work-record-detail),
+  ::view-transition-new(work-record-detail) { height: 100%; }
+  ::view-transition-new(work-record-detail) {
+    mix-blend-mode: normal;
+    animation-name: work-record-detail-content-in;
+    animation-timing-function: linear;
+  }
+
+  /* Keep the moving content readable while the snapshot bounds change. */
+  ::view-transition-old(work-record-detail-service),
+  ::view-transition-old(work-record-detail-time),
+  ::view-transition-old(work-record-detail-gross),
+  ::view-transition-old(work-record-detail-payment),
+  ::view-transition-old(work-record-detail-tip),
+  ::view-transition-new(work-record-detail-service),
+  ::view-transition-new(work-record-detail-time),
+  ::view-transition-new(work-record-detail-gross),
+  ::view-transition-new(work-record-detail-payment),
+  ::view-transition-new(work-record-detail-tip) {
+    width: 100%;
+    height: 100%;
+    object-fit: scale-down;
+    object-position: left top;
+    mix-blend-mode: plus-lighter;
+    animation-timing-function: linear;
+  }
+  ::view-transition-old(work-record-detail-service),
+  ::view-transition-old(work-record-detail-time),
+  ::view-transition-old(work-record-detail-gross),
+  ::view-transition-old(work-record-detail-payment),
+  ::view-transition-old(work-record-detail-tip) {
+    animation-name: work-record-detail-field-out;
+  }
+  ::view-transition-new(work-record-detail-service),
+  ::view-transition-new(work-record-detail-time),
+  ::view-transition-new(work-record-detail-gross),
+  ::view-transition-new(work-record-detail-payment),
+  ::view-transition-new(work-record-detail-tip) {
+    animation-name: work-record-detail-field-in;
   }
 }
 
@@ -113,7 +219,25 @@
   100% { transform: scale(1); }
 }
 
-@keyframes work-record-detail-in {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+@keyframes work-record-detail-scrim {
+  from { background-color: transparent; }
+}
+
+@keyframes work-record-detail-corners {
+  from { border-radius: var(--radius-control); }
+}
+
+@keyframes work-record-detail-content-in {
+  0%, 23% { opacity: 0; }
+  80%, 100% { opacity: 1; }
+}
+
+@keyframes work-record-detail-field-out {
+  0%, 26% { opacity: 1; }
+  76%, 100% { opacity: 0; }
+}
+
+@keyframes work-record-detail-field-in {
+  0%, 26% { opacity: 0; }
+  76%, 100% { opacity: 1; }
 }

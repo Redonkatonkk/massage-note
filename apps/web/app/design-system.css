@@ -127,8 +127,6 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .quick-service-customer-row { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
 .quick-service-field { flex: 1 1 160px; min-width: 0; }
 .quick-service-field select { width: 100%; }
-.payment-customer-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; margin-top: 16px; }
-.payment-customer-controls .gift-card-toggle { margin: 0; }
 .customer-type-switch { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 0 0 auto; width: 176px; padding: 0; overflow: hidden; border-radius: 999px; background: var(--surface-soft); }
 .customer-type-switch__capsule { position: absolute; z-index: -1; visibility: hidden; pointer-events: none; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
 .customer-type-switch[data-customer-type="NEW"] .customer-type-switch__capsule { border-color: var(--customer-new); background: var(--customer-new); }

@@ -3,7 +3,7 @@
 import { useScreenFeedback } from "./screen-feedback";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { ApiError, apiRequest, errorMessage } from "../lib/api";
 import {
   canShowEmployeeClockIn,
@@ -51,7 +51,7 @@ import { RankingExplanationButton } from "./ranking-explanation";
 import { BoardWeeklyDispatch } from "./board-weekly-dispatch";
 import { BoardEmployeePicker } from "./board-employee-picker";
 import { RecordTrack } from "./record-track";
-import { animateOverlayExit, useListMotion, useOverlayExitRef, usePanelHeight, withButtonMotion } from "./ui/interaction-motion";
+import { allowsMotion, animateOverlayExit, useListMotion, useOverlayExitRef, usePanelHeight, withButtonMotion } from "./ui/interaction-motion";
 import { RecordEditor, type RecordEditorSection } from "./record-editor";
 import { PlaceholderDeleteDialog } from "./placeholder-delete-dialog";
 import { PlaceholderCard } from "./placeholder-card";
@@ -146,8 +146,9 @@ function tiltRecordCard({ pointerType, currentTarget: card, clientX, clientY }: 
   const y = clientY - top + track.scrollTop - card.offsetTop;
   // Ease the travel near the original hit area edges so the hover cannot outrun a click.
   const strength = Math.max(0, Math.min(x, y, width - x, height - y, 10)) / 10;
-  const pitch = (1 - 2 * y / height) * 5 * strength;
-  const yaw = (2 * x / width - 1) * 5 * strength;
+  const tiltDegrees = 10 * strength;
+  const pitch = (1 - 2 * y / height) * tiltDegrees;
+  const yaw = (2 * x / width - 1) * tiltDegrees;
   card.style.setProperty("--record-card-hover", `perspective(650px) translateY(${(-4 * strength).toFixed(2)}px) rotateX(${pitch.toFixed(2)}deg) rotateY(${yaw.toFixed(2)}deg)`);
 }
 
@@ -208,7 +209,13 @@ function TodayBoardContent({
   const [startTimeValid, setStartTimeValid] = useState(true);
   const [startTime, setStartTime] = useState(currentStoreTime(currentDay.timezone));
   const [creatingRecord, setCreatingRecord] = useState<WorkRecord | null>(null);
-  const [editingRecord, setEditingRecord] = useState<{ record: WorkRecord; section?: RecordEditorSection | undefined } | null>(null);
+  const [editingRecord, setEditingRecord] = useState<{
+    record: WorkRecord;
+    section?: RecordEditorSection | undefined;
+    trigger?: HTMLButtonElement;
+  } | null>(null);
+  const detailTransition = useRef<ViewTransition | null>(null);
+  useEffect(() => () => detailTransition.current?.skipTransition(), []);
   const [deletingPlaceholder, setDeletingPlaceholder] = useState<WorkRecord | null>(null);
   const [closingEmployee, setClosingEmployee] = useState<{ id: string; displayName: string } | null>(null);
   const [confirmClosingCash, setConfirmClosingCash] = useState(false);
@@ -332,10 +339,35 @@ function TodayBoardContent({
     );
   }
 
-  function openRecord(record: WorkRecord, section?: RecordEditorSection) {
-    setEditorSessionId(crypto.randomUUID());
-    setRestoredSave(null);
-    setEditingRecord({ record, section });
+  function openRecord(trigger: HTMLButtonElement, record: WorkRecord, section?: RecordEditorSection) {
+    if (detailTransition.current) return;
+    const editor = { record, section, trigger };
+    const open = (target = editor) => {
+      setEditorSessionId(crypto.randomUUID());
+      setRestoredSave(null);
+      setEditingRecord(target);
+    };
+    const card = trigger.closest<HTMLElement>(".record-card");
+    if (!card || !allowsMotion() || typeof document.startViewTransition !== "function") {
+      open();
+      return;
+    }
+
+    // Capture the time and amounts before an adjustment shortcut scrolls past them.
+    const openingEditor = section === "addons" || section === "discounts" ? { ...editor, section: undefined } : editor;
+    card.dataset.recordDetailSource = "";
+    const transition = document.startViewTransition(() => {
+      if (trigger.isConnected) flushSync(() => open(openingEditor));
+    });
+    detailTransition.current = transition;
+    // A skipped snapshot still runs the update callback and opens the editor.
+    void transition.ready.catch(() => undefined);
+    const cleanup = () => {
+      delete card.dataset.recordDetailSource;
+      detailTransition.current = null;
+      if (openingEditor !== editor) setEditingRecord(current => current === openingEditor ? editor : current);
+    };
+    void transition.finished.then(cleanup, cleanup);
   }
 
   useEffect(() => {
@@ -487,7 +519,12 @@ function TodayBoardContent({
         initialServiceItemId: restoredSave?.draft.kind === "editor" ? restoredSave.draft.initialServiceItemId : creatingRecord ? quickService?.id : undefined, fields: submission.fields },
       draftKey: submission.draftKey, motion: beginDetachedWorkRecordSaveMotion(submission.dialog),
     });
-    if (accepted) { setEditingRecord(null); setCreatingRecord(null); setRestoredSave(null); }
+    if (accepted) {
+      detailTransition.current?.skipTransition();
+      setEditingRecord(null);
+      setCreatingRecord(null);
+      setRestoredSave(null);
+    }
     return accepted;
   }
 
@@ -697,7 +734,7 @@ function TodayBoardContent({
 
               {!isCollapsed && (
                 <div className={`employee-content${showTotals ? "" : " employee-content--records-only"}`} data-motion-content>
-                  <RecordTrack key={currentDay.businessDate} recordCount={row.workRecords.length} autoReturn={!board.isClosed} movementKey={row.workRecords.map(record => `${record.id}:${record.startAt}:${record.isHighlighted}:${record.isDispatchExcluded}`).join(" ")}>
+                  <RecordTrack key={currentDay.businessDate} autoReturn={!board.isClosed} movementKey={row.workRecords.map(record => `${record.id}:${record.startAt}:${record.isHighlighted}:${record.isDispatchExcluded}`).join(" ")}>
                     {recordTrackItems(row.workRecords, !board.isClosed && !row.isHidden && (isCurrentBusinessDay || canManage)).map((record, index, items) => {
                       if (record === null) return (
                         <button key="add-record" className="add-record" type="button" data-motion-item="add-record" data-motion-skip-in onClick={() => { setQuickSessionId(crypto.randomUUID()); setRestoredSave(null); setStartTime(currentStoreTime(currentDay.timezone)); setStartTimeValid(true); setQuickServiceId(quickServices[0]?.id ?? ""); setQuickMode("NORMAL"); setQuickCustomerType(null); setQuickEmployeeId(row.membershipId); }}>
@@ -731,7 +768,7 @@ function TodayBoardContent({
                       >
                         <button className="record-card__open" type="button" disabled={unavailable} aria-haspopup="dialog"
                           aria-label={`${t("记工详情")} · ${t(serviceName)} · ${time}${hasNote ? ` · ${t("有备注")}` : ""}`}
-                          onClick={() => openRecord(record)}>
+                          onClick={(event) => openRecord(event.currentTarget, record)}>
                           {hasNote && (
                             <span className="record-note-badge" title="有备注">
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></svg>
@@ -739,11 +776,11 @@ function TodayBoardContent({
                           )}
                         </button>
                         <span className="record-card__topline">
-                          <strong>{serviceName}</strong>
+                          <strong data-record-detail-part="service">{serviceName}</strong>
                           <span className="record-card__badges">
                             {record.addonSnapshots.length > 0 && (
                               <button className="record-addon-badge" type="button" disabled={unavailable} aria-haspopup="dialog"
-                                aria-label="额外项目" title="额外项目" onClick={() => openRecord(record, "addons")}><span>＋</span></button>
+                                aria-label="额外项目" title="额外项目" onClick={(event) => openRecord(event.currentTarget, record, "addons")}><span>＋</span></button>
                             )}
                             {record.discountSnapshots.length > 0 && (
                               <button
@@ -751,7 +788,7 @@ function TodayBoardContent({
                                 type="button" disabled={unavailable} aria-haspopup="dialog"
                                 aria-label={`折扣 ${money(record.discountTotalCents)}`}
                                 title={`折扣 ${money(record.discountTotalCents)}`}
-                                onClick={() => openRecord(record, "discounts")}
+                                onClick={(event) => openRecord(event.currentTarget, record, "discounts")}
                               >
                                 <span>{discountBadgeText(record.discountTotalCents)}</span>
                               </button>
@@ -759,12 +796,12 @@ function TodayBoardContent({
                           </span>
                         </span>
                         {record.customerType && <span className="record-customer-type" data-customer-type={record.customerType}>{record.customerType === "NEW" ? "新客" : "老客"}</span>}
-                        <span className="record-time">{time}</span>
+                        <span className="record-time" data-record-detail-part="time">{time}</span>
                         <button className="record-money" type="button" disabled={unavailable} aria-haspopup="dialog"
-                          title="客人付款" onClick={() => openRecord(record, "payment")}>
+                          title="客人付款" onClick={(event) => openRecord(event.currentTarget, record, "payment")}>
                           <span className="record-service-amount">
-                            <b>{record.serviceSnapshot ? compactPaymentAmount(record.grossFeeBaseCents) : "未填写"}</b>
-                            <span className={`record-service-payment-box${record.status === "PENDING_PAYMENT" ? " record-service-payment-box--pending" : ""}`}>
+                            <b data-record-detail-part="gross">{record.serviceSnapshot ? compactPaymentAmount(record.grossFeeBaseCents) : "未填写"}</b>
+                            <span className={`record-service-payment-box${record.status === "PENDING_PAYMENT" ? " record-service-payment-box--pending" : ""}`} data-record-detail-part="payment">
                               <span>{record.status === "PENDING_PAYMENT" ? "应收" : "实收"}</span>
                               {record.status === "PENDING_PAYMENT" ? (
                                 <span className="record-service-due">{record.serviceSnapshot ? compactPaymentAmount(record.discountedFeePerformanceCents) : "未填写"}</span>
@@ -773,7 +810,7 @@ function TodayBoardContent({
                               )}
                             </span>
                           </span>
-                          <span className="record-payment-row"><span>小费</span><PaymentBreakdown status={record.status} cashCents={record.cashTipCents} cardCents={record.cardTipCents} giftCardCents={record.giftCardTipCents} zeroLabel="0" /></span>
+                          <span className="record-payment-row" data-record-detail-part="tip"><span>小费</span><PaymentBreakdown status={record.status} cashCents={record.cashTipCents} cardCents={record.cardTipCents} giftCardCents={record.giftCardTipCents} zeroLabel="0" /></span>
                           {(hasPaymentMismatch || record.status === "PENDING_PAYMENT") && (
                             <span className="record-card__indicators">
                               {hasPaymentMismatch && (
@@ -884,14 +921,19 @@ function TodayBoardContent({
           autoDiscountSettings={store}
           record={(creatingRecord ?? editingRecord?.record)!}
           isNew={creatingRecord !== null}
-          fullDrawerEntrance={editingRecord !== null}
+          centered={editingRecord !== null}
           initialSection={editingRecord?.section}
           initialServiceItemId={restoredSave?.draft.kind === "editor" ? restoredSave.draft.initialServiceItemId : creatingRecord ? quickService?.id : undefined}
           catalog={catalog}
           members={members}
           canManage={canManage}
           isClosed={board.isClosed}
-          onClose={() => { setEditingRecord(null); setCreatingRecord(null); }}
+          onClose={() => {
+            detailTransition.current?.skipTransition();
+            setEditingRecord(null);
+            setCreatingRecord(null);
+            editingRecord?.trigger?.focus({ preventScroll: true });
+          }}
           onSaved={() => undefined}
           onChanged={onReload}
         />

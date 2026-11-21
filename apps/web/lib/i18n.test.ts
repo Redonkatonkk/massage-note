@@ -89,8 +89,6 @@ describe("bilingual UI translation", () => {
       .toContain("Blank tips are treated as 0");
     expect(translateText("实收服务费与应收金额不一致", "en-US"))
       .toContain("do not match");
-    expect(translateText("实收服务费与折后大费业绩不一致，相差 US$10（少收）。系统允许确认，但会保留这条异常。", "en-US"))
-      .toBe("Collected service fees differ from performance after discounts by $10 (under). Confirmation is allowed, but this discrepancy will be retained.");
     expect(translateText("2 项启用 · 3 项", "en-US")).toBe("2 enabled · 3 items");
     expect(translateText("＋ 新增额外项目", "en-US")).toBe("+ Add add-on");
     expect(translateText("常用加项集中维护；金额、时间和默认提成在编辑时保持紧凑横排。", "en-US"))

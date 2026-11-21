@@ -1,3 +1,16 @@
+export const stackableRecordPairs = ".record-card + .record-card:not(.record-card--right-group), .record-card--right-group + .record-card--right-group";
+
+/** Measure full card spacing without the reserve for automatic return. */
+export function unstackedRecordTrackWidth(track: HTMLDivElement, style = window.getComputedStyle(track)) {
+  const tail = track.querySelector(".record-track-tail");
+  const cards = [...track.children].filter((child) => child !== tail) as HTMLElement[];
+  const gap = parseFloat(style.columnGap) || 0;
+  const paddingLeft = parseFloat(style.paddingLeft) || 0;
+  const paddingRight = parseFloat(style.paddingRight) || 0;
+  return cards.reduce((width, card) => width + card.offsetWidth, 0)
+    + Math.max(0, cards.length - 1) * gap + paddingLeft + paddingRight;
+}
+
 /** Keep an open day's add-record card in view without interrupting manual browsing. */
 export function followRecordTrackEnd(track: HTMLDivElement) {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -15,7 +28,6 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
       track.removeAttribute("data-return-tail");
       return;
     }
-    const cards = [...track.children].filter((child) => child !== tail) as HTMLElement[];
     const style = window.getComputedStyle(track);
     const gap = parseFloat(style.columnGap) || 0;
     const paddingLeft = parseFloat(style.paddingLeft) || 0;
@@ -23,11 +35,8 @@ export function followRecordTrackEnd(track: HTMLDivElement) {
     const cardWidth = anchor.offsetWidth;
     // Reserve space from resting overlaps so the reveal never changes the home position.
     const stackInset = activeStackInset(style);
-    const stackOffset = stackInset ? stackInset * track.querySelectorAll(
-      ".record-card + .record-card:not(.record-card--right-group), .record-card--right-group + .record-card--right-group",
-    ).length : 0;
-    const contentWidth = cards.reduce((sum, child) => sum + child.offsetWidth, stackOffset)
-      + Math.max(0, cards.length - 1) * gap + paddingLeft + paddingRight;
+    const stackOffset = stackInset ? stackInset * track.querySelectorAll(stackableRecordPairs).length : 0;
+    const contentWidth = unstackedRecordTrackWidth(track, style) + stackOffset;
     const overflowing = contentWidth > track.clientWidth + 1;
     const rightGroupCount = track.querySelectorAll(".record-card--right-group").length;
     const mobile = window.matchMedia("(max-width: 760px)").matches;

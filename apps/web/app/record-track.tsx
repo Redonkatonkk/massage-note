@@ -1,13 +1,12 @@
 "use client";
 
 import { Component, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { followRecordTrackEnd } from "../lib/record-track-scroll";
+import { followRecordTrackEnd, stackableRecordPairs, unstackedRecordTrackWidth } from "../lib/record-track-scroll";
 import { allowsMotion, animateListItemMove } from "./ui/interaction-motion";
 
 interface RecordTrackCardsProps {
   trackRef: RefObject<HTMLDivElement | null>;
   follow: RefObject<ReturnType<typeof followRecordTrackEnd> | null>;
-  stacked: boolean;
   movementKey: string | undefined;
   children: ReactNode;
 }
@@ -20,9 +19,34 @@ function measureCards(track: HTMLDivElement) {
   });
 }
 
+const stackMediaQuery = "(min-width: 761px) and (hover: hover) and (pointer: fine) and (not (any-pointer: coarse))";
+
+function syncRecordStack(track: HTMLDivElement) {
+  const width = track.clientWidth;
+  const stacked = Boolean(window.matchMedia?.(stackMediaQuery)?.matches && width > 0
+    && track.querySelector(stackableRecordPairs) && unstackedRecordTrackWidth(track) > width);
+  if (stacked === track.hasAttribute("data-record-stack")) return false;
+
+  const reflowing = track.hasAttribute("data-record-reflow");
+  if (!reflowing) track.setAttribute("data-record-reflow", "");
+  if (stacked) track.dataset.recordStack = "true";
+  else delete track.dataset.recordStack;
+  if (!reflowing) {
+    // Resolve the resting spacing before re-enabling hover transitions.
+    track.getBoundingClientRect();
+    track.removeAttribute("data-record-reflow");
+  }
+  return true;
+}
+
 // Capture the visible positions before React changes card order, overlap, or scroll bounds.
 class RecordTrackCards extends Component<RecordTrackCardsProps> {
   private moves = new Set<Animation>();
+
+  componentDidMount() {
+    const track = this.props.trackRef.current;
+    if (track) syncRecordStack(track);
+  }
 
   getSnapshotBeforeUpdate(previous: RecordTrackCardsProps) {
     const { trackRef, movementKey } = this.props;
@@ -32,19 +56,24 @@ class RecordTrackCards extends Component<RecordTrackCardsProps> {
   }
 
   componentDidUpdate(previous: RecordTrackCardsProps, _state: unknown, before: ReturnType<RecordTrackCards["getSnapshotBeforeUpdate"]>) {
-    const { trackRef, follow, movementKey } = this.props;
+    const { trackRef, follow, movementKey, children } = this.props;
     const track = trackRef.current;
-    if (!track || movementKey === previous.movementKey) return;
+    if (!track) return;
+    if (movementKey === previous.movementKey) {
+      if (children !== previous.children && syncRecordStack(track)) follow.current?.refresh();
+      return;
+    }
     this.stopMoves();
-    if (!before) { follow.current?.refresh(); return; }
 
     // Apply the resting stack layout and scroll position in the same commit.
     track.setAttribute("data-record-reflow", "");
     let after;
     try {
+      syncRecordStack(track);
       follow.current?.refresh();
-      after = measureCards(track);
+      after = before && measureCards(track);
     } finally { track.removeAttribute("data-record-reflow"); }
+    if (!before || !after) return;
     const width = track.clientWidth;
 
     for (const { card, left, right } of after) {
@@ -66,16 +95,15 @@ class RecordTrackCards extends Component<RecordTrackCardsProps> {
   componentWillUnmount() { this.stopMoves(); }
 
   render() {
-    const { trackRef, stacked, children } = this.props;
-    return <div className="record-track" ref={trackRef} data-motion-list data-record-stack={stacked || undefined}>{children}<span className="record-track-tail" aria-hidden="true" /></div>;
+    const { trackRef, children } = this.props;
+    return <div className="record-track" ref={trackRef} data-motion-list>{children}<span className="record-track-tail" aria-hidden="true" /></div>;
   }
 }
 
-export function RecordTrack({ children, recordCount, movementKey, autoReturn = false }: { children: ReactNode; recordCount: number; movementKey?: string; autoReturn?: boolean }) {
+export function RecordTrack({ children, movementKey, autoReturn = false }: { children: ReactNode; movementKey?: string; autoReturn?: boolean }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const follow = useRef<ReturnType<typeof followRecordTrackEnd> | null>(null);
   const [canJump, setCanJump] = useState(false);
-  const stacked = recordCount >= 5;
 
   useLayoutEffect(() => {
     if (!autoReturn || !trackRef.current) return;
@@ -88,8 +116,13 @@ export function RecordTrack({ children, recordCount, movementKey, autoReturn = f
     const track = trackRef.current;
     if (!track) return;
     const update = () => setCanJump(track.scrollWidth - track.clientWidth - track.scrollLeft > 2);
+    const updateLayout = () => {
+      if (syncRecordStack(track)) follow.current?.refresh();
+      update();
+    };
+    const updateStackScroll = () => { if (track.hasAttribute("data-record-stack")) update(); };
     const settleSpacing = (event: TransitionEvent) => {
-      if (event.propertyName !== "margin-left") return;
+      if (!track.hasAttribute("data-record-stack") || event.propertyName !== "margin-left") return;
       const focused = track.querySelector(":focus-visible")?.closest(".record-card");
       if (focused && !track.querySelector(".record-card:hover")) {
         // Closing the previous gap can move a newly focused card after native focus scrolling.
@@ -99,7 +132,7 @@ export function RecordTrack({ children, recordCount, movementKey, autoReturn = f
       }
       update();
     };
-    const observer = new ResizeObserver(update);
+    const observer = new ResizeObserver(updateLayout);
     observer.observe(track);
     for (const child of track.children) observer.observe(child);
     const cards = track.querySelectorAll<HTMLElement>(".record-card[data-record-status]");
@@ -108,21 +141,24 @@ export function RecordTrack({ children, recordCount, movementKey, autoReturn = f
     }, { root: track });
     for (const card of cards) viewport?.observe(card);
     track.addEventListener("scroll", update, { passive: true });
-    const stackEvents = stacked ? ["pointerover", "pointerout", "focusin", "focusout", "transitioncancel"] : [];
-    for (const event of stackEvents) track.addEventListener(event, update);
-    if (stacked) track.addEventListener("transitionend", settleSpacing);
+    const stackEvents = ["pointerover", "pointerout", "focusin", "focusout", "transitioncancel"];
+    for (const event of stackEvents) track.addEventListener(event, updateStackScroll);
+    track.addEventListener("transitionend", settleSpacing);
+    const media = window.matchMedia?.(stackMediaQuery);
+    media?.addEventListener?.("change", updateLayout);
     update();
     return () => {
       observer.disconnect();
       viewport?.disconnect();
       track.removeEventListener("scroll", update);
-      for (const event of stackEvents) track.removeEventListener(event, update);
-      if (stacked) track.removeEventListener("transitionend", settleSpacing);
+      for (const event of stackEvents) track.removeEventListener(event, updateStackScroll);
+      track.removeEventListener("transitionend", settleSpacing);
+      media?.removeEventListener?.("change", updateLayout);
     };
-  }, [children, stacked]);
+  }, [children]);
 
   return <div className="record-track-container">
-    <RecordTrackCards trackRef={trackRef} follow={follow} stacked={stacked} movementKey={movementKey}>{children}</RecordTrackCards>
+    <RecordTrackCards trackRef={trackRef} follow={follow} movementKey={movementKey}>{children}</RecordTrackCards>
     {canJump && <button
       className="record-track-jump"
       type="button"

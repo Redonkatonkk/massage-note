@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](ARCHITECTURE.zh-CN.md)**
 
-> Verified against version: `1.63.0`
+> Verified against version: `1.63.8`
 
 Massage note is a TypeScript modular monolith managed by the pnpm workspace. Web, API and shared packages are developed and tested in the same repository. Production can be run as a Web/API dual container or simultaneously in a Synology single image.
 

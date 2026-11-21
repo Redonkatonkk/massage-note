@@ -8,15 +8,22 @@ let container: HTMLDivElement;
 let root: Root;
 let width: number;
 let reduced: boolean;
+let stackInput: EventTarget & { matches: boolean };
+const resizeCallbacks = new Set<() => void>();
 const moves = vi.fn();
 const translations = new Map<HTMLElement, number>();
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  vi.stubGlobal("matchMedia", (query: string) => ({
+  stackInput = Object.assign(new EventTarget(), { matches: false });
+  vi.stubGlobal("matchMedia", (query: string) => query.includes("(hover: hover)") ? stackInput : {
     matches: query === "(prefers-reduced-motion: no-preference)" ? !reduced : query === "(max-width: 760px)" && width < 760,
-  }));
-  vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
+  });
+  vi.stubGlobal("ResizeObserver", class {
+    constructor(private readonly callback: () => void) {}
+    observe() { resizeCallbacks.add(this.callback); }
+    disconnect() { resizeCallbacks.delete(this.callback); }
+  });
   width = 900;
   reduced = false;
   moves.mockClear();
@@ -60,12 +67,42 @@ afterEach(async () => {
 
 async function render(ids: string[]) {
   await act(async () => root.render(
-    <RecordTrack recordCount={ids.length - 1} autoReturn movementKey={ids.join(" ")}>
+    <RecordTrack autoReturn movementKey={ids.join(" ")}>
       {ids.map(id => <button type="button" key={id} className={id === "add-record" ? id : "record-card"}
         data-motion-item={id} data-motion-skip-in>{id}</button>)}
     </RecordTrack>
   ));
 }
+
+it("stacks only when the full-width cards and add button overflow, including after resizing", async () => {
+  stackInput.matches = true;
+  width = 1200;
+  await render(["one", "two", "three", "four", "five", "add-record"]);
+  const track = container.querySelector<HTMLElement>(".record-track")!;
+  track.style.padding = "0 16px";
+  track.style.columnGap = "12px";
+  const resize = async (nextWidth: number) => act(async () => {
+    width = nextWidth;
+    for (const callback of resizeCallbacks) callback();
+  });
+  const stacked = () => track.hasAttribute("data-record-stack");
+
+  expect(stacked()).toBe(false);
+  await resize(1154);
+  expect(stacked()).toBe(false);
+  await resize(1153);
+  expect(stacked()).toBe(true);
+  await resize(1153);
+  expect(stacked()).toBe(true);
+
+  await render(["one", "two", "three", "add-record"]);
+  expect(stacked()).toBe(false);
+  await resize(775);
+  expect(stacked()).toBe(true);
+  stackInput.matches = false;
+  await act(async () => { stackInput.dispatchEvent(new Event("change")); });
+  expect(stacked()).toBe(false);
+});
 
 it("slides the add card and its neighbors from their visible positions and preserves an interrupted move", async () => {
   await render(["first", "add-record", "highlight"]);

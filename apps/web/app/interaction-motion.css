@@ -112,7 +112,7 @@
     }
   }
 
-  [data-motion-content], .chat-message, .form-error, .mismatch-warning, .success-banner, .success-notice,
+  [data-motion-content], .chat-message, .form-error, .success-banner, .success-notice,
   .network-notice, .loading-card, .error-card, .gift-card-sale-card, .lost-customers__list > button,
   .login-card > :is(.field-label, .phone-field, .code-input, .code-sent, .login-notice, .login-name-grid, .login-secondary-actions) {
     animation: mn-content var(--motion-panel) var(--ease-out);

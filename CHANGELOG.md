@@ -4,6 +4,38 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.63.8 — 2026-11-20
+
+- Set the work card expansion to 500ms. On desktop, stack cards when the unstacked track would overflow and restore full spacing when they fit. NAS needs a Web update.
+
+## 1.63.7 — 2026-11-20
+
+- Animate tips into the payment column, hide card accents before enlargement, remove the payment-difference paragraph, and align both detail sections when gift card payment is collapsed. NAS needs a Web update.
+
+## 1.63.6 — 2026-11-20
+
+- Slow the work card expansion and move the service name, time and amounts into their matching locations as the record details open. NAS needs a Web update.
+
+## 1.63.5 — 2026-11-20
+
+- Move Exclude from rotation and Highlight beside Close in the record editor header. NAS needs a Web update.
+
+## 1.63.4 — 2026-11-20
+
+- Make record details taller and compact the main sections so payment and service fields fit together when gift card payment is collapsed. Move the customer category below the start time and remove the audit note from the commission field. NAS needs a Web update.
+
+## 1.63.3 — 2026-11-20
+
+- Prioritize payment and live amounts in record details, and lead with service selection in detailed entry. Adapt the form to the panel width, remove the service date and end time fields, and retain calculated end times. NAS needs a Web update.
+
+## 1.63.2 — 2026-11-20
+
+- Expand the selected Today work card into a centered record editor with a shared-element transition. Keep the payment, add-on and discount shortcuts. NAS needs a Web update.
+
+## 1.63.1 — 2026-11-20
+
+- Double the tilt of Today work cards under the mouse. The cards still flatten near their edges to steady the click target. NAS needs a Web update.
+
 ## 1.63.0 — 2026-11-19
 
 - Improve recognition of store shorthand in the WeChat work bot. Add live dispatch queries and require a sender-scoped confirmation for historical, paid-record, and follow-up changes. NAS needs an API update for the complete flow. The LangBot plug-in ships separately as 1.5.0.

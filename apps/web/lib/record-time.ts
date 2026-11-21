@@ -1,10 +1,10 @@
 import { localDateTimeValue, zonedLocalToIso } from "./time";
 
 export function recordTimeError(start: string, end: string): string | null {
-  if (!start) return "请选择服务日期和开始时间";
+  if (!start) return "请选择有效的开始时间";
   if (!end) return null;
   if (start.slice(0, 10) !== end.slice(0, 10)) return "开始和结束时间必须在同一天，请调整开始时间或项目时长";
-  if (end < start) return "结束时间不能早于开始时间，请调整时间或项目时长";
+  if (end < start) return "结束时间不能早于开始时间，请调整开始时间或项目时长";
   return null;
 }
 

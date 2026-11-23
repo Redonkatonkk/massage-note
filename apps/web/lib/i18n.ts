@@ -1706,7 +1706,7 @@ Object.assign(ENGLISH_TRANSLATIONS, {
   "员工看不到全店或他人的日结信息；个人日结按收入概览、收入基础和现金交接分层，不显示记工单数、折后大费或折扣金额。": "Employees cannot see store-wide or other employees' closing information. Employee closing is organized into earnings overview, earnings basis, and cash handoff, and does not show record count, performance after discounts, or discount amounts.",
   "个人日结可按当前设备屏幕生成 PNG；手机使用系统分享菜单保存到相册，不支持文件分享的浏览器会下载图片。": "Employee closing can generate a PNG matching the current device's screen. On phones, use the system share menu to save it to Photos; browsers without file sharing download the image.",
   "现金结算合入财务页“日结”的员工检查表，只显示当天有记工的员工；可逐人或一键结清，现金金额、备注、结算人和时间通过“现金明细”展开查看。": "Cash settlement is part of the employee check table in Finance → Daily closing. Only employees with work records appear. Settle individually or all at once; expand Cash details for amounts, notes, the operator, and settlement time.",
-  "取消日结或修改相关历史记录时，受影响的现金状态会安全回退，需要重新核对。": "When a day is reopened or related historical records change, affected cash settlements safely return to unsettled and must be reviewed again.",
+  "取消日结会保留员工的现金结清状态。修改相关记工后，受影响的现金结算需要重新核对。": "Reopening a day preserves employee cash settlements. Review affected cash settlements after editing related work records.",
   "这个营业日已经日结": "This business date is already closed",
   "这个营业日当前没有有效日结": "There is no active closing for this business date",
   "日结完成": "Daily closing completed",

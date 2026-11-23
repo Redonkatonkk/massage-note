@@ -277,7 +277,7 @@ describe.skipIf(!enabled).sequential("工资日历、抵扣与结清事务", () 
     await cash.settle(owner, storeId, "2026-09-15", membershipId, { version: 0 }, key(), key());
     const closed = await closings.close(owner, storeId, "2026-09-15", { force: false }, key(), key());
     await closings.cancel(owner, storeId, "2026-09-15", { version: closed.closing.version }, key(), key());
-    expect((await preview("2026-09-15")).payment).toMatchObject({ unsettledCents: 9300, fullyConfirmed: false });
+    expect((await preview("2026-09-15")).payment).toMatchObject({ unsettledCents: 0, fullyConfirmed: true });
   });
 
   it("分别支付小费与大费，重叠范围、删除恢复、编辑类型及日历保持一致", async () => {

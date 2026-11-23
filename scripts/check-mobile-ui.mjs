@@ -56,6 +56,11 @@ const dailySnapshotPreview = ["Daily snapshot preview", "/preview/daily-snapshot
 
 export const mobileScreens = [
   dailySnapshotPreview,
+  ["营业日选择框", "/", `<div class="business-day-toolbar business-day-toolbar--compact"><section class="history-toolbar"><div class="history-date-form"><div class="business-date-field"><span>营业日</span><div class="business-date-picker"><button class="business-date-picker__trigger" aria-expanded="false"><span>2026-11-22</span><span aria-hidden="true">▾</span></button></div><div class="business-date-picker"><button class="business-date-picker__trigger" aria-expanded="true"><span>2026-11-22</span><span aria-hidden="true">▾</span></button><section class="business-date-picker__popover" role="dialog"></section></div></div></div></section></div>`, [
+    touch(".business-date-picker__trigger"),
+    [".business-date-picker__trigger", { "background-color": highlightBackground, "border-top-width": "1px", "border-top-color": "rgb(27, 108, 128)" }],
+    [".business-date-picker__popover", { "border-top-color": "rgb(27, 108, 128)" }],
+  ]],
   ["记工卡快捷操作", "/", '<div class="record-card"><span class="record-card__badges"><button class="record-addon-badge"><span>＋</span></button><button class="record-discount-badge"><span>off5</span></button></span></div>', [touch(".record-addon-badge"), touch(".record-discount-badge"), [".record-addon-badge", { "min-width": { min: 44 } }], [".record-discount-badge", { "min-width": { min: 44 } }], [".record-addon-badge > span", { width: "24px", height: "24px" }]]],
   ["趋势图时段选择", "/finance", '<div class="analytics-inspection"><label><span>Inspect period / 查看时段</span><select><option>2026-11-18</option></select></label><p class="analytics-readout">Selected period / 所选时段</p></div>', [touch(".analytics-inspection select"), [".analytics-inspection", { "flex-wrap": "wrap" }], [".analytics-readout", { "overflow-wrap": "anywhere" }]]],
   ["Shared daily snapshot", "/share/daily-snapshot", dailySnapshotPreview[2].replace('class="daily-snapshot-page">', 'class="daily-snapshot-page daily-snapshot-page--shared"><div class="daily-snapshot-share-bar"><span>Massage note</span><button>中文</button></div>'), dailySnapshotPreview[3]],

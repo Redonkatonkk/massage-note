@@ -405,6 +405,12 @@ html:root .decision-field { display: grid; gap: 6px; }
 html:root .decision-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 
 @media (max-width: 760px) {
+  html:root .business-date-picker__trigger {
+    border: 1px solid var(--brand);
+    background: var(--brand-soft);
+    color: var(--brand-dark);
+  }
+  html:root .business-date-picker__popover[role="dialog"] { border-color: var(--brand); }
   html:root :is(.assistant-shell, .help-shell, .login-page, .settlement-share) { width: 100%; border-inline: 0; border-radius: 0; }
   html:root .login-workflow { display: none; }
   html:root .login-device-note { margin-block: 12px 0; }

@@ -384,20 +384,6 @@ export class ClosingsService {
             latestResource: latest,
           });
         }
-        const reopened = await transaction.dailyCashSettlement.updateMany({
-          where: {
-            storeId,
-            businessDate: dateAtUtc(businessDate),
-            status: "SETTLED",
-            deletedAt: null,
-          },
-          data: {
-            status: "UNSETTLED",
-            settledBy: null,
-            settledAt: null,
-            version: { increment: 1 },
-          },
-        });
         const cancelledDeliveries = await transaction.employeeClosingDelivery.updateMany({
           where: {
             closingId: current.id,
@@ -432,7 +418,6 @@ export class ClosingsService {
             afterJson: {
               status: cancelled.status,
               cancelledAt: cancelledAt.toISOString(),
-              reopenedCashSettlementCount: reopened.count,
               cancelledDeliveryCount: cancelledDeliveries.count,
               version: cancelled.version,
             },
@@ -440,7 +425,12 @@ export class ClosingsService {
             requestId,
           },
         });
-        return { closing: cancelled, reopenedCashSettlementCount: reopened.count, cancelledDeliveryCount: cancelledDeliveries.count };
+        return {
+          closing: cancelled,
+          // Retain the legacy response field for existing API callers.
+          reopenedCashSettlementCount: 0,
+          cancelledDeliveryCount: cancelledDeliveries.count,
+        };
       },
     );
   }

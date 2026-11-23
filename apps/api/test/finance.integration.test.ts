@@ -444,7 +444,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     });
   });
 
-  it("正常日结锁定记工，取消日结会回退现金状态", async () => {
+  it("正常日结锁定记工，取消日结保留现金结清并取消旧周期发送", async () => {
     await prisma.storeMembership.update({
       where: { id: employeeMembershipId },
       data: { closingDeliveryEnabled: true, closingImageLocale: "zh_CN" },
@@ -527,6 +527,8 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       ),
     ).rejects.toBeInstanceOf(ConflictException);
 
+    const beforeCancel = await cash.list(actor(managerId), storeId, businessDate);
+    expect(beforeCancel.rows.find((row) => row.membershipId === employeeMembershipId)).toMatchObject({ status: "SETTLED" });
     const cancelled = await closings.cancel(
       actor(managerId),
       storeId,
@@ -535,12 +537,9 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       "closing-cancel-0001",
       "closing-cancel",
     );
-    expect(cancelled).toMatchObject({ reopenedCashSettlementCount: 1, cancelledDeliveryCount: 2 });
+    expect(cancelled).toMatchObject({ closing: { status: "CANCELLED" }, reopenedCashSettlementCount: 0, cancelledDeliveryCount: 2 });
     await expect(prisma.employeeClosingDelivery.findFirst({ where: { closingId: closed.closing.id } })).resolves.toMatchObject({ status: "CANCELLED" });
-    const afterCancel = await cash.list(actor(managerId), storeId, businessDate);
-    expect(
-      afterCancel.rows.find((row) => row.membershipId === employeeMembershipId),
-    ).toMatchObject({ status: "UNSETTLED", version: 4 });
+    expect((await cash.list(actor(managerId), storeId, businessDate)).rows).toEqual(beforeCancel.rows);
     const afterReopen = await closingDeliveries.queueMember(actor(managerId), storeId, businessDate, employeeMembershipId, "after-reopen-send", "after-reopen-send");
     expect(afterReopen.closingId).toBeNull();
     await closingDeliveries.cancel(actor(managerId), storeId, businessDate, afterReopen.id, "after-reopen-cancel");
@@ -607,7 +606,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     const reopened = await cash.list(actor(managerId), storeId, businessDate);
     expect(reopened.rows.every((row) => row.status === "UNSETTLED")).toBe(true);
     const automaticAudits = await prisma.auditLog.count({
-      where: { storeId, action: "cash_settlement.reopened_automatically" },
+      where: { storeId, requestId: "record-reopen-cash", action: "cash_settlement.reopened_automatically" },
     });
     expect(automaticAudits).toBe(2);
 
@@ -997,12 +996,19 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     }
     const afterSingle = await cash.list(actor(managerId), storeId, date);
     await cash.settleAll(actor(managerId), storeId, date, { settlements: afterSingle.rows.map(row => ({ membershipId: row.membershipId, version: row.version })) }, `post-close-all-${date}`, "independent-cash");
-    expect((await cash.list(actor(managerId), storeId, date)).rows.every(row => row.status === "SETTLED")).toBe(true);
+    const allSettled = await cash.list(actor(managerId), storeId, date);
+    expect(allSettled.rows.every(row => row.status === "SETTLED")).toBe(true);
     expect((await boards.getBoard(actor(managerId), storeId, date)).rows.every(row => !row.cashUnsettled)).toBe(true);
     const own = await cash.list(actor(employeeId), storeId, date);
     expect(own.rows.map(row => row.membershipId)).toEqual([employeeMembershipId]);
     await closings.cancel(actor(managerId), storeId, date, { version: closed.closing.version }, `independent-cancel-${date}`, "independent-cash");
-    expect((await cash.list(actor(managerId), storeId, date)).rows.every(row => row.status === "UNSETTLED")).toBe(true);
+    expect((await cash.list(actor(managerId), storeId, date)).rows).toEqual(allSettled.rows);
+    expect(await boards.getBoard(actor(managerId), storeId, date)).toMatchObject({
+      isClosed: false,
+      rows: expect.arrayContaining(allSettled.rows.map(row => expect.objectContaining({
+        membershipId: row.membershipId, cashSettled: true,
+      }))),
+    });
   });
 
   it.each([false, true])("只刷卡且开启每日全额结清为 %s 时，日结状态按应付金额标记", async (dailySettlementEnabled) => {
@@ -1211,15 +1217,15 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     expect((await read()).statistics.cashBalance?.balanceCents).toBe(6800);
     expect((await prisma.businessDayClosing.findUniqueOrThrow({ where: { id: wednesday.closing.id } })).totalsSnapshotJson).toEqual(wednesday.closing.totalsSnapshotJson);
     await closings.cancel(actor(managerId), storeId, dates[0]!, { version: monday.closing.version }, randomUUID(), randomUUID());
-    expect((await read()).statistics.cashBalance?.balanceCents).toBe(9800);
-    const reclosed = await closings.close(actor(managerId), storeId, dates[0]!, { force: false, confirmUnsettledCash: true }, randomUUID(), randomUUID());
-    expect((await read()).statistics.cashBalance?.balanceCents).toBe(9800);
+    expect((await read()).statistics.cashBalance?.balanceCents).toBe(6800);
+    const reclosed = await closings.close(actor(managerId), storeId, dates[0]!, { force: false }, randomUUID(), randomUUID());
+    expect((await read()).statistics.cashBalance?.balanceCents).toBe(6800);
     await prisma.businessDayClosing.update({ where: { id: reclosed.closing.id }, data: { totalsSnapshotJson: { store: {} } } });
-    expect((await read()).statistics.cashBalance).toMatchObject({ balanceCents: 9800, missingClosingDates: [] });
-    expect((await readOpenDay()).statistics.cashBalance).toMatchObject({ balanceCents: 11501, missingClosingDates: [] });
+    expect((await read()).statistics.cashBalance).toMatchObject({ balanceCents: 6800, missingClosingDates: [] });
+    expect((await readOpenDay()).statistics.cashBalance).toMatchObject({ balanceCents: 8501, missingClosingDates: [] });
     await closings.cancel(actor(managerId), storeId, dates[0]!, { version: reclosed.closing.version }, randomUUID(), randomUUID());
-    await closings.close(actor(managerId), storeId, dates[0]!, { force: false, confirmUnsettledCash: true }, randomUUID(), randomUUID());
-    expect((await read()).statistics.cashBalance?.balanceCents).toBe(9800);
+    await closings.close(actor(managerId), storeId, dates[0]!, { force: false }, randomUUID(), randomUUID());
+    expect((await read()).statistics.cashBalance?.balanceCents).toBe(6800);
     const shifted = await management.update(actor(managerId), storeId, { ...settings, version: changed.version, cashResetAmountCents: 0, cashResetWeekday: 3 }, randomUUID(), randomUUID());
     expect((await read()).statistics.cashBalance).toMatchObject({ resetDate: dates[2], balanceCents: -1701 });
     await cash.reopen(actor(managerId), storeId, dates[2]!, employeeMembershipId, { version: paid.version }, randomUUID(), randomUUID());

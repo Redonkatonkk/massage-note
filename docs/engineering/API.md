@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.63.11`
+> Applies to version: `1.63.12`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -82,7 +82,7 @@ The HTTP API of this system is shared by current Chinese and English web applica
 | POST | `/stores/:storeId/gift-card-sales/:saleId/restore` | Restore deleted card sales records |
 | GET | `/stores/:storeId/closings/:businessDate/preview` | Whole store daily closing preview |
 | GET | `/stores/:storeId/closings/:businessDate/members/:membershipId/preview` | individual daily statement preview; employees can only read the individual; return the target employee's work record sorted by start time, project/add-on name, each `grossFeeBaseCents` pre-discount service fee, `discountTotalCents` discount and `isHighlighted` highlight Marks, cash/card/gift card actual receipt split, single salary income, as well as cash/card service fee dividends, cash/card tips dividends and corresponding totals; only confirmed payments are included; the daily summary "cash service fee" uses `cashLargeFeeDividendCents` to represent the cash service commission payable to employees in the store (with positive cash service receipts, total service commission × (cash receipts + discounts) / (all service receipts + discounts), rounded to cents, excluding cash tips; otherwise zero); `cashToSubmitToStoreCents` Only old definition compatibility is retained; no store-wide or other people’s data is included |
-| POST | `/stores/:storeId/closings/:businessDate`, `.../cancel` | Daily closing and cancellation. Unsettled cash due to regular employees requires a manual closing confirmation. Cash settlement is a separate action. Cancel with `version` and an optional `reason` |
+| POST | `/stores/:storeId/closings/:businessDate`, `.../cancel` | Daily closing and cancellation. Unsettled cash due to regular employees requires a manual closing confirmation. Cancellation preserves employee cash settlements. Cancel with `version` and an optional `reason`. The legacy `reopenedCashSettlementCount` response field is 0 for new cancellations |
 | GET | `/stores/:storeId/closings/:businessDate/deliveries` | Store owner or manager views individual daily statement SMS delivery history, errors and Mac agent status |
 | POST | `/stores/:storeId/closings/:businessDate/deliveries/batch` | After daily closing, add all member idempotencies that are opened, have valid numbers, and have work records on the day to the sending queue. |
 | DELETE | `/stores/:storeId/closings/:businessDate/deliveries/:deliveryId` | The store owner or manager cancels a single employee daily closing SMS task that is still in queue |

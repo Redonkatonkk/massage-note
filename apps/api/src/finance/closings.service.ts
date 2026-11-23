@@ -292,8 +292,12 @@ export class ClosingsService {
             requestId,
           },
         });
-        if (closing.cycleNo === 1) {
-          // Same day lock and transaction as closing: no gap for duplicate sends or lost jobs.
+        const previousInitialDelivery = closing.cycleNo > 1 && await transaction.employeeClosingDelivery.findFirst({
+          where: { storeId, businessDate: closing.businessDate, kind: "INITIAL" },
+          select: { id: true },
+        });
+        // A closing without eligible work may have left no initial deliveries for the day.
+        if (!previousInitialDelivery) {
           const members = await transaction.storeMembership.findMany({
             where: { storeId, status: "ACTIVE", deletedAt: null, closingDeliveryEnabled: true,
               id: { in: preview.employees.filter(employee => employee.recordCount > 0).map(employee => employee.membershipId) } },

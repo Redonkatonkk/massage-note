@@ -1031,11 +1031,25 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     }
   });
 
-  it("无记工的营业日正常自动日结但不发送短信", async () => {
+  it("空日结不排队，取消后补录记工并重新日结时创建首批短信任务", async () => {
+    const date = "2026-01-01";
     await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { closingDeliveryEnabled: true } });
-    const closed = await closings.close(actor(ownerId), storeId, "2026-01-01", { force: false }, "empty-auto", "empty-auto", true);
+    const closed = await closings.close(actor(ownerId), storeId, date, { force: false }, "empty-auto", "empty-auto", true);
     expect(closed.closing.status).toBe("CLOSED");
     expect(await prisma.employeeClosingDelivery.count({ where: { closingId: closed.closing.id } })).toBe(0);
+
+    await closings.cancel(actor(managerId), storeId, date, { version: closed.closing.version }, "empty-cancel", "empty-cancel");
+    await addClosingRecord(date);
+    const reclosed = await closings.close(actor(managerId), storeId, date, { force: false }, "empty-reclose", "empty-reclose");
+    expect(reclosed.closing.cycleNo).toBe(2);
+    const deliveries = await prisma.employeeClosingDelivery.findMany({ where: { storeId, businessDate: new Date(date) } });
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]).toMatchObject({
+      closingId: reclosed.closing.id,
+      membershipId: employeeMembershipId,
+      kind: "INITIAL",
+      status: "QUEUED",
+    });
   });
 
   it("首次日结原子排队，幂等与取消重结不重复发送", async () => {

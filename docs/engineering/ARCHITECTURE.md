@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](ARCHITECTURE.zh-CN.md)**
 
-> Verified against version: `1.63.12`
+> Verified against version: `1.63.13`
 
 Massage note is a TypeScript modular monolith managed by the pnpm workspace. Web, API and shared packages are developed and tested in the same repository. Production can be run as a Web/API dual container or simultaneously in a Synology single image.
 
@@ -218,7 +218,7 @@ Individual daily statement text messages use an independent business day and an 
 
 `ClosingSchedulerService` starts and stops with the API, scanning active stores every 15 seconds, and only calls the internal automatic mode of `ClosingsService.close` at 23:30 minutes in the store time zone; running scans do not overlap, and failures in each store do not block each other. The task is executed with the store owner's valid account, and the audit source is `scheduler`, which is not affected by the browser device time. Skip if there is no valid store owner account.
 
-Automatic mode checks all exceptions and existing daily closing cycles within the business day advisory lock; deterministic idempotency key plus business day lock supports repeated scans and multiple API instances. The first daily closing creates a personal summary snapshot, sends tasks and audits in the same transaction, and the audit trigger generates an outbox simultaneously. Eliminate duplication of shop, business day, and member checks SENT/QUEUED/CLAIMED, and cover manual sending of unassociated daily closing. No new database migrations or external cron services have been added.
+Automatic mode checks all exceptions and existing closing cycles under the business-day advisory lock. A deterministic idempotency key and the lock allow repeated scans and multiple API instances. If a successful close has no previous initial delivery for that date, create eligible employee snapshots, delivery tasks and audits in the closing transaction. The audit trigger writes the outbox there too. Skip employees with SENT, QUEUED or CLAIMED tasks, including manual sends without a closing. The server reuses the existing database schema and scheduler.
 
 <a id="实时同步资源与恢复"></a>
 

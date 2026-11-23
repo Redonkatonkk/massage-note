@@ -4,7 +4,7 @@
 
 **English** | **[简体中文](API.zh-CN.md)**
 
-> Applies to version: `1.63.12`
+> Applies to version: `1.63.13`
 > The precise input fields are subject to the Zod schema of `packages/contracts/src`; this page is responsible for HTTP paths, common semantics and cross-end conventions.
 
 The HTTP API of this system is shared by current Chinese and English web applications and future native clients. The default prefix is `/api/v1`, all business amounts use integer cents, dates use `YYYY-MM-DD`, and time points use ISO 8601 strings with time zones.
@@ -388,9 +388,9 @@ Work record updates and merges saved `discounts[]` support optional `rateBps` (0
 
 <a id="首次日结的自动发送副作用"></a>
 
-### Automatic sending side effect of first daily closing
+### Automatic employee statement queue on closing
 
-`POST /stores/:storeId/closings/:date` synchronizes and persists the eligible employee summary tasks when the daily closing is successful for the first time, without additional calls to the batch sending interface; the response structure remains unchanged. Only the first daily closing cycle of the day is triggered. Existing SENT/QUEUED/CLAIMED tasks are skipped by store, business day, and member, including manual sending before daily closing. Only members who are employed, have enabled receiving, have a valid number and have a work record on the day will participate; the results can be viewed through the existing sending list interface. Reason: `ClosingsService` filters recipients based on the number of preview jobs, daily closing and first queue are saved atomically, and re-sending cannot be repeated after cancellation and re-closing.
+`POST /stores/:storeId/closings/:date` persists eligible employee statement tasks in the same transaction as the closing. If a previous cycle created zero initial deliveries, a successful manual reclose can create the first batch. Any existing initial delivery for the store and date suppresses auto-queuing on reclose. For each active employee with reception enabled, a valid number and work records that day, skip existing SENT/QUEUED/CLAIMED tasks, including manual sends. The response shape is unchanged. Use the existing delivery list endpoint to check the queue. Reason: store the closing and its tasks atomically and prevent duplicate sends.
 
 Closing preview includes the blocking `CASH_UNSETTLED` warning when any regular employee has a positive cash payout due and lacks an active cash settlement. A normal closing request then returns `CLOSING_UNSETTLED_CASH_REQUIRE_CONFIRMATION` unless another work record blocker takes precedence. Managers can submit `{ force: false, confirmUnsettledCash: true }` to confirm the cash exception. The server rechecks under the business-day lock and records a forced closing with a reason while cash remains due. Work record blockers still require `force: true` with `forceReason`.
 

@@ -4,6 +4,10 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.63.13 — 2026-11-23
+
+- Queue the first employee daily-statement texts when a reopened business day is closed and no initial delivery tasks exist. NAS needs an API update.
+
 ## 1.63.12 — 2026-11-22
 
 - Preserve employee cash settlement when reopening a business day.

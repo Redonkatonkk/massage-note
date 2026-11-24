@@ -25,7 +25,7 @@ describe("public demo routes", () => {
       `/finance/?tab=${tab}`, ".finance-shell", async () => (await import("../app/finance/finance-page-client")).FinancePageClient,
     ] as [string, string, () => Promise<ComponentType>]),
     ...["store", "members", "catalog", "work-bot", "recovery", "audit"].map(tab => [
-      `/manage/?tab=${tab}`, ".manage-shell", async () => (await import("../app/manage/manage-page-client")).ManagePageClient,
+      `/manage/?tab=${tab}`, ".manage-shell", async () => (await import("../app/manage/page")).default,
     ] as [string, string, () => Promise<ComponentType>]),
     ["/profile/", ".profile-shell", async () => (await import("../app/profile/profile-page-client")).ProfilePageClient],
     ["/assistant/", ".assistant-shell", async () => (await import("../app/assistant/assistant-page-client")).AssistantPageClient],

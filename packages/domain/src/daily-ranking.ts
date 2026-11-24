@@ -122,3 +122,25 @@ export function explainRotationCandidates(candidates: RotationCandidate[], fullT
     };
   });
 }
+
+function chinesePosition(position: number): string {
+  const digits = "零一二三四五六七八九";
+  const units = ["", "十", "百", "千"];
+  if (position >= 10_000) return String(position);
+  return String(position).split("").map((digit, index, all) => {
+    const place = all.length - index - 1;
+    if (digit === "0") return all.slice(index + 1).some(value => value !== "0") && all[index - 1] !== "0" ? "零" : "";
+    return `${digits[Number(digit)]}${units[place]}`;
+  }).join("").replace(/^一十/, "十");
+}
+
+export function dailyRankingText(
+  businessDate: string,
+  rows: readonly { isHidden: boolean; membership: { displayName: string } }[],
+): string {
+  return [
+    `${businessDate}排工顺序`,
+    ...rows.filter(row => !row.isHidden).map((row, index) =>
+      `第${chinesePosition(index + 1)}：${row.membership.displayName}`),
+  ].join("\n");
+}

@@ -31,6 +31,7 @@ beforeEach(() => {
   signalListeners = new Map((["SIGINT", "SIGTERM"] as const).map(signal => [signal, process.listeners(signal)]));
 });
 afterEach(() => {
+  vi.useRealTimers();
   for (const [signal, previous] of signalListeners) {
     for (const listener of process.listeners(signal)) if (!previous.includes(listener)) process.removeListener(signal, listener);
   }
@@ -46,6 +47,7 @@ function stopAgent() {
 const job = { id: "00000000-0000-4000-8000-000000000001", leaseToken: "00000000-0000-4000-8000-000000000002", phoneE164: "+13105551234", deliveryMode: "TEXT", locale: "zh_CN", snapshot: {} };
 const text = `Details: https://agent-test.invalid/share/daily-snapshot#${"a".repeat(43)}`;
 const prepared = { authorized: true, text };
+const authorized = { authorized: true, dispatchRecorded: true };
 describe("agent recovery without real messages", () => {
   it("完成请求携带真实送达回执，并在日志中持久保存以便中断恢复", async () => {
     const receipt = { messageGuid: "new-message", state: "DELIVERED", errorCode: 0, service: "RCS" };
@@ -61,6 +63,10 @@ describe("agent recovery without real messages", () => {
         expect(JSON.parse(String(init.body))).toEqual({ leaseToken: job.leaseToken });
         payload = prepared;
       }
+      else if (url.endsWith("/authorize")) {
+        expect(JSON.parse(String(init.body))).toEqual({ leaseToken: job.leaseToken, startDispatch: true });
+        payload = authorized;
+      }
       else if (url.endsWith("/complete")) { completion = JSON.parse(String(init.body)); stopAgent(); }
       return new Response(JSON.stringify(payload));
     }));
@@ -72,22 +78,29 @@ describe("agent recovery without real messages", () => {
     expect(fixture.sendAttachment).not.toHaveBeenCalled();
     expect(fixture.render).not.toHaveBeenCalled();
   });
-  it("信息 App 接受后又明确失败时回写可重试失败，持久保留五分钟退避", async () => {
+  it("Mac 报错时保留发送记录和回执，等待核对而不再发送", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout"] });
     fixture.send.mockResolvedValue({ service: "SMS", previousMessageGuid: null });
-    fixture.state.mockResolvedValue({ messageGuid: "new-message", state: "FAILED", errorCode: 100, service: "SMS" });
+    const receipt = { messageGuid: "new-message", state: "FAILED", errorCode: 100, service: "SMS" };
+    fixture.state.mockResolvedValue(receipt);
     let failure: Record<string, unknown> | undefined;
     vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
       let payload: unknown = url.endsWith("/receipts") ? [] : null;
       if (url.endsWith("/closing-delivery-agent/jobs/claim")) payload = job;
       else if (url.endsWith("/prepare-text")) payload = prepared;
+      else if (url.endsWith("/authorize")) payload = authorized;
       else if (url.endsWith("/fail")) { failure = JSON.parse(String(init.body)); stopAgent(); }
       return new Response(JSON.stringify(payload));
     }));
-    await import("../src/index.js");
+    const finished = import("../src/index.js");
+    await vi.waitFor(() => expect(fixture.state).toHaveBeenCalled());
+    await vi.advanceTimersByTimeAsync(120_000);
+    await finished;
     expect(fixture.send).toHaveBeenCalledOnce();
-    expect(failure).toMatchObject({ code: "MESSAGES_DELIVERY_FAILED", retryable: true });
+    expect(failure).toMatchObject({ code: "MESSAGES_DELIVERY_FAILED", retryable: false, receipt });
     expect(fixture.journal.accepted).not.toContain(job.id);
-    expect(fixture.journal.started).not.toContain(job.id);
+    expect(fixture.journal.started).toContain(job.id);
+    expect(fixture.journal.submitted?.[job.id]).toBeDefined();
     expect(Date.parse(fixture.journal.nextClaimAt!) - Date.now()).toBeGreaterThan(299_000);
   });
   it("长脚本异常仍能回写失败，并在实际调用发送前持久保存开始记录", async () => {
@@ -101,6 +114,7 @@ describe("agent recovery without real messages", () => {
       let payload: unknown = url.endsWith("/receipts") ? [] : null;
       if (url.endsWith("/closing-delivery-agent/jobs/claim")) payload = job;
       else if (url.endsWith("/prepare-text")) payload = prepared;
+      else if (url.endsWith("/authorize")) payload = authorized;
       else if (url.endsWith("/fail")) { failure = JSON.parse(String(init.body)); stopAgent(); }
       return new Response(JSON.stringify(payload));
     }));
@@ -109,12 +123,12 @@ describe("agent recovery without real messages", () => {
     expect(failure).toMatchObject({ code: "MESSAGES_RESULT_AMBIGUOUS", retryable: false, message: "Messages: Access denied (1)" });
   });
 
-  it("失败回写中断后重新领取已开始的任务，只标记需核对，不再次发送", async () => {
-    fixture.journal.started = [job.id];
+  it.each([false, true])("重新领取已开始的任务（服务端检查点=%s）时只标记待核对", async dispatchStarted => {
+    if (!dispatchStarted) fixture.journal.started = [job.id];
     let failure: Record<string, unknown> | undefined;
     vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
       let payload: unknown = url.endsWith("/receipts") ? [] : null;
-      if (url.endsWith("/closing-delivery-agent/jobs/claim")) payload = job;
+      if (url.endsWith("/closing-delivery-agent/jobs/claim")) payload = { ...job, dispatchStarted };
       else if (url.endsWith("/fail")) { failure = JSON.parse(String(init.body)); stopAgent(); }
       return new Response(JSON.stringify(payload));
     }));
@@ -122,6 +136,28 @@ describe("agent recovery without real messages", () => {
     expect(fixture.send).not.toHaveBeenCalled();
     expect(fixture.render).not.toHaveBeenCalled();
     expect(failure).toMatchObject({ code: "MESSAGES_RESULT_AMBIGUOUS", retryable: false });
+  });
+
+  it("完成请求超时后保留送达回执供下一轮补写", async () => {
+    fixture.send.mockResolvedValue({ service: "SMS", previousMessageGuid: null });
+    fixture.state.mockResolvedValue({ messageGuid: "new-message", state: "DELIVERED", errorCode: 0, service: "SMS" });
+    const fetch = vi.fn(async (url: string) => {
+      let payload: unknown = url.endsWith("/receipts") ? [] : null;
+      if (url.endsWith("/closing-delivery-agent/jobs/claim")) payload = job;
+      else if (url.endsWith("/prepare-text")) payload = prepared;
+      else if (url.endsWith("/authorize")) payload = authorized;
+      else if (url.endsWith("/complete")) {
+        stopAgent();
+        throw new Error("completion timed out");
+      }
+      return new Response(JSON.stringify(payload));
+    });
+    vi.stubGlobal("fetch", fetch);
+    await import("../src/index.js");
+    expect(fixture.send).toHaveBeenCalledOnce();
+    expect(fixture.journal.accepted).toContain(job.id);
+    expect(fixture.journal.completed).not.toContain(job.id);
+    expect(fetch.mock.calls.some(([url]) => url.endsWith("/fail"))).toBe(false);
   });
 
   it("保留已经提交的旧图片，只继续查本次附件回执", async () => {
@@ -179,4 +215,28 @@ describe("agent recovery without real messages", () => {
     expect(checkpoints).toEqual(["SUMMARY", "DETAIL"]);
     expect(fixture.journal.completed).toContain(job.id);
   });
+});
+
+it("sends a dated dispatch text through the shared checkpoint and records its receipt", async () => {
+  const roster = "2026-11-25排工顺序\n第一：Alex";
+  const receipt = { messageGuid: "roster-guid", state: "SENT", errorCode: 0, service: "SMS" };
+  fixture.send.mockResolvedValue({ service: "SMS", previousMessageGuid: "older-roster" });
+  fixture.state
+    .mockResolvedValueOnce({ ...receipt, messageGuid: "older-roster" })
+    .mockResolvedValue({ ...receipt, state: "DELIVERED" });
+  const completed = vi.fn();
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+    let payload: unknown = url.endsWith("/receipts") ? [] : null;
+    if (url.endsWith("/dispatch-sms-agent/jobs/claim")) payload = { id: job.id, phoneE164: job.phoneE164, leaseToken: job.leaseToken };
+    else if (url.endsWith("/prepare-text")) payload = { authorized: true, text: roster };
+    else if (url.endsWith("/authorize")) {
+      expect(fixture.journal.dispatchBaselines?.[job.id]).toBe("older-roster");
+      payload = authorized;
+    } else if (url.endsWith("/complete")) { completed(JSON.parse(String(init.body))); stopAgent(); }
+    return new Response(JSON.stringify(payload));
+  }));
+  await import("../src/index.js");
+  expect(fixture.prepare).toHaveBeenCalledExactlyOnceWith("/mock", job.id, roster, "dispatch");
+  expect(fixture.send).toHaveBeenCalledExactlyOnceWith(job.phoneE164, job.id, "dispatch");
+  expect(completed).toHaveBeenCalledExactlyOnceWith({ leaseToken: job.leaseToken, receipt: { ...receipt, state: "DELIVERED" } });
 });

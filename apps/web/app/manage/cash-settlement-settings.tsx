@@ -1,5 +1,6 @@
 import { cashSettlementSettingsSchema } from "@massage-note/contracts";
 import type { StoreDetails } from "../../lib/types";
+import { StoreSettingRule } from "./store-setting-rule";
 import { NumericInput } from "../numeric-input";
 
 export interface CashSettlementDraft {
@@ -31,10 +32,9 @@ export function CashSettlementSettings({ value, onChange, disabled }: {
 }) {
   const weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
   const update = (patch: Partial<CashSettlementDraft>) => onChange({ ...value, ...patch });
-  return <section className={`auto-discount-settings${value.enabled ? " enabled" : ""}`} role="group" aria-label="店内现金结算">
-    <div className="auto-discount-heading"><div><strong>店内现金结算</strong><p>按重置日、起始金额、现金实收和员工已结现金计算余额。</p></div>
-      <label className="inline-check"><input type="checkbox" disabled={disabled} checked={value.enabled} onChange={event => update({ enabled: event.target.checked })} />开启</label></div>
-    <div className="manage-form-grid auto-discount-fields">
+  return <StoreSettingRule title="店内现金结算" description="按重置日、起始金额、现金实收和员工已结现金计算余额。"
+    enabled={value.enabled} disabled={disabled} onChange={enabled => update({ enabled })}>
+    <div className="manage-form-grid store-setting-fields">
       <label>结算周期<select disabled={disabled || !value.enabled} value={value.cycle} onChange={event => update({ cycle: event.target.value as CashSettlementDraft["cycle"] })}><option value="WEEKLY">按周结</option><option value="MONTHLY">按月结</option></select></label>
       {value.cycle === "WEEKLY"
         ? <label>每周重置日<select disabled={disabled || !value.enabled} value={value.weekday} onChange={event => update({ weekday: Number(event.target.value) })}>{weekdays.map((day, index) => <option key={day} value={index + 1}>{day}</option>)}</select></label>
@@ -42,5 +42,5 @@ export function CashSettlementSettings({ value, onChange, disabled }: {
       <label>重置为多少（美元）<NumericInput disabled={disabled || !value.enabled} required={value.enabled} inputMode="decimal" value={value.amount} onChange={event => update({ amount: event.target.value })} /></label>
     </div>
     <p className="field-help">重置日营业开始时设为指定金额，再累计当天及之后的现金净变化；短月使用最后一天。修改设置也会重新计算历史余额，原日结快照保留。</p>
-  </section>;
+  </StoreSettingRule>;
 }

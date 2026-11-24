@@ -304,10 +304,15 @@ export class AiService {
       } else if (preview.operation === "UPDATE_WORK_RECORD") {
         const recordId = String(payload.recordId);
         const baseVersion = Number((preview.baseVersionsJson as Record<string, unknown>).workRecord);
-        let record: Awaited<ReturnType<WorkRecordsService["update"]>> = await this.workRecords.get(actor, storeId, recordId, transaction);
-        if (payload.update) record = await this.workRecords.update(actor, storeId, recordId, payload.update as never, `ai-${preview.id}-update`, requestId, transaction);
-        if (payload.payment) record = await this.workRecords.confirmPayment(actor, storeId, recordId, { version: payload.update ? record.version : baseVersion, ...(payload.payment as object) } as never, `ai-${preview.id}-payment`, requestId, transaction);
-        result = record;
+        result = await this.workRecords.get(actor, storeId, recordId, transaction);
+        const keys = { update: `ai-${preview.id}-update`, payment: `ai-${preview.id}-payment` };
+        if (payload.update && payload.payment) {
+          result = await this.workRecords.updateAndConfirmPayment(actor, storeId, recordId, payload.update as never, payload.payment as never, keys, requestId, transaction);
+        } else if (payload.update) {
+          result = await this.workRecords.update(actor, storeId, recordId, payload.update as never, keys.update, requestId, transaction);
+        } else if (payload.payment) {
+          result = await this.workRecords.confirmPayment(actor, storeId, recordId, { version: baseVersion, ...(payload.payment as object) } as never, keys.payment, requestId, transaction);
+        }
       } else if (preview.operation === "DELETE_WORK_RECORD") {
         result = await this.workRecords.remove(actor, storeId, String(payload.recordId), payload.delete as never, `ai-${preview.id}-delete`, requestId, transaction);
       } else {

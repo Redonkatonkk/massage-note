@@ -20,7 +20,7 @@ enum StagerError: LocalizedError {
         case .invalidResultPath: return "result must be the exact job result file in the Massage Note agent data directory"
         case .invalidSource: return "source must be the exact job PNG in the Massage Note agent outbox"
         case .invalidAttachment: return "source is not a valid PNG or JPEG attachment"
-        case .invalidText: return "invalid or missing private closing text for this job"
+        case .invalidText: return "invalid or missing private Messages text for this job"
         case .conflictingDestination: return "a different attachment already exists for this job"
         case .invalidRecipient: return "invalid Messages recipient"
         case .missingScript: return "bundled Messages AppleScript is missing"
@@ -108,7 +108,7 @@ func diagnose() throws {
     _ = try runMessagesScript(["", "", probe.path, "DIAGNOSE"])
     let database = try MessagesDeliveryDatabase(url: home.appendingPathComponent("Library/Messages/chat.db"))
     _ = try database.observation(attachment: probe, phone: "+10000000000", home: home)
-    _ = try database.observation(text: "Messages probe", snapshotLink: "https://probe.invalid/no-task", phone: "+10000000000")
+    _ = try database.observation(text: "Messages probe", bodyMarker: "https://probe.invalid/no-task", phone: "+10000000000")
 }
 
 func validateTask(phone: String, job: String) throws {
@@ -129,8 +129,9 @@ func taskAttachment(phone: String, job: String, fileName: String) throws -> URL 
     return file
 }
 
-func closingText(job: String) throws -> (body: String, link: String) {
-    let file = outboxRoot.appendingPathComponent("\(job)-closing.txt")
+func taskText(job: String, dispatchRoster: Bool) throws -> (body: String, marker: String) {
+    let kind = dispatchRoster ? "dispatch" : "closing"
+    let file = outboxRoot.appendingPathComponent("\(job)-\(kind).txt")
     guard file.resolvingSymlinksInPath().path == file.path,
           let attributes = try? fileManager.attributesOfItem(atPath: file.path),
           attributes[.type] as? FileAttributeType == .typeRegular,
@@ -141,16 +142,21 @@ func closingText(job: String) throws -> (body: String, link: String) {
         throw StagerError.invalidText
     }
     let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+    if dispatchRoster {
+        let header = "^\\d{4}-\\d{2}-\\d{2}排工顺序\\n"
+        guard trimmed.range(of: header, options: .regularExpression) != nil else { throw StagerError.invalidText }
+        return (body, body)
+    }
     guard let range = trimmed.range(of: "https://[A-Za-z0-9.-]+(?::[0-9]{1,5})?/share/daily-snapshot#[A-Za-z0-9_-]{43}$", options: .regularExpression) else {
         throw StagerError.invalidText
     }
     return (body, String(trimmed[range]))
 }
 
-func sendClosingText(phone: String, job: String) throws -> (String, String?) {
-    let text = try closingText(job: job)
+func sendTaskText(phone: String, job: String, dispatchRoster: Bool) throws -> (String, String?) {
+    let text = try taskText(job: job, dispatchRoster: dispatchRoster)
     let database = try MessagesDeliveryDatabase(url: home.appendingPathComponent("Library/Messages/chat.db"))
-    let previous = try database.observation(text: text.body, snapshotLink: text.link, phone: phone)
+    let previous = try database.observation(text: text.body, bodyMarker: text.marker, phone: phone)
     let phoneHandle = phone.hasPrefix("+1") && phone.count == 12 ? String(phone.dropFirst(2)) : phone
     return (try runMessagesScript([phoneHandle, phone, text.body, "TEXT"], hasPrivateText: true), previous.messageGuid)
 }
@@ -221,19 +227,21 @@ do {
             try? writeResult(ok: false, error: error.localizedDescription, to: result)
             throw error
         }
-    } else if arguments.count == 4, ["--send-text", "--status-text"].contains(arguments[0]) {
+    } else if arguments.count == 4, ["--send-text", "--status-text", "--send-dispatch-text", "--status-dispatch-text"].contains(arguments[0]) {
         let phone = arguments[1], job = arguments[2]
         try validateTask(phone: phone, job: job)
-        let dispatch = arguments[0] == "--send-text"
-        let result = try validatedResultURL(arguments[3], expectedStem: "\(job)-text-\(dispatch ? "send" : "status")")
+        let send = arguments[0].hasPrefix("--send-")
+        let dispatchRoster = arguments[0].contains("-dispatch-")
+        let operation = dispatchRoster ? "dispatch-text" : "text"
+        let result = try validatedResultURL(arguments[3], expectedStem: "\(job)-\(operation)-\(send ? "send" : "status")")
         do {
-            if dispatch {
-                let (service, previous) = try sendClosingText(phone: phone, job: job)
+            if send {
+                let (service, previous) = try sendTaskText(phone: phone, job: job, dispatchRoster: dispatchRoster)
                 try writeResult(ok: true, service: service, previousMessageGuid: previous, to: result)
             } else {
-                let text = try closingText(job: job)
+                let text = try taskText(job: job, dispatchRoster: dispatchRoster)
                 let database = try MessagesDeliveryDatabase(url: home.appendingPathComponent("Library/Messages/chat.db"))
-                let observation = try database.observation(text: text.body, snapshotLink: text.link, phone: phone)
+                let observation = try database.observation(text: text.body, bodyMarker: text.marker, phone: phone)
                 try writeResult(ok: true, delivery: observation.json, to: result)
             }
         } catch {

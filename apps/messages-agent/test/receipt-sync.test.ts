@@ -43,3 +43,27 @@ it("reconciles terminal text by its recorded GUID and leaves legacy images on ex
   expect(messagesTextDeliveryState).toHaveBeenCalledExactlyOnceWith(job.recipientPhoneE164, job.id, "retry");
   expect(messagesDeliveryState).toHaveBeenCalledExactlyOnceWith(job.recipientPhoneE164, "/tasks/legacy/closing.png");
 });
+
+it("checks the exact task text for a newer receipt when the original GUID still reports an error", async () => {
+  const request = vi.fn(async (path: string) => path === "/closing-delivery-agent/jobs/receipts"
+    ? [{ ...job, deliveryMode: "TEXT", deliveryMessageGuid: "failed-guid" }]
+    : path.endsWith("/receipts") ? [] : {});
+  vi.mocked(messagesTextDeliveryState)
+    .mockResolvedValueOnce({ ...delivered, messageGuid: "failed-guid", state: "FAILED", errorCode: 4 })
+    .mockResolvedValueOnce(delivered);
+  await syncDeliveryReceipts(request as never, { accepted: [], completed: [] });
+  expect(request).toHaveBeenCalledWith("/closing-delivery-agent/jobs/job/receipt", expect.objectContaining({ body: JSON.stringify({ attemptCount: 2, receipt: delivered }) }));
+});
+
+it("does not associate an older image receipt with a manual resend that lost its submission response", async () => {
+  const request = vi.fn(async (path: string) => path === "/employee-settlement-delivery-agent/jobs/receipts"
+    ? [{ ...job, sendRound: 2 }]
+    : path.endsWith("/receipts") ? [] : {});
+  vi.mocked(messagesDeliveryState).mockResolvedValue(delivered);
+  await syncDeliveryReceipts(request as never, {
+    accepted: [], completed: [], resends: { [job.id]: { round: 2, previousMessageGuid: delivered.messageGuid } },
+  });
+  expect(request).toHaveBeenCalledWith("/employee-settlement-delivery-agent/jobs/job/receipt", expect.objectContaining({
+    body: JSON.stringify({ attemptCount: 2, receipt: { state: "MISSING", messageGuid: null, errorCode: 0, service: null } }),
+  }));
+});

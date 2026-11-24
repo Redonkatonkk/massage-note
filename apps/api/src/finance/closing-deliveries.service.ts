@@ -1,5 +1,5 @@
 import { lockBusinessDay } from "../common/business-day-lock.js";
-import { claimedDeliveryWhere, deliveryFailureState, requireDeliveryLease } from "./delivery-lease.js";
+import { claimedDeliveryWhere, deliveryFailureState, dispatchCheckpointWhere, requireDeliveryLease } from "./delivery-lease.js";
 import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import { authenticateDeliveryAgent, hashDeliveryAgentToken } from "./delivery-agent.js";
 import { clearDeliveryReceipt, deliveryReceiptData, receiptCandidatesWhere, receiptCandidateSelect, receiptCandidateOrder, recordDeliveryReceipt } from "./delivery-receipt.js";
@@ -371,21 +371,27 @@ export class ClosingDeliveriesService {
       if (updated.count !== 1) continue;
       const job = await this.prisma.employeeClosingDelivery.findUniqueOrThrow({
         where: { id: candidate.id },
-        select: { id: true, recipientPhoneE164: true, locale: true, kind: true, closing: { select: { cycleNo: true } } },
+        select: { id: true, recipientPhoneE164: true, locale: true, kind: true, dispatchStartedAt: true, closing: { select: { cycleNo: true } } },
       });
-      return { id: job.id, leaseToken, phoneE164: job.recipientPhoneE164, locale: job.locale, kind: job.kind, cycleNo: job.closing?.cycleNo ?? 0, deliveryMode: "TEXT" as const };
+      return { id: job.id, leaseToken, phoneE164: job.recipientPhoneE164, locale: job.locale, kind: job.kind, cycleNo: job.closing?.cycleNo ?? 0, deliveryMode: "TEXT" as const, dispatchStarted: Boolean(job.dispatchStartedAt) };
     }
     return null;
   }
 
-  async authorize(authorization: string | undefined, deliveryId: string, leaseToken: string) {
+  async authorize(authorization: string | undefined, deliveryId: string, leaseToken: string, startDispatch = false) {
     const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
     if (job.closing && job.closing.status !== "CLOSED") {
       await this.prisma.employeeClosingDelivery.updateMany({ where: claimedDeliveryWhere(agent.storeId, job.id, leaseToken), data: { status: "CANCELLED", leaseToken: null, leaseExpiresAt: null } });
       return { authorized: false };
     }
-    return { authorized: true };
+    if (!startDispatch) return { authorized: true };
+    const changed = await this.prisma.employeeClosingDelivery.updateMany({
+      where: dispatchCheckpointWhere(agent.storeId, deliveryId, leaseToken),
+      data: { dispatchStartedAt: new Date() },
+    });
+    requireDeliveryLease(changed);
+    return { authorized: true, dispatchRecorded: true };
   }
 
   async prepareText(authorization: string | undefined, deliveryId: string, leaseToken: string): Promise<PreparedClosingText> {
@@ -396,7 +402,6 @@ export class ClosingDeliveriesService {
     const credential = authorization!.match(/^Bearer\s+(.+)$/i)![1]!;
     const token = createHmac("sha256", credential).update(`daily-snapshot:v1:${deliveryId}`).digest("base64url");
     const tokenHash = hashDailySnapshotToken(token);
-    const link = dailySnapshotLink(token);
     return this.prisma.$transaction(async tx => {
       const businessDate = snapshotDateOnly(claimed.businessDate);
       await lockBusinessDay(tx, agent.storeId, businessDate);
@@ -416,6 +421,9 @@ export class ClosingDeliveriesService {
       const now = new Date();
       const phone = membership.closingDeliveryPhoneE164 ?? membership.user?.phoneE164;
       const currentDay = businessDateFor({ startAt: now, timezone: store.timezone, cutoffLocal: store.businessCutoffLocal });
+      if (job.dispatchStartedAt) {
+        throw new ConflictException({ code: "DISPATCH_ALREADY_STARTED", messageZh: "已开始发送，请核对送达状态" });
+      }
       if ((job.closing && job.closing.status !== "CLOSED") || store.status !== "ACTIVE" || store.deletedAt
         || membership.storeId !== job.storeId || membership.status !== "ACTIVE" || membership.deletedAt
         || !membership.closingDeliveryEnabled || !isE164Phone(phone) || phone !== job.recipientPhoneE164 || businessDate > currentDay) {
@@ -425,6 +433,7 @@ export class ClosingDeliveriesService {
         } });
         return { authorized: false };
       }
+      const link = dailySnapshotLink(token);
       const snapshot = publicDailySnapshot(job.snapshotJson);
       if (job.snapshotShare) {
         // An earlier attempt may have submitted this link even if its response
@@ -481,9 +490,9 @@ export class ClosingDeliveriesService {
   async fail(authorization: string | undefined, deliveryId: string, input: ClosingDeliveryFailureInput) {
     const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, input.leaseToken);
-    const { data, retryScheduled } = deliveryFailureState(job.attemptCount, input);
+    const { data, retryScheduled } = deliveryFailureState(job, input);
     requireDeliveryLease(await this.prisma.employeeClosingDelivery.updateMany({
-      where: claimedDeliveryWhere(agent.storeId, job.id, input.leaseToken),
+      where: { ...claimedDeliveryWhere(agent.storeId, job.id, input.leaseToken), dispatchStartedAt: job.dispatchStartedAt },
       data,
     }));
     return { retryScheduled };

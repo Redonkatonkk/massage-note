@@ -83,7 +83,7 @@ export class ClosingDeliveryAgentController {
   @Post("jobs/:deliveryId/authorize")
   authorize(@Headers("authorization") authorization: string | undefined, @Param("deliveryId") deliveryId: string, @Body() body: unknown) {
     const input = parseRequest(closingDeliveryAuthorizeSchema, body);
-    return this.deliveries.authorize(authorization, parseRequest(uuidSchema, deliveryId), input.leaseToken);
+    return this.deliveries.authorize(authorization, parseRequest(uuidSchema, deliveryId), input.leaseToken, input.startDispatch);
   }
 
   @Post("jobs/:deliveryId/prepare-text")

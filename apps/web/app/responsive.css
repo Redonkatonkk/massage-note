@@ -670,7 +670,7 @@ button, summary { overflow-wrap: anywhere; }
   .profile-summary { grid-column: 1; grid-row: 1 / 5; position: sticky; top: 24px; }
   .profile-layout > .manage-card { grid-column: 2; }
   .profile-layout .password-form-grid { grid-template-columns: minmax(0, 1fr); max-width: 460px; }
-  .store-settings-layout { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; gap: 24px; }
+  .store-settings-layout--managed { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; gap: 24px; }
   .store-settings-layout > form { grid-column: 1; }
   .store-settings-layout > .danger-zone { grid-column: 1 / -1; }
   .work-bot-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }

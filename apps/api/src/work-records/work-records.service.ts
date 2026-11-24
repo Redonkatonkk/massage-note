@@ -34,6 +34,7 @@ import { ensureBoardRow } from "../common/ensure-board-row.js";
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
+import { reopenChangedCashSettlements, type CashSettlementChange } from "../finance/cash-settlement-changes.js";
 
 interface StoreBusinessSettings {
   id: string;
@@ -204,9 +205,6 @@ export class WorkRecordsService {
           include: recordInclude,
         });
         await ensureBoardRow(transaction, storeId, businessDate, employee.id, actor.id);
-        if (!isPlaceholder) {
-          await this.reopenCashSettlements(transaction, storeId, [businessDate], actor.id, actorMembership.id, requestId);
-        }
         await transaction.auditLog.create({
           data: {
             storeId,
@@ -366,14 +364,6 @@ export class WorkRecordsService {
         include: recordInclude,
       });
       await ensureBoardRow(transaction, storeId, businessDate, employee.id, actor.id);
-      await this.reopenCashSettlements(
-        transaction,
-        storeId,
-        [businessDate],
-        actor.id,
-        actorMembership.id,
-        requestId,
-      );
       await transaction.auditLog.create({
         data: {
           storeId,
@@ -475,6 +465,7 @@ export class WorkRecordsService {
     idempotencyKey: string,
     requestId: string,
     parentTransaction?: Prisma.TransactionClient,
+    deferredSettlementChanges?: CashSettlementChange[],
   ) {
     const actorMembership = await this.access.requireActiveMembership(
       actor.id,
@@ -828,14 +819,9 @@ export class WorkRecordsService {
             where: { id: recordId },
             include: recordInclude,
           });
-          await this.reopenCashSettlements(
-            transaction,
-            storeId,
-            [originalBusinessDate, businessDate],
-            actor.id,
-            actorMembership.id,
-            requestId,
-          );
+          const settlementChange = { before: record, after: updated };
+          if (deferredSettlementChanges) deferredSettlementChanges.push(settlementChange);
+          else await this.reopenChangedCash(transaction, storeId, actor, actorMembership.id, requestId, [settlementChange]);
           await transaction.auditLog.create({
             data: {
               storeId,
@@ -954,14 +940,7 @@ export class WorkRecordsService {
           where: { id: recordId },
           include: recordInclude,
         });
-        if (record.status !== "PLACEHOLDER") await this.reopenCashSettlements(
-          transaction,
-          storeId,
-          [this.dateOnly(record.businessDate)],
-          actor.id,
-          actorMembership.id,
-          requestId,
-        );
+        await this.reopenChangedCash(transaction, storeId, actor, actorMembership.id, requestId, [{ before: record, after: deleted }]);
         await transaction.auditLog.create({
           data: {
             storeId,
@@ -1073,14 +1052,7 @@ export class WorkRecordsService {
           where: { id: recordId },
           include: recordInclude,
         });
-        if (record.status !== "PLACEHOLDER") await this.reopenCashSettlements(
-          transaction,
-          storeId,
-          [this.dateOnly(record.businessDate)],
-          actor.id,
-          actorMembership.id,
-          requestId,
-        );
+        await this.reopenChangedCash(transaction, storeId, actor, actorMembership.id, requestId, [{ before: record, after: restored }]);
         await transaction.auditLog.create({
           data: {
             storeId,
@@ -1127,10 +1099,11 @@ export class WorkRecordsService {
   async save(actor: User, storeId: string, recordId: string, input: SaveWorkRecordInput, key: string, requestId: string, parentTransaction?: Prisma.TransactionClient) {
     const membership = await this.access.requireActiveMembership(actor.id, storeId, parentTransaction);
     return this.idempotency.execute({ storeId, userId: actor.id, key, route: "/api/v1/stores/:storeId/work-records/:recordId/save", payload: { recordId, input }, responseCode: 200 }, async (transaction) => {
-      const updated = await this.update(actor, storeId, recordId, input.details, `save-${key}`, requestId, transaction);
+      const settlementChanges: CashSettlementChange[] = [];
+      const updated = await this.update(actor, storeId, recordId, input.details, `save-${key}`, requestId, transaction, settlementChanges);
       const allZero = [input.payment.cashServiceCents, input.payment.cardServiceCents, input.payment.cashTipCents,
         input.payment.cardTipCents, input.payment.giftCardServiceCents, input.payment.giftCardTipCents].every(value => value === 0);
-      if (!allZero) return this.confirmPayment(actor, storeId, recordId, { ...input.payment, version: updated.version }, `save-${key}`, requestId, transaction);
+      if (!allZero) return this.confirmPayment(actor, storeId, recordId, { ...input.payment, version: updated.version }, `save-${key}`, requestId, transaction, settlementChanges);
 
       const changed = await transaction.workRecord.updateMany({
         where: { id: recordId, storeId, deletedAt: null, version: updated.version },
@@ -1149,6 +1122,8 @@ export class WorkRecordsService {
       if (changed.count !== 1) await this.throwRecordConflict(transaction, recordId, storeId);
       await transaction.paymentBreakdown.deleteMany({ where: { workRecordId: recordId } });
       const pending = await transaction.workRecord.findUniqueOrThrow({ where: { id: recordId }, include: recordInclude });
+      settlementChanges.push({ before: updated, after: pending });
+      await this.reopenChangedCash(transaction, storeId, actor, membership.id, requestId, settlementChanges);
       await transaction.auditLog.create({ data: {
         storeId, actorUserId: this.auditSource === "langbot" ? null : actor.id, actorMembershipId: membership.id,
         source: this.auditSource, action: "work_record.payment_pending", entityType: "work_record", entityId: recordId,
@@ -1160,6 +1135,21 @@ export class WorkRecordsService {
     }, parentTransaction);
   }
 
+  async updateAndConfirmPayment(
+    actor: User,
+    storeId: string,
+    recordId: string,
+    details: UpdateWorkRecordInput,
+    payment: Omit<CompatibleConfirmedPayment, "version">,
+    keys: { update: string; payment: string },
+    requestId: string,
+    transaction: Prisma.TransactionClient,
+  ) {
+    const settlementChanges: CashSettlementChange[] = [];
+    const updated = await this.update(actor, storeId, recordId, details, keys.update, requestId, transaction, settlementChanges);
+    return this.confirmPayment(actor, storeId, recordId, { ...payment, version: updated.version }, keys.payment, requestId, transaction, settlementChanges);
+  }
+
   async confirmPayment(
     actor: User,
     storeId: string,
@@ -1168,6 +1158,7 @@ export class WorkRecordsService {
     idempotencyKey: string,
     requestId: string,
     parentTransaction?: Prisma.TransactionClient,
+    previousSettlementChanges: readonly CashSettlementChange[] = [],
   ) {
     input = { ...input, giftCardSerialNumber: input.giftCardSerialNumber?.trim() || null, giftCardIsOnline: isGiftCardUsername(input.giftCardSerialNumber) };
     const actorMembership = await this.access.requireActiveMembership(
@@ -1314,14 +1305,9 @@ export class WorkRecordsService {
           where: { id: recordId },
           include: recordInclude,
         });
-        await this.reopenCashSettlements(
-          transaction,
-          storeId,
-          [this.dateOnly(record.businessDate)],
-          actor.id,
-          actorMembership.id,
-          requestId,
-        );
+        await this.reopenChangedCash(transaction, storeId, actor, actorMembership.id, requestId, [
+          ...previousSettlementChanges, { before: record, after: updated },
+        ]);
         await transaction.auditLog.create({
           data: {
             storeId,
@@ -1740,62 +1726,17 @@ export class WorkRecordsService {
     ];
   }
 
-  private async reopenCashSettlements(
+  private reopenChangedCash(
     transaction: Prisma.TransactionClient,
     storeId: string,
-    businessDates: string[],
-    actorUserId: string,
+    actor: User,
     actorMembershipId: string,
     requestId: string,
-  ): Promise<number> {
-    const uniqueDates = [...new Set(businessDates)].map(
-      (date) => new Date(`${date}T00:00:00.000Z`),
-    );
-    const settlements = await transaction.dailyCashSettlement.findMany({
-      where: {
-        storeId,
-        businessDate: { in: uniqueDates },
-        status: "SETTLED",
-        deletedAt: null,
-      },
-    });
-    if (settlements.length === 0) return 0;
-    await transaction.dailyCashSettlement.updateMany({
-      where: { id: { in: settlements.map((settlement) => settlement.id) } },
-      data: {
-        status: "UNSETTLED",
-        settledBy: null,
-        settledAt: null,
-        version: { increment: 1 },
-      },
-    });
-    for (const settlement of settlements) {
-      await transaction.auditLog.create({
-        data: {
-          storeId,
-          actorUserId: this.auditSource === "langbot" ? null : actorUserId,
-          actorMembershipId,
-          source: "system",
-          action: "cash_settlement.reopened_automatically",
-          entityType: "daily_cash_settlement",
-          entityId: settlement.id,
-          businessDate: settlement.businessDate,
-          beforeJson: {
-            status: settlement.status,
-            settledAt: settlement.settledAt?.toISOString() ?? null,
-            version: settlement.version,
-          },
-          afterJson: {
-            status: "UNSETTLED",
-            settledAt: null,
-            version: settlement.version + 1,
-          },
-          reason: "相关记工发生变化，需要重新确认现金结算",
-          requestId,
-        },
-      });
-    }
-    return settlements.length;
+    changes: readonly CashSettlementChange[],
+  ) {
+    return reopenChangedCashSettlements(transaction, {
+      storeId, actorUserId: this.auditSource === "langbot" ? null : actor.id, actorMembershipId, requestId,
+    }, changes);
   }
 
   private async resolveEmployeeDefaultCommission(

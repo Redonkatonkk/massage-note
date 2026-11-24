@@ -15,7 +15,7 @@ for (const Service of [ClosingDeliveriesService, EmployeeSettlementsService]) {
       vi.setSystemTime(now);
       const updateMany = vi.fn().mockResolvedValue({ count: 1 });
       const delivery = {
-        findFirst: vi.fn().mockResolvedValue({ id: "job", storeId: "store", attemptCount }),
+        findFirst: vi.fn().mockResolvedValue({ id: "job", storeId: "store", attemptCount, dispatchStartedAt: null }),
         updateMany,
       };
       const prisma = {
@@ -36,6 +36,8 @@ for (const Service of [ClosingDeliveriesService, EmployeeSettlementsService]) {
       // Ambiguous results must not enter the retry queue, even below the limit.
       expect(await service.fail(`Bearer ${token}`, "job", { ...input, retryable: false })).toEqual({ retryScheduled: false });
       expect(updateMany).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "FAILED" }) }));
+      // An older agent may still request automatic redelivery after a Mac error.
+      expect(await service.fail(`Bearer ${token}`, "job", { ...input, code: "MESSAGES_DELIVERY_FAILED" })).toEqual({ retryScheduled: false });
     });
   });
 }

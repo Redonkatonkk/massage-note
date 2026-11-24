@@ -11,7 +11,7 @@ import { apiRequest, errorMessage } from "../../lib/api";
 import { formatCommissionRate } from "../../lib/employee-subtotal";
 import { formatUsdPrecise } from "../../lib/money";
 import type { EmployeeSettlementDelivery, EmployeeSettlementDeliveryList, FinanceSummaryResponse } from "../../lib/types";
-import { messagesDeliveryNotice, messagesSubmittedLabel, messagesReceiptLabel, messagesStatusClass, messagesReceiptError, needsMessagesPolling } from "../../lib/messages-delivery";
+import { messagesDeliveryNotice, messagesNeedsReviewLabel, messagesSubmittedLabel, messagesReceiptLabel, messagesStatusClass, messagesReceiptError, needsMessagesPolling } from "../../lib/messages-delivery";
 
 type EmployeeSubtotal = FinanceSummaryResponse["employees"][number];
 
@@ -184,6 +184,8 @@ export function EmployeeSubtotalSection({
       if (!await decision.confirm("确认取消这条员工小计短信任务？")) return;
       await apiRequest(`/stores/${storeId}/employee-settlements/deliveries/${delivery.id}`, { method: "DELETE" });
     } else {
+      if ((kind === "retry-detail" || messagesReceiptLabel(delivery) === messagesNeedsReviewLabel)
+        && !await decision.confirm("请先在接收手机上核对上一条短信。确认重新发送？")) return;
       const endpoint = kind === "retry-detail" ? "retry-detail" : "retry";
       await apiRequest(`/stores/${storeId}/employee-settlements/deliveries/${delivery.id}/${endpoint}`, { method: "POST", idempotent: true });
     }

@@ -204,8 +204,6 @@ input, select, textarea { accent-color: var(--brand); transition: border-color v
 .manage-card > h2, .manage-card header h2, .help-card h2 { color: var(--ink); }
 .manage-heading .eyebrow { color: var(--muted); font-size: .75rem; }
 .manage-card > .primary-action { margin-top: 12px; }
-.auto-discount-settings { border-radius: var(--radius-control); }
-.auto-discount-settings.enabled { border-color: var(--line-strong); background: var(--surface-soft); }
 .catalog-group { border: 0; border-radius: 0; padding: 24px 0 0; background: transparent; }
 .catalog-group-title > .eyebrow { display: none; }
 .catalog-group-title h3 { color: var(--ink); }

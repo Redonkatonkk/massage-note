@@ -20,6 +20,7 @@ import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreAccessService } from "../stores/store-access.service.js";
+import { cashSettlementRecordAmounts } from "./cash-settlement-changes.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 type FinanceClient = Prisma.TransactionClient | PrismaService;
@@ -506,18 +507,7 @@ export class CashSettlementsService {
             record.employeeMembershipId === membership.id &&
             record.status === "CONFIRMED",
         )
-        .map((record) => ({
-          totalLargeFeeWageCents: record.totalLargeFeeWageCents,
-          cardTipCents: record.cardTipCents ?? 0n,
-          giftCardTipCents: record.giftCardTipCents ?? 0n,
-          cashServiceCents: record.cashServiceCents ?? 0n,
-          cashTipCents: record.cashTipCents ?? 0n,
-          cashAllocatedServiceWageCents:
-            record.cashAllocatedServiceWageCents ?? 0n,
-          cashAcquiredServiceWageCents:
-            record.cashAcquiredServiceWageCents ?? 0n,
-          cashWageShortfallCents: record.cashWageShortfallCents ?? 0n,
-        }));
+        .map(cashSettlementRecordAmounts);
       const calculated = calculateDailyCashSettlement(memberRecords);
       const stored = storedByMembership.get(membership.id);
       const amounts = stored?.status === "SETTLED" ? stored : calculated;

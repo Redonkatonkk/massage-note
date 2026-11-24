@@ -1,5 +1,8 @@
 "use client";
 
+import type { DispatchSmsSettings } from "@massage-note/contracts";
+import { DispatchSmsRule, dispatchSmsDraft, dispatchSmsPayload, MacMessagesDevice } from "./store-message-settings";
+import { StoreSettingRule } from "./store-setting-rule";
 import { NumericInput } from "../numeric-input";
 
 import { CashSettlementSettings, cashSettlementDraft, cashSettlementPayload } from "./cash-settlement-settings";
@@ -12,7 +15,7 @@ import { useAutoDismissState } from "../use-auto-dismiss-state";
 
 import { browserStorage } from "../../lib/browser-storage";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { apiRequest, errorMessage } from "../../lib/api";
 import { formatMoneyInput, formatUsd } from "../../lib/money";
 import type {
@@ -46,6 +49,7 @@ import { manageNavigationTabs, resolveManageTab, type ManageTab } from "../../li
 import { useNavigationTab } from "../use-navigation-tab";
 
 type CatalogKind = "SERVICE" | "ADDON" | "DISCOUNT";
+type CatalogItem = ServiceItem | AddonItem | DiscountItem;
 
 const roleText = { OWNER: "店主", MANAGER: "经理", EMPLOYEE: "员工" } as const;
 
@@ -53,6 +57,7 @@ const actionText: Record<string, string> = {
   "store.created": "创建店铺",
   "audit.undone": "撤销操作",
   "store.data_imported": "导入店铺数据",
+  "dispatch_sms.settings_updated": "修改排工短信设置",
   "store.settings_updated": "修改店铺设置",
   "store.owner_transferred": "转移店主",
   "store.deleted": "删除店铺",
@@ -178,7 +183,7 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-export function ManagePageClient() {
+export function ManagePageClient({ timezones }: { timezones: readonly string[] }) {
   const decision = useDecision();
   const { t } = useLanguage();
   const [memberDirty, setMemberDirty] = useState(false);
@@ -282,9 +287,9 @@ export function ManagePageClient() {
       </header>
       <nav ref={tabIndicator} className="section-tabs" aria-label="管理页面">{tabs.map(([value, label]) => <button type="button" key={value} className={tab === value ? "active" : ""} aria-pressed={tab === value} onClick={() => changeTab(value)}>{label}</button>)}</nav>
       {error && <p className="form-error" role="alert">{error}</p>}
-      {tab === "store" && <StorePanel store={store} membership={membership} members={members} busy={busy} run={run} reload={loadAll} />}
+      {tab === "store" && <StorePanel key={store.id} store={store} timezones={timezones} membership={membership} members={members} busy={busy} run={run} reload={loadAll} />}
       {tab === "members" && canManage && <MembersPanel key={store.id} storeId={store.id} dailyRankingEnabled={store.automaticDispatchEnabled} members={members} requests={requests} catalog={catalog} busy={busy} run={run} reload={loadAll} onDirtyChange={setMemberDirty} />}
-      {tab === "catalog" && <CatalogPanel storeId={store.id} canManage={canManage} catalog={catalog} busy={busy} run={run} reload={loadAll} />}
+      {tab === "catalog" && <CatalogPanel key={store.id} storeId={store.id} canManage={canManage} catalog={catalog} busy={busy} run={run} reload={loadAll} />}
       {tab === "work-bot" && canManage && workBot && <WorkBotPanel key={store.id} storeId={store.id} catalog={catalog} settings={workBot} busy={busy} run={run} reload={loadAll} />}
       {tab === "recovery" && canManage && <RecoveryPanel storeId={store.id} records={deletedRecords} giftCardSales={deletedGiftCardSales} busy={busy} run={run} reload={loadAll} />}
       {tab === "audit" && canManage && <div className="manage-section" data-motion-content>{membership.role === "OWNER" && <DataOperationsPanel key={store.id} storeId={store.id} memberIds={members.map(member => member.id)} onImported={() => window.location.reload()} />}<AuditPanel key={store.id} storeId={store.id} members={members} onUndone={loadAll} /></div>}
@@ -293,10 +298,11 @@ export function ManagePageClient() {
 }
 
 
-export function StorePanel({ store, membership, members, busy, run, reload }: { store: StoreDetails; membership: MembershipSummary; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
+export function StorePanel({ store, timezones, membership, members, busy, run, reload }: { store: StoreDetails; timezones: readonly string[]; membership: MembershipSummary; members: StoreMember[]; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
   const decision = useDecision();
   const [name, setName] = useState(store.name);
   const [timezone, setTimezone] = useState(store.timezone);
+  const [timezoneOptions] = useState(() => timezones.includes(store.timezone) ? timezones : [store.timezone, ...timezones]);
   const [commission, setCommission] = useState((store.globalCommissionBps / 100).toString());
   const [autoDiscountEnabled, setAutoDiscountEnabled] = useState(store.mondayThursdayAutoDiscountEnabled);
   const [autoDiscountThreshold, setAutoDiscountThreshold] = useState(formatMoneyInput(store.mondayThursdayAutoDiscountThresholdCents));
@@ -307,16 +313,13 @@ export function StorePanel({ store, membership, members, busy, run, reload }: { 
   const [cashSettings, setCashSettings] = useState(() => cashSettlementDraft(store));
   const [closingDefaultLocale, setClosingDefaultLocale] = useState(store.closingDefaultLocale);
   const [automaticDispatchEnabled, setAutomaticDispatchEnabled] = useState(store.automaticDispatchEnabled);
-  const [agentStatus, setAgentStatus] = useState<null | { tokenPrefix: string; lastSeenAt: string | null; revokedAt: string | null; lastStatusJson?: { messagesAvailable?: boolean; serviceTypes?: string[]; lastError?: string | null } | null }>(null);
-  const [agentToken, setAgentToken] = useState("");
+  const [smsDraft, setSmsDraft] = useState<DispatchSmsSettings | null>(null);
+  const savedSms = dispatchSmsDraft(store.dispatchSms);
+  const sms = smsDraft ?? savedSms;
   const [nextOwner, setNextOwner] = useState("");
   const [saved, setSaved] = useAutoDismissState(false);
   const canManage = membership.role !== "EMPLOYEE";
-
-  useEffect(() => {
-    if (!canManage) return;
-    void apiRequest<typeof agentStatus>(`/stores/${store.id}/closing-delivery-agent/status`).then(setAgentStatus).catch(() => undefined);
-  }, [canManage, store.id]);
+  const fieldsDisabled = !canManage || busy;
 
   useEffect(() => {
     setSaved(false);
@@ -344,8 +347,8 @@ export function StorePanel({ store, membership, members, busy, run, reload }: { 
     });
   }
 
-  return <section className="manage-section store-settings-layout">
-    <form className="manage-card" onSubmit={(event) => { event.preventDefault(); setSaved(false); void run(async () => {
+  return <section className={`manage-section store-settings-layout${canManage ? " store-settings-layout--managed" : ""}`}>
+    <form className="manage-card" onSubmit={(event) => { event.preventDefault(); if (fieldsDisabled) return; setSaved(false); void run(async () => {
       const thresholdCents = autoDiscountThreshold.trim() ? parseMoney(autoDiscountThreshold, "自动折扣应用门槛") : 0;
       const amountCents = autoDiscountAmount.trim() ? parseMoney(autoDiscountAmount, "自动折扣额度") : 0;
       const giftCardThresholdCents = giftCardDiscountEnabled ? parseMoney(giftCardDiscountThreshold, "礼物卡自动折扣门槛") : 0;
@@ -364,34 +367,62 @@ export function StorePanel({ store, membership, members, busy, run, reload }: { 
         giftCardAutoDiscountBps: giftCardDiscountBps,
         closingDefaultLocale,
         automaticDispatchEnabled,
+        ...(smsDraft ? { dispatchSms: dispatchSmsPayload({ ...smsDraft, enabled: automaticDispatchEnabled && smsDraft.enabled }, savedSms) } : {}),
       } });
       await reload();
+      setSmsDraft(null);
       setSaved(true);
     }); }}>
-      <div className="manage-heading"><div><p className="eyebrow">基础资料</p><h2>{canManage ? "店铺设置" : "店铺信息"}</h2></div><span className="status-chip">营业中</span></div>
-      <div className="manage-form-grid"><label>店铺名称<input disabled={!canManage} required value={name} onChange={(event) => setName(event.target.value)} /></label><label>店铺代码<input disabled value={store.storeCode} /></label><label>时区<input disabled={!canManage} required value={timezone} onChange={(event) => setTimezone(event.target.value)} /></label><label>全店默认提成（%）<NumericInput disabled={!canManage} inputMode="decimal" required value={commission} onChange={(event) => setCommission(event.target.value)} /></label><label>个人日结默认语言<select disabled={!canManage} value={closingDefaultLocale} onChange={(event) => setClosingDefaultLocale(event.target.value as "zh_CN" | "en_US")}><option value="zh_CN">中文</option><option value="en_US">English</option></select></label><label>当前店主<input disabled value={store.ownerMembership?.displayName ?? "—"} /></label></div>
-      <p className="field-help">提成优先顺序：员工项目专属比例 → 员工默认比例 → 项目默认比例 → 全店默认比例。保存员工提成后会重算未日结的当前营业日；已日结和历史记工继续使用原快照。</p>
-      <section className={`auto-discount-settings${automaticDispatchEnabled ? " enabled" : ""}`}>
-        <div className="auto-discount-heading"><div><strong>每日开门排位</strong><p>兼职先占位，全职按独立内部顺序填空，新人最后。</p></div><label className="inline-check"><input type="checkbox" disabled={!canManage} checked={automaticDispatchEnabled} onChange={(event) => setAutomaticDispatchEnabled(event.target.checked)} />开启</label></div>
-        <p className="field-help">开启前必须先在成员管理中为所有参与记工的在职人员设置全职或兼职。本功能只排列员工顺序，不管理每个工。</p>
+      <section className="store-settings-group">
+        <div className="manage-heading"><h2>基础资料</h2></div>
+        <div className="manage-form-grid">
+          <label>店铺名称<input disabled={fieldsDisabled} required value={name} onChange={(event) => setName(event.target.value)} /></label>
+          <label>店铺代码<input disabled value={store.storeCode} /></label>
+          <label>时区
+            <select name="timezone" translate="no" disabled={fieldsDisabled} required value={timezone} onChange={(event) => setTimezone(event.target.value)}>
+              {timezoneOptions.map((zone) => <option key={zone} value={zone}>{zone}</option>)}
+            </select>
+          </label>
+          <label>全店默认提成（%）<NumericInput disabled={fieldsDisabled} inputMode="decimal" required value={commission} onChange={(event) => setCommission(event.target.value)} /></label>
+          <label>个人日结默认语言<select disabled={fieldsDisabled} value={closingDefaultLocale} onChange={(event) => setClosingDefaultLocale(event.target.value as "zh_CN" | "en_US")}><option value="zh_CN">中文</option><option value="en_US">English</option></select></label>
+          <label>当前店主<input disabled value={store.ownerMembership?.displayName ?? "—"} /></label>
+        </div>
+        <p className="field-help">提成优先顺序：员工项目专属比例 → 员工默认比例 → 项目默认比例 → 全店默认比例。保存员工提成后会重算未日结的当前营业日；已日结和历史记工继续使用原快照。</p>
       </section>
-      <section className={`auto-discount-settings${autoDiscountEnabled ? " enabled" : ""}`}>
-        <div className="auto-discount-heading"><div><strong>周一至周四自动折扣</strong><p>按记工所属营业日判断；非高亮记工达到折前大费门槛后自动添加。</p></div><label className="inline-check"><input type="checkbox" disabled={!canManage} checked={autoDiscountEnabled} onChange={(event) => setAutoDiscountEnabled(event.target.checked)} />开启</label></div>
-        <div className="manage-form-grid auto-discount-fields"><label>大费满多少（美元）<NumericInput disabled={!canManage || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 100" value={autoDiscountThreshold} onChange={(event) => setAutoDiscountThreshold(event.target.value)} /></label><label>自动折扣额度（美元）<NumericInput disabled={!canManage || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 10" value={autoDiscountAmount} onChange={(event) => setAutoDiscountAmount(event.target.value)} /></label></div>
-        <p className="field-help">自动折扣和普通折扣一起计入折扣总额，由店铺承担；员工大费工资仍按折扣前的项目和加项金额计算。</p>
+      <section className="store-settings-group">
+        <h2>排工与通知</h2>
+        <StoreSettingRule title="每日开门排位" description="兼职先占位，全职按独立内部顺序填空，新人最后。"
+          enabled={automaticDispatchEnabled} disabled={fieldsDisabled} onChange={enabled => {
+            setAutomaticDispatchEnabled(enabled);
+            if (!enabled && sms.enabled) setSmsDraft({ ...sms, enabled: false });
+          }}>
+          <p className="field-help">开启前必须先在成员管理中为所有参与记工的在职人员设置全职或兼职。本功能只排列员工顺序，不管理每个工。</p>
+        </StoreSettingRule>
+        {canManage && automaticDispatchEnabled && <DispatchSmsRule storeId={store.id} timezone={timezone}
+          value={sms} disabled={fieldsDisabled} savedEnabled={savedSms.enabled} onChange={next => { setSaved(false); setSmsDraft(next); }} />}
       </section>
-      <section className={`auto-discount-settings${giftCardDiscountEnabled ? " enabled" : ""}`}>
-        <div className="auto-discount-heading"><div><strong>礼物卡自动折扣</strong><p>卖卡达到面值门槛后，自动按比例计算折扣和客人应付金额。</p></div><label className="inline-check"><input type="checkbox" disabled={!canManage} checked={giftCardDiscountEnabled} onChange={(event) => setGiftCardDiscountEnabled(event.target.checked)} />开启</label></div>
-        <div className="manage-form-grid auto-discount-fields"><label>礼物卡满多少（美元）<NumericInput disabled={!canManage || !giftCardDiscountEnabled} required={giftCardDiscountEnabled} inputMode="decimal" placeholder="例如 100" value={giftCardDiscountThreshold} onChange={(event) => setGiftCardDiscountThreshold(event.target.value)} /></label><label>自动折扣（%）<NumericInput disabled={!canManage || !giftCardDiscountEnabled} required={giftCardDiscountEnabled} inputMode="decimal" placeholder="例如 5" value={giftCardDiscountPercent} onChange={(event) => setGiftCardDiscountPercent(event.target.value)} /></label></div>
-        <p className="field-help">例如设置“满 $100、折扣 5%”，录入 $100 面值礼物卡时，系统会要求现金和刷卡合计为 $95。历史记录保留售出时的折扣规则快照。</p>
+      <section className="store-settings-group">
+        <h2>优惠与现金结算</h2>
+        <StoreSettingRule title="周一至周四自动折扣" description="按记工所属营业日判断；非高亮记工达到折前大费门槛后自动添加。"
+          enabled={autoDiscountEnabled} disabled={fieldsDisabled} onChange={setAutoDiscountEnabled}>
+          <div className="manage-form-grid store-setting-fields"><label>大费满多少（美元）<NumericInput disabled={fieldsDisabled || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 100" value={autoDiscountThreshold} onChange={(event) => setAutoDiscountThreshold(event.target.value)} /></label><label>自动折扣额度（美元）<NumericInput disabled={fieldsDisabled || !autoDiscountEnabled} required={autoDiscountEnabled} inputMode="decimal" placeholder="例如 10" value={autoDiscountAmount} onChange={(event) => setAutoDiscountAmount(event.target.value)} /></label></div>
+          <p className="field-help">自动折扣和普通折扣一起计入折扣总额，由店铺承担；员工大费工资仍按折扣前的项目和加项金额计算。</p>
+        </StoreSettingRule>
+        <StoreSettingRule title="礼物卡自动折扣" description="卖卡达到面值门槛后，自动按比例计算折扣和客人应付金额。"
+          enabled={giftCardDiscountEnabled} disabled={fieldsDisabled} onChange={setGiftCardDiscountEnabled}>
+          <div className="manage-form-grid store-setting-fields"><label>礼物卡满多少（美元）<NumericInput disabled={fieldsDisabled || !giftCardDiscountEnabled} required={giftCardDiscountEnabled} inputMode="decimal" placeholder="例如 100" value={giftCardDiscountThreshold} onChange={(event) => setGiftCardDiscountThreshold(event.target.value)} /></label><label>自动折扣（%）<NumericInput disabled={fieldsDisabled || !giftCardDiscountEnabled} required={giftCardDiscountEnabled} inputMode="decimal" placeholder="例如 5" value={giftCardDiscountPercent} onChange={(event) => setGiftCardDiscountPercent(event.target.value)} /></label></div>
+          <p className="field-help">例如设置“满 $100、折扣 5%”，录入 $100 面值礼物卡时，系统会要求现金和刷卡合计为 $95。历史记录保留售出时的折扣规则快照。</p>
+        </StoreSettingRule>
+        <CashSettlementSettings value={cashSettings} onChange={setCashSettings} disabled={fieldsDisabled} />
       </section>
-      <CashSettlementSettings value={cashSettings} onChange={setCashSettings} disabled={!canManage || busy} />
-      {saved && <p className="success-banner manage-save-success" role="status">✓ 店铺设置已保存</p>}
-      {canManage && <button className="primary-action" disabled={busy} type="submit">{busy ? "正在保存…" : "保存店铺设置"}</button>}
+      {canManage && <div className="store-settings-actions">
+        {saved && <p className="success-banner" role="status">✓ 店铺设置已保存</p>}
+        <button className="primary-action" disabled={busy} type="submit">{busy ? "正在保存…" : "保存店铺设置"}</button>
+      </div>}
     </form>
-    {canManage && <section className="manage-card"><div className="manage-heading"><div><p className="eyebrow">Mac 信息代理</p><h2>员工小结发送设备</h2></div><span className={`status-chip ${agentStatus?.lastSeenAt && Date.now() - new Date(agentStatus.lastSeenAt).getTime() < 180_000 ? "" : "warning"}`}>{agentStatus?.revokedAt ? "已撤销" : agentStatus?.lastSeenAt ? "最近在线" : "未连接"}</span></div><p className="field-help">代理令牌只在生成时显示一次。请在固定 Mac 上安装 messages-agent，并允许它控制“信息”App。</p>{agentStatus?.lastSeenAt && <p className="field-help">最后在线：{formatTime(agentStatus.lastSeenAt)} · 服务：{agentStatus.lastStatusJson?.serviceTypes?.join(" / ") || "未报告"}{agentStatus.lastStatusJson?.lastError ? ` · ${agentStatus.lastStatusJson.lastError}` : ""}</p>}{agentToken && <label>新代理令牌（请立即复制）<input readOnly value={agentToken} onFocus={(event) => event.currentTarget.select()} /></label>}<div className="inline-controls"><button className="primary-action compact" type="button" disabled={busy} onClick={() => void run(async () => { const result = await apiRequest<{ token: string; tokenPrefix: string }>(`/stores/${store.id}/closing-delivery-agent/credential`, { method: "POST" }); setAgentToken(result.token); setAgentStatus({ tokenPrefix: result.tokenPrefix, lastSeenAt: null, revokedAt: null }); })}>{agentStatus ? "轮换代理令牌" : "生成代理令牌"}</button>{agentStatus && !agentStatus.revokedAt && <button className="secondary-action compact" type="button" disabled={busy} onClick={() => void run(async () => { await apiRequest(`/stores/${store.id}/closing-delivery-agent/credential`, { method: "DELETE" }); setAgentStatus((current) => current ? { ...current, revokedAt: new Date().toISOString() } : current); setAgentToken(""); })}>撤销代理</button>}</div></section>}
+    {canManage && <MacMessagesDevice storeId={store.id} timezone={store.timezone} busy={busy} run={run} />}
     {membership.role === "OWNER" && <section className="manage-card danger-zone">
-      <div className="manage-heading"><div><p className="eyebrow">仅店主</p><h2>店主转移与删除店铺</h2></div></div>
+      <div className="manage-heading"><h2>店主转移与删除店铺</h2></div>
       <p className="field-help">转移后你会变为经理，新店主获得全部店主权限。删除店铺会让所有成员立即无法进入，但历史数据不会物理删除。</p>
       <div className="inline-controls owner-controls">
         <div className="owner-transfer-controls">
@@ -420,37 +451,136 @@ const newPriceOption = (duration = "60", amount = ""): PriceOptionDraft => ({
   amount,
 });
 
-function CatalogPanel({ storeId, canManage, catalog, busy, run, reload }: { storeId: string; canManage: boolean; catalog: CatalogResponse; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
+export function CatalogPanel({ storeId, canManage, catalog, busy, run, reload }: { storeId: string; canManage: boolean; catalog: CatalogResponse; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void> }) {
   const active = [...catalog.serviceItems, ...catalog.addonItems, ...catalog.discountItems].filter((item) => !item.deletedAt && item.isEnabled).length;
+  const reordering = useRef(false);
 
-  async function moveItem(type: CatalogKind, items: Array<ServiceItem | AddonItem | DiscountItem>, itemId: string, direction: -1 | 1) {
-    const activeItems = items.filter((item) => !item.deletedAt);
-    const index = activeItems.findIndex((item) => item.id === itemId);
-    const target = index + direction;
-    if (index < 0 || target < 0 || target >= activeItems.length) return;
-    const reordered = [...activeItems];
-    [reordered[index], reordered[target]] = [reordered[target]!, reordered[index]!];
-    await apiRequest(`/stores/${storeId}/catalog/reorder`, {
-      method: "POST",
-      idempotent: true,
-      body: { type, items: reordered.map((item) => ({ id: item.id, version: item.version })) },
+  function moveItem(type: CatalogKind, items: CatalogItem[], itemId: string, targetId: string) {
+    if (!canManage || busy || reordering.current || itemId === targetId) return;
+    const from = items.findIndex((item) => item.id === itemId);
+    const to = items.findIndex((item) => item.id === targetId);
+    if (from < 0 || to < 0) return;
+    const reordered = [...items];
+    reordered.splice(to, 0, reordered.splice(from, 1)[0]!);
+
+    reordering.current = true;
+    void run(async () => {
+      try {
+        await apiRequest(`/stores/${storeId}/catalog/reorder`, {
+          method: "POST",
+          idempotent: true,
+          body: { type, items: reordered.map((item) => ({ id: item.id, version: item.version })) },
+        });
+        await reload();
+      } finally {
+        reordering.current = false;
+      }
     });
-    await reload();
   }
 
   return <section className="manage-section"><section className="manage-card">
     <div className="manage-heading"><div><p className="eyebrow">价格与规则</p><h2>项目目录</h2></div><span className="status-chip">{active} 项启用</span></div>
-    <p className="field-help">按分类维护服务。调整项目顺序后，今日记工与详情选择框会同步采用新顺序。</p>
+    <p className="field-help">{canManage ? "按住项目名称左侧的手柄，上下拖动可调整同类项目的顺序。今日记工与详情选择框会同步采用新顺序。" : "按分类维护服务。调整项目顺序后，今日记工与详情选择框会同步采用新顺序。"}</p>
     <CatalogGroup title="主要项目" description="一个项目可维护多组时长与价格；快速记工默认选择首个启用项目，显示所选项目的时长。" type="SERVICE" items={catalog.serviceItems} emptyText="还没有主要项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
     <CatalogGroup title="额外项目" description="维护热石等服务加项的金额、时长与默认提成。" type="ADDON" items={catalog.addonItems} emptyText="还没有额外项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
     <CatalogGroup title="折扣项目" description="可设置固定金额或百分比折扣；折扣由店铺承担，不会降低员工项目提成。" type="DISCOUNT" items={catalog.discountItems} emptyText="还没有折扣项目。" storeId={storeId} canManage={canManage} busy={busy} run={run} reload={reload} moveItem={moveItem} />
   </section></section>;
 }
 
-function CatalogGroup({ title, description, type, items, emptyText, storeId, canManage, busy, run, reload, moveItem }: { title: string; description: string; type: CatalogKind; items: Array<ServiceItem | AddonItem | DiscountItem>; emptyText: string; storeId: string; canManage: boolean; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void>; moveItem: (type: CatalogKind, items: Array<ServiceItem | AddonItem | DiscountItem>, itemId: string, direction: -1 | 1) => Promise<void> }) {
+type CatalogDrag = { itemId: string; pointerId: number; startY: number; clientY: number; listVersion: string; moved: boolean };
+type CatalogDrop = { itemId: string; targetId: string; edge: "before" | "after" };
+
+function catalogEditorKey(item: CatalogItem) {
+  // Reordering changes positions and versions while leaving the editor's inputs intact.
+  const values = "priceOptions" in item
+    ? [item.fullName, item.defaultCommissionBps, item.priceOptions.map(({ durationMinutes, priceCents }) => [durationMinutes, priceCents])]
+    : [item.name, item.amountCents, "rateBps" in item ? item.rateBps : [item.durationMinutes, item.defaultCommissionBps]];
+  return JSON.stringify([item.id, item.shortName, item.isEnabled, item.deletedAt, ...values]);
+}
+
+function CatalogGroup({ title, description, type, items, emptyText, storeId, canManage, busy, run, reload, moveItem }: { title: string; description: string; type: CatalogKind; items: CatalogItem[]; emptyText: string; storeId: string; canManage: boolean; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void>; moveItem: (type: CatalogKind, items: CatalogItem[], itemId: string, targetId: string) => void }) {
+  const { locale } = useLanguage();
   const [showCreate, setShowCreate] = useState(false);
   const activeItems = items.filter((item) => !item.deletedAt);
   const enabledItems = activeItems.filter((item) => item.isEnabled);
+  const listVersion = activeItems.map(({ id, version }) => `${id}:${version}`).join(" ");
+  const list = useRef<HTMLDivElement>(null);
+  const drag = useRef<CatalogDrag | null>(null);
+  const scrollFrame = useRef(0);
+  const [preview, setPreview] = useState<CatalogDrop | null>(null);
+
+  const clearDrag = useCallback(() => {
+    drag.current = null;
+    cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = 0;
+    setPreview(null);
+  }, []);
+
+  useEffect(() => {
+    clearDrag();
+    return () => cancelAnimationFrame(scrollFrame.current);
+  }, [busy, canManage, clearDrag, listVersion]);
+
+  function dropAt(itemId: string, clientY: number): CatalogDrop {
+    const rows = Array.from(list.current?.querySelectorAll<HTMLElement>("[data-catalog-sort-id]") ?? []);
+    const from = rows.findIndex((row) => row.dataset.catalogSortId === itemId);
+    let to = from;
+    for (const [index, row] of rows.entries()) {
+      if (index === from) continue;
+      const { top, height } = row.getBoundingClientRect();
+      if (clientY < top + height / 2) {
+        if (index < from) to = index;
+        break;
+      }
+      if (index > from) to = index;
+    }
+    return { itemId, targetId: rows[to]?.dataset.catalogSortId ?? itemId, edge: to < from ? "before" : "after" };
+  }
+
+  function updateDrag() {
+    scrollFrame.current = 0;
+    const current = drag.current;
+    const bounds = list.current?.getBoundingClientRect();
+    if (!current || !bounds) return;
+
+    const edge = 72;
+    const bottom = window.innerHeight - edge;
+    const scrollTop = document.body.scrollTop;
+    if (current.clientY < edge && bounds.top < edge) {
+      document.body.scrollTop -= Math.min(16, (edge - current.clientY) / 4);
+    } else if (current.clientY > bottom && bounds.bottom > bottom) {
+      document.body.scrollTop += Math.min(16, (current.clientY - bottom) / 4);
+    }
+    const next = dropAt(current.itemId, current.clientY);
+    setPreview(previous => previous?.itemId === next.itemId && previous.targetId === next.targetId ? previous : next);
+    if (document.body.scrollTop !== scrollTop) scrollFrame.current = requestAnimationFrame(updateDrag);
+  }
+
+  function startDrag(event: PointerEvent<HTMLButtonElement>, itemId: string) {
+    if (busy || drag.current || !event.isPrimary || event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = { itemId, pointerId: event.pointerId, startY: event.clientY, clientY: event.clientY, listVersion, moved: false };
+  }
+
+  function moveDrag(event: PointerEvent<HTMLDivElement>) {
+    const current = drag.current;
+    if (!current || current.pointerId !== event.pointerId || busy || current.listVersion !== listVersion) return;
+    current.clientY = event.clientY;
+    if (!current.moved && Math.abs(current.clientY - current.startY) < 4) return;
+    current.moved = true;
+    if (scrollFrame.current === 0) updateDrag();
+  }
+
+  function finishDrag(event: PointerEvent<HTMLDivElement>, cancelled = false) {
+    const current = drag.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    const moved = current.moved || Math.abs(event.clientY - current.startY) >= 4;
+    clearDrag();
+    if (cancelled || busy || !moved || current.listVersion !== listVersion) return;
+    const { itemId, targetId } = dropAt(current.itemId, event.clientY);
+    moveItem(type, activeItems, itemId, targetId);
+  }
+
   return <section className="catalog-group">
     <div className="catalog-group-heading">
       <div className="catalog-group-title"><p className="eyebrow">独立维护</p><h3>{title}</h3><p>{description}</p></div>
@@ -460,9 +590,35 @@ function CatalogGroup({ title, description, type, items, emptyText, storeId, can
       </div>
     </div>
     {canManage && showCreate && <CatalogCreateForm storeId={storeId} kind={type} busy={busy} run={run} reload={reload} onCreated={() => setShowCreate(false)} />}
-    <div className="catalog-list">{items.length ? items.map((item) => {
+    <div ref={list} className="catalog-list" onPointerMove={moveDrag} onPointerUp={finishDrag}
+      onPointerCancel={event => finishDrag(event, true)} onLostPointerCapture={event => finishDrag(event, true)}
+      onKeyDown={event => {
+        if (event.key === "Escape" && drag.current) {
+          event.preventDefault();
+          clearDrag();
+        }
+      }}
+    >{items.length ? items.map((item) => {
       const activeIndex = activeItems.findIndex((candidate) => candidate.id === item.id);
-      return <CatalogItemEditor key={`${item.id}-${item.version}`} storeId={storeId} type={type} item={item} canManage={canManage} busy={busy} run={run} reload={reload} canMoveUp={activeIndex > 0} canMoveDown={activeIndex >= 0 && activeIndex < activeItems.length - 1} onMove={(direction) => run(() => moveItem(type, items, item.id, direction))} />;
+      const label = locale === "en-US" ? `Reorder ${item.shortName}` : `调整 ${item.shortName} 的顺序`;
+      const moveAdjacent = (direction: -1 | 1) => {
+        const target = activeItems[activeIndex + direction];
+        if (target) moveItem(type, activeItems, item.id, target.id);
+      };
+      return <CatalogItemEditor key={catalogEditorKey(item)} storeId={storeId} type={type} item={item} canManage={canManage} busy={busy} run={run} reload={reload}
+        canMoveUp={activeIndex > 0} canMoveDown={activeIndex >= 0 && activeIndex < activeItems.length - 1} onMove={moveAdjacent}
+        dragging={preview?.itemId === item.id}
+        dropEdge={preview?.targetId === item.id && preview.itemId !== item.id ? preview.edge : undefined}
+        moveHandle={canManage && !item.deletedAt && <button className="catalog-move-handle" type="button"
+          title={label} aria-label={label} aria-keyshortcuts="ArrowUp ArrowDown" aria-disabled={busy || undefined}
+          disabled={activeItems.length < 2} draggable={false} onPointerDown={event => startDrag(event, item.id)}
+          onKeyDown={event => {
+            if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+            event.preventDefault();
+            if (!drag.current) moveAdjacent(event.key === "ArrowUp" ? -1 : 1);
+          }}
+        ><UiIcon name="grip" /></button>}
+      />;
     }) : <p className="empty-state">{emptyText}</p>}</div>
   </section>;
 }
@@ -503,7 +659,7 @@ function CatalogCreateForm({ storeId, kind, busy, run, reload, onCreated }: { st
   </form>;
 }
 
-function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, canMoveUp, canMoveDown, onMove }: { storeId: string; type: CatalogKind; item: ServiceItem | AddonItem | DiscountItem; canManage: boolean; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void>; canMoveUp: boolean; canMoveDown: boolean; onMove: (direction: -1 | 1) => Promise<void> }) {
+function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, canMoveUp, canMoveDown, onMove, moveHandle, dragging, dropEdge }: { storeId: string; type: CatalogKind; item: CatalogItem; canManage: boolean; busy: boolean; run: (action: () => Promise<void>) => Promise<void>; reload: () => Promise<void>; canMoveUp: boolean; canMoveDown: boolean; onMove: (direction: -1 | 1) => void; moveHandle: ReactNode; dragging: boolean; dropEdge: CatalogDrop["edge"] | undefined }) {
   const decision = useDecision();
   const service = type === "SERVICE" ? item as ServiceItem : null;
   const addon = type === "ADDON" ? item as AddonItem : null;
@@ -536,10 +692,12 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, 
     setEditing(false);
   }
 
-  return <article className={`catalog-item catalog-item--${type.toLowerCase()} ${deleted ? "deleted" : ""}`}>
+  return <article className={`catalog-item catalog-item--${type.toLowerCase()} ${deleted ? "deleted" : ""}`}
+    data-catalog-sort-id={deleted ? undefined : item.id} data-catalog-dragging={dragging || undefined} data-catalog-drop-edge={dropEdge}
+  >
     <div className="catalog-item-heading">
       <div className="catalog-summary">
-        <div className="catalog-summary-title"><strong>{item.shortName}</strong><span>{service?.fullName ?? addon?.name ?? discount?.name}</span></div>
+        <div className="catalog-summary-name">{moveHandle}<div className="catalog-summary-title"><strong>{item.shortName}</strong><span>{service?.fullName ?? addon?.name ?? discount?.name}</span></div></div>
         <div className="catalog-summary-facts">
           {service ? service.priceOptions.map((option) => <em key={option.id}>{option.durationMinutes} 分钟 · {money(option.priceCents)}</em>) : <em>{type === "DISCOUNT" ? discount?.rateBps != null ? `-${discount.rateBps / 100}%` : `-${money(amountCents)}` : money(amountCents)}</em>}
           {addon && <em>{addon.durationMinutes === null ? "不增加时长" : `${addon.durationMinutes} 分钟`}</em>}
@@ -576,6 +734,7 @@ function CatalogItemEditor({ storeId, type, item, canManage, busy, run, reload, 
             : { type, version: item.version, name, shortName, amountCents: percentage ? 0 : parseMoney(amount, "折扣金额"), rateBps: percentage ? parsePercent(amount, "折扣比例") : null, isEnabled };
         await apiRequest(`/stores/${storeId}/catalog/items/${item.id}`, { method: "PATCH", idempotent: true, body });
         await reload();
+        setEditing(false);
       })}>保存修改</button><button className="secondary-action compact" disabled={busy} type="button" onClick={cancelEditing}>取消</button><button className="table-action danger" disabled={busy} type="button" onClick={async () => { const reason = await decision.prompt("请填写删除项目原因", { action: "删除", required: true, danger: true }); if (!reason?.trim()) return; void run(async () => { await apiRequest(`/stores/${storeId}/catalog/items/${item.id}`, { method: "DELETE", idempotent: true, body: { type, version: item.version, reason: reason.trim() } }); await reload(); }); }}>删除</button></div>
     </div>}
   </article>;

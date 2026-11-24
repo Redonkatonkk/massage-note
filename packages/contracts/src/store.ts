@@ -55,6 +55,17 @@ export const cashSettlementSettingsSchema = z.object({
   cashResetAmountCents: moneyCentsSchema,
 });
 
+export const dispatchSmsSettingsSchema = z.object({
+  enabled: z.boolean(),
+  sendTimeLocal: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "发送时间必须使用 HH:mm 格式"),
+  phoneE164: optionalE164PhoneSchema,
+}).refine(value => !value.enabled || value.phoneE164 !== null, {
+  message: "请填写排工短信接收号码",
+  path: ["phoneE164"],
+});
+
+export type DispatchSmsSettings = z.infer<typeof dispatchSmsSettingsSchema>;
+
 export const updateStoreSchema = z
   .object({
     ...cashSettlementSettingsSchema.partial().shape,
@@ -71,6 +82,7 @@ export const updateStoreSchema = z
     giftCardAutoDiscountBps: commissionBpsSchema.optional(),
     closingDefaultLocale: closingImageLocaleSchema.optional(),
     automaticDispatchEnabled: z.boolean().optional(),
+    dispatchSms: dispatchSmsSettingsSchema.optional(),
   })
   .superRefine((value, context) => {
     const cashFields = Object.keys(cashSettlementSettingsSchema.shape) as Array<keyof typeof cashSettlementSettingsSchema.shape>;

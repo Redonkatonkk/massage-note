@@ -895,10 +895,10 @@ describe.skipIf(!enabled).sequential("项目与记工持久化", () => {
     await expect(prisma.dailyCashSettlement.findUniqueOrThrow({
       where: { id: settledCash.id },
     })).resolves.toMatchObject({
-      status: "UNSETTLED",
-      settledBy: null,
-      settledAt: null,
-      version: 2,
+      status: "SETTLED",
+      settledBy: ownerId,
+      settledAt: settledCash.settledAt,
+      version: settledCash.version,
     });
     const itemOverride = await commissions.setItem(
       actor(ownerId),

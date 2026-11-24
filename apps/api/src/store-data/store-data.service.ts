@@ -89,7 +89,7 @@ export class StoreDataService {
         await tx.$executeRawUnsafe("SET LOCAL statement_timeout = '60s'");
         // Maintenance is rare: fixed table locks also cover schedulers, bots and in-flight writes.
         // Names originate exclusively from the static registry / Prisma metadata, never the file.
-        const extra = ["store_join_requests", "employee_closing_deliveries", "employee_daily_snapshot_shares", "employee_settlement_deliveries", "closing_delivery_agents", "work_bot_group_bindings", "work_bot_member_bindings", "work_bot_operations", "ai_change_previews", "idempotency_requests", "store_data_import_previews"];
+        const extra = ["store_join_requests", "employee_closing_deliveries", "employee_daily_snapshot_shares", "employee_settlement_deliveries", "closing_delivery_agents", "dispatch_sms_settings", "dispatch_sms_deliveries", "work_bot_group_bindings", "work_bot_member_bindings", "work_bot_operations", "ai_change_previews", "idempotency_requests", "store_data_import_previews"];
         const names = [...new Set(["stores", ...storeBackupTables.filter(table => table !== "auditLog").map(table => backupModels.get(table)!.dbName!), ...extra])].sort();
         await tx.$executeRawUnsafe(`LOCK TABLE ${names.map(name => `"${name}"`).join(", ")} IN SHARE ROW EXCLUSIVE MODE`);
         const owner = await this.owner(actor, storeId, tx);
@@ -121,6 +121,11 @@ export class StoreDataService {
   }
 
   private async replaceBusinessData(tx: Prisma.TransactionClient, actor: User, storeId: string, ownerId: string, ownerVersion: number, current: StoreBackup["data"], data: StoreBackup["data"], source: StoreBackup) {
+    await tx.dispatchSmsSettings.deleteMany({ where: { storeId } });
+    await tx.dispatchSmsDelivery.updateMany({
+      where: { storeId, status: { in: ["QUEUED", "CLAIMED"] }, dispatchStartedAt: null },
+      data: { status: "CANCELLED", lastErrorCode: "SETTINGS_CHANGED", leaseToken: null, leaseExpiresAt: null },
+    });
     await tx.employeeClosingDelivery.deleteMany({ where: { storeId } });
     await tx.employeeSettlementDelivery.deleteMany({ where: { storeId } });
     await tx.employeeSettlementShare.deleteMany({ where: { storeId } });

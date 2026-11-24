@@ -7,7 +7,7 @@ import { createPortal } from "react-dom";
 import type { ClosingDeliveryItem, ClosingDeliveryList, ClosingDeliveryStatus } from "../lib/types";
 import { useLanguage } from "./language-provider";
 import { MobileDataCard, RecordFacts, ResponsiveDataView } from "./ui/responsive-data-view";
-import { messagesDeliveryNotice, messagesSubmittedLabel, messagesReceiptLabel, messagesStatusClass, messagesReceiptError } from "../lib/messages-delivery";
+import { messagesDeliveryNotice, messagesSubmittedLabel, messagesNeedsReviewLabel, messagesReceiptLabel, messagesStatusClass, messagesReceiptError } from "../lib/messages-delivery";
 import { useNativeDialog } from "./use-native-dialog";
 
 const statusLabels: Record<ClosingDeliveryStatus, string> = {
@@ -45,7 +45,7 @@ export function ClosingDeliveryQueue({ value, busy, onCancel, expanded = false }
               const count = deliveries.filter((item) => item.status === status && !messagesReceiptLabel(item)).length;
               return count > 0 ? <span key={status}>{statusLabels[status]} <strong>{count}</strong></span> : null;
             })}
-            {["已送达", "已发出·未确认送达", "Mac 报告未送达"].map(label => {
+            {["已送达", "已发出·未确认送达", messagesNeedsReviewLabel].map(label => {
               const count = deliveries.filter(item => messagesReceiptLabel(item) === label).length;
               return count > 0 ? <span key={label}>{label} <strong>{count}</strong></span> : null;
             })}

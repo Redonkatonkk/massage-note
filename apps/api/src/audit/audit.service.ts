@@ -39,7 +39,7 @@ export class AuditService {
           throw new ConflictException({ code: "AUDIT_UNDO_UNAVAILABLE", messageZh: "消息发送任务请在发送队列中取消或重试，已发送的消息无法撤回" });
         }
         if (audit.undoTransaction) {
-          await reverseAuditChanges(tx, storeId, actor.id, changes);
+          await reverseAuditChanges(tx, storeId, { userId: actor.id, membershipId: manager.id, requestId }, changes);
           // Reversal is a new manual scheduling decision. Keep refresh from
           // reapplying the template or generated order that was just undone.
           const weekly = related.some(row => row.action === "board.weekly_dispatch_applied");

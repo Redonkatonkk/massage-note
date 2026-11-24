@@ -30,6 +30,40 @@ describe.skipIf(!enabled).sequential("发送租约状态保护", () => {
     await prisma.$disconnect();
   });
 
+  it.each(["closing", "settlement"] as const)("%s 同一轮只授权发送一次，租约过期后保留检查点并允许迟到回执", async kind => {
+    const member = await prisma.storeMembership.create({ data: { storeId, role: "EMPLOYEE", displayName: randomUUID(), displayNameNormalized: randomUUID() } });
+    const auth = `Bearer ${token}`;
+    const shared = { storeId, recipientPhoneE164: "+13105551234", locale: "zh_CN" as const, snapshotJson: {}, queuedBy: userId };
+    const job = kind === "closing"
+      ? await prisma.employeeClosingDelivery.create({ data: { ...shared, membershipId: member.id, businessDate: new Date(), kind: "INITIAL" } })
+      : await prisma.employeeSettlementDelivery.create({ data: { ...shared, documentType: "EMPLOYEE_SUMMARY", periodStart: new Date(), periodEnd: new Date(), paymentScope: "ALL", requestKey: randomUUID() } });
+    const closingService = new ClosingDeliveriesService(prisma, {} as never, {} as never);
+    const target = kind === "closing" ? closingService : service;
+    const claim = () => target.claim(auth, "text-v1");
+    const initial = await claim();
+    expect(initial).toMatchObject({ id: job.id, dispatchStarted: false });
+    const authorizations = await Promise.allSettled([
+      target.authorize(auth, job.id, initial!.leaseToken, true),
+      target.authorize(auth, job.id, initial!.leaseToken, true),
+    ]);
+    expect(authorizations.filter(result => result.status === "fulfilled")).toEqual([{ status: "fulfilled", value: { authorized: true, dispatchRecorded: true } }]);
+    const expired = { where: { id: job.id }, data: { leaseExpiresAt: new Date(0) } };
+    if (kind === "closing") await prisma.employeeClosingDelivery.update(expired);
+    else await prisma.employeeSettlementDelivery.update(expired);
+    const resumed = await claim();
+    expect(resumed).toMatchObject({ id: job.id, dispatchStarted: true });
+    await expect(target.authorize(auth, job.id, resumed!.leaseToken, true)).rejects.toThrow();
+    if (kind === "closing") await expect(closingService.prepareText(auth, job.id, resumed!.leaseToken)).rejects.toMatchObject({ response: { code: "DISPATCH_ALREADY_STARTED" } });
+    await expect(target.fail(auth, job.id, { leaseToken: resumed!.leaseToken, code: "PRE_SEND_FAILURE", message: "authorization response timed out", retryable: true })).resolves.toEqual({ retryScheduled: false });
+    await expect(claim()).resolves.toBeNull();
+    const receipt = { attemptCount: 2, receipt: { messageGuid: "late-guid", state: "DELIVERED" as const, errorCode: 0, service: "SMS" } };
+    await expect(target.receipt(auth, job.id, receipt)).resolves.toEqual({ recorded: true });
+    const saved = kind === "closing"
+      ? await prisma.employeeClosingDelivery.findUniqueOrThrow({ where: { id: job.id } })
+      : await prisma.employeeSettlementDelivery.findUniqueOrThrow({ where: { id: job.id } });
+    expect(saved).toMatchObject({ status: "SENT", deliveryStatus: "DELIVERED", lastErrorCode: null });
+  });
+
   it("过期租约不能授权、完成或回写失败", async () => {
     const leaseToken = randomUUID();
     const job = await prisma.employeeSettlementDelivery.create({ data: { storeId, documentType: "EMPLOYEE_SUMMARY", periodStart: new Date(), periodEnd: new Date(), paymentScope: "ALL", recipientPhoneE164: "+13105551234", locale: "zh_CN", snapshotJson: {}, queuedBy: userId, requestKey: randomUUID(), status: "CLAIMED", leaseToken, leaseExpiresAt: new Date(Date.now() - 1000), detailSentAt: new Date() } });

@@ -98,8 +98,8 @@ repeat with targetAccount in accounts
 end repeat
 return foundServices
 end tell`;
-  const { stdout } = await execFileAsync("/usr/bin/osascript", ["-e", script]);
-  return stdout.split(",").map((item) => item.trim()).filter(Boolean);
+  const { stdout } = await execFileAsync("/usr/bin/osascript", ["-e", script], { timeout: 15_000 });
+  return [...new Set(stdout.split(",").map((item) => item.trim()).filter(Boolean))];
 }
 
 export async function sendMessagesAttachment(

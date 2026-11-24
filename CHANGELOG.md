@@ -4,6 +4,26 @@
 
 For version maintenance rules, see [AGENTS.md](AGENTS.md). Reason: This page saves the changes that have occurred, and the version policy is defined in the unified maintenance portal. The entries below are a record of historical changes. Reason: Version traceability and rollback require a complete history, and the behavior descriptions of older versions do not serve as current rules.
 
+## 1.64.0 — 2026-11-24
+
+- Send tomorrow’s dispatch order at a time set in Store settings through the shared Mac Messages agent. Group store details, dispatch and notifications, and discounts and cash settlements consistently. Update NAS Web/API, apply the database migration, and upgrade the installed Mac agent.
+
+## 1.63.17 — 2026-11-23
+
+- Prevent automatic redelivery after Messages dispatch starts. Keep Mac errors under Check delivery and apply later receipts to the original task. Update NAS Web/API, apply the database migration, and upgrade the installed Mac agent.
+
+## 1.63.16 — 2026-11-23
+
+- Use a time zone dropdown in Store settings and keep existing time zone identifiers selectable. NAS needs a Web update.
+
+## 1.63.15 — 2026-11-23
+
+- Reopen cash settlement only when the confirmed settlement amounts change for that employee and business date. Keep confirmations through note edits and other employees’ changes. NAS needs an API update.
+
+## 1.63.14 — 2026-11-23
+
+- Add drag handles to main services, add-ons and discounts. Drop an item to save its position within its category. NAS needs a Web update.
+
 ## 1.63.13 — 2026-11-23
 
 - Queue the first employee daily-statement texts when a reopened business day is closed and no initial delivery tasks exist. NAS needs an API update.

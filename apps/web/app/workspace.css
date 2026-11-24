@@ -316,7 +316,34 @@ html:root :is(.manage-heading, .catalog-group-heading, .work-bot-intro, .members
 html:root :is(.manage-heading, .catalog-group-heading) h2 { font-size: 1.125rem; }
 html:root .store-settings-layout > form { padding: var(--sheet-gutter); }
 html:root .store-settings-layout > .danger-zone { background: var(--surface); border-top: 3px solid var(--danger-line); }
-html:root .auto-discount-settings { margin-top: 16px; background: var(--surface-soft); border-color: transparent; }
+html:root .store-settings-layout > .store-device { padding: var(--sheet-gutter); }
+.store-settings-group { display: grid; min-width: 0; gap: 14px; }
+.store-settings-group + .store-settings-group { margin-block-start: 20px; padding-block-start: 20px; border-top: 1px solid var(--line); }
+.store-settings-group h2 { font-size: 1.125rem; margin: 0; }
+.store-settings-group .manage-heading { margin: 0; }
+.store-settings-group > .field-help { margin: 0; }
+.store-setting-rule { display: grid; min-width: 0; gap: 12px; padding: 14px; border-radius: var(--radius-panel); background: var(--surface-soft); }
+.store-setting-rule__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.store-setting-rule__header > div { min-width: 0; }
+.store-setting-rule__header h3 { margin: 0; font-size: 1rem; }
+.store-setting-rule__header p, .store-setting-rule > .field-help { margin: 4px 0 0; color: var(--muted); font-size: 0.875rem; line-height: 1.5; }
+.store-setting-rule__header .inline-check { flex: none; min-height: 44px; }
+.store-setting-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.store-setting-fields small { overflow-wrap: anywhere; }
+.store-setting-example { display: grid; gap: 4px; }
+.store-setting-result { padding-block-start: 10px; border-top: 1px solid var(--line); font-size: 0.875rem; }
+.store-setting-result p { margin: 0; }
+.store-setting-result strong { margin-inline-start: 4px; }
+.store-settings-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 20px; }
+.store-settings-actions > p { flex: 1 1 200px; margin: 0; }
+.store-device .manage-heading { flex-wrap: wrap; row-gap: 8px; }
+.store-device__error { overflow-wrap: anywhere; }
+.store-device > label { display: grid; gap: 6px; }
+.store-device > label input { width: 100%; }
+@media (max-width: 760px) {
+  .store-setting-fields { grid-template-columns: 1fr; }
+  .store-settings-actions > button { width: 100%; }
+}
 html:root .members-master-detail { gap: var(--sheet-gap); }
 html:root .members-directory { background: var(--surface-soft); }
 html:root .member-detail__heading { border-bottom: 1px solid var(--line); }
@@ -444,7 +471,7 @@ html:root .member-sheet__body { padding-block: 16px; }
   html:root .login-page { grid-template-columns: minmax(0, 1fr) minmax(300px, 460px); }
 }
 @media (min-width: 1200px) {
-  html:root .store-settings-layout { grid-template-columns: minmax(0, 2.4fr) minmax(270px, 1fr); }
+  html:root .store-settings-layout--managed { grid-template-columns: minmax(0, 2.4fr) minmax(270px, 1fr); }
   html:root .data-operations-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
 @media (max-width: 760px) {

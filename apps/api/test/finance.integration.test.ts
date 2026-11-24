@@ -545,7 +545,7 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     await closingDeliveries.cancel(actor(managerId), storeId, businessDate, afterReopen.id, "after-reopen-cancel");
   });
 
-  it("一键现金结清使用完整版本集合，修改记工后自动回退", async () => {
+  it("一键现金结清使用完整版本集合，只回退当天应结金额变化的员工", async () => {
     const managerRecord = await workRecords.create(
       actor(managerId),
       storeId,
@@ -603,12 +603,40 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
       "record-reopen-cash",
     );
     recordVersion = updated.version;
+    const readCash = async () => (await cash.list(actor(managerId), storeId, businessDate)).rows;
+    const marked = await readCash();
+    const settledEmployee = marked.find(row => row.membershipId === employeeMembershipId)!;
+    const settledManager = marked.find(row => row.membershipId === managerMembershipId)!;
+    expect(marked.every(row => row.status === "SETTLED")).toBe(true);
+    const payment = { cashServiceCents: 4_000, cardServiceCents: 6_000, cashTipCents: 1_000, cardTipCents: 2_000,
+      giftCardSerialNumber: null, giftCardServiceCents: 0, giftCardTipCents: 0 };
+    const increasedPrice = await workRecords.save(actor(managerId), storeId, recordId, {
+      details: { version: recordVersion, mainServiceAmountCents: 11_000 },
+      payment: { ...payment, version: recordVersion, cardServiceCents: 7_000 },
+    }, randomUUID(), "same-final-cash");
+    expect(increasedPrice.cashAllocatedServiceWageCents).toBe(settledEmployee.cashAllocatedServiceWageCents);
+    const restoredPrice = await workRecords.save(actor(managerId), storeId, recordId, {
+      details: { version: increasedPrice.version, mainServiceAmountCents: 10_000 },
+      payment: { ...payment, version: increasedPrice.version },
+    }, randomUUID(), "restore-price-same-final-cash");
+    expect(await readCash()).toEqual(marked);
+
+    const changePayment = await workRecords.confirmPayment(actor(managerId), storeId, recordId, {
+      ...payment, version: restoredPrice.version, cashServiceCents: 4_500, cardServiceCents: 5_500,
+    }, randomUUID(), "record-cash-amount-changed");
     const reopened = await cash.list(actor(managerId), storeId, businessDate);
-    expect(reopened.rows.every((row) => row.status === "UNSETTLED")).toBe(true);
-    const automaticAudits = await prisma.auditLog.count({
-      where: { storeId, requestId: "record-reopen-cash", action: "cash_settlement.reopened_automatically" },
+    expect(reopened.rows.find(row => row.membershipId === employeeMembershipId))
+      .toMatchObject({ status: "UNSETTLED", version: settledEmployee.version + 1, settledAt: null });
+    expect(reopened.rows.find(row => row.membershipId === managerMembershipId)).toEqual(settledManager);
+    const automaticAudits = await prisma.auditLog.findMany({
+      where: { storeId, requestId: { in: ["record-reopen-cash", "same-final-cash", "restore-price-same-final-cash", "record-cash-amount-changed"] },
+        action: "cash_settlement.reopened_automatically" },
+      select: { requestId: true, entityId: true },
     });
-    expect(automaticAudits).toBe(2);
+    expect(automaticAudits).toEqual([{ requestId: "record-cash-amount-changed", entityId: settledEmployee.settlementId }]);
+    recordVersion = (await workRecords.confirmPayment(actor(managerId), storeId, recordId, {
+      ...payment, version: changePayment.version,
+    }, randomUUID(), "restore-cash-payment")).version;
 
     await cash.settleAll(
       actor(managerId),
@@ -1247,6 +1275,39 @@ describe.skipIf(!enabled).sequential("日结、现金、工资与财务持久化
     await management.update(actor(managerId), storeId, { ...settings, version: shifted.version, cashSettlementEnabled: false }, randomUUID(), randomUUID());
     expect((await read()).statistics.cashBalance).toMatchObject({ enabled: false, balanceCents: null });
     await prisma.storeMembership.update({ where: { id: employeeMembershipId }, data: { dailySettlementEnabled: false } });
+  });
+
+  it("仅每日全额结清会因同一员工的非现金小费变动回退", async () => {
+    const date = "2026-02-07";
+    const where = { id: employeeMembershipId };
+    const member = await prisma.storeMembership.findUniqueOrThrow({ where, select: { dailySettlementEnabled: true } });
+    const manager = actor(managerId);
+    try {
+      const record = await workRecords.create(manager, storeId, {
+        employeeMembershipId, serviceItemId, startAt: `${date}T16:00:00.000Z`,
+      }, randomUUID(), randomUUID());
+      const payment = { cashServiceCents: 0, cardServiceCents: 10_000, cashTipCents: 0 };
+      const paid = await workRecords.confirmPayment(manager, storeId, record.id, {
+        ...payment, version: record.version, cardTipCents: 1_000,
+      }, randomUUID(), randomUUID());
+      await prisma.storeMembership.update({ where, data: { dailySettlementEnabled: false } });
+      const ordinary = await cash.settle(manager, storeId, date, employeeMembershipId, { version: 0 }, randomUUID(), randomUUID());
+      const edited = await workRecords.confirmPayment(manager, storeId, record.id, {
+        ...payment, version: paid.version, cardTipCents: 1_500,
+      }, randomUUID(), randomUUID());
+      const read = async () => (await cash.list(manager, storeId, date)).rows[0];
+      expect(await read()).toMatchObject({ status: "SETTLED", version: ordinary.version, settledAt: ordinary.settledAt });
+      const reopened = await cash.reopen(manager, storeId, date, employeeMembershipId, { version: ordinary.version }, randomUUID(), randomUUID());
+      await prisma.storeMembership.update({ where, data: { dailySettlementEnabled: true } });
+      const full = await cash.settle(manager, storeId, date, employeeMembershipId, { version: reopened.version }, randomUUID(), randomUUID());
+      await prisma.storeMembership.update({ where, data: { dailySettlementEnabled: false } });
+      await workRecords.confirmPayment(manager, storeId, record.id, {
+        ...payment, version: edited.version, cardTipCents: 2_000,
+      }, randomUUID(), randomUUID());
+      expect(await read()).toMatchObject({ status: "UNSETTLED", version: full.version + 1, settledAt: null });
+    } finally {
+      await prisma.storeMembership.update({ where, data: member });
+    }
   });
 
 });

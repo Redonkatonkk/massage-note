@@ -4,14 +4,16 @@ import { sendMessagesAttachment } from "./messages.js";
 import { sendStagedClosingText } from "./stager.js";
 
 export async function submitAndConfirmMessages(
-  jobId: string, phone: string, path: string | null, kind: "IMAGE" | "CONVERSATION_IMAGE" | "TEXT",
+  jobId: string, phone: string, path: string | null, kind: "IMAGE" | "CONVERSATION_IMAGE" | "TEXT" | "DISPATCH_TEXT",
   journal: Journal, save: () => Promise<void>,
 ) {
   let submission = journal.submitted?.[jobId];
   if (!submission) {
     if (!journal.started?.includes(jobId)) (journal.started ??= []).push(jobId);
     await save();
-    if (kind === "TEXT") {
+    if (kind === "DISPATCH_TEXT") {
+      submission = { ...await sendStagedClosingText(phone, jobId, "dispatch"), text: true };
+    } else if (kind === "TEXT") {
       submission = { ...await sendStagedClosingText(phone, jobId), text: true };
     } else {
       if (path === null) throw new Error("Messages task attachment is missing");
@@ -21,7 +23,7 @@ export async function submitAndConfirmMessages(
     await save();
   }
   const state = submission.text
-    ? await monitorMessagesTextDelivery(phone, jobId, submission.previousMessageGuid)
+    ? await monitorMessagesTextDelivery(phone, jobId, submission.previousMessageGuid, kind === "DISPATCH_TEXT" ? "dispatch" : undefined)
     : await monitorMessagesDelivery(phone, submission.attachmentPath, submission.previousMessageGuid);
   submission.observation = state;
   if (!journal.accepted.includes(jobId)) journal.accepted.push(jobId);

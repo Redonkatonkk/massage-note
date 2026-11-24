@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { messagesReceiptError, messagesReceiptLabel, needsMessagesPolling } from "./messages-delivery";
+import { messagesNeedsReviewLabel, messagesReceiptError, messagesReceiptLabel, messagesStatusClass, needsMessagesPolling } from "./messages-delivery";
 import { translateText } from "./i18n";
 
 afterEach(() => vi.useRealTimers());
@@ -13,6 +13,9 @@ it("keeps recent sent/failed tasks polling until delivery, without reviving canc
   expect(needsMessagesPolling({ ...item, createdAt: "2026-09-01T12:00:00Z" })).toBe(false);
   expect(messagesReceiptLabel({ ...item, status: "QUEUED", deliveryStatus: "DELIVERED" })).toBeNull();
   expect(messagesReceiptError({ ...item, lastError: "obsolete failure" })).toBeNull();
-  expect(translateText("Mac 报告未送达", "en-US")).toBe("Mac reports not delivered");
-  expect(translateText("信息 App 报告未送达（错误 100），请核对后再重发。", "en-US")).toContain("error 100");
+  const macError = { ...item, deliveryStatus: "FAILED" as const, deliveryErrorCode: 100 };
+  expect(messagesReceiptLabel(macError)).toBe(messagesNeedsReviewLabel);
+  expect(messagesStatusClass(macError)).toBe("is-sent");
+  expect(translateText(messagesNeedsReviewLabel, "en-US")).toBe("Check delivery");
+  expect(translateText(messagesReceiptError(macError)!, "en-US")).toContain("error 100");
 });

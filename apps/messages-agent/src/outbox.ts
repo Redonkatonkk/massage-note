@@ -17,16 +17,18 @@ export function closingPngPath(outboxDir: string, jobId: string) {
   return join(outboxDir, `${jobId}.png`);
 }
 
-export async function prepareClosingText(outboxDir: string, jobId: string, body: string) {
+export async function prepareClosingText(outboxDir: string, jobId: string, body: string, kind: "closing" | "dispatch" = "closing") {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(jobId)) {
     throw new Error("Invalid closing delivery job id");
   }
-  if (typeof body !== "string" || Buffer.byteLength(body) > 4096 || body.includes("\0")
-    || !/https:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?\/share\/daily-snapshot#[A-Za-z0-9_-]{43}$/.test(body.trimEnd())) {
-    throw new Error("Invalid closing message text");
+  const format = kind === "closing"
+    ? /https:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?\/share\/daily-snapshot#[A-Za-z0-9_-]{43}$/
+    : /^\d{4}-\d{2}-\d{2}排工顺序\n(?:明日暂无排工|第[零一二三四五六七八九十百千\d]+：[^\n]+(?:\n第[零一二三四五六七八九十百千\d]+：[^\n]+)*)$/u;
+  if (typeof body !== "string" || Buffer.byteLength(body) > 4096 || body.includes("\0") || !format.test(body.trimEnd())) {
+    throw new Error(kind === "closing" ? "Invalid closing message text" : "Invalid dispatch message text");
   }
-  const path = join(outboxDir, `${jobId}-closing.txt`);
-  const temporary = join(outboxDir, `${jobId}-closing-${randomUUID()}.tmp`);
+  const path = join(outboxDir, `${jobId}-${kind}.txt`);
+  const temporary = join(outboxDir, `${jobId}-${kind}-${randomUUID()}.tmp`);
   try {
     await writeFile(temporary, body, { encoding: "utf8", flag: "wx", mode: 0o600 });
     try {
@@ -36,7 +38,7 @@ export async function prepareClosingText(outboxDir: string, jobId: string, body:
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
       const file = await lstat(path);
       if (!file.isFile() || (file.mode & 0o777) !== 0o600 || file.size > 4096 || await readFile(path, "utf8") !== body) {
-        throw new Error("A different closing message already exists for this job");
+        throw new Error(`A different ${kind} message already exists for this job`);
       }
     }
   } finally {
@@ -59,10 +61,10 @@ export async function cleanupOutbox(outboxDir: string, now = Date.now()) {
   const entries = await readdir(outboxDir, { withFileTypes: true });
   let removed = 0;
   for (const entry of entries) {
-    if (!entry.isFile() || !/^[a-f0-9-]{36}(?:\.png|-details\.jpg|-closing\.txt|-closing-[a-f0-9-]{36}\.tmp)$/i.test(entry.name)) continue;
+    if (!entry.isFile() || !/^[a-f0-9-]{36}(?:\.png|-details\.jpg|-(?:closing|dispatch)\.txt|-(?:closing|dispatch)-[a-f0-9-]{36}\.tmp)$/i.test(entry.name)) continue;
     const path = join(outboxDir, entry.name);
     const details = await stat(path);
-    const retention = entry.name.endsWith("-closing.txt") ? TEXT_RETENTION_MS : OUTBOX_RETENTION_MS;
+    const retention = entry.name.endsWith(".txt") ? TEXT_RETENTION_MS : OUTBOX_RETENTION_MS;
     if (now - details.mtimeMs < retention) continue;
     await unlink(path);
     removed += 1;

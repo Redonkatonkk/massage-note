@@ -11,6 +11,8 @@ import type {
 } from "@massage-note/contracts";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { hasStoreCapability } from "@massage-note/domain";
+import { dispatchSmsSettingsSelect, updateDispatchSmsSettings } from "./dispatch-sms-settings.js";
 import { StoreAccessService } from "./store-access.service.js";
 
 function storeSnapshot(store: {
@@ -74,7 +76,7 @@ export class StoreManagementService {
   ) {}
 
   async get(actor: User, storeId: string) {
-    await this.access.requireActiveMembership(actor.id, storeId);
+    const membership = await this.access.requireActiveMembership(actor.id, storeId);
     const store = await this.prisma.store.findFirst({
       where: { id: storeId, status: "ACTIVE", deletedAt: null },
       include: {
@@ -84,7 +86,11 @@ export class StoreManagementService {
       },
     });
     if (!store) this.throwStoreNotFound();
-    return store;
+    if (!hasStoreCapability(membership.role, "STORE_SETTINGS_MANAGE")) return store;
+    const dispatchSms = await this.prisma.dispatchSmsSettings.findUnique({
+      where: { storeId }, select: dispatchSmsSettingsSelect,
+    });
+    return { ...store, dispatchSms };
   }
 
   async update(
@@ -194,6 +200,9 @@ export class StoreManagementService {
         }
         const updated = await transaction.store.findUniqueOrThrow({
           where: { id: storeId },
+        });
+        await updateDispatchSmsSettings(transaction, current, updated, input.dispatchSms, {
+          userId: actor.id, membershipId: actorMembership.id, requestId,
         });
         await transaction.auditLog.create({
           data: {

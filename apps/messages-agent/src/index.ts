@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { messagesServices } from "./messages.js";
 import { cleanupOutbox, prepareClosingText, prepareOutbox, secureAttachment, settlementAttachmentPath } from "./outbox.js";
 import { renderEmployeeSummaryImage, type EmployeeSummarySnapshot } from "./employee-summary-render.js";
-import { messagesStagerReady, stageMessagesAttachment } from "./stager.js";
+import { messagesDeliveryState, messagesStagerReady, messagesTextDeliveryState, stageMessagesAttachment } from "./stager.js";
 import { agentErrorMessage } from "./errors.js";
 import { MessagesDeliveryFailed } from "./delivery-monitor.js";
 import { submitAndConfirmMessages } from "./submission.js";
@@ -19,10 +19,13 @@ const agentToken = process.env.MASSAGE_NOTE_AGENT_TOKEN;
 const dataDir = process.env.MASSAGE_NOTE_AGENT_DATA_DIR ?? join(homedir(), "Library", "Application Support", "Massage Note Messages Agent");
 if (!apiUrl || !agentToken) throw new Error("MASSAGE_NOTE_API_URL and MASSAGE_NOTE_AGENT_TOKEN are required");
 
-interface Job { id: string; leaseToken: string; phoneE164: string; deliveryMode?: "TEXT" | "IMAGE" }
+interface DeliveryJob { id: string; leaseToken: string; phoneE164: string; dispatchStarted?: boolean }
+interface Job extends DeliveryJob { deliveryMode?: "TEXT" | "IMAGE" }
 type PreparedText = { authorized: true; text: string } | { authorized: false };
-interface EmployeeSummaryJob { id: string; documentType: "EMPLOYEE_SUMMARY"; leaseToken: string; phoneE164: string; locale: "zh_CN" | "en_US"; detailSent: boolean; snapshot: EmployeeSummarySnapshot }
+interface EmployeeSummaryJob extends DeliveryJob { documentType: "EMPLOYEE_SUMMARY"; locale: "zh_CN" | "en_US"; detailSent: boolean; sendRound?: number; snapshot: EmployeeSummarySnapshot }
 type SettlementJob = EmployeeSummaryJob;
+type TextQueue = "closing-delivery-agent" | "dispatch-sms-agent";
+type DeliveryQueue = TextQueue | "employee-settlement-delivery-agent";
 const journalPath = join(dataDir, "journal.json");
 const outboxDir = await prepareOutbox(dataDir);
 await cleanupOutbox(outboxDir);
@@ -32,8 +35,20 @@ let lastReportedReady: boolean | undefined;
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, { ...init, signal: init.signal ?? AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${agentToken}`, "Content-Type": "application/json", ...init.headers } });
   const payload = await response.json().catch(() => null);
+  // Older APIs can continue serving the original queues during the upgrade.
+  if (response.status === 404 && path === "/dispatch-sms-agent/jobs/claim") return null as T;
+  if (response.status === 404 && path === "/dispatch-sms-agent/jobs/receipts") return [] as T;
   if (!response.ok) throw new Error(`${response.status} ${(payload as { messageZh?: string } | null)?.messageZh ?? response.statusText}`);
   return payload as T;
+}
+
+async function authorizeDispatch(prefix: DeliveryQueue, job: DeliveryJob) {
+  const result = await request<{ authorized: boolean; dispatchRecorded?: boolean }>(`/${prefix}/jobs/${job.id}/authorize`, {
+    method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, startDispatch: true }),
+  });
+  if (!result.authorized) return false;
+  if (!result.dispatchRecorded) throw new Error("Messages server has not enabled dispatch checkpoints");
+  return true;
 }
 
 async function heartbeat(lastError: string | null = null) {
@@ -49,7 +64,7 @@ async function heartbeat(lastError: string | null = null) {
   }
   messagesReady = stagerReady && services.some(item => ["iMessage", "RCS", "SMS"].includes(item));
   try {
-    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: messagesReady, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version, lastError: diagnosticError === null ? null : agentErrorMessage(diagnosticError) }) });
+    await request("/closing-delivery-agent/heartbeat", { method: "POST", body: JSON.stringify({ messagesAvailable: messagesReady, dispatchSmsSupported: true, serviceTypes: services.filter((item): item is "iMessage" | "RCS" | "SMS" => ["iMessage", "RCS", "SMS"].includes(item)), version, lastError: diagnosticError === null ? null : agentErrorMessage(diagnosticError) }) });
     if (messagesReady !== lastReportedReady) {
       process.stdout.write(`Messages agent ${version}: heartbeat accepted, Messages ${messagesReady ? "ready" : "not ready"}, closing protocol text-v1\n`);
       lastReportedReady = messagesReady;
@@ -70,35 +85,44 @@ if (process.argv.includes("--diagnose")) {
   process.exit(0);
 }
 
-async function processJob(job: Job, journal: Journal) {
+async function processTextJob(prefix: TextQueue, job: Job, journal: Journal) {
+  const dispatch = prefix === "dispatch-sms-agent";
   if (journal.completed.includes(job.id)) return;
   if (journal.accepted.includes(job.id)) {
-    await request(`/closing-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, receipt: journal.submitted?.[job.id]?.observation }) });
+    await request(`/${prefix}/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, receipt: journal.submitted?.[job.id]?.observation }) });
     journal.completed.push(job.id); await saveJournal(journalPath, journal); return;
   }
-  if (journal.started?.includes(job.id) && !journal.submitted?.[job.id]) {
-    await request(`/closing-delivery-agent/jobs/${job.id}/fail`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, code: "MESSAGES_RESULT_AMBIGUOUS", message: "上次已开始发送，但没有明确回执；请人工核对信息 App，不自动重发。", retryable: false }) });
+  const pending = journal.submitted?.[job.id];
+  if (!pending && (job.dispatchStarted || journal.started?.includes(job.id))) {
+    await reportJobFailure(prefix, job, new Error("上次已开始发送，送达待核对。"), true, journal);
     return;
   }
-  const pending = journal.submitted?.[job.id];
   let sendStarted = Boolean(pending);
   const lease = { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) };
   try {
-    if (pending) {
-      const authorized = await request<{ authorized: boolean }>(`/closing-delivery-agent/jobs/${job.id}/authorize`, lease);
+    if (pending && !dispatch) {
+      const authorized = await request<{ authorized: boolean }>(`/${prefix}/jobs/${job.id}/authorize`, lease);
       if (!authorized.authorized) return;
-    } else {
-      if (job.deliveryMode !== "TEXT") throw new Error("Server has not enabled the closing text-v1 protocol");
-      const prepared = await request<PreparedText>(`/closing-delivery-agent/jobs/${job.id}/prepare-text`, lease);
+    } else if (!pending) {
+      if (!dispatch && job.deliveryMode !== "TEXT") throw new Error("Server has not enabled the closing text-v1 protocol");
+      const prepared = await request<PreparedText>(`/${prefix}/jobs/${job.id}/prepare-text`, lease);
       if (!prepared.authorized) return;
-      await prepareClosingText(outboxDir, job.id, prepared.text);
+      if (dispatch) {
+        await prepareClosingText(outboxDir, job.id, prepared.text, "dispatch");
+        const baseline = await messagesTextDeliveryState(job.phoneE164, job.id, undefined, "dispatch");
+        (journal.dispatchBaselines ??= {})[job.id] = baseline.messageGuid;
+        await saveJournal(journalPath, journal);
+      } else {
+        await prepareClosingText(outboxDir, job.id, prepared.text);
+      }
+      if (!await authorizeDispatch(prefix, job)) return;
     }
     sendStarted = true;
-    await submitAndConfirmMessages(job.id, job.phoneE164, pending?.attachmentPath ?? null, pending?.attachmentPath ? "IMAGE" : "TEXT", journal, () => saveJournal(journalPath, journal));
-    await request(`/closing-delivery-agent/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, receipt: journal.submitted?.[job.id]?.observation }) });
+    await submitAndConfirmMessages(job.id, job.phoneE164, pending?.attachmentPath ?? null, dispatch ? "DISPATCH_TEXT" : pending?.attachmentPath ? "IMAGE" : "TEXT", journal, () => saveJournal(journalPath, journal));
+    await request(`/${prefix}/jobs/${job.id}/complete`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, receipt: journal.submitted?.[job.id]?.observation }) });
     journal.completed.push(job.id); await saveJournal(journalPath, journal);
   } catch (error) {
-    await reportJobFailure("closing-delivery-agent", job, error, sendStarted, journal);
+    await reportJobFailure(prefix, job, error, sendStarted, journal);
     throw error;
   }
 }
@@ -115,43 +139,46 @@ async function completeSettlementJob(job: SettlementJob, journal: Journal) {
 }
 
 async function processSettlementJob(job: SettlementJob, journal: Journal) {
-  const authorized = await request<{ authorized: boolean }>(`/employee-settlement-delivery-agent/jobs/${job.id}/authorize`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
-  if (!authorized.authorized) return;
-  if (!job.detailSent && journal.completed.includes(job.id)) {
-    // A completed job claimed again has been explicitly requeued by a manager.
+  const sendRound = job.sendRound ?? 0;
+  if (sendRound > 0 && journal.resends?.[job.id]?.round !== sendRound) {
+    // Only an explicit server-side resend starts a fresh round.
     journal.completed = journal.completed.filter(id => id !== job.id);
     journal.accepted = journal.accepted.filter(id => id !== job.id);
     journal.started = (journal.started ?? []).filter(id => id !== job.id);
     if (journal.submitted) delete journal.submitted[job.id];
+    (journal.resends ??= {})[job.id] = { round: sendRound };
     await saveJournal(journalPath, journal);
   }
   if (job.detailSent || journal.accepted.includes(job.id)) {
     await completeSettlementJob(job, journal);
     return;
   }
-  if (journal.started?.includes(job.id) && !journal.submitted?.[job.id]) {
-    await request(`/employee-settlement-delivery-agent/jobs/${job.id}/fail`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken, code: "DETAIL_RESULT_AMBIGUOUS", message: "上次已开始发送，但没有明确回执；请人工核对信息 App，不自动重发。", retryable: false }) });
+  const pending = journal.submitted?.[job.id];
+  if (!pending && (job.dispatchStarted || journal.started?.includes(job.id))) {
+    await reportJobFailure("employee-settlement-delivery-agent", job, new Error("上次已开始发送，送达待核对。"), true, journal);
     return;
   }
-  const pending = journal.submitted?.[job.id];
-  const workDir = pending ? null : await mkdtemp(join(tmpdir(), "massage-note-settlement-"));
+  let workDir: string | null = null;
   const detailsImagePath = settlementAttachmentPath(outboxDir, job.id);
   let sendStarted = Boolean(pending);
   try {
     let staged = pending?.attachmentPath;
-    if (!staged && workDir) {
+    if (!pending) {
+      workDir = await mkdtemp(join(tmpdir(), "massage-note-settlement-"));
       await renderEmployeeSummaryImage(job.snapshot, job.locale, workDir, detailsImagePath);
       await secureAttachment(detailsImagePath);
       staged = await stageMessagesAttachment(detailsImagePath, job.id, "settlement-details.jpg", true);
+      const resend = journal.resends?.[job.id];
+      if (resend) {
+        resend.previousMessageGuid = (await messagesDeliveryState(job.phoneE164, staged)).messageGuid;
+        await saveJournal(journalPath, journal);
+      }
+      if (!await authorizeDispatch("employee-settlement-delivery-agent", job)) return;
     }
     if (!staged) throw new Error("Messages task attachment is missing");
-    if (!job.detailSent) {
-      const ready = await request<{ authorized: boolean }>(`/employee-settlement-delivery-agent/jobs/${job.id}/authorize`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken }) });
-      if (!ready.authorized) return;
-      sendStarted = true;
-      const state = await submitAndConfirmMessages(job.id, job.phoneE164, staged, "CONVERSATION_IMAGE", journal, () => saveJournal(journalPath, journal));
-      process.stdout.write(`settlement ${job.id} ${job.documentType.toLowerCase()} image ${state.state.toLowerCase()}\n`);
-    }
+    sendStarted = true;
+    const state = await submitAndConfirmMessages(job.id, job.phoneE164, staged, "CONVERSATION_IMAGE", journal, () => saveJournal(journalPath, journal));
+    process.stdout.write(`settlement ${job.id} ${job.documentType.toLowerCase()} image ${state.state.toLowerCase()}\n`);
     await completeSettlementJob(job, journal);
   } catch (error) {
     await reportJobFailure("employee-settlement-delivery-agent", job, error, sendStarted, journal);
@@ -161,19 +188,18 @@ async function processSettlementJob(job: SettlementJob, journal: Journal) {
   }
 }
 
-async function reportJobFailure(prefix: string, job: { id: string; leaseToken: string }, error: unknown, sendStarted: boolean, journal: Journal) {
-  const confirmedFailure = error instanceof MessagesDeliveryFailed;
-  if (confirmedFailure) {
-    journal.started = (journal.started ?? []).filter(id => id !== job.id);
-    journal.accepted = journal.accepted.filter(id => id !== job.id);
-    if (journal.submitted) delete journal.submitted[job.id];
+async function reportJobFailure(prefix: DeliveryQueue, job: DeliveryJob, error: unknown, sendStarted: boolean, journal: Journal) {
+  // A lost completion response must leave an accepted send available for writeback.
+  if (journal.accepted.includes(job.id)) return;
+  const receipt = error instanceof MessagesDeliveryFailed ? error.receipt : undefined;
+  if (receipt) {
     journal.nextClaimAt = new Date(Date.now() + FAILURE_COOLDOWN_MS).toISOString();
     await saveJournal(journalPath, journal);
   }
-  const ambiguousCode = prefix === "closing-delivery-agent" ? "MESSAGES_RESULT_AMBIGUOUS" : "DETAIL_RESULT_AMBIGUOUS";
+  const ambiguousCode = prefix === "employee-settlement-delivery-agent" ? "DETAIL_RESULT_AMBIGUOUS" : "MESSAGES_RESULT_AMBIGUOUS";
   await request(`/${prefix}/jobs/${job.id}/fail`, { method: "POST", body: JSON.stringify({ leaseToken: job.leaseToken,
-    code: confirmedFailure ? "MESSAGES_DELIVERY_FAILED" : sendStarted ? ambiguousCode : "PRE_SEND_FAILURE",
-    message: agentErrorMessage(error), retryable: confirmedFailure || !sendStarted,
+    code: receipt ? "MESSAGES_DELIVERY_FAILED" : sendStarted ? ambiguousCode : "PRE_SEND_FAILURE",
+    message: agentErrorMessage(error), retryable: !sendStarted, receipt,
   }) }).catch(reportError => process.stderr.write(`failure report: ${agentErrorMessage(reportError)}\n`));
 }
 
@@ -187,7 +213,7 @@ let receiptsRunning = false;
 async function syncReceipts() {
   if (!messagesReady || receiptsRunning) return;
   receiptsRunning = true;
-  try { await syncDeliveryReceipts(request, journal); }
+  try { await syncDeliveryReceipts(request, journal, true); }
   catch (error) { process.stderr.write(`receipt sync: ${agentErrorMessage(error)}\n`); }
   finally { receiptsRunning = false; }
 }
@@ -215,16 +241,24 @@ while (!stopped) {
     }
     await waitForDeliveryCooldown(journal.nextClaimAt);
     if (stopped) break;
-    const settlementJob = await request<SettlementJob | null>("/employee-settlement-delivery-agent/jobs/claim", { method: "POST" });
-    if (settlementJob) {
+    const dispatchJob = await request<Job | null>("/dispatch-sms-agent/jobs/claim", { method: "POST" }).catch(error => {
+      process.stderr.write(`dispatch SMS claim: ${agentErrorMessage(error)}\n`);
+      return null;
+    });
+    if (dispatchJob) {
       handledJob = true;
-      await withDeliveryCooldown(() => processSettlementJob(settlementJob, journal), persistCooldown);
-    }
-    else {
-      const job = await request<Job | null>("/closing-delivery-agent/jobs/claim", { method: "POST", headers: { "X-Closing-Delivery-Protocol": "text-v1" } });
-      if (job) {
+      await withDeliveryCooldown(() => processTextJob("dispatch-sms-agent", dispatchJob, journal), persistCooldown);
+    } else {
+      const settlementJob = await request<SettlementJob | null>("/employee-settlement-delivery-agent/jobs/claim", { method: "POST" });
+      if (settlementJob) {
         handledJob = true;
-        await withDeliveryCooldown(() => processJob(job, journal), persistCooldown);
+        await withDeliveryCooldown(() => processSettlementJob(settlementJob, journal), persistCooldown);
+      } else {
+        const job = await request<Job | null>("/closing-delivery-agent/jobs/claim", { method: "POST", headers: { "X-Closing-Delivery-Protocol": "text-v1" } });
+        if (job) {
+          handledJob = true;
+          await withDeliveryCooldown(() => processTextJob("closing-delivery-agent", job, journal), persistCooldown);
+        }
       }
     }
     await cleanupOutbox(outboxDir);

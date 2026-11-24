@@ -481,7 +481,7 @@ export class WorkBotService {
     if (record.status === "PLACEHOLDER" && !["DELETE", "RESTORE"].includes(intent.operation)) {
       throw new BadRequestException({ code: "PLACEHOLDER_READ_ONLY", messageZh: "占位只能删除或恢复，不能修改或付款" });
     }
-    let version = record.version;
+    const version = record.version;
     if (intent.operation === "UPDATE") {
       if (!intent.details || !Object.keys(intent.details).length) throw new BadRequestException("请说明要修改的记工字段");
       parseRequest(updateWorkRecordSchema, { ...intent.details, version });
@@ -499,15 +499,19 @@ export class WorkBotService {
     if (review) return review;
     if (intent.operation === "UPDATE") {
       const details = parseRequest(updateWorkRecordSchema, { ...intent.details, version });
-      const updated = await service.update(actor, group.storeId, record.id, details, key, requestId, transaction);
-      version = updated.version;
+      if (intent.payment) {
+        const payment = parseRequest(confirmPaymentSchema, { ...intent.payment, version });
+        await service.updateAndConfirmPayment(actor, group.storeId, record.id, details, payment, { update: key, payment: key }, requestId, transaction);
+      } else {
+        await service.update(actor, group.storeId, record.id, details, key, requestId, transaction);
+      }
     } else if (intent.operation === "DELETE") {
       await service.remove(actor, group.storeId, record.id, { version, reason: intent.reason }, key, requestId, transaction);
     } else if (intent.operation === "RESTORE") {
       if (intent.details || intent.payment) throw new BadRequestException("恢复不能同时修改记工");
       await service.restore(actor, group.storeId, record.id, { version }, key, requestId, transaction);
     }
-    if (intent.payment) {
+    if (intent.operation === "PAYMENT" && intent.payment) {
       await service.confirmPayment(actor, group.storeId, record.id, parseRequest(confirmPaymentSchema, { ...intent.payment, version }), key, requestId, transaction);
     }
     await transaction.auditLog.create({ data: { storeId: group.storeId, actorUserId: null, actorMembershipId: binding.membershipId, source: "langbot", action: `work_bot.${intent.operation.toLowerCase()}`, entityType: "work_record", entityId: record.id, afterJson: { messageId: input.messageId, operation: intent.operation }, requestId } });
@@ -891,7 +895,6 @@ export class WorkBotService {
       throw error;
     }
     if (claimed.count !== 1) throw new ConflictException({ code: "WORK_BOT_CONCURRENT_START", messageZh: "另一条上工指令正在处理，请刷新后重试" });
-    await this.reopenCashSettlements(transaction, store.id, businessDate, actorId, employee.id, requestId);
     await transaction.auditLog.create({ data: {
       storeId: store.id, actorUserId: null, actorMembershipId: employee.id, source: "langbot",
       action: "work_bot.work_started", entityType: "work_record", entityId: record.id,
@@ -1137,20 +1140,6 @@ export class WorkBotService {
     return history?.commissionBps ?? null;
   }
 
-
-  private async reopenCashSettlements(transaction: Prisma.TransactionClient, storeId: string, businessDate: string, actorId: string, membershipId: string, requestId: string) {
-    const date = new Date(`${businessDate}T00:00:00.000Z`);
-    const settlements = await transaction.dailyCashSettlement.findMany({ where: { storeId, businessDate: date, status: "SETTLED", deletedAt: null } });
-    if (!settlements.length) return;
-    await transaction.dailyCashSettlement.updateMany({ where: { id: { in: settlements.map((item) => item.id) } }, data: { status: "UNSETTLED", settledBy: null, settledAt: null, version: { increment: 1 } } });
-    for (const settlement of settlements) await transaction.auditLog.create({ data: {
-      storeId, actorUserId: null, actorMembershipId: membershipId, source: "langbot",
-      action: "cash_settlement.reopened_automatically", entityType: "daily_cash_settlement", entityId: settlement.id,
-      businessDate: settlement.businessDate, beforeJson: { status: settlement.status, settledAt: settlement.settledAt?.toISOString() ?? null, version: settlement.version },
-      afterJson: { status: "UNSETTLED", settledAt: null, version: settlement.version + 1, integrationActorId: actorId },
-      reason: "机器人记工发生变化，需要重新确认现金结算", requestId,
-    } });
-  }
 
   private requireIntegrationSecret(authorization: string | undefined): string {
     const secret = process.env.LANGBOT_WORK_TOKEN;

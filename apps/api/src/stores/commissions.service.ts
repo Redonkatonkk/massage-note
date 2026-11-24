@@ -18,6 +18,7 @@ import {
 import { lockBusinessDay } from "../common/business-day-lock.js";
 import { IdempotencyService } from "../common/idempotency.service.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { reopenChangedCashSettlements, type CashSettlementChange } from "../finance/cash-settlement-changes.js";
 import { StoreAccessService } from "./store-access.service.js";
 
 @Injectable()
@@ -379,7 +380,7 @@ export class CommissionsService {
       });
     };
 
-    const changedRecords: typeof records = [];
+    const settlementChanges: CashSettlementChange[] = [];
     for (const record of records) {
       if (!record.serviceSnapshot) continue;
       const serviceCommission = resolveSnapshotCommission(
@@ -465,7 +466,7 @@ export class CommissionsService {
           },
         });
       }
-      await transaction.workRecord.update({
+      const updated = await transaction.workRecord.update({
         where: { id: record.id },
         data: {
           mainServiceWageCents: finance.mainServiceWageCents,
@@ -512,74 +513,14 @@ export class CommissionsService {
           requestId,
         },
       });
-      changedRecords.push(record);
+      settlementChanges.push({ before: record, after: updated });
     }
 
-    if (changedRecords.length > 0) {
-      await this.reopenCurrentDayCashSettlements(
-        transaction,
-        storeId,
-        businessDateValue,
-        actorUserId,
-        actorMembershipId,
-        requestId,
-      );
-    }
-    return changedRecords.length;
-  }
-
-  private async reopenCurrentDayCashSettlements(
-    transaction: Prisma.TransactionClient,
-    storeId: string,
-    businessDate: Date,
-    actorUserId: string,
-    actorMembershipId: string,
-    requestId: string,
-  ): Promise<void> {
-    const settlements = await transaction.dailyCashSettlement.findMany({
-      where: {
-        storeId,
-        businessDate,
-        status: "SETTLED",
-        deletedAt: null,
-      },
-    });
-    if (settlements.length === 0) return;
-    await transaction.dailyCashSettlement.updateMany({
-      where: { id: { in: settlements.map((settlement) => settlement.id) } },
-      data: {
-        status: "UNSETTLED",
-        settledBy: null,
-        settledAt: null,
-        version: { increment: 1 },
-      },
-    });
-    for (const settlement of settlements) {
-      await transaction.auditLog.create({
-        data: {
-          storeId,
-          actorUserId,
-          actorMembershipId,
-          source: "system",
-          action: "cash_settlement.reopened_automatically",
-          entityType: "daily_cash_settlement",
-          entityId: settlement.id,
-          businessDate: settlement.businessDate,
-          beforeJson: {
-            status: settlement.status,
-            settledAt: settlement.settledAt?.toISOString() ?? null,
-            version: settlement.version,
-          },
-          afterJson: {
-            status: "UNSETTLED",
-            settledAt: null,
-            version: settlement.version + 1,
-          },
-          reason: "当前营业日提成发生变化，需要重新确认现金结算",
-          requestId,
-        },
-      });
-    }
+    await reopenChangedCashSettlements(transaction, {
+      storeId, actorUserId, actorMembershipId, requestId,
+      reason: "提成重算改变了员工当天应结金额，需要重新确认现金结算",
+    }, settlementChanges);
+    return settlementChanges.length;
   }
 
   private async throwMembershipConflict(

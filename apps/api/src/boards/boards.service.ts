@@ -139,145 +139,166 @@ export class BoardsService {
       return { applied: false };
     }
     if (membership.role === "EMPLOYEE" && businessDate > currentDate) throw new ForbiddenException({ code: "WEEKLY_DISPATCH_FUTURE_APPLY_FORBIDDEN", messageZh: "员工不能初始化未来营业日" });
-    const weekday = weeklyDays[(dateAtUtc(businessDate).getUTCDay() + 6) % 7]!;
-    const apply = async (transaction: Prisma.TransactionClient) => {
+    return this.prisma.$transaction(async transaction => {
       await lockBusinessDay(transaction, storeId, businessDate);
       const currentStore = await this.findStore(transaction, storeId);
-      const effectiveFrom = currentStore.weeklyDispatchEffectiveFrom?.toISOString().slice(0, 10);
-      if (!effectiveFrom || businessDate < effectiveFrom) return { applied: false };
-      const closings = await transaction.businessDayClosing.findFirst({ where: { storeId, businessDate: dateAtUtc(businessDate), status: "CLOSED" }, select: { id: true } });
-      if (closings) {
-        return { applied: false };
+      const { rankingReady: _rankingReady, ...result } = await this.prepareWeeklyDispatch(
+        transaction, currentStore, businessDate, currentDate, { userId: actor.id, membershipId: membership.id }, requestId,
+      );
+      return result;
+    });
+  }
+
+  // Both entry points hold the business-day lock before applying the template.
+  async prepareWeeklyDispatch(
+    transaction: Prisma.TransactionClient,
+    currentStore: Pick<Store, "id" | "weeklyDispatchEffectiveFrom" | "weeklyDispatchJson" | "automaticDispatchEnabled">,
+    businessDate: string,
+    currentDate: string,
+    actor: { userId: string; membershipId: string | null },
+    requestId: string,
+  ) {
+    const storeId = currentStore.id;
+    const weekday = weeklyDays[(dateAtUtc(businessDate).getUTCDay() + 6) % 7]!;
+    const effectiveFrom = currentStore.weeklyDispatchEffectiveFrom?.toISOString().slice(0, 10);
+    if (!effectiveFrom || businessDate < effectiveFrom) return { applied: false, rankingReady: null };
+    const closings = await transaction.businessDayClosing.findFirst({ where: { storeId, businessDate: dateAtUtc(businessDate), status: "CLOSED" }, select: { id: true } });
+    if (closings) {
+      return { applied: false, rankingReady: null };
+    }
+    // Daily manual removals override the recurring template. A later manual
+    // addition clears the override; template applications never do.
+    const activeHistory = await activeAuditWhere(transaction, storeId);
+    const manualChanges = await transaction.auditLog.findMany({
+      where: { storeId, businessDate: dateAtUtc(businessDate),
+        AND: activeHistory,
+        action: { in: ["board.row_removed", "board.row_added"] } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { action: true, beforeJson: true, afterJson: true },
+    });
+    const seenMembershipIds = new Set<string>();
+    const excludedMembershipIds = new Set<string>();
+    for (const change of manualChanges) {
+      const snapshot = (change.action === "board.row_removed" ? change.beforeJson : change.afterJson) as { membershipId?: string } | null;
+      const membershipId = snapshot?.membershipId;
+      if (!membershipId || seenMembershipIds.has(membershipId)) continue;
+      seenMembershipIds.add(membershipId);
+      if (change.action === "board.row_removed") excludedMembershipIds.add(membershipId);
+    }
+    const ids = weeklyDispatchFromJson(currentStore.weeklyDispatchJson)[weekday].filter((id) => !excludedMembershipIds.has(id));
+    const board = await transaction.dailyBoard.upsert({
+      where: { storeId_businessDate: { storeId, businessDate: dateAtUtc(businessDate) } },
+      create: { storeId, businessDate: dateAtUtc(businessDate) }, update: {},
+    });
+    await transaction.$queryRaw`SELECT id FROM daily_boards WHERE id = ${board.id}::uuid FOR UPDATE`;
+    const fresh = await transaction.dailyBoard.findUniqueOrThrow({ where: { id: board.id }, include: { rows: true } });
+    const isFuture = businessDate > currentDate;
+    if (fresh.weeklyDispatchAppliedAt && !isFuture) return { applied: false, rankingReady: null };
+    // Remember which rows were introduced by the template; manual additions remain independent.
+    const previousApplication = isFuture && fresh.weeklyDispatchAppliedAt
+      ? await transaction.auditLog.findFirst({
+        where: { storeId, entityId: board.id, action: "board.weekly_dispatch_applied", AND: activeHistory },
+        orderBy: { createdAt: "desc" }, select: { afterJson: true },
+      }) : null;
+    const previousData = previousApplication?.afterJson as { overwritten?: boolean; managedMembershipIds?: string[]; addedMembershipIds?: string[] } | null;
+    if (previousData?.overwritten) return { applied: false, rankingReady: !fresh.rankingPending };
+    const previousManaged = previousData?.managedMembershipIds ?? previousData?.addedMembershipIds ?? [];
+    const selected = await transaction.storeMembership.findMany({
+      where: { id: { in: ids }, storeId, status: "ACTIVE", deletedAt: null, isServiceProvider: true },
+      select: { id: true, displayName: true, employmentType: true },
+    });
+    const selectedIds = new Set(selected.map((item) => item.id));
+    const removedMembershipIds: string[] = [];
+    for (const row of fresh.rows) {
+      if (!previousManaged.includes(row.membershipId) || selectedIds.has(row.membershipId)
+        || (seenMembershipIds.has(row.membershipId) && !excludedMembershipIds.has(row.membershipId))) continue;
+      const [records, shifts] = await Promise.all([
+        transaction.workRecord.count({ where: { storeId, businessDate: dateAtUtc(businessDate), employeeMembershipId: row.membershipId } }),
+        transaction.shift.count({ where: { storeId, businessDate: dateAtUtc(businessDate), membershipId: row.membershipId } }),
+      ]);
+      if (records || shifts) continue;
+      await transaction.dailyEmployeeRow.delete({ where: { id: row.id } });
+      removedMembershipIds.push(row.membershipId);
+    }
+    const preserveCurrentRows = !isFuture && fresh.rows.length > 0;
+    const missingIds = (preserveCurrentRows ? [] : ids).filter((id) => selectedIds.has(id) && !fresh.rows.some((row) => row.membershipId === id));
+    const managedMembershipIds = [...new Set([...previousManaged.filter((id) => selectedIds.has(id) && !seenMembershipIds.has(id)), ...missingIds])];
+    if (missingIds.length) {
+      const max = await transaction.dailyEmployeeRow.aggregate({ where: { boardId: board.id }, _max: { position: true } });
+      let position = max._max.position ?? new Prisma.Decimal(0);
+      for (const membershipId of missingIds) {
+        position = position.plus(1);
+        await transaction.dailyEmployeeRow.create({ data: { boardId: board.id, storeId, membershipId, position, addedBy: actor.userId } });
       }
-      // Daily manual removals override the recurring template. A later manual
-      // addition clears the override; template applications never do.
-      const activeHistory = await activeAuditWhere(transaction, storeId);
-      const manualChanges = await transaction.auditLog.findMany({
-        where: { storeId, businessDate: dateAtUtc(businessDate),
-          AND: activeHistory,
-          action: { in: ["board.row_removed", "board.row_added"] } },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: { action: true, beforeJson: true, afterJson: true },
-      });
-      const seenMembershipIds = new Set<string>();
-      const excludedMembershipIds = new Set<string>();
-      for (const change of manualChanges) {
-        const snapshot = (change.action === "board.row_removed" ? change.beforeJson : change.afterJson) as { membershipId?: string } | null;
-        const membershipId = snapshot?.membershipId;
-        if (!membershipId || seenMembershipIds.has(membershipId)) continue;
-        seenMembershipIds.add(membershipId);
-        if (change.action === "board.row_removed") excludedMembershipIds.add(membershipId);
-      }
-      const ids = weeklyDispatchFromJson(currentStore.weeklyDispatchJson)[weekday].filter((id) => !excludedMembershipIds.has(id));
-      const board = await transaction.dailyBoard.upsert({
-        where: { storeId_businessDate: { storeId, businessDate: dateAtUtc(businessDate) } },
-        create: { storeId, businessDate: dateAtUtc(businessDate) }, update: {},
-      });
-      await transaction.$queryRaw`SELECT id FROM daily_boards WHERE id = ${board.id}::uuid FOR UPDATE`;
-      const fresh = await transaction.dailyBoard.findUniqueOrThrow({ where: { id: board.id }, include: { rows: true } });
-      const isFuture = businessDate > currentDate;
-      if (fresh.weeklyDispatchAppliedAt && !isFuture) return { applied: false };
-      // Remember which rows were introduced by the template; manual additions remain independent.
-      const previousApplication = isFuture && fresh.weeklyDispatchAppliedAt
-        ? await transaction.auditLog.findFirst({
-          where: { storeId, entityId: board.id, action: "board.weekly_dispatch_applied", AND: activeHistory },
-          orderBy: { createdAt: "desc" }, select: { afterJson: true },
-        }) : null;
-      const previousData = previousApplication?.afterJson as { overwritten?: boolean; managedMembershipIds?: string[]; addedMembershipIds?: string[] } | null;
-      if (previousData?.overwritten) return { applied: false };
-      const previousManaged = previousData?.managedMembershipIds ?? previousData?.addedMembershipIds ?? [];
-      const selected = await transaction.storeMembership.findMany({
-        where: { id: { in: ids }, storeId, status: "ACTIVE", deletedAt: null, isServiceProvider: true },
-        select: { id: true, displayName: true, employmentType: true },
-      });
-      const selectedIds = new Set(selected.map((item) => item.id));
-      const removedMembershipIds: string[] = [];
-      for (const row of fresh.rows) {
-        if (!previousManaged.includes(row.membershipId) || selectedIds.has(row.membershipId)
-          || (seenMembershipIds.has(row.membershipId) && !excludedMembershipIds.has(row.membershipId))) continue;
-        const [records, shifts] = await Promise.all([
-          transaction.workRecord.count({ where: { storeId, businessDate: dateAtUtc(businessDate), employeeMembershipId: row.membershipId } }),
-          transaction.shift.count({ where: { storeId, businessDate: dateAtUtc(businessDate), membershipId: row.membershipId } }),
-        ]);
-        if (records || shifts) continue;
-        await transaction.dailyEmployeeRow.delete({ where: { id: row.id } });
-        removedMembershipIds.push(row.membershipId);
-      }
-      const preserveCurrentRows = !isFuture && fresh.rows.length > 0;
-      const missingIds = (preserveCurrentRows ? [] : ids).filter((id) => selectedIds.has(id) && !fresh.rows.some((row) => row.membershipId === id));
-      const managedMembershipIds = [...new Set([...previousManaged.filter((id) => selectedIds.has(id) && !seenMembershipIds.has(id)), ...missingIds])];
-      if (missingIds.length) {
-        const max = await transaction.dailyEmployeeRow.aggregate({ where: { boardId: board.id }, _max: { position: true } });
-        let position = max._max.position ?? new Prisma.Decimal(0);
-        for (const membershipId of missingIds) {
-          position = position.plus(1);
-          await transaction.dailyEmployeeRow.create({ data: { boardId: board.id, storeId, membershipId, position, addedBy: actor.id } });
-        }
-      }
-      const rows = await transaction.dailyEmployeeRow.findMany({ where: { boardId: board.id }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], include: { membership: { select: { displayName: true, employmentType: true } } } });
-      const visible = rows.filter((row) => !row.isHidden);
-      let explanation: Prisma.InputJsonValue | undefined;
-      let rankedAt: Date | undefined;
-      let preserveManualOrder = false;
-      if (isFuture && currentStore.automaticDispatchEnabled) {
-        const orderChanges = await transaction.auditLog.findMany({
-          where: { storeId, entityType: "daily_board", entityId: board.id,
-            AND: activeHistory,
-            action: { in: ["board.rows_reordered", "board.rows_ranked"] } },
-          select: { action: true, afterJson: true },
-        });
-        // Day locks serialize board versions; timestamps can share a millisecond.
-        // Explicit regeneration resumes automatic order updates, while roster
-        // synchronization alone must not undo a later manual move.
-        let latestOrderVersion = 0;
-        for (const change of orderChanges) {
-          const version = (change.afterJson as { version?: number } | null)?.version;
-          if (typeof version === "number" && version > latestOrderVersion) {
-            latestOrderVersion = version;
-            preserveManualOrder = change.action === "board.rows_reordered";
+    }
+    const rows = await transaction.dailyEmployeeRow.findMany({ where: { boardId: board.id }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], include: { membership: { select: { displayName: true, employmentType: true } } } });
+    const visible = rows.filter((row) => !row.isHidden);
+    let explanation: Prisma.InputJsonValue | undefined;
+    let rankedAt: Date | undefined;
+    const preserveManualOrder = isFuture && currentStore.automaticDispatchEnabled &&
+      await this.hasManualDispatchOrder(transaction, storeId, board.id, activeHistory);
+    let rankingReady = visible.length === 0 || (preserveManualOrder && !fresh.rankingPending);
+    if (!fresh.rankingPending && !preserveCurrentRows && !preserveManualOrder && currentStore.automaticDispatchEnabled && visible.length && visible.every((row) => row.membership.employmentType)) {
+      const context = await rotationContext(transaction, storeId, businessDate, visible);
+      if (context.entries && context.order) {
+        rankingReady = true;
+        const explained = context.entries;
+        const order = explained.map((entry) => entry.membershipId);
+        const hidden = rows.filter((row) => row.isHidden).map((row) => row.membershipId);
+        const completeOrder = [...order, ...hidden];
+        const entries = explained;
+        const previousExplanation = rankingExplanationSchema.safeParse(fresh.rankingExplanation).data;
+        if (completeOrder.some((id, index) => id !== rows[index]?.membershipId)
+          || !isDeepStrictEqual(fresh.fullTimeOrder, context.order)
+          || !isDeepStrictEqual(previousExplanation?.fullTimeRotation, context.fullTimeRotation)
+          || !isDeepStrictEqual(previousExplanation?.entries, entries)) {
+          for (const [index, id] of completeOrder.entries()) {
+            const row = rows.find((item) => item.membershipId === id)!;
+            await transaction.dailyEmployeeRow.update({ where: { id: row.id }, data: { position: new Prisma.Decimal(index + 1), version: { increment: 1 } } });
           }
+          rankedAt = new Date();
+          explanation = { schemaVersion: 3, generatedAt: rankedAt.toISOString(), fullTimeOrder: context.order, fullTimeRotation: context.fullTimeRotation, entries };
+          await transaction.dailyBoard.update({ where: { id: board.id }, data: { fullTimeOrder: context.order } });
         }
       }
-      if (!fresh.rankingPending && !preserveCurrentRows && !preserveManualOrder && currentStore.automaticDispatchEnabled && visible.length && visible.every((row) => row.membership.employmentType)) {
-        const context = await rotationContext(transaction, storeId, businessDate, visible);
-        if (context.entries && context.order) {
-          const explained = context.entries;
-          const order = explained.map((entry) => entry.membershipId);
-          const hidden = rows.filter((row) => row.isHidden).map((row) => row.membershipId);
-          const completeOrder = [...order, ...hidden];
-          const entries = explained;
-          const previousExplanation = rankingExplanationSchema.safeParse(fresh.rankingExplanation).data;
-          if (completeOrder.some((id, index) => id !== rows[index]?.membershipId)
-            || !isDeepStrictEqual(fresh.fullTimeOrder, context.order)
-            || !isDeepStrictEqual(previousExplanation?.fullTimeRotation, context.fullTimeRotation)
-            || !isDeepStrictEqual(previousExplanation?.entries, entries)) {
-            for (const [index, id] of completeOrder.entries()) {
-              const row = rows.find((item) => item.membershipId === id)!;
-              await transaction.dailyEmployeeRow.update({ where: { id: row.id }, data: { position: new Prisma.Decimal(index + 1), version: { increment: 1 } } });
-            }
-            rankedAt = new Date();
-            explanation = { schemaVersion: 3, generatedAt: rankedAt.toISOString(), fullTimeOrder: context.order, fullTimeRotation: context.fullTimeRotation, entries };
-            await transaction.dailyBoard.update({ where: { id: board.id }, data: { fullTimeOrder: context.order } });
-          }
-        }
-      }
-      if (fresh.weeklyDispatchAppliedAt && !missingIds.length && !removedMembershipIds.length && !rankedAt
-        && JSON.stringify(previousManaged) === JSON.stringify(managedMembershipIds)) return { applied: false };
-      const updateData: Prisma.DailyBoardUpdateInput = {
-        weeklyDispatchAppliedAt: new Date(), version: { increment: 1 },
-      };
-      if (rankedAt && explanation) { updateData.rankedAt = rankedAt; updateData.rankingExplanation = explanation; }
-      const updated = await transaction.dailyBoard.update({ where: { id: board.id }, data: updateData });
-      await transaction.auditLog.create({ data: {
-        storeId, actorUserId: actor.id, actorMembershipId: membership.id, source: "api",
-        action: "board.weekly_dispatch_applied", entityType: "daily_board", entityId: board.id,
-        businessDate: dateAtUtc(businessDate),
-        afterJson: { addedMembershipIds: missingIds, removedMembershipIds, managedMembershipIds, rankedAt: rankedAt?.toISOString() ?? null, version: updated.version }, requestId,
-      } });
-      await transaction.domainOutbox.create({ data: { storeId, topic: "board.weekly_dispatch_applied", aggregateType: "daily_board", aggregateId: board.id, payloadJson: { businessDate, addedMembershipIds: missingIds, removedMembershipIds, version: updated.version } } });
-      return { applied: true, addedCount: missingIds.length, ranked: !!rankedAt };
+    }
+    if (fresh.weeklyDispatchAppliedAt && !missingIds.length && !removedMembershipIds.length && !rankedAt
+      && JSON.stringify(previousManaged) === JSON.stringify(managedMembershipIds)) return { applied: false, rankingReady };
+    const updateData: Prisma.DailyBoardUpdateInput = {
+      weeklyDispatchAppliedAt: new Date(), version: { increment: 1 },
     };
-    return this.prisma.$transaction(apply);
+    if (rankedAt && explanation) { updateData.rankedAt = rankedAt; updateData.rankingExplanation = explanation; }
+    const updated = await transaction.dailyBoard.update({ where: { id: board.id }, data: updateData });
+    await transaction.auditLog.create({ data: {
+      storeId, actorUserId: actor.membershipId ? actor.userId : null, actorMembershipId: actor.membershipId, source: actor.membershipId ? "api" : "scheduler",
+      action: "board.weekly_dispatch_applied", entityType: "daily_board", entityId: board.id,
+      businessDate: dateAtUtc(businessDate),
+      afterJson: { addedMembershipIds: missingIds, removedMembershipIds, managedMembershipIds, rankedAt: rankedAt?.toISOString() ?? null, version: updated.version }, requestId,
+    } });
+    await transaction.domainOutbox.create({ data: { storeId, topic: "board.weekly_dispatch_applied", aggregateType: "daily_board", aggregateId: board.id, payloadJson: { businessDate, addedMembershipIds: missingIds, removedMembershipIds, version: updated.version } } });
+    return { applied: true, addedCount: missingIds.length, ranked: !!rankedAt, rankingReady };
+  }
+
+  async hasManualDispatchOrder(transaction: Prisma.TransactionClient, storeId: string, boardId: string, activeHistory?: Prisma.AuditLogWhereInput) {
+    let preserveManualOrder = false;
+    const orderChanges = await transaction.auditLog.findMany({
+      where: { storeId, entityType: "daily_board", entityId: boardId,
+        AND: activeHistory ?? await activeAuditWhere(transaction, storeId),
+        action: { in: ["board.rows_reordered", "board.rows_ranked"] } },
+      select: { action: true, afterJson: true },
+    });
+    // Day locks serialize board versions; timestamps can share a millisecond.
+    // Explicit regeneration resumes automatic order updates, while roster
+    // synchronization alone must not undo a later manual move.
+    let latestOrderVersion = 0;
+    for (const change of orderChanges) {
+      const version = (change.afterJson as { version?: number } | null)?.version;
+      if (typeof version === "number" && version > latestOrderVersion) {
+        latestOrderVersion = version;
+        preserveManualOrder = change.action === "board.rows_reordered";
+      }
+    }
+    return preserveManualOrder;
   }
 
   async currentBusinessDay(actor: User, storeId: string) {

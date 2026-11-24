@@ -2655,14 +2655,6 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 .manage-form-grid input, .inline-controls input, .inline-controls select, .catalog-create input, .catalog-create select, .catalog-edit-panel input, .audit-filters select { width: 100%; min-height: var(--control-height); padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); font: inherit; }
 .manage-form-grid input:disabled { color: var(--muted); background: var(--surface-soft); opacity: 1; }
 .manage-card > .primary-action { margin-top: 18px; }
-.manage-save-success { margin: 18px 0 0; }
-.auto-discount-settings { padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-panel); }
-.auto-discount-settings.enabled { border-color: var(--line); background: var(--brand-soft); }
-.auto-discount-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-.auto-discount-heading strong { display: block; font-size: 1rem; color: var(--ink); }
-.auto-discount-heading p { margin: 5px 0 0; color: var(--muted); font-size: .85rem; line-height: 1.5; }
-.auto-discount-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
-.auto-discount-settings > .field-help { margin-bottom: 0; }
 .automatic-discount-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 9px; padding: 12px 14px; border: 1px solid var(--danger-line); border-radius: var(--radius-panel); background: var(--danger-soft); color: var(--danger); }
 .automatic-discount-line > div { display: grid; flex: 1; min-width: 0; gap: 3px; }
 .automatic-discount-line small { color: var(--muted); line-height: 1.45; }
@@ -2696,10 +2688,20 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 .catalog-price-options-edit > .secondary-action { margin-top: 7px; }
 .catalog-item { padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); }
 .catalog-item.deleted { background: var(--surface-soft); border-style: dashed; }
+.catalog-item[data-catalog-dragging] { border-color: var(--line-strong); border-style: dashed; }
+.catalog-item[data-catalog-drop-edge] { position: relative; }
+.catalog-item[data-catalog-drop-edge]::after { content: ""; position: absolute; inset-inline: 0; border-top: 2px solid var(--brand); pointer-events: none; }
+.catalog-item[data-catalog-drop-edge="before"]::after { top: -7px; }
+.catalog-item[data-catalog-drop-edge="after"]::after { bottom: -7px; }
 .catalog-item-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .catalog-summary { display: grid; min-width: 0; gap: 8px; }
+.catalog-summary-name { display: flex; min-width: 0; align-items: center; gap: 6px; }
+.catalog-move-handle { display: grid; flex: 0 0 44px; width: 44px; min-height: 44px; place-items: center; padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted); cursor: grab; touch-action: none; user-select: none; }
+.catalog-move-handle:not(:disabled, [aria-disabled="true"]):hover { background: var(--surface-soft); color: var(--ink); }
+.catalog-item[data-catalog-dragging] .catalog-move-handle { cursor: grabbing; }
+.catalog-move-handle:is(:disabled, [aria-disabled="true"]) { opacity: .5; cursor: default; }
 .catalog-summary-title { display: flex; min-width: 0; align-items: baseline; gap: 9px; }
-.catalog-summary-title strong { flex: 0 0 auto; color: var(--brand); }
+.catalog-summary-title strong { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; color: var(--brand); }
 .catalog-summary-title span { min-width: 0; overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
 .catalog-summary-facts { display: flex; flex-wrap: wrap; gap: 6px; }
 .catalog-summary-facts em,
@@ -2751,9 +2753,6 @@ button.employee-subtotal-value:hover, button.employee-subtotal-value:focus-visib
 @media (max-width: 600px) {
   .manage-card { padding: 16px; border-radius: var(--radius-panel); }
   .manage-form-grid, .audit-detail > div { grid-template-columns: 1fr; }
-  .auto-discount-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
-  .auto-discount-heading .inline-check { align-self: flex-start; }
-  .auto-discount-fields { grid-template-columns: 1fr; }
   .catalog-create, .catalog-edit-panel { grid-template-columns: 1fr; }
   .catalog-group { padding: 12px; }
   .catalog-group-tools { align-items: stretch; flex-direction: column; }

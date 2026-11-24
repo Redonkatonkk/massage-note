@@ -115,6 +115,8 @@ describe("EmployeeSettlementsService employee-summary redelivery", () => {
         status: "QUEUED",
         detailSentAt: null,
         sentAt: null,
+        dispatchStartedAt: null,
+        sendRound: { increment: 1 },
       }),
     });
     expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "employee_settlement.delivery_detail_retried" }) }));

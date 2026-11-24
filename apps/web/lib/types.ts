@@ -1,4 +1,4 @@
-import type { EmployeeSettlementAmountType, EmployeeSettlementPaymentScope, RankingExplanation, WeeklyDispatchInput } from "@massage-note/contracts";
+import type { DispatchSmsSettings, EmployeeSettlementAmountType, EmployeeSettlementPaymentScope, RankingExplanation, WeeklyDispatchInput } from "@massage-note/contracts";
 import type { StoreRole } from "@massage-note/domain";
 
 export type { EmployeeSettlementPaymentScope } from "@massage-note/contracts";
@@ -73,6 +73,7 @@ export interface StoreDetails extends StoreSummary {
   ownerMembershipId: string | null;
   ownerMembership: null | { id: string; displayName: string; userId: string };
   automaticDispatchEnabled: boolean;
+  dispatchSms?: DispatchSmsSettings | null;
 }
 
 export type WeeklyDispatchSchedule = WeeklyDispatchInput;

@@ -168,6 +168,8 @@ model Store {
   settlementDeliveries EmployeeSettlementDelivery[]
   settlementShares     EmployeeSettlementShare[]
   closingDeliveryAgent ClosingDeliveryAgent?
+  dispatchSmsSettings   DispatchSmsSettings?
+  dispatchSmsDeliveries DispatchSmsDelivery[]
   cashSettlements      DailyCashSettlement[]
   expenseItems        ExpenseItem[]
   payrollSettlements   PayrollSettlement[]
@@ -770,6 +772,7 @@ model EmployeeClosingDelivery {
   attemptCount           Int                   @default(0) @map("attempt_count")
   leaseToken             String?               @map("lease_token") @db.Uuid
   leaseExpiresAt         DateTime?              @map("lease_expires_at") @db.Timestamptz(3)
+  dispatchStartedAt      DateTime?              @map("dispatch_started_at") @db.Timestamptz(3)
   nextAttemptAt          DateTime               @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
   lastErrorCode          String?                @map("last_error_code")
   lastError              String?                @map("last_error")
@@ -837,6 +840,8 @@ model EmployeeSettlementDelivery {
   attemptCount          Int                    @default(0) @map("attempt_count")
   leaseToken            String?                @map("lease_token") @db.Uuid
   leaseExpiresAt        DateTime?               @map("lease_expires_at") @db.Timestamptz(3)
+  dispatchStartedAt     DateTime?               @map("dispatch_started_at") @db.Timestamptz(3)
+  sendRound             Int                     @default(0) @map("send_round")
   nextAttemptAt         DateTime                @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
   summarySentAt         DateTime?               @map("summary_sent_at") @db.Timestamptz(3)
   detailSentAt          DateTime?               @map("detail_sent_at") @db.Timestamptz(3)
@@ -858,6 +863,46 @@ model EmployeeSettlementDelivery {
   @@index([status, nextAttemptAt, createdAt])
   @@index([storeId, membershipId, createdAt])
   @@map("employee_settlement_deliveries")
+}
+
+model DispatchSmsSettings {
+  storeId       String    @id @map("store_id") @db.Uuid
+  enabled       Boolean   @default(false)
+  sendTimeLocal String    @map("send_time_local") @db.VarChar(5)
+  phoneE164     String?   @map("phone_e164") @db.VarChar(16)
+  startOnDate   DateTime? @map("start_on_date") @db.Date
+  store         Store     @relation(fields: [storeId], references: [id])
+
+  @@map("dispatch_sms_settings")
+}
+
+model DispatchSmsDelivery {
+  id                 String                @id @default(uuid()) @db.Uuid
+  storeId            String                @map("store_id") @db.Uuid
+  targetDate         DateTime              @map("target_date") @db.Date
+  status             ClosingDeliveryStatus @default(QUEUED)
+  recipientPhoneE164 String                @map("recipient_phone_e164") @db.VarChar(16)
+  body               String?               @db.Text
+  attemptCount       Int                   @default(0) @map("attempt_count")
+  leaseToken         String?               @map("lease_token") @db.Uuid
+  leaseExpiresAt     DateTime?             @map("lease_expires_at") @db.Timestamptz(3)
+  dispatchStartedAt  DateTime?             @map("dispatch_started_at") @db.Timestamptz(3)
+  nextAttemptAt      DateTime              @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  lastErrorCode      String?               @map("last_error_code")
+  lastError          String?               @map("last_error")
+  sentAt             DateTime?             @map("sent_at") @db.Timestamptz(3)
+  deliveryStatus     String?               @map("delivery_status")
+  deliveryMessageGuid String?              @map("delivery_message_guid")
+  deliveryErrorCode  Int?                  @map("delivery_error_code")
+  deliveryService    String?               @map("delivery_service")
+  deliveryCheckedAt  DateTime?             @map("delivery_checked_at") @db.Timestamptz(3)
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  store              Store                 @relation(fields: [storeId], references: [id])
+
+  @@unique([storeId, targetDate])
+  @@index([storeId, status, nextAttemptAt])
+  @@map("dispatch_sms_deliveries")
 }
 
 model ClosingDeliveryAgent {

@@ -2,7 +2,7 @@
 
 **[English](API.md)** | **简体中文**
 
-> 适用版本：`1.63.13`
+> 适用版本：`1.64.0`
 > 精确输入字段以 `packages/contracts/src` 的 Zod schema 为准；本页负责 HTTP 路径、通用语义和跨端约定。
 
 本系统的 HTTP API 供当前中英文 Web 应用与未来原生客户端共用。默认前缀为 `/api/v1`，所有业务金额均使用整数美分，日期使用 `YYYY-MM-DD`，时间点使用带时区的 ISO 8601 字符串。
@@ -82,6 +82,8 @@
 | DELETE | `/stores/:storeId/closings/:businessDate/deliveries/:deliveryId` | 店主或经理取消仍处于排队状态的单条员工日结短信任务 |
 | POST | `/stores/:storeId/closings/:businessDate/deliveries/members/:membershipId` | 单独发送或补发一位员工的个人日结；未日结也可发送，按营业日和请求键保存当时快照 |
 | GET/POST/DELETE | `/stores/:storeId/closing-delivery-agent/status`、`credential` | 查看代理状态、生成一次性代理令牌或撤销令牌 |
+| GET | `/stores/:storeId/dispatch-sms/status` | 店主或经理查看最近一次排工短信结果。店铺详情仅向这两个角色返回 `dispatchSms`，可在带版本的店铺 PATCH 中提交可选的 `dispatchSms: {enabled, sendTimeLocal, phoneE164}`。 |
+| GET/POST | `/dispatch-sms-agent/jobs/*` | 共用 Mac 代理令牌，领取任务、准备文本、授权提交、回写完成与失败、核对回执。 |
 | POST | `/closing-delivery-agent/jobs/claim`、`jobs/:id/authorize`、`complete`、`fail`、`heartbeat` | Mac 代理使用 Bearer 令牌领取租约任务、发送前复核并回写结果 |
 | GET | `/stores/:storeId/cash-settlements/:businessDate` | 当日现金结算列表，只含当日有记工的员工，供财务日结表现金列读取；员工仅返回本人 |
 | POST | `/stores/:storeId/cash-settlements/:businessDate/settle-all` | 批量结清未结清员工 |
@@ -146,7 +148,7 @@ Web 页面支持 `/finance?store=<storeId>&tab=closing&date=<businessDate>` 直�
 
 Web 快速记工下拉框默认选择目录顺序中的首个启用项目，提交 `{ employeeMembershipId, startAt, serviceItemId, serviceDurationMinutes }`，可附带 `isHighlighted` 与 `isDispatchExcluded`；复用预设项目路径保存价格及提成快照，保持待结账，占位不提交项目字段。无需接口契约变更。仅时长 API 仍支持提交 `{ employeeMembershipId, startAt, durationMinutes: 120 }`，可附带 `isHighlighted` 与 `isDispatchExcluded`。`durationMinutes` 为 1–720 的整数，未知时长可明确传 `null`，不得与 `serviceItemId`、`serviceDurationMinutes`、`customService` 或占位模式混用。保存为 `PENDING_PAYMENT`，`serviceSnapshot: null`，按时长计算结束时间，不建立项目、提成、加项、折扣或付款快照。数据库必填金额列暂存零，客户端显示未填写，不表示免费服务。零实收的 PATCH/save 可以不选项目；未选项目直接 confirm-payment 返回 `SERVICE_SELECTION_REQUIRED`。版本、权限、营业日锁、幂等与原子保存沿用现有规则。个人日结记录通过可选的 `serviceSelected: false` 让当前模板显示未填写价格，缺少该标记的旧快照保持原显示。保留原因：仅时长记工明确了服务时段，但尚未形成财务事实。
 
-“详细记工”仅打开本地表单，保存时调用 `POST /stores/:storeId/work-records/detailed`：`create` 沿用创建字段，支持仅时长或未知时长的待结账记录，`details` 沿用 PATCH 且 `version: 1`，可选 `payment` 沿用付款契约且 `version: 1`。服务端在同一事务创建并保存全部详情及付款，失败不留下记录；省略付款时即使未选项目也保存待结账。Web 新建详情沿用快速记工所选项目，有 60 分钟档位时优先使用，否则使用该项目第一档，并同步报价及结束时间；无项目时仍预填 60 分钟。`durationMinutes: null` 让 `endAt` 与 `actualDurationMinutes` 保留空值，不虚构时长。未选项目时修改备注等信息仍不创建项目快照、也不补算未知时间；有实收须先补选项目。既有 `/work-records/:recordId/save` 允许现金／刷卡／礼物卡大费和小费全零，此时设为 `PENDING_PAYMENT`，删除付款明细，清空收款、小费、收入和现金分配字段及人工结算标记；项目／提成快照保留，普通写入仍回退相关现金结清。礼物卡有实收时仍确认付款；显式 confirm-payment 保留原契约。保留原因：完整新建及已付款退回待结账须保持原子、版本、权限、日结锁和幂等。
+“详细记工”仅打开本地表单，保存时调用 `POST /stores/:storeId/work-records/detailed`：`create` 沿用创建字段，支持仅时长或未知时长的待结账记录，`details` 沿用 PATCH 且 `version: 1`，可选 `payment` 沿用付款契约且 `version: 1`。服务端在同一事务创建并保存全部详情及付款，失败不留下记录；省略付款时即使未选项目也保存待结账。Web 新建详情沿用快速记工所选项目，有 60 分钟档位时优先使用，否则使用该项目第一档，并同步报价及结束时间；无项目时仍预填 60 分钟。`durationMinutes: null` 让 `endAt` 与 `actualDurationMinutes` 保留空值，不虚构时长。未选项目时修改备注等信息仍不创建项目快照、也不补算未知时间；有实收须先补选项目。既有 `/work-records/:recordId/save` 允许现金／刷卡／礼物卡大费和小费全零，此时设为 `PENDING_PAYMENT`，删除付款明细，清空收款、小费、收入和现金分配字段及人工结算标记；保留项目和提成快照。API 比较整次保存前后已确认的应结金额，只回退金额变化的员工及营业日。礼物卡有实收时仍确认付款；显式 confirm-payment 保留原契约。保留原因：完整新建及已付款退回待结账须保持原子、版本、权限、日结锁和幂等。
 
 店铺设置可通过同一次 `PATCH /stores/:storeId` 写入周一至周四自动折扣；三个字段必须一起提交。保留原因：调用方须遵循当前契约、权限和兼容语义，不能用旧流程推断写入结果。
 
@@ -295,8 +297,8 @@ Web 快速记工下拉框默认选择目录顺序中的首个启用项目，提�
 - AI 确认的创建、详情、付款、审计和预览消费处于同一事务；并发确认返回 `AI_PREVIEW_EXECUTING`。AI UPDATE 中省略的付款项保留，切换方式必须显式将原方式置零；原有礼物卡金额和序列号保留。保留原因：业务、审计与状态必须共同提交，独立连接和租约仍需鉴权。
 - SSE 同实例同店共享 2 秒 outbox 轮询，每个连接仍独立验证成员及账号状态，慢轮询不会被取消；同账号多个连接均收通知。每轮发送 `heartbeat`，新连接及每 30 秒发出不带事件 ID 的 `store.changed`（`reason: resync`），覆盖共享游标之前的状态与延迟提交事务。接口及事件 payload 保持兼容，客户端恢复连接后完整读取 REST。响应显式设置 `X-Accel-Buffering: no` 与禁缓存/转换指令；没有订阅时释放店铺轮询。保留原因：业务、审计与状态必须共同提交，独立连接和租约仍需鉴权。
 - 发送代理的授权、检查点、完成和失败回写均检查未过期租约及当前令牌；租约失效返回 `DELIVERY_LEASE_INVALID`。
-- 发送接口字段保持兼容：`SENT`／`sentAt` 是任务完成及提交时间，不证明收件手机送达。新版 Mac 代理先观察精确附件和号码对应的新消息状态，明确发送失败以 `MESSAGES_DELIVERY_FAILED`、`retryable: true` 回写；仍由服务端限制最多三次重试，Mac 的持久退避将实际再次领取延后至少五分钟。保留原因：历史代理只有指令接受回执，异步失败不能与任务提交混为一谈，也不能绕过已有重试上限。
-- 任务完成字段（`SENT`／`sentAt`）保持兼容，本身不证明送达。完成请求可选 `receipt`，包含 `messageGuid`、`state`（`SENT` 或 `DELIVERED`）、`errorCode: 0` 和可空 `service`。列表新增可空的 `deliveryStatus`、`deliveryMessageGuid`、`deliveryErrorCode`、`deliveryService`、`deliveryCheckedAt`；只有真实 `DELIVERED` 回执才显示已送达。`/closing-delivery-agent` 和 `/employee-settlement-delivery-agent` 均提供 `GET jobs/receipts`，按最早核对时间返回最近 30 天内最多 20 条已结束任务；`POST jobs/:id/receipt` 接收 `{ attemptCount, receipt }`，观察状态支持 `MISSING`、`PENDING`、`SENT`、`DELIVERED`、`FAILED`。店铺凭证、尝试次数和任务状态共同隔离旧回执，重试清空旧回执，回执变化与审计事务保存。复查不排队发送，缺少元数据也不会清除已知结果。保留原因：延迟送达及信息 App 手动重试应更新网页，不能把指令提交当作收件事实或造成重复发送。
+- 两个代理队列的 `jobs/:id/authorize` 均支持 `startDispatch: true`。同一发送轮次只能登记开始一次，成功返回 `dispatchRecorded: true`。租约过期后重新领取时返回 `dispatchStarted`。只有登记开始前符合条件的 `PRE_SEND_FAILURE` 可自动重试，最多三次。`jobs/:id/fail` 可附带失败 `receipt`，用于保存 Mac 的观察结果。管理员明确重试员工小计时递增 `sendRound`，领取和回执候选接口均返回该字段，用于区分共用附件路径的发送轮次。
+- 任务完成字段（`SENT`／`sentAt`）记录提交。完成请求可选 `receipt`，包含 `messageGuid`、`state`（`SENT` 或 `DELIVERED`）、`errorCode: 0` 和可空 `service`。列表返回 `deliveryStatus`、`deliveryMessageGuid`、`deliveryErrorCode`、`deliveryService` 和 `deliveryCheckedAt`。两个代理队列的 `GET jobs/receipts` 均按最早核对时间返回最近 30 天最多 20 个待核对的已结束任务。`POST jobs/:id/receipt` 接收 `{ attemptCount, receipt }`，状态支持 `MISSING`、`PENDING`、`SENT`、`DELIVERED` 和 `FAILED`。迟到的 `SENT` 或 `DELIVERED` 可更新待核对任务。店铺凭证和尝试次数隔离旧回执，缺少元数据时保留已知结果，回执变化与审计同时保存。
 - 员工小计发送的幂等内容包含日期、员工列表、付款方式、金额类型、高亮筛选及接收号码；相同键更换筛选返回 `IDEMPOTENCY_KEY_REUSED`。
 
 ### 完整微信记工与数据查询

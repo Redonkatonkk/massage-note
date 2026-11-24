@@ -1,6 +1,7 @@
 import { ConflictException } from "@nestjs/common";
 import { Prisma, type AuditRowChange } from "@massage-note/database";
 import { lockBusinessDay } from "../common/business-day-lock.js";
+import { reopenChangedCashSettlements } from "../finance/cash-settlement-changes.js";
 
 export function supportsLegacyUndo(row: { action: string; source: string; afterJson: Prisma.JsonValue | null }): boolean {
   return row.source !== "data_import_history" && ["work_record.created", "work_record.created_with_custom_service", "work_record.placeholder_created", "work_record.deleted", "work_record.restored"].includes(row.action)
@@ -56,6 +57,7 @@ export function undoConflict(messageZh: string): never {
 }
 
 export function unsupportedUndo(actions: string[]): string | null {
+  if (actions.includes("dispatch_sms.settings_updated")) return "排工短信的接收号码和发送时间请在店铺设置中调整";
   if (actions.some(action => action === "audit.undone")) return "撤销记录用于保留历史，不能再次撤销";
   if (actions.some(action => action === "store.created" || action === "store.deleted" || action === "store.data_imported")) return "店铺创建、删除或覆盖导入请使用店铺恢复与完整备份";
   if (actions.some(action => action.startsWith("closing_delivery.agent_") || action === "membership.account_claimed")) return "账号关联与安全凭证不能恢复为旧状态，请在原设置中调整";
@@ -64,7 +66,12 @@ export function unsupportedUndo(actions: string[]): string | null {
   return null;
 }
 
-export async function reverseAuditChanges(tx: Prisma.TransactionClient, storeId: string, actorId: string, changes: AuditRowChange[]) {
+export async function reverseAuditChanges(
+  tx: Prisma.TransactionClient,
+  storeId: string,
+  actor: { userId: string; membershipId: string; requestId: string },
+  changes: AuditRowChange[],
+) {
   if (!changes.length) undoConflict("这条历史记录缺少完整撤销快照");
   const latest = new Map<string, AuditRowChange>();
   for (const change of changes) latest.set(key(change), change);
@@ -84,6 +91,8 @@ export async function reverseAuditChanges(tx: Prisma.TransactionClient, storeId:
     if (comparable(row) !== comparable(decode(change, change.afterJson))) undoConflict("相关数据已发生后续修改，请先撤销后续操作并刷新后重试");
     current.set(key(change), row);
   }
+  const workRecordIds = [...latest.values()].filter(change => change.tableName === "work_records").map(change => change.rowId);
+  const workRecordsBefore = workRecordIds.length ? await tx.workRecord.findMany({ where: { storeId, id: { in: workRecordIds } } }) : [];
   // Attendance has domain dependencies without SQL foreign keys: removing an
   // unchanged row/shift must not hide work recorded by a later submission.
   const createdRecords = changes.filter(change => change.tableName === "work_records" && change.beforeJson === null).map(change => change.rowId);
@@ -139,12 +148,12 @@ export async function reverseAuditChanges(tx: Prisma.TransactionClient, storeId:
       }
       if (change.tableName === "store_memberships") {
         softened.add(key(change));
-        await tx.storeMembership.update({ where: { id: change.rowId }, data: { status: "INACTIVE", leftAt: new Date(), deletedBy: actorId, deleteReason: "撤销新增操作", version: { increment: 1 } } });
+        await tx.storeMembership.update({ where: { id: change.rowId }, data: { status: "INACTIVE", leftAt: new Date(), deletedBy: actor.userId, deleteReason: "撤销新增操作", version: { increment: 1 } } });
         continue;
       }
       if (change.tableName === "business_day_closings") {
         softened.add(key(change));
-        await tx.businessDayClosing.update({ where: { id: change.rowId }, data: { status: "CANCELLED", cancelledBy: actorId, cancelledAt: new Date(), version: { increment: 1 } } });
+        await tx.businessDayClosing.update({ where: { id: change.rowId }, data: { status: "CANCELLED", cancelledBy: actor.userId, cancelledAt: new Date(), version: { increment: 1 } } });
         continue;
       }
       if (["employee_closing_deliveries", "employee_settlement_deliveries"].includes(change.tableName)) {
@@ -156,10 +165,10 @@ export async function reverseAuditChanges(tx: Prisma.TransactionClient, storeId:
       softened.add(key(change));
       const names = new Set(model.fields.map(field => field.name));
       await delegate(tx, change).update({ where: where(change), data: {
-        deletedAt: new Date(), ...(names.has("deletedBy") ? { deletedBy: actorId } : {}),
+        deletedAt: new Date(), ...(names.has("deletedBy") ? { deletedBy: actor.userId } : {}),
         ...(names.has("deleteReason") ? { deleteReason: "撤销新增操作" } : {}),
         ...(names.has("version") ? { version: { increment: 1 } } : {}),
-        ...(names.has("updatedBy") ? { updatedBy: actorId } : {}),
+        ...(names.has("updatedBy") ? { updatedBy: actor.userId } : {}),
       } });
       continue;
     }
@@ -168,7 +177,7 @@ export async function reverseAuditChanges(tx: Prisma.TransactionClient, storeId:
     const data = { ...before };
     if ("version" in data) data.version = Number(row?.version ?? data.version) + 1;
     if ("updatedAt" in data) data.updatedAt = new Date();
-    if ("updatedBy" in data) data.updatedBy = actorId;
+    if ("updatedBy" in data) data.updatedBy = actor.userId;
     if (model.name === "Store" && row) data.nextGiftCardSerialNumber = Math.max(Number(row.nextGiftCardSerialNumber), Number(data.nextGiftCardSerialNumber));
     // Nullable JSON fields need Prisma's explicit database-null sentinel.
     for (const field of model.fields) if (field.type === "Json" && data[field.name] === null) data[field.name] = Prisma.DbNull;
@@ -178,5 +187,14 @@ export async function reverseAuditChanges(tx: Prisma.TransactionClient, storeId:
       await delegate(tx, change).update({ where: where(change), data });
     }
     current.set(key(change), { ...data, ...where(change) });
+  }
+  if (workRecordIds.length) {
+    const workRecordsAfter = await tx.workRecord.findMany({ where: { storeId, id: { in: workRecordIds } } });
+    const beforeById = new Map(workRecordsBefore.map(record => [record.id, record]));
+    const afterById = new Map(workRecordsAfter.map(record => [record.id, record]));
+    const restoredSettlementIds = [...latest.values()].filter(change => change.tableName === "daily_cash_settlements").map(change => change.rowId);
+    await reopenChangedCashSettlements(tx, {
+      storeId, actorUserId: actor.userId, actorMembershipId: actor.membershipId, requestId: actor.requestId,
+    }, workRecordIds.map(id => ({ before: beforeById.get(id) ?? null, after: afterById.get(id) ?? null })), restoredSettlementIds);
   }
 }

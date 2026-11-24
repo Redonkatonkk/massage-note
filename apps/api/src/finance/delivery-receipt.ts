@@ -48,12 +48,21 @@ export async function recordDeliveryReceipt(
   if (!previous) return { recorded: false };
   // Missing attachments or a transient pending flag do not erase a recorded result.
   const unavailable = ["MISSING", "PENDING"].includes(input.receipt.state);
+  const recovered = previous.status === "FAILED" && ["DELIVERED", "SENT"].includes(input.receipt.state);
+  const now = new Date();
   const data = unavailable && previous.deliveryMessageGuid
-    ? { deliveryCheckedAt: new Date() }
-    : deliveryReceiptData(input.receipt);
+    ? { deliveryCheckedAt: now }
+    : {
+        ...deliveryReceiptData(input.receipt),
+        ...(recovered ? { status: "SENT" as const, sentAt: previous.sentAt ?? now, lastError: null, lastErrorCode: null } : {}),
+      };
+  const receiptWhere = { ...where, status: previous.status, deliveryCheckedAt: previous.deliveryCheckedAt };
   const changed = kind === "closing"
-    ? await transaction.employeeClosingDelivery.updateMany({ where, data })
-    : await transaction.employeeSettlementDelivery.updateMany({ where, data });
+    ? await transaction.employeeClosingDelivery.updateMany({ where: receiptWhere, data })
+    : await transaction.employeeSettlementDelivery.updateMany({
+        where: receiptWhere,
+        data: { ...data, ...(recovered ? { detailSentAt: now } : {}) },
+      });
   if (changed.count === 1 && "deliveryStatus" in data && (previous.deliveryStatus !== data.deliveryStatus
     || previous.deliveryMessageGuid !== data.deliveryMessageGuid || previous.deliveryErrorCode !== data.deliveryErrorCode)) {
     await transaction.auditLog.create({ data: {

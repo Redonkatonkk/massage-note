@@ -75,18 +75,20 @@ function validateTextTarget(phoneE164: string, jobId: string) {
   }
 }
 
-export async function sendStagedClosingText(phoneE164: string, jobId: string): Promise<MessagesSubmission> {
+export async function sendStagedClosingText(phoneE164: string, jobId: string, kind: "closing" | "dispatch" = "closing"): Promise<MessagesSubmission> {
   validateTextTarget(phoneE164, jobId);
-  const result = await launchStager(["--send-text", phoneE164, jobId], `${jobId}-text-send.json`, 75_000);
+  const operation = kind === "dispatch" ? "dispatch-text" : "text";
+  const result = await launchStager([`--send-${operation}`, phoneE164, jobId], `${jobId}-${operation}-send.json`, 75_000);
   if (!result.service?.trim()) throw new Error("Messages did not confirm an accepted text service");
   return { service: result.service.trim(), previousMessageGuid: result.previousMessageGuid ?? null };
 }
 
-export async function messagesTextDeliveryState(phoneE164: string, jobId: string, messageGuid?: string) {
+export async function messagesTextDeliveryState(phoneE164: string, jobId: string, messageGuid?: string, kind: "closing" | "dispatch" = "closing") {
   validateTextTarget(phoneE164, jobId);
   if (messageGuid !== undefined && !/^[\w:+.-]{1,255}$/.test(messageGuid)) throw new Error("Invalid Messages GUID");
+  const operation = kind === "dispatch" ? "dispatch-text" : "text";
   const result = messageGuid === undefined
-    ? await launchStager(["--status-text", phoneE164, jobId], `${jobId}-text-status.json`)
+    ? await launchStager([`--status-${operation}`, phoneE164, jobId], `${jobId}-${operation}-status.json`)
     : await launchStager(["--status-guid", phoneE164, jobId, messageGuid], `${jobId}-guid-status.json`);
   return checkedDeliveryState(result);
 }

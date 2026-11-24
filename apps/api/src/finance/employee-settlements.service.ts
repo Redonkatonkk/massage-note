@@ -1,5 +1,5 @@
 import { idempotencyRequestHash } from "../common/idempotency.service.js";
-import { claimedDeliveryWhere, deliveryFailureState, requireDeliveryLease } from "./delivery-lease.js";
+import { claimedDeliveryWhere, deliveryFailureState, dispatchCheckpointWhere, requireDeliveryLease } from "./delivery-lease.js";
 import { randomUUID } from "node:crypto";
 import { authenticateDeliveryAgent } from "./delivery-agent.js";
 import { clearDeliveryReceipt, deliveryReceiptData, receiptCandidatesWhere, receiptCandidateSelect, receiptCandidateOrder, recordDeliveryReceipt } from "./delivery-receipt.js";
@@ -25,6 +25,10 @@ import { FinanceQueriesService } from "./finance-queries.service.js";
 
 const dateAtUtc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
+const resetSettlementDispatch = {
+  ...clearDeliveryReceipt, detailSentAt: null, sentAt: null,
+  dispatchStartedAt: null, sendRound: { increment: 1 },
+};
 
 @Injectable()
 export class EmployeeSettlementsService {
@@ -193,7 +197,7 @@ export class EmployeeSettlementsService {
     return this.prisma.$transaction(async (transaction) => {
       const changed = await transaction.employeeSettlementDelivery.updateMany({
         where: { id: deliveryId, storeId, documentType: "EMPLOYEE_SUMMARY", status: "FAILED" },
-        data: { ...clearDeliveryReceipt, status: "QUEUED", nextAttemptAt: new Date(), lastError: null, lastErrorCode: null, leaseToken: null, leaseExpiresAt: null },
+        data: { ...resetSettlementDispatch, status: "QUEUED", nextAttemptAt: new Date(), lastError: null, lastErrorCode: null, leaseToken: null, leaseExpiresAt: null },
       });
       if (changed.count !== 1) throw new ConflictException({ code: "SETTLEMENT_DELIVERY_NOT_RETRYABLE", messageZh: "只有失败的结算短信任务可以重试" });
       await transaction.auditLog.create({ data: { storeId, actorUserId: actor.id, actorMembershipId: manager.id, source: "api", action: "employee_settlement.delivery_retried", entityType: "employee_settlement_delivery", entityId: deliveryId, requestId } });
@@ -213,10 +217,8 @@ export class EmployeeSettlementsService {
           status: { in: ["SENT", "FAILED"] },
         },
         data: {
-          ...clearDeliveryReceipt,
+          ...resetSettlementDispatch,
           status: "QUEUED",
-          detailSentAt: null,
-          sentAt: null,
           nextAttemptAt: new Date(),
           lastError: null,
           lastErrorCode: null,
@@ -261,14 +263,30 @@ export class EmployeeSettlementsService {
       id: job.id, documentType: job.documentType, leaseToken,
       phoneE164: job.recipientPhoneE164, locale: job.locale,
       detailSent: Boolean(job.detailSentAt),
+      dispatchStarted: Boolean(job.dispatchStartedAt),
+      sendRound: job.sendRound,
       snapshot: job.snapshotJson,
     };
   }
 
-  async authorize(authorization: string | undefined, deliveryId: string, leaseToken: string) {
+  async authorize(authorization: string | undefined, deliveryId: string, leaseToken: string, startDispatch = false) {
     const agent = await authenticateDeliveryAgent(this.prisma, authorization);
-    await this.findClaimed(agent.storeId, deliveryId, leaseToken);
-    return { authorized: true };
+    const job = await this.findClaimed(agent.storeId, deliveryId, leaseToken);
+    if (!startDispatch) {
+      // Older agents use this call to send as well as to resume checkpoints.
+      if (job.dispatchStartedAt && !job.detailSentAt) {
+        await this.fail(authorization, deliveryId, {
+          leaseToken, code: "DETAIL_RESULT_AMBIGUOUS", message: "已开始发送，请核对送达状态", retryable: false,
+        });
+        return { authorized: false };
+      }
+      return { authorized: true };
+    }
+    requireDeliveryLease(await this.prisma.employeeSettlementDelivery.updateMany({
+      where: { ...dispatchCheckpointWhere(agent.storeId, deliveryId, leaseToken), detailSentAt: null },
+      data: { dispatchStartedAt: new Date() },
+    }));
+    return { authorized: true, dispatchRecorded: true };
   }
 
   async checkpoint(authorization: string | undefined, deliveryId: string, leaseToken: string, attachment: "SUMMARY" | "DETAIL") {
@@ -296,7 +314,10 @@ export class EmployeeSettlementsService {
 
   async receiptCandidates(authorization: string | undefined) {
     const agent = await authenticateDeliveryAgent(this.prisma, authorization);
-    return this.prisma.employeeSettlementDelivery.findMany({ where: receiptCandidatesWhere(agent.storeId), select: receiptCandidateSelect, orderBy: receiptCandidateOrder, take: 20 });
+    return this.prisma.employeeSettlementDelivery.findMany({
+      where: receiptCandidatesWhere(agent.storeId), select: { ...receiptCandidateSelect, sendRound: true },
+      orderBy: receiptCandidateOrder, take: 20,
+    });
   }
 
   async receipt(authorization: string | undefined, deliveryId: string, input: ClosingDeliveryReceiptInput) {
@@ -307,9 +328,9 @@ export class EmployeeSettlementsService {
   async fail(authorization: string | undefined, deliveryId: string, input: ClosingDeliveryFailureInput) {
     const agent = await authenticateDeliveryAgent(this.prisma, authorization);
     const job = await this.findClaimed(agent.storeId, deliveryId, input.leaseToken);
-    const { data, retryScheduled } = deliveryFailureState(job.attemptCount, input);
+    const { data, retryScheduled } = deliveryFailureState(job, input);
     requireDeliveryLease(await this.prisma.employeeSettlementDelivery.updateMany({
-      where: claimedDeliveryWhere(agent.storeId, job.id, input.leaseToken),
+      where: { ...claimedDeliveryWhere(agent.storeId, job.id, input.leaseToken), dispatchStartedAt: job.dispatchStartedAt },
       data,
     }));
     return { retryScheduled };

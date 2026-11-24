@@ -23,7 +23,7 @@ let args = CommandLine.arguments
 let database = try MessagesDeliveryDatabase(url: URL(fileURLWithPath: args[1]))
 let observation: MessageDeliveryObservation
 if args[2] == "--text" {
-    observation = try database.observation(text: args[3], snapshotLink: args[4], phone: args[5])
+    observation = try database.observation(text: args[3], bodyMarker: args[4], phone: args[5])
 } else if args[2] == "--guid" {
     observation = try database.observation(messageGuid: args[3], phone: args[4])
 } else {

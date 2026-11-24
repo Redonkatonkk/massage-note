@@ -11,8 +11,15 @@ describe("Messages result monitoring", () => {
     vi.useFakeTimers();
     read.mockResolvedValueOnce(state("PENDING")).mockResolvedValue(state("FAILED"));
     const result = monitorMessagesDelivery("+13105551234", "/task", null).catch(error => error);
-    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(120_000);
     expect(await result).toBeInstanceOf(MessagesDeliveryFailed);
+  });
+  it("Mac 暂时报告失败或查回执失败时继续观察，之后可以确认送达", async () => {
+    vi.useFakeTimers();
+    read.mockResolvedValueOnce(state("FAILED")).mockRejectedValueOnce(new Error("status unavailable")).mockResolvedValue(state("DELIVERED"));
+    const result = monitorMessagesDelivery("+13105551234", "/task", null);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await expect(result).resolves.toMatchObject({ state: "DELIVERED" });
   });
   it("SMS 没有送达回执时观察完整两分钟，保持已发出与送达的区别", async () => {
     vi.useFakeTimers(); read.mockResolvedValue(state("SENT"));
@@ -23,7 +30,7 @@ describe("Messages result monitoring", () => {
   it("上一轮的已送达记录不能充当重试的成功结果", async () => {
     vi.useFakeTimers(); read.mockResolvedValueOnce(state("DELIVERED", "previous")).mockResolvedValue(state("FAILED"));
     const result = monitorMessagesDelivery("+13105551234", "/task", "previous").catch(error => error);
-    await vi.advanceTimersByTimeAsync(5_000); expect(await result).toBeInstanceOf(MessagesDeliveryFailed);
+    await vi.advanceTimersByTimeAsync(120_000); expect(await result).toBeInstanceOf(MessagesDeliveryFailed);
   });
   it("等不到本次消息或一直等待时只标记待核对，不自动重发", async () => {
     vi.useFakeTimers(); read.mockResolvedValue(state("MISSING"));
@@ -32,10 +39,14 @@ describe("Messages result monitoring", () => {
     expect(await result).toMatchObject({ message: expect.stringContaining("结果待核对") });
     expect(await result).not.toBeInstanceOf(MessagesDeliveryFailed);
   });
-  it("有明确送达回执可结束观察，状态读取失败绝不降级为成功", async () => {
+  it("持续无法读取回执时保留诊断错误", async () => {
     read.mockResolvedValueOnce(state("DELIVERED"));
     expect((await monitorMessagesDelivery("+13105551234", "/task", null)).state).toBe("DELIVERED");
-    read.mockRejectedValueOnce(new Error("status unavailable"));
-    await expect(monitorMessagesDelivery("+13105551234", "/task", null)).rejects.toThrow("status unavailable");
+    vi.useFakeTimers();
+    const cause = new Error("status unavailable");
+    read.mockRejectedValue(cause);
+    const result = monitorMessagesDelivery("+13105551234", "/task", null).catch(error => error);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(await result).toMatchObject({ cause });
   });
 });

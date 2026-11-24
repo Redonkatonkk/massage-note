@@ -5,6 +5,8 @@ import type { MessagesDeliveryState, MessagesSubmission } from "./stager.js";
 export interface Journal {
   accepted: string[]; completed: string[]; started?: string[];
   submitted?: Record<string, MessagesSubmission & ({ attachmentPath: string; text?: never } | { text: true; attachmentPath?: never }) & { observation?: MessagesDeliveryState }>;
+  resends?: Record<string, { round: number; previousMessageGuid?: string | null }>;
+  dispatchBaselines?: Record<string, string | null>;
   nextClaimAt?: string;
 }
 
@@ -22,6 +24,11 @@ export async function loadJournal(path: string): Promise<Journal> {
   if (!value || typeof value !== "object" || !("accepted" in value) || !("completed" in value) || !validIds(value.accepted) || !validIds(value.completed)
     || ("started" in value && !validIds(value.started))
     || ("nextClaimAt" in value && (typeof value.nextClaimAt !== "string" || !Number.isFinite(Date.parse(value.nextClaimAt))))
+    || ("dispatchBaselines" in value && (!value.dispatchBaselines || typeof value.dispatchBaselines !== "object" || Array.isArray(value.dispatchBaselines)
+      || !Object.values(value.dispatchBaselines).every(guid => guid === null || typeof guid === "string")))
+    || ("resends" in value && (!value.resends || typeof value.resends !== "object" || Array.isArray(value.resends)
+      || !Object.values(value.resends).every(item => item && typeof item === "object" && Number.isSafeInteger(item.round) && item.round > 0
+        && (item.previousMessageGuid == null || typeof item.previousMessageGuid === "string"))))
     || ("submitted" in value && (!value.submitted || typeof value.submitted !== "object" || Array.isArray(value.submitted)
       || !Object.values(value.submitted).every(item => item && typeof item === "object" && typeof item.service === "string"
         && (item.text === true ? item.attachmentPath === undefined : item.text === undefined && typeof item.attachmentPath === "string")

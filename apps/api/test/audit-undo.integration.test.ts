@@ -131,6 +131,17 @@ describe.skipIf(!enabled).sequential("operation undo", () => {
     await expect(cash.settle(actor, storeId, day, members[1]!, { version: reopened.version }, randomUUID(), randomUUID())).resolves.toMatchObject({ status: "SETTLED" });
   });
 
+  it("reopens a later cash settlement when undo changes the confirmed amount", async () => {
+    const day = "2026-09-16";
+    const created = await createRecord(day);
+    await records.confirmPayment(actor, storeId, created.id, confirmPaymentSchema.parse({ version: created.version, cashServiceCents: 10000 }), randomUUID(), randomUUID());
+    const settled = await cash.settle(actor, storeId, day, members[1]!, { version: 0 }, randomUUID(), randomUUID());
+    const payment = await entry(created.id, "work_record.payment_confirmed");
+    await audit.undo(actor, storeId, payment.id, randomUUID(), randomUUID());
+    await expect(prisma.dailyCashSettlement.findUniqueOrThrow({ where: { id: settled.id } }))
+      .resolves.toMatchObject({ status: "UNSETTLED", version: settled.version + 1 });
+  });
+
   it("cancels a closing and its unclaimed queue together, and protects claimed jobs", async () => {
     await prisma.storeMembership.update({ where: { id: members[1]! }, data: { closingDeliveryEnabled: true } });
     for (const [day, claimed] of [["2026-09-07", false], ["2026-09-08", true]] as const) {

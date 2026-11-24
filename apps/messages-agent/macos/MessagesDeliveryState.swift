@@ -54,9 +54,9 @@ final class MessagesDeliveryDatabase {
         return try observation(sql: sql, values: [attachment.path, relativePath, phone, localPhone(phone)])
     }
 
-    func observation(text: String, snapshotLink: String, phone: String) throws -> MessageDeliveryObservation {
+    func observation(text: String, bodyMarker: String, phone: String) throws -> MessageDeliveryObservation {
         // Some Messages services store the body as a binary attributed string.
-        // The exact per-task HTTPS link is unique even when the body is encoded.
+        // Match the task link for closings or the full dated body for dispatch texts.
         let sql = """
         SELECT m.guid, m.is_sent, m.is_delivered, m.error, m.service
         FROM message m
@@ -66,7 +66,7 @@ final class MessagesDeliveryDatabase {
                AND instr(m.attributedBody, CAST(? AS BLOB)) > 0))
         ORDER BY m.ROWID DESC LIMIT 1
         """
-        return try observation(sql: sql, values: [phone, localPhone(phone), text, snapshotLink])
+        return try observation(sql: sql, values: [phone, localPhone(phone), text, bodyMarker])
     }
 
     func observation(messageGuid: String, phone: String) throws -> MessageDeliveryObservation {

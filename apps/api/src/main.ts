@@ -38,13 +38,17 @@ async function bootstrap(): Promise<void> {
   app.use((request: Request, response: Response, next: NextFunction) => {
     if (!unsafeMethods.has(request.method)) return next();
     const isSessionBootstrap = request.path === "/api/v1/auth/session" || request.path === "/api/v1/auth/dev-session";
-    const isClosingDeliveryAgent = (request.path.startsWith("/api/v1/closing-delivery-agent/") || request.path.startsWith("/api/v1/employee-settlement-delivery-agent/")) && request.header("authorization")?.startsWith("Bearer mna_");
+    const isMessagesAgent = (
+      request.path.startsWith("/api/v1/closing-delivery-agent/")
+      || request.path.startsWith("/api/v1/employee-settlement-delivery-agent/")
+      || request.path.startsWith("/api/v1/dispatch-sms-agent/jobs/")
+    ) && request.header("authorization")?.startsWith("Bearer mna_");
     const isLangBotWorkRequest = (
       request.path === "/api/v1/integrations/langbot/work-context"
       || request.path === "/api/v1/integrations/langbot/work-events"
     ) && request.header("authorization")?.startsWith("Bearer mnw_");
     const origin = request.header("origin");
-    if (!isSessionBootstrap && !isClosingDeliveryAgent && !isLangBotWorkRequest && origin !== webOrigin) {
+    if (!isSessionBootstrap && !isMessagesAgent && !isLangBotWorkRequest && origin !== webOrigin) {
       return response.status(403).json({ code: "CSRF_ORIGIN_REJECTED", messageZh: "请求来源不受信任，请刷新页面后重试", requestId: response.locals.requestId });
     }
     next();

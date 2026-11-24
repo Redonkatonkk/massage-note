@@ -257,8 +257,14 @@ describe.skipIf(!enabled).sequential("工资日历、抵扣与结清事务", () 
     await members.updateMember(owner, storeId, membershipId, { version: disabled.version, dailySettlementEnabled: true }, key());
     const restored = await cash.settle(owner, storeId, "2026-09-12", membershipId, { version: paid.version + 1 }, key(), key());
     const row = await prisma.workRecord.findFirstOrThrow({ where: { storeId, businessDate: new Date("2026-09-12T00:00:00Z") } });
-    await work.update(owner, storeId, row.id, { version: row.version, isHighlighted: true }, key(), key());
-    expect((await preview("2026-09-12")).payment.unsettledCents).toBe(9300);
+    const edited = await work.update(owner, storeId, row.id, { version: row.version, note: "Wage note" }, key(), key());
+    expect((await preview("2026-09-12")).payment.unsettledCents).toBe(0);
+    expect(await prisma.dailyCashSettlement.findUnique({ where: { id: restored.id } })).toMatchObject({ status: "SETTLED", version: restored.version });
+    await work.confirmPayment(owner, storeId, row.id, {
+      version: edited.version, cashServiceCents: 4000, cardServiceCents: 6000,
+      cashTipCents: 1000, cardTipCents: 2400,
+    }, key(), key());
+    expect((await preview("2026-09-12")).payment.unsettledCents).toBe(9400);
     expect(await prisma.dailyCashSettlement.findUnique({ where: { id: restored.id } })).toMatchObject({ status: "UNSETTLED" });
   });
 

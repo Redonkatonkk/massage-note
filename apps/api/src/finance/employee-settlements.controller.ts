@@ -71,7 +71,7 @@ export class EmployeeSettlementDeliveryAgentController {
   @Post("jobs/:deliveryId/authorize")
   authorize(@Headers("authorization") authorization: string | undefined, @Param("deliveryId") deliveryId: string, @Body() body: unknown) {
     const input = parseRequest(closingDeliveryAuthorizeSchema, body);
-    return this.settlements.authorize(authorization, parseRequest(uuidSchema, deliveryId), input.leaseToken);
+    return this.settlements.authorize(authorization, parseRequest(uuidSchema, deliveryId), input.leaseToken, input.startDispatch);
   }
 
   @Post("jobs/:deliveryId/checkpoint")
